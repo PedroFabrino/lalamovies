@@ -68,13 +68,13 @@ CLOUDFLARE_TUNNEL_TOKEN=your_cloudflare_tunnel_token
 Start the backend API, qBittorrent, and Jellyfin services:
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d
+docker compose --env-file .env -f docker/docker-compose.yml up -d
 ```
 
 Check running containers:
 
 ```bash
-docker compose -f docker/docker-compose.yml ps
+docker compose --env-file .env -f docker/docker-compose.yml ps
 ```
 
 ---
