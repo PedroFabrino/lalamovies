@@ -32,3 +32,8 @@ pnpm-debug.log*
 
 # Scratch directory (internal agent tracking)
 .scratch
+
+# Docker local data
+docker/config/
+docker/cache/
+data/
