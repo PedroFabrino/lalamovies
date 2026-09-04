@@ -51,6 +51,8 @@ services:
     container_name: mdm-jellyfin
     restart: unless-stopped
     environment:
+      # When Caddy is used for external HTTPS access, set this to your public domain.
+      # For local-only access, leave as http://localhost:8096.
       - JELLYFIN_PublishedServerUrl=${JELLYFIN_PublishedServerUrl:-http://localhost:8096}
     ports:
       - "${JELLYFIN_PORT:-8096}:8096"
@@ -58,6 +60,27 @@ services:
       - ./config/jellyfin:/config
       - ./cache/jellyfin:/cache
       - media_data:/media_data
+
+  # Caddy acts as a reverse proxy / TLS terminator for Jellyfin ONLY.
+  # The Fastify API continues to be exposed via the cloudflared tunnel above.
+  # Caddy obtains and auto-renews a free Let's Encrypt certificate for JELLYFIN_DOMAIN.
+  # Requires: port 80 and 443 forwarded on your home router to this host.
+  caddy:
+    image: caddy:latest
+    container_name: mdm-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3 (QUIC)
+    environment:
+      - JELLYFIN_DOMAIN=${JELLYFIN_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - jellyfin
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -77,3 +100,8 @@ volumes:
     #   /media_data/media              (Library: movies, shows, anime)
     #   /media_data/data               (SQLite DB)
     # Because all these paths share the exact same filesystem mount, hardlinks work seamlessly.
+  caddy_data:
+    # Stores Caddy's TLS certificates and ACME account data (Let's Encrypt).
+    # Must be a named volume (not a bind mount) so certificate data survives container recreations.
+  caddy_config:
+    # Stores Caddy's runtime configuration cache.

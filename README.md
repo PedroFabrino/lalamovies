@@ -9,18 +9,23 @@ A self-hosted media download and automation platform designed for small, trusted
 ```
 [Vue 3 + Vite SPA (Vercel)]
           ↕ HTTPS (REST + WebSocket)
-  [Cloudflare Tunnel]
+  [Cloudflare Tunnel]                       ← API traffic only
           ↕
-[Fastify API + SQLite (Docker)]  ←→  [qBittorrent (Docker)]
+[Fastify API + SQLite (Docker)]  ↔  [qBittorrent (Docker)]
           ↕                                  ↕
    [Jellyfin API]               [/media_data/downloads/staging]
           ↕                                  ↕ hardlink upon completion
           └──────── /media_data/media/movies|shows|anime ────────┘
+          ↕
+        [Caddy]                               ← Jellyfin video streaming only
+          ↕ HTTPS (TLS terminated, port 443)
+  [TV / Jellyfin Client]        ← direct to home IP, bypasses Cloudflare proxy
 ```
 
 - **Shared Volume**: All storage (`/media_data/downloads/staging`, `/media_data/media`, `/media_data/data`) resides on a single Docker named volume (`media_data`), ensuring atomic filesystem hardlinks without data duplication.
 - **Identity Provider**: Jellyfin serves as the single source of truth for authentication.
 - **Cleanup**: Proactive disk space checks (< 15% reject threshold, < 20% nightly warning threshold) and play-history LRU cleanup with admin keep-flag immunity.
+- **Split Egress**: The Fastify API is exposed via Cloudflare Tunnel (lightweight JSON/WebSocket traffic, compliant with Cloudflare ToS). Jellyfin is exposed via Caddy on a dedicated subdomain with DNS-only Cloudflare routing, so video traffic never passes through Cloudflare's proxy network.
 
 ---
 
@@ -135,9 +140,89 @@ To allow the frontend on Vercel to communicate with your self-hosted backend wit
    docker compose -f docker/docker-compose.yml up -d cloudflared
    ```
 
+
+---
+
+## Jellyfin Remote Streaming (Caddy)
+
+> **Why not Cloudflare Tunnel for Jellyfin?**
+> The Cloudflare Tunnel is used for the Fastify API (lightweight JSON and WebSocket traffic), which is fully compliant with Cloudflare's terms. Routing Jellyfin **video streaming** through Cloudflare's proxy violates their Terms of Service (free accounts may not proxy large volumes of non-HTML media) and risks account suspension. Caddy is used instead: it terminates HTTPS directly at your home, so video data travels from your server straight to your TV without passing through any third-party proxy.
+
+This setup gives friends a clean HTTPS address (`https://watch.yourdomain.com`) to enter in their TV's Jellyfin app, with full streaming speeds and no Cloudflare involvement in the video path.
+
+### Prerequisites
+
+- A domain managed in Cloudflare DNS (the same or a different domain from your API tunnel).
+- Ports **80** and **443** forwarded on your home router to the host machine running Docker.
+
+### Step 1: Create a DNS Record in Cloudflare
+
+1. In the [Cloudflare Dashboard](https://dash.cloudflare.com/), select your domain and go to **DNS** → **Records**.
+2. Click **Add record**:
+   - **Type**: `A`
+   - **Name**: `watch` (resulting in `watch.yourdomain.com`)
+   - **IPv4 address**: Your home public IP address (find it at [whatismyip.com](https://www.whatismyip.com/))
+   - **Proxy status**: **DNS only** (Grey Cloud — the toggle must be grey, NOT orange)
+3. Save the record.
+
+> **Why DNS Only (Grey Cloud)?** When the cloud is orange, Cloudflare proxies all traffic through their edge servers. That would route your video data through Cloudflare, violating their ToS. With the grey cloud, Cloudflare acts only as a DNS phonebook — your TV connects directly to your home IP, and Cloudflare is not involved in the stream at all.
+
+### Step 2: Configure Environment Variables
+
+In your `.env` file, set:
+
+```ini
+# The domain Caddy will obtain a TLS certificate for and serve Jellyfin on.
+JELLYFIN_DOMAIN=watch.yourdomain.com
+
+# Tell Jellyfin its public address so clients receive correct playback URLs.
+JELLYFIN_PublishedServerUrl=https://watch.yourdomain.com
+```
+
+### Step 3: Forward Ports on Your Router
+
+Log into your home router admin panel and create two port forwarding rules pointing to the IP address of the host machine running Docker:
+
+| External Port | Internal Port | Protocol | Purpose |
+| :--- | :--- | :--- | :--- |
+| `80` | `80` | TCP | Let's Encrypt HTTP challenge (certificate issuance) |
+| `443` | `443` | TCP+UDP | HTTPS video streaming |
+
+The exact steps vary by router brand, but the setting is usually under **Advanced** → **Port Forwarding** or **NAT**.
+
+### Step 4: Start the Caddy Container
+
+Restart the stack to bring up the Caddy service:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d
+```
+
+Caddy will automatically contact Let's Encrypt, obtain a free TLS certificate for `JELLYFIN_DOMAIN`, and begin serving Jellyfin over HTTPS. No manual certificate management is needed — renewal is automatic.
+
+Verify Caddy is running and the certificate was issued:
+
+```bash
+docker compose -f docker/docker-compose.yml logs caddy
+# Look for: certificate obtained successfully
+```
+
+### Step 5: Connect Your TV
+
+1. Install the **Jellyfin** client app on your TV (available on Android TV, Google TV, Fire TV, Roku, Apple TV, LG, and Samsung).
+2. Open the app and choose **Add Server** (or **Connect to Server**).
+3. Enter the server address:
+   ```
+   https://watch.yourdomain.com
+   ```
+4. Log in using your Jellyfin username and password.
+
+Friends who accepted an invite link will use the same credentials they created during sign-up — no extra accounts or admin access needed.
+
 ---
 
 ## Frontend Deployment (Vercel)
+
 
 The web frontend is a Vue 3 + Vite SPA located in `apps/web`.
 
@@ -200,7 +285,9 @@ The application includes an invite system that provisionally links new users dir
 | `TMDB_API_KEY` | **Yes** | — | Developer API Key from The Movie Database (v3 auth) |
 | `DISCORD_WEBHOOK_URL`| No | — | Discord Webhook URL for download and cleanup alerts |
 | `RESEND_API_KEY` | No | — | Resend API key (stubbed for future email notifications) |
-| `CLOUDFLARE_TUNNEL_TOKEN` | No | — | Connector token from Cloudflare Zero Trust dashboard |
+| `CLOUDFLARE_TUNNEL_TOKEN` | No | — | Connector token from Cloudflare Zero Trust dashboard (API only — do not proxy Jellyfin through this) |
+| `JELLYFIN_DOMAIN` | No | — | Public domain for Jellyfin HTTPS streaming via Caddy (e.g. `watch.yourdomain.com`). Must use DNS-only Cloudflare routing |
+| `JELLYFIN_PublishedServerUrl` | No | `http://localhost:8096` | Public URL Jellyfin advertises to clients. Set to `https://watch.yourdomain.com` when Caddy is enabled |
 | `VITE_API_URL` | **Yes** | `http://localhost:3000` | Public backend URL configured in the frontend SPA |
 
 ---

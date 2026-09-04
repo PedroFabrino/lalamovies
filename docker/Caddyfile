@@ -1,0 +1,50 @@
+# Caddyfile — Jellyfin HTTPS reverse proxy
+#
+# This Caddyfile is used exclusively for Jellyfin (media streaming).
+# The Fastify backend API is NOT routed through Caddy; it remains
+# accessible via the Cloudflare Tunnel to avoid routing video traffic
+# through Cloudflare's proxy network (which violates their ToS).
+#
+# Requirements before starting:
+#   1. Set JELLYFIN_DOMAIN in your .env (e.g. watch.yourdomain.com)
+#   2. Create a DNS A record in Cloudflare pointing JELLYFIN_DOMAIN to
+#      your home public IP — set proxy status to "DNS Only" (Grey Cloud).
+#   3. Forward ports 80 and 443 on your home router to this host machine.
+#
+# Caddy will automatically obtain and renew a free Let's Encrypt TLS
+# certificate for the domain — no manual certificate management needed.
+
+{$JELLYFIN_DOMAIN} {
+    # Reverse proxy all traffic to the Jellyfin container.
+    reverse_proxy jellyfin:8096 {
+        # Pass the real client IP to Jellyfin so it appears in logs
+        # and Jellyfin's bandwidth reporting is accurate.
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Increase timeouts for large video file transfers and long-running
+    # HTTP streams. Without this, Caddy may terminate an active stream
+    # mid-playback for exceeding its default response timeout.
+    @streaming {
+        path /Videos/*
+        path /Audio/*
+        path /Items/*/Download
+    }
+    route @streaming {
+        reverse_proxy jellyfin:8096 {
+            transport http {
+                response_header_timeout 0
+                read_timeout 0
+            }
+        }
+    }
+
+    # Enable HTTP Strict Transport Security (HSTS) to enforce HTTPS
+    # on future visits.
+    header Strict-Transport-Security "max-age=31536000;"
+
+    # Compress responses where supported.
+    encode gzip
+}

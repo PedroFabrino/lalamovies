@@ -18,6 +18,8 @@ build
 *.db-journal
 *.db-wal
 *.db-shm
+*.sqlite
+*.sqlite3
 
 # OS and Editor
 .DS_Store
@@ -26,10 +28,12 @@ Thumbs.db
 !.vscode/extensions.json
 .idea
 
-# Logs
+# Logs & Coverage
 *.log
 npm-debug.log*
 pnpm-debug.log*
+coverage/
+.turbo
 
 # Scratch directory (internal agent tracking)
 .scratch
