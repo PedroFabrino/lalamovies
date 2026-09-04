@@ -5,6 +5,7 @@ import { AppDatabase, downloadRequests, systemConfig } from '../db';
 import { IQBittorrentService } from '../services/qbittorrent';
 import { IFileSystemService } from '../services/fileSystem';
 import { IJellyfinService } from '../services/jellyfin';
+import { INotificationService } from '../services/notifications';
 
 export interface PollerLogger {
   info: (msg: string) => void;
@@ -16,6 +17,7 @@ export interface DownloadPollerOptions {
   qbittorrent: IQBittorrentService;
   fileSystem: IFileSystemService;
   jellyfin: IJellyfinService;
+  notificationService?: INotificationService;
   stagingPath?: string;
   intervalMs?: number;
   logger?: PollerLogger;
@@ -29,6 +31,7 @@ export class DownloadPoller {
   private qbittorrent: IQBittorrentService;
   private fileSystem: IFileSystemService;
   private jellyfin: IJellyfinService;
+  private notificationService?: INotificationService;
   private stagingPath: string;
   private intervalMs: number;
   private logger?: PollerLogger;
@@ -39,6 +42,7 @@ export class DownloadPoller {
     this.qbittorrent = options.qbittorrent;
     this.fileSystem = options.fileSystem;
     this.jellyfin = options.jellyfin;
+    this.notificationService = options.notificationService;
     this.stagingPath = options.stagingPath || process.env.STAGING_PATH || path.resolve(process.cwd(), 'downloads/staging');
     this.intervalMs = options.intervalMs || 5000;
     this.logger = options.logger;
@@ -123,6 +127,14 @@ export class DownloadPoller {
               requestId: req.id,
               status: 'seeding',
             });
+
+            if (this.notificationService) {
+              await this.notificationService.send('download.completed', {
+                title: req.title,
+                requestId: req.id,
+                path: destPath,
+              });
+            }
 
             this.logger?.info(`Torrent ${req.title} successfully hardlinked to ${destPath} and set to seeding.`);
           }

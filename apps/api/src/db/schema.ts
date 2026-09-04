@@ -41,6 +41,7 @@ export const downloadRequests = sqliteTable('download_requests', {
   requestedAt: text('requested_at').notNull(),
   downloadedAt: text('downloaded_at'),
   lastPlayedAt: text('last_played_at'),
+  scheduledDeleteAt: text('scheduled_delete_at'),
   sizeBytes: integer('size_bytes'),
 });
 

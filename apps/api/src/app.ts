@@ -9,8 +9,10 @@ import { IJellyfinService, JellyfinService } from './services/jellyfin';
 import { IMetadataService, MetadataService } from './services/metadata';
 import { IQBittorrentService, QBittorrentService } from './services/qbittorrent';
 import { ICleanupService, CleanupService } from './services/cleanup';
+import { INotificationService, NotificationService } from './services/notifications';
 import { IFileSystemService, FileSystemService } from './services/fileSystem';
 import { DownloadPoller } from './jobs/downloadPoller';
+import { CleanupCron } from './jobs/cleanupCron';
 import { authRoutes } from './routes/auth';
 import { inviteRoutes } from './routes/invites';
 import { requestRoutes } from './routes/requests';
@@ -23,9 +25,12 @@ export interface AppOptions {
   metadataService?: IMetadataService;
   qbittorrentService?: IQBittorrentService;
   cleanupService?: ICleanupService;
+  notificationService?: INotificationService;
   fileSystemService?: IFileSystemService;
   downloadPoller?: DownloadPoller;
+  cleanupCron?: CleanupCron;
   startPoller?: boolean;
+  startCleanupCron?: boolean;
   jwtSecret?: string;
 }
 
@@ -37,6 +42,8 @@ declare module 'fastify' {
     metadata: IMetadataService;
     qbittorrent: IQBittorrentService;
     cleanup: ICleanupService;
+    notifications: INotificationService;
+    cleanupCron: CleanupCron;
     fileSystem: IFileSystemService;
     poller: DownloadPoller;
     broadcast: BroadcastFunction;
@@ -50,9 +57,11 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
 
   const { db, sqlite } = initDatabase(options.dbPath, options.runMigrate ?? true);
   const qbittorrent = options.qbittorrentService ?? new QBittorrentService();
-  const cleanup = options.cleanupService ?? new CleanupService(db, qbittorrent);
-  const fileSystem = options.fileSystemService ?? new FileSystemService();
   const jellyfin = options.jellyfinService ?? new JellyfinService();
+  const notifications = options.notificationService ?? new NotificationService();
+  const cleanup =
+    options.cleanupService ?? new CleanupService(db, qbittorrent, jellyfin, notifications);
+  const fileSystem = options.fileSystemService ?? new FileSystemService();
   const metadata = options.metadataService ?? new MetadataService();
 
   const poller =
@@ -62,6 +71,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       qbittorrent,
       fileSystem,
       jellyfin,
+      notificationService: notifications,
       logger: {
         info: (msg: string) => app.log.info(msg),
         error: (msg: string, err?: unknown) => app.log.error(err, msg),
@@ -77,17 +87,34 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     poller.start();
   }
 
+  const cleanupCron =
+    options.cleanupCron ??
+    new CleanupCron({
+      cleanupService: cleanup,
+      logger: {
+        info: (msg: string) => app.log.info(msg),
+        error: (msg: string, err?: unknown) => app.log.error(err, msg),
+      },
+    });
+
+  if (options.startCleanupCron) {
+    cleanupCron.start();
+  }
+
   app.decorate('db', db);
   app.decorate('sqlite', sqlite);
   app.decorate('jellyfin', jellyfin);
   app.decorate('metadata', metadata);
   app.decorate('qbittorrent', qbittorrent);
   app.decorate('cleanup', cleanup);
+  app.decorate('notifications', notifications);
+  app.decorate('cleanupCron', cleanupCron);
   app.decorate('fileSystem', fileSystem);
   app.decorate('poller', poller);
 
   app.addHook('onClose', async () => {
     poller.stop();
+    cleanupCron.stop();
     sqlite.close();
   });
 

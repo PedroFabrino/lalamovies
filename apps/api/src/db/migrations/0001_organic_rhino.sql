@@ -1,0 +1,1 @@
+ALTER TABLE `download_requests` ADD `scheduled_delete_at` text;

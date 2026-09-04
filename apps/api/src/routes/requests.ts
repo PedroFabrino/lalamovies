@@ -155,6 +155,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       requestedAt: new Date().toISOString(),
       downloadedAt: null,
       lastPlayedAt: null,
+      scheduledDeleteAt: null,
       sizeBytes: null,
     };
 

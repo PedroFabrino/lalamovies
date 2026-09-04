@@ -24,7 +24,7 @@ export interface IJellyfinService {
   createUser(username: string, password: string): Promise<string>;
   deleteUser(userId: string): Promise<void>;
   refreshLibrary?(): Promise<void>;
-  getPlayHistory?(jellyfinUserId?: string): Promise<Record<string, string>>;
+  getPlayHistory?(userId?: string): Promise<Record<string, string>>;
 }
 
 export class JellyfinService implements IJellyfinService {
@@ -156,6 +156,48 @@ export class JellyfinService implements IJellyfinService {
       if (!response.ok && response.status !== 404) {
         throw new JellyfinApiError(`Failed to delete Jellyfin user: HTTP ${response.status}`, response.status);
       }
+    } catch (err: unknown) {
+      if (err instanceof JellyfinApiError) {
+        throw err;
+      }
+      throw new JellyfinApiError(`Failed to connect to Jellyfin server: ${(err as Error).message}`);
+    }
+  }
+
+  async getPlayHistory(userId?: string): Promise<Record<string, string>> {
+    const url = userId
+      ? `${this.baseUrl}/Users/${userId}/Items?Recursive=true&Fields=UserData,Path`
+      : `${this.baseUrl}/Items?Recursive=true&Fields=UserData,Path`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new JellyfinApiError(`Failed to fetch play history: HTTP ${response.status}`, response.status);
+      }
+
+      const data = (await response.json()) as {
+        Items?: Array<{
+          Path?: string;
+          UserData?: {
+            LastPlayedDate?: string;
+            Played?: boolean;
+          };
+        }>;
+      };
+
+      const history: Record<string, string> = {};
+      if (data.Items && Array.isArray(data.Items)) {
+        for (const item of data.Items) {
+          if (item.Path && item.UserData?.LastPlayedDate) {
+            history[item.Path] = item.UserData.LastPlayedDate;
+          }
+        }
+      }
+      return history;
     } catch (err: unknown) {
       if (err instanceof JellyfinApiError) {
         throw err;
