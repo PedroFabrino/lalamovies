@@ -1,0 +1,79 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    container_name: mdm-api
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-3000}:3000"
+    environment:
+      - PORT=3000
+      - HOST=0.0.0.0
+      - NODE_ENV=production
+      - DATABASE_PATH=/media_data/data/app.db
+      - STAGING_PATH=/media_data/downloads/staging
+      - MEDIA_PATH=/media_data/media
+      - JELLYFIN_URL=http://jellyfin:8096
+      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
+      - QBITTORRENT_URL=http://qbittorrent:8080
+      - QBITTORRENT_USER=${QBITTORRENT_USER:-admin}
+      - QBITTORRENT_PASSWORD=${QBITTORRENT_PASSWORD:-adminadmin}
+      - TMDB_API_KEY=${TMDB_API_KEY}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - JWT_SECRET=${JWT_SECRET}
+    volumes:
+      - media_data:/media_data
+    depends_on:
+      - qbittorrent
+      - jellyfin
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: mdm-qbittorrent
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-UTC}
+      - WEBUI_PORT=8080
+      - TORRENTING_PORT=6881
+    ports:
+      - "${QBITTORRENT_WEBUI_PORT:-8080}:8080"
+      - "6881:6881"
+      - "6881:6881/udp"
+    volumes:
+      - ./config/qbittorrent:/config
+      - media_data:/media_data
+
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: mdm-jellyfin
+    restart: unless-stopped
+    environment:
+      - JELLYFIN_PublishedServerUrl=${JELLYFIN_PublishedServerUrl:-http://localhost:8096}
+    ports:
+      - "${JELLYFIN_PORT:-8096}:8096"
+    volumes:
+      - ./config/jellyfin:/config
+      - ./cache/jellyfin:/cache
+      - media_data:/media_data
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: mdm-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - api
+
+volumes:
+  media_data:
+    # Single named Docker volume mounted at /media_data on all services.
+    # Subdirectories:
+    #   /media_data/downloads/staging  (Staging Area)
+    #   /media_data/media              (Library: movies, shows, anime)
+    #   /media_data/data               (SQLite DB)
+    # Because all these paths share the exact same filesystem mount, hardlinks work seamlessly.
