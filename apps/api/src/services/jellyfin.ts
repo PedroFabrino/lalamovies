@@ -34,7 +34,7 @@ export class JellyfinService implements IJellyfinService {
   private version = '1.0.0';
 
   constructor(baseUrl?: string) {
-    this.baseUrl = (baseUrl || process.env.JELLYFIN_URL || 'http://jellyfin:8096').replace(/\/$/, '');
+    this.baseUrl = (baseUrl || process.env.JELLYFIN_URL || 'http://localhost:8096').replace(/\/$/, '');
   }
 
   private getAuthHeader(): string {
