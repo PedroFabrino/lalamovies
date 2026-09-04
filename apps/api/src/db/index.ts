@@ -21,18 +21,21 @@ export function getDatabasePath(): string {
 
 export function getMigrationsFolder(): string {
   const candidates = [
+    path.resolve(__dirname, 'db/migrations'),
     path.resolve(__dirname, 'migrations'),
+    path.resolve(process.cwd(), 'apps/api/dist/db/migrations'),
+    path.resolve(process.cwd(), 'apps/api/dist/migrations'),
     path.resolve(__dirname, '../src/db/migrations'),
     path.resolve(process.cwd(), 'src/db/migrations'),
     path.resolve(process.cwd(), 'apps/api/src/db/migrations'),
     path.resolve(process.cwd(), 'dist/db/migrations'),
   ];
   for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
+    if (fs.existsSync(candidate) && fs.existsSync(path.join(candidate, 'meta', '_journal.json'))) {
       return candidate;
     }
   }
-  return path.resolve(__dirname, 'migrations');
+  return path.resolve(__dirname, 'db/migrations');
 }
 
 export function initDatabase(dbPath?: string, runMigrate = true): { db: AppDatabase; sqlite: Database.Database } {

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json && node -e \"const fs = require('node:fs'); fs.cpSync('src/db/migrations', 'dist/db/migrations', { recursive: true });\"",
+    "build": "esbuild src/index.ts --bundle --platform=node --packages=external --format=esm --target=node22 --outfile=dist/index.js && node -e \"const fs = require('node:fs'); fs.cpSync('src/db/migrations', 'dist/db/migrations', { recursive: true }); fs.cpSync('src/db/migrations', 'dist/migrations', { recursive: true });\"",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
@@ -34,6 +34,7 @@
     "@typescript-eslint/eslint-plugin": "^7.15.0",
     "@typescript-eslint/parser": "^7.15.0",
     "drizzle-kit": "^0.31.10",
+    "esbuild": "^0.28.2",
     "eslint": "^8.57.0",
     "tsx": "^4.16.2",
     "typescript": "^5.5.3",
