@@ -5,13 +5,16 @@ import fastifyJwt from '@fastify/jwt';
 import Database from 'better-sqlite3';
 import { initDatabase, AppDatabase } from './db';
 import { IJellyfinService, JellyfinService } from './services/jellyfin';
+import { IMetadataService, MetadataService } from './services/metadata';
 import { authRoutes } from './routes/auth';
 import { inviteRoutes } from './routes/invites';
+import { requestRoutes } from './routes/requests';
 
 export interface AppOptions {
   dbPath?: string;
   runMigrate?: boolean;
   jellyfinService?: IJellyfinService;
+  metadataService?: IMetadataService;
   jwtSecret?: string;
 }
 
@@ -20,6 +23,7 @@ declare module 'fastify' {
     db: AppDatabase;
     sqlite: Database.Database;
     jellyfin: IJellyfinService;
+    metadata: IMetadataService;
   }
 }
 
@@ -33,6 +37,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.decorate('db', db);
   app.decorate('sqlite', sqlite);
   app.decorate('jellyfin', options.jellyfinService ?? new JellyfinService());
+  app.decorate('metadata', options.metadataService ?? new MetadataService());
 
   app.addHook('onClose', async () => {
     sqlite.close();
@@ -60,6 +65,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
 
   app.register(authRoutes, { prefix: '/auth' });
   app.register(inviteRoutes, { prefix: '/invites' });
+  app.register(requestRoutes, { prefix: '/requests' });
 
   return app;
 }
