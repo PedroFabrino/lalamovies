@@ -46,6 +46,15 @@ export const useRequestsStore = defineStore('requests', () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
   const progressMap = ref<Record<string, ProgressData>>({});
+  const toast = ref<{ text: string; type: 'info' | 'success' | 'error' } | null>(null);
+
+  function showToast(text: string, type: 'info' | 'success' | 'error' = 'info'): void {
+    toast.value = { text, type };
+  }
+
+  function clearToast(): void {
+    toast.value = null;
+  }
 
   async function fetchAll(): Promise<void> {
     loading.value = true;
@@ -123,6 +132,9 @@ export const useRequestsStore = defineStore('requests', () => {
     loading,
     error,
     progressMap,
+    toast,
+    showToast,
+    clearToast,
     fetchAll,
     deleteRequest,
     toggleKeep,

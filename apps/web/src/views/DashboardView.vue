@@ -1,76 +1,57 @@
 <template>
   <div class="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
-    <!-- Header -->
-    <header class="border-b border-zinc-800 bg-zinc-900/60 backdrop-blur sticky top-0 z-20 px-6 py-3.5 flex items-center justify-between">
-      <div class="flex items-center gap-6">
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white shadow">
-            M
-          </div>
-          <span class="font-semibold text-lg text-white">Media Download Manager</span>
-        </div>
-
-        <!-- Navigation links -->
-        <nav class="hidden sm:flex items-center gap-2">
-          <router-link
-            to="/dashboard"
-            class="px-3 py-1.5 text-sm font-medium rounded-lg bg-zinc-800 text-white"
-          >
-            Dashboard
-          </router-link>
-          <router-link
-            to="/request"
-            class="px-3 py-1.5 text-sm font-medium rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition"
-          >
-            New Request
-          </router-link>
-          <router-link
-            v-if="authStore.isAdmin"
-            to="/admin"
-            class="px-3 py-1.5 text-sm font-medium rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition"
-          >
-            Admin
-          </router-link>
-        </nav>
-      </div>
-
-      <div class="flex items-center gap-4">
-        <!-- Live WS feed indicator -->
-        <div
-          class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition"
-          :class="isConnected ? 'bg-emerald-950/40 border-emerald-800 text-emerald-400' : 'bg-amber-950/40 border-amber-800 text-amber-400'"
-        >
-          <span
-            class="w-2 h-2 rounded-full"
-            :class="isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'"
-          />
-          <span>{{ isConnected ? 'Live Feed' : 'Connecting...' }}</span>
-        </div>
-
-        <div class="text-right hidden sm:block">
-          <div class="text-sm font-medium text-white flex items-center gap-2 justify-end">
-            <span>{{ authStore.user?.username }}</span>
-            <span
-              v-if="authStore.isAdmin"
-              class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-semibold uppercase tracking-wider"
-            >
-              Admin
-            </span>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          class="px-3 py-1.5 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition cursor-pointer"
-          @click="handleLogout"
-        >
-          Sign Out
-        </button>
-      </div>
-    </header>
+    <!-- Navbar -->
+    <Navbar />
 
     <!-- Main Content -->
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
+      <!-- Toast Alert -->
+      <div
+        v-if="requestsStore.toast"
+        class="mb-6 p-4 rounded-xl border flex items-center justify-between gap-3 shadow-lg"
+        :class="requestsStore.toast.type === 'error'
+          ? 'bg-red-950/60 border-red-800 text-red-200'
+          : requestsStore.toast.type === 'success'
+            ? 'bg-emerald-950/60 border-emerald-800 text-emerald-200'
+            : 'bg-indigo-950/60 border-indigo-800 text-indigo-200'"
+      >
+        <div class="flex items-center gap-3">
+          <svg
+            class="w-5 h-5 shrink-0"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          <span class="text-sm font-medium">{{ requestsStore.toast.text }}</span>
+        </div>
+        <button
+          type="button"
+          class="p-1 text-zinc-400 hover:text-white rounded-lg transition cursor-pointer"
+          @click="requestsStore.clearToast"
+        >
+          <svg
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      </div>
+
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 class="text-2xl font-bold tracking-tight text-white">
@@ -478,10 +459,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import Navbar from '../components/Navbar.vue';
 import { useAuthStore } from '../stores/auth';
 import { useRequestsStore, DownloadRequest } from '../stores/requests';
-import { useProgressSocket } from '../composables/useProgressSocket';
 import {
   formatSpeed,
   formatEta,
@@ -489,12 +469,8 @@ import {
   formatDate,
 } from '../lib/formatters';
 
-const router = useRouter();
 const authStore = useAuthStore();
 const requestsStore = useRequestsStore();
-
-// Live WebSocket connection for real-time progress
-const { isConnected } = useProgressSocket();
 
 const itemToDelete = ref<DownloadRequest | null>(null);
 const isDeleting = ref(false);
@@ -502,11 +478,6 @@ const isDeleting = ref(false);
 onMounted(async () => {
   await requestsStore.fetchAll();
 });
-
-async function handleLogout() {
-  await authStore.logout();
-  router.push('/login');
-}
 
 function canDelete(item: DownloadRequest): boolean {
   if (authStore.isAdmin) return true;
