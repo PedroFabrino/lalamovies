@@ -126,6 +126,25 @@ export class JellyfinService implements IJellyfinService {
     }
   }
 
+  async refreshLibrary(): Promise<void> {
+    const url = `${this.baseUrl}/Library/Refresh`;
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new JellyfinApiError(`Failed to refresh Jellyfin library: HTTP ${response.status}`, response.status);
+      }
+    } catch (err: unknown) {
+      if (err instanceof JellyfinApiError) {
+        throw err;
+      }
+      throw new JellyfinApiError(`Failed to connect to Jellyfin server: ${(err as Error).message}`);
+    }
+  }
+
   async deleteUser(userId: string): Promise<void> {
     const url = `${this.baseUrl}/Users/${userId}`;
     try {
