@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { eq, asc } from 'drizzle-orm';
-import { AppDatabase, downloadRequests, systemConfig } from '../db';
+import { AppDatabase, downloadRequests, systemConfig, users } from '../db';
 import { IQBittorrentService } from '../services/qbittorrent';
 import { IFileSystemService } from '../services/fileSystem';
 import { IJellyfinService } from '../services/jellyfin';
@@ -129,10 +129,23 @@ export class DownloadPoller {
             });
 
             if (this.notificationService) {
+              let requestedBy: string | undefined;
+              if (req.userId) {
+                const reqUser = this.db
+                  .select({ username: users.username })
+                  .from(users)
+                  .where(eq(users.id, req.userId))
+                  .get();
+                requestedBy = reqUser?.username;
+              }
+
               await this.notificationService.send('download.completed', {
                 title: req.title,
                 requestId: req.id,
+                mediaType: req.mediaType,
+                requestedBy,
                 path: destPath,
+                jellyfinUrl: process.env.JELLYFIN_URL || undefined,
               });
             }
 

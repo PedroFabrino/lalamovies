@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { eq, and, isNull, isNotNull, lte, asc } from 'drizzle-orm';
-import { AppDatabase, systemConfig, downloadRequests, DownloadRequest } from '../db';
+import { AppDatabase, systemConfig, downloadRequests, DownloadRequest, users } from '../db';
 import { IQBittorrentService } from './qbittorrent';
 import { IJellyfinService } from './jellyfin';
 import { INotificationService } from './notifications';
@@ -246,11 +246,22 @@ export class CleanupService implements ICleanupService {
       item.scheduledDeleteAt = null;
       deleted.push(item);
 
+      let requestedBy: string | undefined;
+      if (item.userId) {
+        const u = this.db
+          .select({ username: users.username })
+          .from(users)
+          .where(eq(users.id, item.userId))
+          .get();
+        requestedBy = u?.username;
+      }
+
       // 5. Send notification
       if (this.notificationService) {
         await this.notificationService.send('cleanup.done', {
           title: item.title,
           requestId: item.id,
+          requestedBy,
           path: item.jellyfinPath ?? undefined,
         });
       }
@@ -305,11 +316,22 @@ export class CleanupService implements ICleanupService {
       .where(eq(downloadRequests.id, requestId))
       .run();
 
+    let requestedBy: string | undefined;
+    if (request.userId) {
+      const u = this.db
+        .select({ username: users.username })
+        .from(users)
+        .where(eq(users.id, request.userId))
+        .get();
+      requestedBy = u?.username;
+    }
+
     // 5. Send notification
     if (this.notificationService) {
       await this.notificationService.send('cleanup.done', {
         title: request.title,
         requestId: request.id,
+        requestedBy,
         path: request.jellyfinPath ?? undefined,
       });
     }
