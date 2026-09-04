@@ -19,6 +19,7 @@ export interface DownloadPollerOptions {
   stagingPath?: string;
   intervalMs?: number;
   logger?: PollerLogger;
+  broadcast?: (msg: object) => void;
 }
 
 export class DownloadPoller {
@@ -31,6 +32,7 @@ export class DownloadPoller {
   private stagingPath: string;
   private intervalMs: number;
   private logger?: PollerLogger;
+  private broadcast?: (msg: object) => void;
 
   constructor(options: DownloadPollerOptions) {
     this.db = options.db;
@@ -40,6 +42,7 @@ export class DownloadPoller {
     this.stagingPath = options.stagingPath || process.env.STAGING_PATH || path.resolve(process.cwd(), 'downloads/staging');
     this.intervalMs = options.intervalMs || 5000;
     this.logger = options.logger;
+    this.broadcast = options.broadcast;
   }
 
   async pollOnce(): Promise<void> {
@@ -115,6 +118,12 @@ export class DownloadPoller {
               .where(eq(downloadRequests.id, req.id))
               .run();
 
+            this.broadcast?.({
+              type: 'status',
+              requestId: req.id,
+              status: 'seeding',
+            });
+
             this.logger?.info(`Torrent ${req.title} successfully hardlinked to ${destPath} and set to seeding.`);
           }
         } catch (itemErr) {
@@ -127,6 +136,12 @@ export class DownloadPoller {
             })
             .where(eq(downloadRequests.id, req.id))
             .run();
+
+          this.broadcast?.({
+            type: 'status',
+            requestId: req.id,
+            status: 'error',
+          });
         }
       }
 
@@ -161,6 +176,12 @@ export class DownloadPoller {
               })
               .where(eq(downloadRequests.id, queuedReq.id))
               .run();
+
+            this.broadcast?.({
+              type: 'status',
+              requestId: queuedReq.id,
+              status: 'downloading',
+            });
 
             this.logger?.info(`Started queued request: ${queuedReq.title} (hash: ${hash})`);
           } catch (err) {

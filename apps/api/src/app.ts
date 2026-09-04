@@ -2,6 +2,7 @@ import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import fastifyCookie from '@fastify/cookie';
 import fastifyJwt from '@fastify/jwt';
+import fastifyWebsocket from '@fastify/websocket';
 import Database from 'better-sqlite3';
 import { initDatabase, AppDatabase } from './db';
 import { IJellyfinService, JellyfinService } from './services/jellyfin';
@@ -13,6 +14,7 @@ import { DownloadPoller } from './jobs/downloadPoller';
 import { authRoutes } from './routes/auth';
 import { inviteRoutes } from './routes/invites';
 import { requestRoutes } from './routes/requests';
+import { wsRoutes, BroadcastFunction } from './routes/ws';
 
 export interface AppOptions {
   dbPath?: string;
@@ -37,6 +39,7 @@ declare module 'fastify' {
     cleanup: ICleanupService;
     fileSystem: IFileSystemService;
     poller: DownloadPoller;
+    broadcast: BroadcastFunction;
   }
 }
 
@@ -62,6 +65,11 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       logger: {
         info: (msg: string) => app.log.info(msg),
         error: (msg: string, err?: unknown) => app.log.error(err, msg),
+      },
+      broadcast: (msg) => {
+        if (typeof app.broadcast === 'function') {
+          app.broadcast(msg);
+        }
       },
     });
 
@@ -99,6 +107,8 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     },
   });
 
+  app.register(fastifyWebsocket);
+
   app.get('/health', async () => {
     return { ok: true };
   });
@@ -106,6 +116,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.register(authRoutes, { prefix: '/auth' });
   app.register(inviteRoutes, { prefix: '/invites' });
   app.register(requestRoutes, { prefix: '/requests' });
+  app.register(wsRoutes);
 
   return app;
 }
