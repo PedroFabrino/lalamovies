@@ -6,6 +6,8 @@ import Database from 'better-sqlite3';
 import { initDatabase, AppDatabase } from './db';
 import { IJellyfinService, JellyfinService } from './services/jellyfin';
 import { IMetadataService, MetadataService } from './services/metadata';
+import { IQBittorrentService, QBittorrentService } from './services/qbittorrent';
+import { ICleanupService, CleanupService } from './services/cleanup';
 import { authRoutes } from './routes/auth';
 import { inviteRoutes } from './routes/invites';
 import { requestRoutes } from './routes/requests';
@@ -15,6 +17,8 @@ export interface AppOptions {
   runMigrate?: boolean;
   jellyfinService?: IJellyfinService;
   metadataService?: IMetadataService;
+  qbittorrentService?: IQBittorrentService;
+  cleanupService?: ICleanupService;
   jwtSecret?: string;
 }
 
@@ -24,6 +28,8 @@ declare module 'fastify' {
     sqlite: Database.Database;
     jellyfin: IJellyfinService;
     metadata: IMetadataService;
+    qbittorrent: IQBittorrentService;
+    cleanup: ICleanupService;
   }
 }
 
@@ -33,11 +39,15 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   });
 
   const { db, sqlite } = initDatabase(options.dbPath, options.runMigrate ?? true);
+  const qbittorrent = options.qbittorrentService ?? new QBittorrentService();
+  const cleanup = options.cleanupService ?? new CleanupService(db, qbittorrent);
 
   app.decorate('db', db);
   app.decorate('sqlite', sqlite);
   app.decorate('jellyfin', options.jellyfinService ?? new JellyfinService());
   app.decorate('metadata', options.metadataService ?? new MetadataService());
+  app.decorate('qbittorrent', qbittorrent);
+  app.decorate('cleanup', cleanup);
 
   app.addHook('onClose', async () => {
     sqlite.close();
