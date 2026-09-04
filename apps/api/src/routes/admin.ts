@@ -220,4 +220,26 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       : [];
     return reply.send({ candidates });
   });
+
+  // GET /admin/disk — returns disk usage and thresholds
+  app.get('/disk', async (_request, reply) => {
+    const percentFree = app.cleanup.getPercentFree ? app.cleanup.getPercentFree() : 100;
+    const warnRow = app.db
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.key, 'disk_warn_threshold'))
+      .get();
+    const rejectRow = app.db
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.key, 'disk_reject_threshold'))
+      .get();
+
+    return reply.send({
+      percentFree,
+      percentUsed: Math.max(0, 100 - percentFree),
+      warnThreshold: warnRow ? parseInt(warnRow.value, 10) : 20,
+      rejectThreshold: rejectRow ? parseInt(rejectRow.value, 10) : 15,
+    });
+  });
 };

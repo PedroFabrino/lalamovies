@@ -30,6 +30,18 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/admin',
+    name: 'admin',
+    component: () => import('../views/AdminView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true },
+  },
+  {
+    path: '/forbidden',
+    name: 'forbidden',
+    component: () => import('../views/ForbiddenView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: '/dashboard',
   },
@@ -55,6 +67,10 @@ router.beforeEach(async (to, _from, next) => {
 
   if (to.meta.guestOnly && isAuthenticated) {
     return next({ name: 'dashboard' });
+  }
+
+  if (to.meta.requiresAdmin && !authStore.isAdmin) {
+    return next({ name: 'forbidden' });
   }
 
   next();
