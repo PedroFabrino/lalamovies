@@ -6,6 +6,7 @@ import Database from 'better-sqlite3';
 import { initDatabase, AppDatabase } from './db';
 import { IJellyfinService, JellyfinService } from './services/jellyfin';
 import { authRoutes } from './routes/auth';
+import { inviteRoutes } from './routes/invites';
 
 export interface AppOptions {
   dbPath?: string;
@@ -58,6 +59,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   });
 
   app.register(authRoutes, { prefix: '/auth' });
+  app.register(inviteRoutes, { prefix: '/invites' });
 
   return app;
 }
