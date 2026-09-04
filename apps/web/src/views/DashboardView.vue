@@ -1,32 +1,67 @@
 <template>
-  <div class="min-h-screen bg-zinc-950 text-zinc-100">
-    <!-- Navigation Bar -->
-    <header class="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur sticky top-0 z-10 px-6 py-4 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white shadow">
-          M
+  <div class="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
+    <!-- Header -->
+    <header class="border-b border-zinc-800 bg-zinc-900/60 backdrop-blur sticky top-0 z-20 px-6 py-3.5 flex items-center justify-between">
+      <div class="flex items-center gap-6">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white shadow">
+            M
+          </div>
+          <span class="font-semibold text-lg text-white">Media Download Manager</span>
         </div>
-        <span class="font-semibold text-lg text-white">Media Download Manager</span>
+
+        <!-- Navigation links -->
+        <nav class="hidden sm:flex items-center gap-2">
+          <router-link
+            to="/dashboard"
+            class="px-3 py-1.5 text-sm font-medium rounded-lg bg-zinc-800 text-white"
+          >
+            Dashboard
+          </router-link>
+          <router-link
+            to="/request"
+            class="px-3 py-1.5 text-sm font-medium rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition"
+          >
+            New Request
+          </router-link>
+          <router-link
+            v-if="authStore.isAdmin"
+            to="/admin"
+            class="px-3 py-1.5 text-sm font-medium rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition"
+          >
+            Admin
+          </router-link>
+        </nav>
       </div>
 
       <div class="flex items-center gap-4">
-        <div class="text-right">
-          <div class="text-sm font-medium text-white flex items-center gap-2">
+        <!-- Live WS feed indicator -->
+        <div
+          class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition"
+          :class="isConnected ? 'bg-emerald-950/40 border-emerald-800 text-emerald-400' : 'bg-amber-950/40 border-amber-800 text-amber-400'"
+        >
+          <span
+            class="w-2 h-2 rounded-full"
+            :class="isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'"
+          />
+          <span>{{ isConnected ? 'Live Feed' : 'Connecting...' }}</span>
+        </div>
+
+        <div class="text-right hidden sm:block">
+          <div class="text-sm font-medium text-white flex items-center gap-2 justify-end">
             <span>{{ authStore.user?.username }}</span>
             <span
               v-if="authStore.isAdmin"
-              class="text-xs px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-semibold uppercase tracking-wider"
+              class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-semibold uppercase tracking-wider"
             >
               Admin
             </span>
           </div>
-          <div class="text-xs text-zinc-400">
-            Jellyfin Connected
-          </div>
         </div>
 
         <button
-          class="px-3.5 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition cursor-pointer"
+          type="button"
+          class="px-3 py-1.5 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition cursor-pointer"
           @click="handleLogout"
         >
           Sign Out
@@ -35,28 +70,506 @@
     </header>
 
     <!-- Main Content -->
-    <main class="max-w-6xl mx-auto px-6 py-8">
-      <div class="bg-zinc-900/40 border border-zinc-800 rounded-xl p-8 text-center">
-        <h2 class="text-xl font-semibold text-white mb-2">
-          Welcome, {{ authStore.user?.username }}!
-        </h2>
-        <p class="text-zinc-400 text-sm max-w-md mx-auto">
-          Your session is active. Download requests dashboard and WebSocket real-time progress will appear here.
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight text-white">
+            Download Requests
+          </h1>
+          <p class="text-sm text-zinc-400 mt-1">
+            Real-time status of downloads and media library items
+          </p>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button
+            type="button"
+            class="p-2 text-zinc-400 hover:text-zinc-200 bg-zinc-900 border border-zinc-800 rounded-lg hover:bg-zinc-800 transition cursor-pointer disabled:opacity-50"
+            :disabled="requestsStore.loading"
+            title="Refresh List"
+            @click="requestsStore.fetchAll"
+          >
+            <svg
+              class="w-4 h-4"
+              :class="{ 'animate-spin': requestsStore.loading }"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+          </button>
+
+          <router-link
+            to="/request"
+            class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg shadow transition flex items-center gap-2"
+          >
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            <span>Add Request</span>
+          </router-link>
+        </div>
+      </div>
+
+      <!-- Loading skeleton -->
+      <div
+        v-if="requestsStore.loading && requestsStore.requests.length === 0"
+        class="space-y-3"
+      >
+        <div
+          v-for="i in 3"
+          :key="i"
+          class="h-20 bg-zinc-900/60 border border-zinc-800/80 rounded-xl animate-pulse"
+        />
+      </div>
+
+      <!-- Empty state -->
+      <div
+        v-else-if="requestsStore.requests.length === 0"
+        class="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-12 text-center my-8"
+      >
+        <div class="w-14 h-14 mx-auto rounded-full bg-zinc-800/60 border border-zinc-700/60 flex items-center justify-center text-zinc-400 mb-4">
+          <svg
+            class="w-7 h-7"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"
+            />
+          </svg>
+        </div>
+        <h3 class="text-lg font-semibold text-white mb-1">
+          No requests yet
+        </h3>
+        <p class="text-sm text-zinc-400 max-w-sm mx-auto mb-6">
+          Submit a magnet link from any torrent site to download and automatically add it to your Jellyfin media library.
         </p>
+        <router-link
+          to="/request"
+          class="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition"
+        >
+          Submit First Request
+        </router-link>
+      </div>
+
+      <!-- Requests List / Table -->
+      <div
+        v-else
+        class="bg-zinc-900/60 border border-zinc-800 rounded-xl overflow-hidden shadow-xl"
+      >
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-zinc-800 bg-zinc-900/80 text-zinc-400 text-xs font-semibold uppercase tracking-wider">
+                <th class="py-3.5 px-4 sm:px-6">
+                  Media
+                </th>
+                <th class="py-3.5 px-4">
+                  Type
+                </th>
+                <th class="py-3.5 px-4">
+                  Status
+                </th>
+                <th class="py-3.5 px-4 min-w-[200px]">
+                  Progress / Details
+                </th>
+                <th
+                  v-if="authStore.isAdmin"
+                  class="py-3.5 px-4"
+                >
+                  Requester
+                </th>
+                <th class="py-3.5 px-4">
+                  Requested
+                </th>
+                <th class="py-3.5 px-4 text-center">
+                  Keep
+                </th>
+                <th class="py-3.5 px-4 text-right">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-800/70 text-zinc-200">
+              <tr
+                v-for="item in requestsStore.requests"
+                :key="item.id"
+                class="hover:bg-zinc-800/30 transition group"
+              >
+                <!-- Title & Metadata -->
+                <td class="py-4 px-4 sm:px-6">
+                  <div class="font-medium text-white text-base">
+                    {{ item.title }}
+                  </div>
+                  <div class="text-xs text-zinc-400 mt-0.5 flex items-center gap-2">
+                    <span v-if="item.year">{{ item.year }}</span>
+                    <span
+                      v-if="item.year && item.seasonNumber"
+                      class="text-zinc-600"
+                    >•</span>
+                    <span v-if="item.seasonNumber">Season {{ item.seasonNumber }}</span>
+                    <span
+                      v-if="item.scheduledDeleteAt"
+                      class="text-amber-400 font-medium"
+                    >
+                      (Auto-delete scheduled: {{ formatDate(item.scheduledDeleteAt) }})
+                    </span>
+                  </div>
+                </td>
+
+                <!-- Media Type Badge -->
+                <td class="py-4 px-4 whitespace-nowrap">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-zinc-800 text-zinc-300 border border-zinc-700/60">
+                    {{ formatMediaType(item.mediaType) }}
+                  </span>
+                </td>
+
+                <!-- Status Badge -->
+                <td class="py-4 px-4 whitespace-nowrap">
+                  <span
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border"
+                    :class="getStatusBadgeClass(item.status)"
+                  >
+                    <span
+                      v-if="item.status === 'downloading'"
+                      class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping"
+                    />
+                    {{ item.status }}
+                  </span>
+                </td>
+
+                <!-- Progress Bar & Speed / ETA -->
+                <td class="py-4 px-4">
+                  <div
+                    v-if="item.status === 'downloading'"
+                    class="space-y-1.5"
+                  >
+                    <div class="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                      <div
+                        class="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                        :style="{ width: `${getProgressPercent(item.id)}%` }"
+                      />
+                    </div>
+                    <div class="flex justify-between items-center text-[11px] text-zinc-400 font-mono">
+                      <span>{{ getProgressPercent(item.id) }}%</span>
+                      <span>{{ getProgressSpeedEta(item.id) }}</span>
+                    </div>
+                  </div>
+
+                  <div
+                    v-else-if="item.status === 'error'"
+                    class="text-xs text-red-400 max-w-xs truncate"
+                    :title="item.errorMessage || 'Unknown error occurred'"
+                  >
+                    {{ item.errorMessage || 'Download error' }}
+                  </div>
+
+                  <div
+                    v-else-if="item.status === 'seeding'"
+                    class="text-xs text-emerald-400/90 flex items-center gap-1"
+                  >
+                    <svg
+                      class="w-3.5 h-3.5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    <span>In Jellyfin library</span>
+                  </div>
+
+                  <div
+                    v-else
+                    class="text-xs text-zinc-500"
+                  >
+                    —
+                  </div>
+                </td>
+
+                <!-- Requester (Admin View) -->
+                <td
+                  v-if="authStore.isAdmin"
+                  class="py-4 px-4 whitespace-nowrap text-xs text-zinc-400"
+                >
+                  {{ item.requesterUsername || item.userId.slice(0, 8) }}
+                </td>
+
+                <!-- Requested Date -->
+                <td class="py-4 px-4 whitespace-nowrap text-xs text-zinc-400">
+                  {{ formatDate(item.requestedAt) }}
+                </td>
+
+                <!-- Keep Flag Toggle (Admin Only) -->
+                <td class="py-4 px-4 whitespace-nowrap text-center">
+                  <button
+                    v-if="authStore.isAdmin"
+                    type="button"
+                    class="p-1.5 rounded-lg border transition cursor-pointer disabled:opacity-50"
+                    :class="item.keepFlag
+                      ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 hover:bg-amber-500/30'
+                      : 'bg-zinc-800/60 border-zinc-700/60 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'"
+                    :title="item.keepFlag ? 'Item marked Keep (immune to auto-cleanup)' : 'Enable Keep flag to protect from auto-cleanup'"
+                    @click="handleToggleKeep(item)"
+                  >
+                    <svg
+                      class="w-4 h-4"
+                      :fill="item.keepFlag ? 'currentColor' : 'none'"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                      />
+                    </svg>
+                  </button>
+                  <span
+                    v-else-if="item.keepFlag"
+                    class="text-amber-400 text-xs font-medium"
+                  >
+                    Yes
+                  </span>
+                  <span
+                    v-else
+                    class="text-zinc-600 text-xs"
+                  >
+                    No
+                  </span>
+                </td>
+
+                <!-- Actions (Delete) -->
+                <td class="py-4 px-4 whitespace-nowrap text-right">
+                  <button
+                    v-if="canDelete(item)"
+                    type="button"
+                    class="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-950/40 rounded-lg transition cursor-pointer"
+                    title="Delete Request"
+                    @click="promptDelete(item)"
+                  >
+                    <svg
+                      class="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </main>
+
+    <!-- Delete Confirmation Modal -->
+    <div
+      v-if="itemToDelete"
+      class="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4"
+    >
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-md w-full shadow-2xl">
+        <div class="flex items-center gap-3 text-red-400 mb-3">
+          <div class="w-10 h-10 rounded-full bg-red-950/60 border border-red-800/80 flex items-center justify-center shrink-0">
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold text-white">
+              Delete Download Request?
+            </h3>
+          </div>
+        </div>
+
+        <p class="text-sm text-zinc-300 mb-2">
+          Are you sure you want to delete <strong class="text-white">{{ itemToDelete.title }}</strong>?
+        </p>
+        <p class="text-xs text-zinc-500 mb-6">
+          This will remove the torrent from qBittorrent and delete media files from the library. This action cannot be undone.
+        </p>
+
+        <div class="flex items-center justify-end gap-3">
+          <button
+            type="button"
+            class="px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800 rounded-lg transition cursor-pointer"
+            :disabled="isDeleting"
+            @click="itemToDelete = null"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-500 text-white rounded-lg shadow transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            :disabled="isDeleting"
+            @click="executeDelete"
+          >
+            <svg
+              v-if="isDeleting"
+              class="animate-spin h-4 w-4 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              />
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v8H4z"
+              />
+            </svg>
+            <span>{{ isDeleting ? 'Deleting...' : 'Confirm Delete' }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
+import { useRequestsStore, DownloadRequest } from '../stores/requests';
+import { useProgressSocket } from '../composables/useProgressSocket';
+import {
+  formatSpeed,
+  formatEta,
+  formatMediaType,
+  formatDate,
+} from '../lib/formatters';
 
 const router = useRouter();
 const authStore = useAuthStore();
+const requestsStore = useRequestsStore();
+
+// Live WebSocket connection for real-time progress
+const { isConnected } = useProgressSocket();
+
+const itemToDelete = ref<DownloadRequest | null>(null);
+const isDeleting = ref(false);
+
+onMounted(async () => {
+  await requestsStore.fetchAll();
+});
 
 async function handleLogout() {
   await authStore.logout();
   router.push('/login');
+}
+
+function canDelete(item: DownloadRequest): boolean {
+  if (authStore.isAdmin) return true;
+  return item.userId === authStore.user?.id;
+}
+
+function promptDelete(item: DownloadRequest) {
+  itemToDelete.value = item;
+}
+
+async function executeDelete() {
+  if (!itemToDelete.value) return;
+  isDeleting.value = true;
+  try {
+    await requestsStore.deleteRequest(itemToDelete.value.id);
+    itemToDelete.value = null;
+  } catch {
+    // Error handling
+  } finally {
+    isDeleting.value = false;
+  }
+}
+
+async function handleToggleKeep(item: DownloadRequest) {
+  try {
+    await requestsStore.toggleKeep(item.id);
+  } catch {
+    // Silent or handled
+  }
+}
+
+function getProgressPercent(requestId: string): number {
+  const p = requestsStore.progressMap[requestId];
+  if (!p) return 0;
+  return Math.min(100, Math.max(0, Math.round(p.progress * 100)));
+}
+
+function getProgressSpeedEta(requestId: string): string {
+  const p = requestsStore.progressMap[requestId];
+  if (!p) return '—';
+  const speed = formatSpeed(p.speedBps);
+  const eta = formatEta(p.etaSeconds);
+  return `${speed} — ETA ${eta}`;
+}
+
+function getStatusBadgeClass(status: string): string {
+  switch (status) {
+    case 'queued':
+      return 'bg-zinc-800 text-zinc-300 border-zinc-700';
+    case 'downloading':
+      return 'bg-blue-950/60 text-blue-400 border-blue-800';
+    case 'hardlinking':
+      return 'bg-indigo-950/60 text-indigo-400 border-indigo-800';
+    case 'seeding':
+      return 'bg-emerald-950/60 text-emerald-400 border-emerald-800';
+    case 'done':
+      return 'bg-green-950/60 text-green-400 border-green-800';
+    case 'error':
+      return 'bg-red-950/60 text-red-400 border-red-800';
+    case 'deleted':
+      return 'bg-zinc-900 text-zinc-500 border-zinc-800';
+    default:
+      return 'bg-zinc-800 text-zinc-400 border-zinc-700';
+  }
 }
 </script>

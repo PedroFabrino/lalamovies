@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { eq, desc } from 'drizzle-orm';
 import { authMiddleware, adminGuard } from '../middleware/auth';
-import { systemConfig, downloadRequests, DownloadRequest } from '../db/schema';
+import { systemConfig, downloadRequests, users, DownloadRequest } from '../db/schema';
 import { MetadataApiError } from '../services/metadata';
 
 const searchMetadataSchema = z.object({
@@ -168,17 +168,42 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
   app.get('/', async (request, reply) => {
     const isAdmin = request.currentUser!.role === 'admin';
 
-    let list: DownloadRequest[];
+    const selectFields = {
+      id: downloadRequests.id,
+      userId: downloadRequests.userId,
+      magnetLink: downloadRequests.magnetLink,
+      mediaType: downloadRequests.mediaType,
+      status: downloadRequests.status,
+      metadataId: downloadRequests.metadataId,
+      metadataSource: downloadRequests.metadataSource,
+      title: downloadRequests.title,
+      year: downloadRequests.year,
+      seasonNumber: downloadRequests.seasonNumber,
+      jellyfinPath: downloadRequests.jellyfinPath,
+      keepFlag: downloadRequests.keepFlag,
+      qbTorrentHash: downloadRequests.qbTorrentHash,
+      errorMessage: downloadRequests.errorMessage,
+      requestedAt: downloadRequests.requestedAt,
+      downloadedAt: downloadRequests.downloadedAt,
+      lastPlayedAt: downloadRequests.lastPlayedAt,
+      scheduledDeleteAt: downloadRequests.scheduledDeleteAt,
+      sizeBytes: downloadRequests.sizeBytes,
+      requesterUsername: users.username,
+    };
+
+    let list;
     if (isAdmin) {
       list = app.db
-        .select()
+        .select(selectFields)
         .from(downloadRequests)
+        .leftJoin(users, eq(downloadRequests.userId, users.id))
         .orderBy(desc(downloadRequests.requestedAt))
         .all();
     } else {
       list = app.db
-        .select()
+        .select(selectFields)
         .from(downloadRequests)
+        .leftJoin(users, eq(downloadRequests.userId, users.id))
         .where(eq(downloadRequests.userId, request.currentUser!.id))
         .orderBy(desc(downloadRequests.requestedAt))
         .all();
