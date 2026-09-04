@@ -16,6 +16,7 @@ import { CleanupCron } from './jobs/cleanupCron';
 import { authRoutes } from './routes/auth';
 import { inviteRoutes } from './routes/invites';
 import { requestRoutes } from './routes/requests';
+import { adminRoutes } from './routes/admin';
 import { wsRoutes, BroadcastFunction } from './routes/ws';
 
 export interface AppOptions {
@@ -143,6 +144,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.register(authRoutes, { prefix: '/auth' });
   app.register(inviteRoutes, { prefix: '/invites' });
   app.register(requestRoutes, { prefix: '/requests' });
+  app.register(adminRoutes, { prefix: '/admin' });
   app.register(wsRoutes);
 
   return app;

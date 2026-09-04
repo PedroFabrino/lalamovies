@@ -17,6 +17,7 @@ export interface ICleanupService {
   checkDiskAndClean?(targetPath?: string): Promise<DownloadRequest[]>;
   executePendingCleanups?(): Promise<DownloadRequest[]>;
   cleanItem(requestId: string): Promise<void>;
+  getCandidates?(): Promise<DownloadRequest[]>;
 }
 
 export class CleanupService implements ICleanupService {
@@ -63,6 +64,61 @@ export class CleanupService implements ICleanupService {
     };
   }
 
+  async refreshPlayHistory(): Promise<void> {
+    if (!this.jellyfin?.getPlayHistory) return;
+
+    try {
+      const history = await this.jellyfin.getPlayHistory();
+      const seedingRequests = this.db
+        .select()
+        .from(downloadRequests)
+        .where(eq(downloadRequests.status, 'seeding'))
+        .all();
+
+      for (const req of seedingRequests) {
+        if (!req.jellyfinPath) continue;
+        let latestPlayed: string | null = null;
+        const normReq = req.jellyfinPath.replace(/\\/g, '/').toLowerCase();
+
+        for (const [itemPath, playedDate] of Object.entries(history)) {
+          const normItem = itemPath.replace(/\\/g, '/').toLowerCase();
+          if (normItem === normReq || normItem.startsWith(normReq.endsWith('/') ? normReq : normReq + '/')) {
+            if (!latestPlayed || new Date(playedDate) > new Date(latestPlayed)) {
+              latestPlayed = playedDate;
+            }
+          }
+        }
+
+        if (latestPlayed && latestPlayed !== req.lastPlayedAt) {
+          this.db
+            .update(downloadRequests)
+            .set({ lastPlayedAt: latestPlayed })
+            .where(eq(downloadRequests.id, req.id))
+            .run();
+          req.lastPlayedAt = latestPlayed;
+        }
+      }
+    } catch {
+      // Silently continue if Jellyfin call fails
+    }
+  }
+
+  async getCandidates(): Promise<DownloadRequest[]> {
+    await this.refreshPlayHistory();
+
+    return this.db
+      .select()
+      .from(downloadRequests)
+      .where(
+        and(
+          eq(downloadRequests.status, 'seeding'),
+          eq(downloadRequests.keepFlag, false)
+        )
+      )
+      .orderBy(asc(downloadRequests.lastPlayedAt), asc(downloadRequests.requestedAt))
+      .all();
+  }
+
   async checkDiskAndClean(customPath?: string): Promise<DownloadRequest[]> {
     const configRow = this.db
       .select()
@@ -79,42 +135,7 @@ export class CleanupService implements ICleanupService {
 
     // Free space is below warn threshold!
     // 1. Refresh play history from Jellyfin
-    if (this.jellyfin?.getPlayHistory) {
-      try {
-        const history = await this.jellyfin.getPlayHistory();
-        const seedingRequests = this.db
-          .select()
-          .from(downloadRequests)
-          .where(eq(downloadRequests.status, 'seeding'))
-          .all();
-
-        for (const req of seedingRequests) {
-          if (!req.jellyfinPath) continue;
-          let latestPlayed: string | null = null;
-          const normReq = req.jellyfinPath.replace(/\\/g, '/').toLowerCase();
-
-          for (const [itemPath, playedDate] of Object.entries(history)) {
-            const normItem = itemPath.replace(/\\/g, '/').toLowerCase();
-            if (normItem === normReq || normItem.startsWith(normReq.endsWith('/') ? normReq : normReq + '/')) {
-              if (!latestPlayed || new Date(playedDate) > new Date(latestPlayed)) {
-                latestPlayed = playedDate;
-              }
-            }
-          }
-
-          if (latestPlayed && latestPlayed !== req.lastPlayedAt) {
-            this.db
-              .update(downloadRequests)
-              .set({ lastPlayedAt: latestPlayed })
-              .where(eq(downloadRequests.id, req.id))
-              .run();
-            req.lastPlayedAt = latestPlayed;
-          }
-        }
-      } catch {
-        // Silently continue if Jellyfin call fails
-      }
-    }
+    await this.refreshPlayHistory();
 
     // 2. Select candidates (status='seeding', keepFlag=false, scheduledDeleteAt is null)
     // Priority: least-recently-played first (nulls first in SQLite ASC), then oldest request
