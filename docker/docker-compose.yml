@@ -26,7 +26,7 @@ services:
       - FRONTEND_URL=${FRONTEND_URL:-https://lalamovies.stream}
     volumes:
       - app_db:/data
-      - media_data:/media_data
+      - ${MEDIA_DATA_PATH:-D:/MediaServer/media_data}:/media_data
     depends_on:
       - qbittorrent
       - jellyfin
@@ -47,7 +47,7 @@ services:
       - "6881:6881/udp"
     volumes:
       - ./config/qbittorrent:/config
-      - media_data:/media_data
+      - ${MEDIA_DATA_PATH:-D:/MediaServer/media_data}:/media_data
 
   jellyfin:
     image: jellyfin/jellyfin:latest
@@ -62,7 +62,7 @@ services:
     volumes:
       - ./config/jellyfin:/config
       - ./cache/jellyfin:/cache
-      - media_data:/media_data
+      - ${MEDIA_DATA_PATH:-D:/MediaServer/media_data}:/media_data
 
   # Caddy acts as a reverse proxy / TLS terminator for Jellyfin ONLY.
   # The Fastify API continues to be exposed via the cloudflared tunnel above.
@@ -99,12 +99,6 @@ volumes:
   app_db:
     # Dedicated Docker named volume for SQLite database (app.db) on SSD storage.
     # Decoupled from media storage for high IOPS and zero NTFS lock contention.
-  media_data:
-    # Single named Docker volume mounted at /media_data on all services.
-    # Subdirectories:
-    #   /media_data/downloads/staging  (Staging Area)
-    #   /media_data/media              (Library: movies, shows, anime)
-    # Because all these paths share the exact same filesystem mount, hardlinks work seamlessly.
   caddy_data:
     # Stores Caddy's TLS certificates and ACME account data (Let's Encrypt).
     # Must be a named volume (not a bind mount) so certificate data survives container recreations.
