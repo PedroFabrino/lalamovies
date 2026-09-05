@@ -230,13 +230,13 @@
                 <td class="py-4 px-4 whitespace-nowrap">
                   <span
                     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border"
-                    :class="getStatusBadgeClass(item.status)"
+                    :class="getStatusBadgeClass(item)"
                   >
                     <span
                       v-if="item.status === 'downloading'"
                       class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping"
                     />
-                    {{ item.status }}
+                    {{ formatStatusLabel(item) }}
                   </span>
                 </td>
 
@@ -256,6 +256,16 @@
                       <span>{{ getProgressPercent(item.id) }}%</span>
                       <span>{{ getProgressSpeedEta(item.id) }}</span>
                     </div>
+                  </div>
+
+                  <div
+                    v-else-if="item.status === 'queued'"
+                    class="text-xs flex items-center gap-1.5"
+                    :class="item.deferredReason === 'waiting_for_space' ? 'text-amber-400/90' : 'text-blue-400/90'"
+                  >
+                    <span>
+                      {{ item.deferredReason === 'waiting_for_space' ? 'Waiting for storage quota headroom' : 'Waiting for available download slot' }}
+                    </span>
                   </div>
 
                   <div
@@ -523,10 +533,24 @@ function getProgressSpeedEta(requestId: string): string {
   return `${speed} — ETA ${eta}`;
 }
 
-function getStatusBadgeClass(status: string): string {
-  switch (status) {
-    case 'queued':
-      return 'bg-zinc-800 text-zinc-300 border-zinc-700';
+function formatStatusLabel(item: DownloadRequest): string {
+  if (item.status === 'queued') {
+    if (item.deferredReason === 'waiting_for_space') {
+      return 'Queued (Waiting for Space)';
+    }
+    return 'Queued (Waiting for Slot)';
+  }
+  return item.status;
+}
+
+function getStatusBadgeClass(item: DownloadRequest): string {
+  if (item.status === 'queued') {
+    if (item.deferredReason === 'waiting_for_space') {
+      return 'bg-amber-950/60 text-amber-400 border-amber-800';
+    }
+    return 'bg-blue-950/50 text-blue-300 border-blue-800/80';
+  }
+  switch (item.status) {
     case 'downloading':
       return 'bg-blue-950/60 text-blue-400 border-blue-800';
     case 'hardlinking':

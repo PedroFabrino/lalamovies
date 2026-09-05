@@ -44,6 +44,7 @@ export const downloadRequests = sqliteTable('download_requests', {
   scheduledDeleteAt: text('scheduled_delete_at'),
   sizeBytes: integer('size_bytes'),
   torrentFilePath: text('torrent_file_path'),
+  deferredReason: text('deferred_reason'),
 });
 
 export const systemConfig = sqliteTable('system_config', {

@@ -135,12 +135,15 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    // 1. Check disk space against reject threshold
-    const space = app.cleanup.isSpaceSufficient();
-    if (!space.sufficient) {
+    // 1. Host disk safety check (< 10 GB free on host disk or below reject threshold)
+    const hostDiskSafe = app.cleanup.isHostDiskSafe ? app.cleanup.isHostDiskSafe() : true;
+    const space = app.cleanup.isSpaceSufficient ? app.cleanup.isSpaceSufficient() : { sufficient: true, percentFree: 100, threshold: 15 };
+    if (!hostDiskSafe || !space.sufficient) {
       return reply.status(422).send({
         error: 'Unprocessable Entity',
-        message: `Insufficient disk space (${space.percentFree}% free, minimum required is ${space.threshold}%)`,
+        message: !hostDiskSafe
+          ? 'Insufficient host disk space (< 10 GB free)'
+          : `Insufficient disk space (${space.percentFree}% free, minimum required is ${space.threshold}%)`,
       });
     }
 
@@ -158,6 +161,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
 
     let torrentBuffer: Buffer | null = null;
     let effectiveMagnetLink = magnetLink || '';
+    let torrentSizeBytes: number | null = null;
 
     if (torrentFileBase64) {
       try {
@@ -166,6 +170,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         if (!effectiveMagnetLink) {
           effectiveMagnetLink = parsed.magnetUri;
         }
+        torrentSizeBytes = parsed.totalSize || null;
       } catch (err) {
         return reply.status(400).send({
           error: 'Bad Request',
@@ -181,41 +186,65 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    // 2. Check concurrent download limit
-    const configRow = app.db
+    // 2. Check storage quota usage (85% threshold for deferral)
+    const quotaRow = app.db
       .select()
       .from(systemConfig)
-      .where(eq(systemConfig.key, 'concurrent_limit'))
+      .where(eq(systemConfig.key, 'storage_quota_gb'))
       .get();
 
-    const concurrentLimit = configRow ? parseInt(configRow.value, 10) : 2;
-    const activeCount = await app.qbittorrent.getActiveTorrentCount();
+    const storageQuotaGb = quotaRow ? parseInt(quotaRow.value, 10) : parseInt(process.env.STORAGE_QUOTA_GB || '150', 10);
+    const storageQuotaBytes = storageQuotaGb * 1024 * 1024 * 1024;
+    const currentFootprintBytes = app.fileSystem.getStorageFootprintBytes ? app.fileSystem.getStorageFootprintBytes() : 0;
+    const isQuotaExceeded = storageQuotaBytes > 0 && (currentFootprintBytes / storageQuotaBytes) >= 0.85;
 
     let status: 'queued' | 'downloading' = 'queued';
+    let deferredReason: 'waiting_for_space' | 'waiting_for_slot' | null = null;
     let qbTorrentHash: string | null = null;
     let torrentFilePath: string | null = null;
     const stagingPath = process.env.STAGING_PATH || '/media_data/downloads/staging';
     const requestId = randomUUID();
 
-    if (activeCount < concurrentLimit) {
-      try {
-        if (torrentBuffer) {
-          qbTorrentHash = await app.qbittorrent.addTorrentFile(
-            torrentBuffer,
-            stagingPath,
-            torrentFileName || `${title}.torrent`
-          );
-        } else {
-          qbTorrentHash = await app.qbittorrent.addTorrent(effectiveMagnetLink, stagingPath);
+    if (isQuotaExceeded) {
+      // Defer request into queued waiting for space
+      status = 'queued';
+      deferredReason = 'waiting_for_space';
+    } else {
+      // Storage quota has headroom: check concurrent limit
+      const configRow = app.db
+        .select()
+        .from(systemConfig)
+        .where(eq(systemConfig.key, 'concurrent_limit'))
+        .get();
+
+      const concurrentLimit = configRow ? parseInt(configRow.value, 10) : 2;
+      const activeCount = await app.qbittorrent.getActiveTorrentCount();
+
+      if (activeCount < concurrentLimit) {
+        try {
+          if (torrentBuffer) {
+            qbTorrentHash = await app.qbittorrent.addTorrentFile(
+              torrentBuffer,
+              stagingPath,
+              torrentFileName || `${title}.torrent`
+            );
+          } else {
+            qbTorrentHash = await app.qbittorrent.addTorrent(effectiveMagnetLink, stagingPath);
+          }
+          status = 'downloading';
+          deferredReason = null;
+        } catch (err) {
+          request.log.error(err, 'Could not add torrent to qBittorrent immediately, falling back to queued');
+          status = 'queued';
+          deferredReason = 'waiting_for_slot';
         }
-        status = 'downloading';
-      } catch (err) {
-        request.log.error(err, 'Could not add torrent to qBittorrent immediately, falling back to queued');
+      } else {
         status = 'queued';
+        deferredReason = 'waiting_for_slot';
       }
     }
 
-    // If queued and we have a torrent file, save it temporarily on disk for the poller
+    // If queued and we have a torrent file, save it temporarily on disk for resumption
     if (status === 'queued' && torrentBuffer) {
       const torrentsDir = path.resolve(path.dirname(stagingPath), 'torrents');
       if (!fs.existsSync(torrentsDir)) {
@@ -245,8 +274,9 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       downloadedAt: null,
       lastPlayedAt: null,
       scheduledDeleteAt: null,
-      sizeBytes: null,
+      sizeBytes: torrentSizeBytes,
       torrentFilePath,
+      deferredReason,
     };
 
     app.db.insert(downloadRequests).values(newRequest).run();
@@ -278,6 +308,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       lastPlayedAt: downloadRequests.lastPlayedAt,
       scheduledDeleteAt: downloadRequests.scheduledDeleteAt,
       sizeBytes: downloadRequests.sizeBytes,
+      deferredReason: downloadRequests.deferredReason,
       requesterUsername: users.username,
     };
 

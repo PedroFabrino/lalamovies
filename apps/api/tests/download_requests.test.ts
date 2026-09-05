@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import fs from 'node:fs';
 import { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { buildApp } from '../src/app';
@@ -50,16 +51,21 @@ class MockQBittorrentService implements IQBittorrentService {
 class MockCleanupService implements ICleanupService {
   public spaceSufficient = true;
   public percentFree = 50;
+  public hostDiskSafe = true;
   public cleanedIds: string[] = [];
 
   constructor(private appInstance: { db: any }) {}
 
   isSpaceSufficient(): SpaceCheckResult {
     return {
-      sufficient: this.spaceSufficient,
+      sufficient: this.spaceSufficient && this.hostDiskSafe,
       percentFree: this.percentFree,
       threshold: 15,
     };
+  }
+
+  isHostDiskSafe(): boolean {
+    return this.hostDiskSafe;
   }
 
   async cleanItem(requestId: string): Promise<void> {
@@ -154,8 +160,30 @@ describe('Download Request Submission & Management', () => {
     expect(mockQb.addedTorrents).toHaveLength(0);
   });
 
-  it('adds torrent immediately when active count is below concurrent limit', async () => {
+  it('rejects request with 422 if host disk has < 10 GB free space (host disk safety check)', async () => {
+    mockCleanup.hostDiskSafe = false;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/requests',
+      cookies: { token: userCookie },
+      payload: {
+        magnetLink: 'magnet:?xt=urn:btih:abc',
+        mediaType: 'movie',
+        metadataId: '550',
+        metadataSource: 'tmdb',
+        title: 'Fight Club',
+      },
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json().message).toContain('Insufficient host disk space');
+    expect(mockQb.addedTorrents).toHaveLength(0);
+  });
+
+  it('adds torrent immediately when active count is below concurrent limit and quota is healthy', async () => {
     mockQb.activeCount = 0; // limit is 2
+    app.fileSystem.getStorageFootprintBytes = () => 0;
 
     const res = await app.inject({
       method: 'POST',
@@ -174,13 +202,15 @@ describe('Download Request Submission & Management', () => {
     expect(res.statusCode).toBe(201);
     const body = res.json();
     expect(body.request.status).toBe('downloading');
+    expect(body.request.deferredReason).toBeNull();
     expect(body.request.qbTorrentHash).toBe('mock_hash_123');
     expect(body.request.title).toBe('Fight Club');
     expect(mockQb.addedTorrents).toHaveLength(1);
   });
 
-  it('queues request when active count reaches concurrent limit', async () => {
+  it('queues request with waiting_for_slot when active count reaches concurrent limit', async () => {
     mockQb.activeCount = 2; // limit is 2, so full
+    app.fileSystem.getStorageFootprintBytes = () => 0;
 
     const res = await app.inject({
       method: 'POST',
@@ -199,8 +229,69 @@ describe('Download Request Submission & Management', () => {
     expect(res.statusCode).toBe(201);
     const body = res.json();
     expect(body.request.status).toBe('queued');
+    expect(body.request.deferredReason).toBe('waiting_for_slot');
     expect(body.request.qbTorrentHash).toBeNull();
     expect(mockQb.addedTorrents).toHaveLength(0);
+  });
+
+  it('defers request to queued with deferredReason waiting_for_space when storage footprint exceeds 85% of quota', async () => {
+    // Quota is 150 GB (150 * 1024^3). 85% is 127.5 GB. Mock footprint at 130 GB (86.6%)
+    app.fileSystem.getStorageFootprintBytes = () => 130 * 1024 * 1024 * 1024;
+    mockQb.activeCount = 0; // Even with available slots!
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/requests',
+      cookies: { token: userCookie },
+      payload: {
+        magnetLink: 'magnet:?xt=urn:btih:space_defer',
+        mediaType: 'movie',
+        metadataId: '550',
+        metadataSource: 'tmdb',
+        title: 'Interstellar',
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.request.status).toBe('queued');
+    expect(body.request.deferredReason).toBe('waiting_for_space');
+    expect(body.request.qbTorrentHash).toBeNull();
+    expect(mockQb.addedTorrents).toHaveLength(0);
+  });
+
+  it('saves uploaded .torrent buffer to staging when deferred for space', async () => {
+    app.fileSystem.getStorageFootprintBytes = () => 135 * 1024 * 1024 * 1024; // >85%
+
+    const name = 'sample.mkv';
+    const infoDict = `d6:lengthi100000e4:name${name.length}:${name}e`;
+    const fullTorrent = `d4:info${infoDict}e`;
+    const base64Torrent = Buffer.from(fullTorrent).toString('base64');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/requests',
+      cookies: { token: userCookie },
+      payload: {
+        torrentFileBase64: base64Torrent,
+        torrentFileName: 'sample.torrent',
+        mediaType: 'movie',
+        metadataId: '100',
+        metadataSource: 'tmdb',
+        title: 'Sample Movie',
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.request.status).toBe('queued');
+    expect(body.request.deferredReason).toBe('waiting_for_space');
+    expect(body.request.torrentFilePath).toBeTruthy();
+    expect(fs.existsSync(body.request.torrentFilePath)).toBe(true);
+
+    try {
+      fs.unlinkSync(body.request.torrentFilePath);
+    } catch {}
   });
 
   it('isolates user requests in GET /requests: regular user sees own, admin sees all', async () => {
@@ -241,6 +332,7 @@ describe('Download Request Submission & Management', () => {
     expect(bobRes.statusCode).toBe(200);
     expect(bobRes.json().requests).toHaveLength(1);
     expect(bobRes.json().requests[0].title).toBe('Bob Movie');
+    expect(bobRes.json().requests[0]).toHaveProperty('deferredReason');
 
     // Alice list -> 2 requests (all)
     const aliceRes = await app.inject({

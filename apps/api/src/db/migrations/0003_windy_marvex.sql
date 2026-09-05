@@ -1,0 +1,1 @@
+ALTER TABLE `download_requests` ADD `deferred_reason` text;

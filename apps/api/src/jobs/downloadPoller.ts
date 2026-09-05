@@ -215,6 +215,7 @@ export class DownloadPoller {
                 status: 'downloading',
                 qbTorrentHash: hash,
                 torrentFilePath: null,
+                deferredReason: null,
               })
               .where(eq(downloadRequests.id, queuedReq.id))
               .run();

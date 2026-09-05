@@ -757,10 +757,17 @@ async function handleConfirmRequest() {
     const res = await api.post<{ request: DownloadRequest }>('/requests', payload);
 
     if (res.request.status === 'queued') {
-      requestsStore.showToast(
-        'Your request has been queued and will start when a download slot is available',
-        'info'
-      );
+      if (res.request.deferredReason === 'waiting_for_space') {
+        requestsStore.showToast(
+          'Your request has been queued and will start automatically once storage space is available',
+          'info'
+        );
+      } else {
+        requestsStore.showToast(
+          'Your request has been queued and will start when a download slot is available',
+          'info'
+        );
+      }
     } else {
       requestsStore.showToast(
         `Download started: ${res.request.title}`,

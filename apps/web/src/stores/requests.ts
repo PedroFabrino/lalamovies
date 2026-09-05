@@ -32,6 +32,7 @@ export interface DownloadRequest {
   lastPlayedAt: string | null;
   scheduledDeleteAt: string | null;
   sizeBytes: number | null;
+  deferredReason?: 'waiting_for_space' | 'waiting_for_slot' | string | null;
   requesterUsername?: string | null;
 }
 

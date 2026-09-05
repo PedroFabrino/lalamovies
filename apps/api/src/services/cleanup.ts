@@ -14,6 +14,8 @@ export interface SpaceCheckResult {
 export interface ICleanupService {
   isSpaceSufficient(targetPath?: string): SpaceCheckResult;
   getPercentFree?(targetPath?: string): number;
+  getFreeDiskBytes?(targetPath?: string): number;
+  isHostDiskSafe?(targetPath?: string): boolean;
   checkDiskAndClean?(targetPath?: string): Promise<DownloadRequest[]>;
   executePendingCleanups?(): Promise<DownloadRequest[]>;
   cleanItem(requestId: string): Promise<void>;
@@ -27,8 +29,29 @@ export class CleanupService implements ICleanupService {
     private jellyfin?: IJellyfinService,
     private notificationService?: INotificationService,
     private mediaPath?: string,
-    private diskFreePercentProvider?: () => number
+    private diskFreePercentProvider?: () => number,
+    private diskFreeBytesProvider?: () => number
   ) {}
+
+  getFreeDiskBytes(customPath?: string): number {
+    if (this.diskFreeBytesProvider) {
+      return this.diskFreeBytesProvider();
+    }
+    const target = customPath || this.mediaPath || process.env.MEDIA_PATH || process.cwd();
+    try {
+      const checkPath = fs.existsSync(target) ? target : process.cwd();
+      const statfs = fs.statfsSync(checkPath);
+      return Number(BigInt(statfs.bavail) * BigInt(statfs.bsize));
+    } catch {
+      return 100 * 1024 * 1024 * 1024;
+    }
+  }
+
+  isHostDiskSafe(customPath?: string): boolean {
+    const MIN_HOST_FREE_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB
+    const freeBytes = this.getFreeDiskBytes(customPath);
+    return freeBytes >= MIN_HOST_FREE_BYTES;
+  }
 
   getPercentFree(customPath?: string): number {
     if (this.diskFreePercentProvider) {
@@ -56,9 +79,10 @@ export class CleanupService implements ICleanupService {
 
     const threshold = configRow ? parseInt(configRow.value, 10) : 15;
     const percentFree = this.getPercentFree(customPath);
+    const hostSafe = this.isHostDiskSafe(customPath);
 
     return {
-      sufficient: percentFree >= threshold,
+      sufficient: percentFree >= threshold && hostSafe,
       percentFree,
       threshold,
     };
