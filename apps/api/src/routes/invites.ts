@@ -233,6 +233,7 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
         role: newUser.role,
         createdAt: newUser.createdAt,
       },
+      token: jwtToken,
     });
   });
 

@@ -12,12 +12,20 @@ export function useProgressSocket() {
   let isManuallyClosed = false;
 
   function getWsUrl(): string {
+    let base: string;
     if (API_BASE_URL) {
       const url = API_BASE_URL.replace(/^http/, 'ws');
-      return `${url}/ws`;
+      base = `${url}/ws`;
+    } else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      base = `${protocol}//${window.location.host}/ws`;
     }
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${window.location.host}/ws`;
+
+    const token = localStorage.getItem('token');
+    if (token) {
+      return `${base}?token=${encodeURIComponent(token)}`;
+    }
+    return base;
   }
 
   function connect(): void {

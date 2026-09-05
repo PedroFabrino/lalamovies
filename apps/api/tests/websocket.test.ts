@@ -146,4 +146,36 @@ describe('WebSocket Progress Feed (/ws)', () => {
     });
     expect(closeCode).toBe(4403);
   });
+
+  it('accepts connection from lalamovies.stream origin', async () => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=${validToken}`, {
+      headers: {
+        Origin: 'https://lalamovies.stream',
+      },
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      ws.on('open', () => resolve());
+      ws.on('error', (err) => reject(err));
+    });
+
+    expect(ws.readyState).toBe(WebSocket.OPEN);
+    ws.close();
+  });
+
+  it('accepts connection from vercel.app origin', async () => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=${validToken}`, {
+      headers: {
+        Origin: 'https://preview-deploy.vercel.app',
+      },
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      ws.on('open', () => resolve());
+      ws.on('error', (err) => reject(err));
+    });
+
+    expect(ws.readyState).toBe(WebSocket.OPEN);
+    ws.close();
+  });
 });

@@ -65,11 +65,24 @@ const wsRoutesPlugin: FastifyPluginAsync = async (app) => {
 
   app.get('/ws', { websocket: true }, (socket, req) => {
     // 1. Verify Origin header if provided
-    const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const rawAllowed = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const allowedOrigins = rawAllowed.split(',').map((o) => o.trim());
     const origin = req.headers.origin;
-    if (origin && origin !== allowedOrigin && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
-      socket.close(4403, 'Forbidden origin');
-      return;
+
+    if (origin) {
+      const isLocal = origin.includes('localhost') || origin.includes('127.0.0.1');
+      const isAllowedDomain =
+        origin.endsWith('lalamovies.stream') ||
+        origin.includes('.lalamovies.stream') ||
+        origin.endsWith('vercel.app') ||
+        origin.includes('.vercel.app');
+      const isCustomAllowed = allowedOrigins.some((allowed) => allowed && origin === allowed);
+
+      if (!isLocal && !isAllowedDomain && !isCustomAllowed) {
+        req.log.warn({ origin, rawAllowed }, 'WebSocket rejected: forbidden origin');
+        socket.close(4403, 'Forbidden origin');
+        return;
+      }
     }
 
     // 2. Extract and verify JWT
@@ -79,17 +92,20 @@ const wsRoutesPlugin: FastifyPluginAsync = async (app) => {
     }
 
     if (!token) {
+      req.log.warn({ origin }, 'WebSocket rejected: missing token');
       socket.close(4401, 'Unauthorized');
       return;
     }
 
     try {
       app.jwt.verify(token);
-    } catch {
+    } catch (err) {
+      req.log.warn({ origin, err }, 'WebSocket rejected: invalid token');
       socket.close(4401, 'Unauthorized');
       return;
     }
 
+    req.log.info({ origin }, 'WebSocket client connected');
     clients.add(socket);
 
     socket.on('close', () => {

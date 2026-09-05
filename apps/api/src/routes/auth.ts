@@ -100,6 +100,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           role: user.role,
           createdAt: user.createdAt,
         },
+        token,
       });
     } catch (err) {
       if (err instanceof InvalidCredentialsError) {
@@ -123,8 +124,21 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get('/me', { preHandler: [authMiddleware] }, async (request, reply) => {
+    let token = request.cookies?.token;
+    if (!token && request.currentUser) {
+      token = app.jwt.sign(
+        {
+          id: request.currentUser.id,
+          username: request.currentUser.username,
+          role: request.currentUser.role,
+          jellyfinUserId: request.currentUser.jellyfinUserId,
+        },
+        { expiresIn: '7d' }
+      );
+    }
     return reply.send({
       user: request.currentUser,
+      token,
     });
   });
 };

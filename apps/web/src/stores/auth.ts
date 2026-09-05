@@ -12,6 +12,7 @@ export interface User {
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
+  const token = ref<string | null>(localStorage.getItem('token'));
   const loading = ref(false);
   const initialCheckDone = ref(false);
   const error = ref<string | null>(null);
@@ -23,8 +24,12 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true;
     error.value = null;
     try {
-      const data = await api.get<{ user: User }>('/auth/me');
+      const data = await api.get<{ user: User; token?: string }>('/auth/me');
       user.value = data.user;
+      if (data.token) {
+        token.value = data.token;
+        localStorage.setItem('token', data.token);
+      }
       return data.user;
     } catch {
       user.value = null;
@@ -39,8 +44,12 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true;
     error.value = null;
     try {
-      const data = await api.post<{ user: User }>('/auth/login', { username, password });
+      const data = await api.post<{ user: User; token?: string }>('/auth/login', { username, password });
       user.value = data.user;
+      if (data.token) {
+        token.value = data.token;
+        localStorage.setItem('token', data.token);
+      }
       initialCheckDone.value = true;
       return data.user;
     } catch (err) {
@@ -63,19 +72,25 @@ export const useAuthStore = defineStore('auth', () => {
       // Ignore logout errors
     } finally {
       user.value = null;
+      token.value = null;
+      localStorage.removeItem('token');
       loading.value = false;
     }
   }
 
-  async function acceptInvite(token: string, username: string, password: string): Promise<User> {
+  async function acceptInvite(tokenParam: string, username: string, password: string): Promise<User> {
     loading.value = true;
     error.value = null;
     try {
-      const data = await api.post<{ user: User }>(`/invites/${token}/accept`, {
+      const data = await api.post<{ user: User; token?: string }>(`/invites/${tokenParam}/accept`, {
         username,
         password,
       });
       user.value = data.user;
+      if (data.token) {
+        token.value = data.token;
+        localStorage.setItem('token', data.token);
+      }
       initialCheckDone.value = true;
       return data.user;
     } catch (err) {
@@ -92,6 +107,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     user,
+    token,
     loading,
     initialCheckDone,
     error,
