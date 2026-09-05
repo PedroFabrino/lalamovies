@@ -15,6 +15,9 @@
 # certificate for the domain — no manual certificate management needed.
 {
     email pfabrino@gmail.com
+    servers {
+        protocols h1 h2
+    }
 }
 
 {$JELLYFIN_DOMAIN} {
