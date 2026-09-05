@@ -68,9 +68,11 @@ export class QBittorrentService implements IQBittorrentService {
 
       const setCookie = res.headers.get('set-cookie');
       if (setCookie) {
-        const sidMatch = setCookie.match(/SID=([^;]+)/);
+        const sidMatch = setCookie.match(/((?:QBT_)?SID(?:_\d+)?=[^;]+)/i);
         if (sidMatch) {
           this.sidCookie = sidMatch[1];
+        } else {
+          this.sidCookie = setCookie.split(';')[0].trim();
         }
       }
 
@@ -88,7 +90,7 @@ export class QBittorrentService implements IQBittorrentService {
     };
 
     if (sid) {
-      headers['Cookie'] = `SID=${sid}`;
+      headers['Cookie'] = sid.includes('=') ? sid : `SID=${sid}`;
     }
 
     const res = await fetch(`${this.baseUrl}${path}`, {
@@ -101,7 +103,7 @@ export class QBittorrentService implements IQBittorrentService {
       this.sidCookie = null;
       const newSid = await this.ensureAuthenticated();
       if (newSid) {
-        headers['Cookie'] = `SID=${newSid}`;
+        headers['Cookie'] = newSid.includes('=') ? newSid : `SID=${newSid}`;
       }
       return fetch(`${this.baseUrl}${path}`, {
         ...options,
