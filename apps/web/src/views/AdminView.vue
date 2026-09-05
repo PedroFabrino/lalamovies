@@ -811,7 +811,7 @@
                       {{ cand.title }}
                     </div>
                     <div class="text-xs text-zinc-500">
-                      <span v-if="cand.year">{{ cand.year }}</span>
+                      <span v-if="formatMediaSubtitle(cand)">{{ formatMediaSubtitle(cand) }}</span>
                       <span
                         v-if="cand.scheduledDeleteAt"
                         class="ml-2 text-amber-400 font-semibold"
@@ -1044,7 +1044,7 @@ import Navbar from '../components/Navbar.vue';
 import { api, ApiError } from '../lib/api';
 import { useAuthStore } from '../stores/auth';
 import { DownloadRequest } from '../stores/requests';
-import { formatDate, formatMediaType, formatSpeed } from '../lib/formatters';
+import { formatDate, formatMediaType, formatSpeed, formatMediaSubtitle } from '../lib/formatters';
 
 interface AdminUser {
   id: string;

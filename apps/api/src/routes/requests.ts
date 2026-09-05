@@ -545,6 +545,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       title: downloadRequests.title,
       year: downloadRequests.year,
       seasonNumber: downloadRequests.seasonNumber,
+      episodeNumber: downloadRequests.episodeNumber,
       jellyfinPath: downloadRequests.jellyfinPath,
       keepFlag: downloadRequests.keepFlag,
       qbTorrentHash: downloadRequests.qbTorrentHash,

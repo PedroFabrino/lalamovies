@@ -344,6 +344,37 @@ describe('Download Request Submission & Management', () => {
     expect(aliceRes.json().requests).toHaveLength(2);
   });
 
+  it('GET /requests returns seasonNumber and episodeNumber for episodic requests', async () => {
+    await app.inject({
+      method: 'POST',
+      url: '/requests',
+      cookies: { token: userCookie },
+      payload: {
+        magnetLink: 'magnet:?xt=urn:btih:tv_show_req',
+        mediaType: 'tv_show',
+        metadataId: '100',
+        metadataSource: 'tmdb',
+        title: 'Breaking Bad',
+        year: 2008,
+        seasonNumber: 2,
+        episodeNumber: 5,
+      },
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/requests',
+      cookies: { token: userCookie },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const item = res.json().requests.find((r: any) => r.title === 'Breaking Bad');
+    expect(item).toBeDefined();
+    expect(item.year).toBe(2008);
+    expect(item.seasonNumber).toBe(2);
+    expect(item.episodeNumber).toBe(5);
+  });
+
   it('GET /requests/:id enforces ownership for regular users but allows admin', async () => {
     // Alice creates request
     const createRes = await app.inject({

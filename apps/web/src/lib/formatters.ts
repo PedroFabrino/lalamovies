@@ -52,3 +52,22 @@ export function formatDate(isoString?: string | null): string {
     return isoString;
   }
 }
+
+export function formatMediaSubtitle(item: {
+  year?: number | null;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
+}): string {
+  const parts: string[] = [];
+  if (item.year) {
+    parts.push(String(item.year));
+  }
+  if (item.seasonNumber !== null && item.seasonNumber !== undefined) {
+    parts.push(`Season ${item.seasonNumber}`);
+  }
+  if (item.episodeNumber !== null && item.episodeNumber !== undefined) {
+    parts.push(`Episode ${item.episodeNumber}`);
+  }
+  return parts.join(' • ');
+}
+

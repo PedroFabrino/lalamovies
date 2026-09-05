@@ -266,12 +266,7 @@
                     {{ item.title }}
                   </div>
                   <div class="text-xs text-zinc-400 mt-0.5 flex items-center gap-2">
-                    <span v-if="item.year">{{ item.year }}</span>
-                    <span
-                      v-if="item.year && item.seasonNumber"
-                      class="text-zinc-600"
-                    >•</span>
-                    <span v-if="item.seasonNumber">Season {{ item.seasonNumber }}</span>
+                    <span v-if="formatMediaSubtitle(item)">{{ formatMediaSubtitle(item) }}</span>
                     <span
                       v-if="item.scheduledDeleteAt"
                       class="text-amber-400 font-medium"
@@ -540,6 +535,7 @@ import {
   formatEta,
   formatMediaType,
   formatDate,
+  formatMediaSubtitle,
 } from '../lib/formatters';
 
 interface DiskInfo {
