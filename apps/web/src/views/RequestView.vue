@@ -139,21 +139,21 @@
         <div class="flex items-center gap-1.5 p-1 bg-zinc-950 border border-zinc-800 rounded-lg max-w-xs mb-6">
           <button
             type="button"
-            @click="inputMode = 'magnet'"
-            class="flex-1 py-1.5 px-3 rounded-md text-xs font-medium transition cursor-pointer flex items-center justify-center gap-1.5"
-            :class="inputMode === 'magnet' ? 'bg-indigo-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'"
-          >
-            <span>🧲</span>
-            <span>Magnet Link</span>
-          </button>
-          <button
-            type="button"
             @click="inputMode = 'file'"
             class="flex-1 py-1.5 px-3 rounded-md text-xs font-medium transition cursor-pointer flex items-center justify-center gap-1.5"
             :class="inputMode === 'file' ? 'bg-indigo-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'"
           >
             <span>📄</span>
             <span>Torrent File</span>
+          </button>
+          <button
+            type="button"
+            @click="inputMode = 'magnet'"
+            class="flex-1 py-1.5 px-3 rounded-md text-xs font-medium transition cursor-pointer flex items-center justify-center gap-1.5"
+            :class="inputMode === 'magnet' ? 'bg-indigo-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'"
+          >
+            <span>🧲</span>
+            <span>Magnet Link</span>
           </button>
         </div>
 
@@ -259,30 +259,32 @@
             </div>
           </div>
 
-          <!-- Custom query override (optional) -->
+          <!-- Media Title / Search Query (Required) -->
           <div>
             <label
               for="customQuery"
               class="block text-sm font-medium text-zinc-300 mb-2"
             >
-              Title Search Query <span class="text-xs text-zinc-500 font-normal">(Optional override)</span>
+              Media Title / Search Query <span class="text-xs text-red-400">*</span>
             </label>
             <input
               id="customQuery"
+              ref="customQueryInputRef"
               v-model="customQuery"
               type="text"
+              required
               :disabled="isSearching"
               placeholder="e.g. Inception, Breaking Bad, Jujutsu Kaisen"
               class="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-50"
             >
             <p class="text-xs text-zinc-500 mt-1.5">
-              If left blank, the title is automatically extracted from the magnet name or torrent file.
+              Clean title used to search TMDB or AniList for metadata matching.
             </p>
           </div>
 
           <button
             type="submit"
-            :disabled="isSearching || (inputMode === 'magnet' ? !magnetLink.trim() : !selectedFile)"
+            :disabled="isSearching || !customQuery.trim() || (inputMode === 'magnet' ? !magnetLink.trim() : !selectedFile)"
             class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg shadow transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             <svg
@@ -600,13 +602,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import Navbar from '../components/Navbar.vue';
 import { api, ApiError } from '../lib/api';
 import { useRequestsStore, MediaType, DownloadRequest } from '../stores/requests';
 import { formatMediaType } from '../lib/formatters';
 import { parseTorrentFile, fileToBase64, ParsedTorrentClient } from '../lib/torrentParser';
+import { cleanTorrentTitle } from '../lib/torrentTitleCleaner';
 
 interface MetadataCandidate {
   id: string;
@@ -623,10 +626,11 @@ const requestsStore = useRequestsStore();
 const currentStep = ref<1 | 2 | 3>(1);
 
 // Step 1 State
-const inputMode = ref<'magnet' | 'file'>('magnet');
+const inputMode = ref<'magnet' | 'file'>('file');
 const magnetLink = ref('');
 const selectedFile = ref<File | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
+const customQueryInputRef = ref<HTMLInputElement | null>(null);
 const isDragging = ref(false);
 const parsedTorrent = ref<ParsedTorrentClient | null>(null);
 
@@ -663,11 +667,17 @@ async function processFile(file: File) {
     const parsed = await parseTorrentFile(file);
     parsedTorrent.value = parsed;
     magnetLink.value = parsed.magnetUri;
-    if (!customQuery.value.trim()) {
-      customQuery.value = parsed.name;
+
+    const cleaned = cleanTorrentTitle(parsed.name);
+    customQuery.value = cleaned.title || parsed.name;
+    if (cleaned.detectedMediaType) {
+      mediaType.value = cleaned.detectedMediaType;
     }
-    // Auto-search metadata immediately on file drop
-    await handleSearchMetadata();
+
+    if (!customQuery.value.trim()) {
+      await nextTick();
+      customQueryInputRef.value?.focus();
+    }
   } catch (err) {
     step1Error.value = 'Failed to read .torrent file: ' + ((err as Error).message || 'Invalid format');
   }
@@ -688,6 +698,12 @@ function handleFileDrop(e: DragEvent) {
 }
 
 async function handleSearchMetadata() {
+  if (!customQuery.value.trim()) {
+    step1Error.value = 'Media Title / Search Query is required.';
+    customQueryInputRef.value?.focus();
+    return;
+  }
+
   if (inputMode.value === 'magnet' && !magnetLink.value.trim()) return;
   if (inputMode.value === 'file' && !selectedFile.value) return;
 
@@ -697,7 +713,7 @@ async function handleSearchMetadata() {
   try {
     const payload: Record<string, any> = {
       mediaType: mediaType.value,
-      query: customQuery.value.trim() || undefined,
+      query: customQuery.value.trim(),
     };
 
     if (inputMode.value === 'file' && selectedFile.value) {
