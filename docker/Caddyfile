@@ -21,6 +21,8 @@
 }
 
 {$JELLYFIN_DOMAIN} {
+    log
+
     # Reverse proxy all traffic to the Jellyfin container.
     reverse_proxy jellyfin:8096 {
         # Pass the real client IP to Jellyfin so it appears in logs
