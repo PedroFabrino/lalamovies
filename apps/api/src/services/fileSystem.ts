@@ -23,6 +23,27 @@ export class FileSystemService implements IFileSystemService {
 
   constructor(mediaBasePath?: string) {
     this.defaultMediaBasePath = mediaBasePath || process.env.MEDIA_PATH || path.resolve(process.cwd(), 'media');
+    this.ensureDirectories();
+  }
+
+  private ensureDirectories(): void {
+    const staging = process.env.STAGING_PATH || path.resolve(process.cwd(), 'downloads', 'staging');
+    const media = this.defaultMediaBasePath;
+    const dirs = [
+      staging,
+      path.join(media, 'movies'),
+      path.join(media, 'shows'),
+      path.join(media, 'anime'),
+    ];
+    for (const dir of dirs) {
+      if (!fs.existsSync(dir)) {
+        try {
+          fs.mkdirSync(dir, { recursive: true });
+        } catch {
+          // ignore error if already created or permission issue
+        }
+      }
+    }
   }
 
   private sanitize(name: string): string {
