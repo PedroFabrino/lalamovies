@@ -96,6 +96,20 @@ services:
     depends_on:
       - api
 
+  # Automatically updates the Cloudflare DNS A record for JELLYFIN_DOMAIN
+  # whenever the home public IP changes. Checks every 5 minutes.
+  # Requires a Cloudflare API token with Zone:DNS:Edit permission for lalamovies.stream.
+  ddns:
+    image: timothymiller/cloudflare-ddns:latest
+    container_name: mdm-ddns
+    restart: unless-stopped
+    environment:
+      - CF_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+      - DOMAINS=${JELLYFIN_DOMAIN}
+      - PROXIED=false
+      - DELETE_ON_STOP=false
+      - TZ=${TZ:-UTC}
+
 volumes:
   app_db:
     # Dedicated Docker named volume for SQLite database (app.db) on SSD storage.
