@@ -192,12 +192,29 @@ export class DownloadPoller {
 
         for (const queuedReq of queuedRequests) {
           try {
-            const hash = await this.qbittorrent.addTorrent(queuedReq.magnetLink, this.stagingPath);
+            let hash: string;
+            if (queuedReq.torrentFilePath && fs.existsSync(queuedReq.torrentFilePath)) {
+              const torrentBuffer = fs.readFileSync(queuedReq.torrentFilePath);
+              hash = await this.qbittorrent.addTorrentFile(
+                torrentBuffer,
+                this.stagingPath,
+                path.basename(queuedReq.torrentFilePath)
+              );
+              try {
+                fs.unlinkSync(queuedReq.torrentFilePath);
+              } catch (unlinkErr) {
+                this.logger?.error(`Failed to delete temp torrent file ${queuedReq.torrentFilePath}:`, unlinkErr);
+              }
+            } else {
+              hash = await this.qbittorrent.addTorrent(queuedReq.magnetLink, this.stagingPath);
+            }
+
             this.db
               .update(downloadRequests)
               .set({
                 status: 'downloading',
                 qbTorrentHash: hash,
+                torrentFilePath: null,
               })
               .where(eq(downloadRequests.id, queuedReq.id))
               .run();

@@ -1,0 +1,1 @@
+ALTER TABLE `download_requests` ADD `torrent_file_path` text;

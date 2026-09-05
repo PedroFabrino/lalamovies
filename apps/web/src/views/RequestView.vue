@@ -135,12 +135,34 @@
           <span>{{ step1Error }}</span>
         </div>
 
+        <!-- Input Mode Switcher Tabs -->
+        <div class="flex items-center gap-1.5 p-1 bg-zinc-950 border border-zinc-800 rounded-lg max-w-xs mb-6">
+          <button
+            type="button"
+            @click="inputMode = 'magnet'"
+            class="flex-1 py-1.5 px-3 rounded-md text-xs font-medium transition cursor-pointer flex items-center justify-center gap-1.5"
+            :class="inputMode === 'magnet' ? 'bg-indigo-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'"
+          >
+            <span>🧲</span>
+            <span>Magnet Link</span>
+          </button>
+          <button
+            type="button"
+            @click="inputMode = 'file'"
+            class="flex-1 py-1.5 px-3 rounded-md text-xs font-medium transition cursor-pointer flex items-center justify-center gap-1.5"
+            :class="inputMode === 'file' ? 'bg-indigo-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'"
+          >
+            <span>📄</span>
+            <span>Torrent File</span>
+          </button>
+        </div>
+
         <form
           class="space-y-6"
           @submit.prevent="handleSearchMetadata"
         >
           <!-- Magnet link input -->
-          <div>
+          <div v-if="inputMode === 'magnet'">
             <label
               for="magnetLink"
               class="block text-sm font-medium text-zinc-300 mb-2"
@@ -159,6 +181,55 @@
             <p class="text-xs text-zinc-500 mt-1.5">
               Paste the full magnet URI from your torrent indexer.
             </p>
+          </div>
+
+          <!-- Torrent file dropzone -->
+          <div v-else>
+            <label class="block text-sm font-medium text-zinc-300 mb-2">
+              Upload .torrent File
+            </label>
+            <div
+              @dragover.prevent="isDragging = true"
+              @dragleave.prevent="isDragging = false"
+              @drop.prevent="handleFileDrop"
+              @click="fileInputRef?.click()"
+              class="relative border-2 border-dashed rounded-xl p-8 text-center transition cursor-pointer"
+              :class="isDragging
+                ? 'border-indigo-500 bg-indigo-950/20 ring-4 ring-indigo-500/10'
+                : selectedFile
+                  ? 'border-emerald-600/60 bg-emerald-950/15'
+                  : 'border-zinc-800 bg-zinc-950/40 hover:border-zinc-700 hover:bg-zinc-900/30'"
+            >
+              <input
+                ref="fileInputRef"
+                type="file"
+                accept=".torrent"
+                class="hidden"
+                @change="handleFileInputChange"
+              />
+              <div v-if="!selectedFile" class="flex flex-col items-center gap-2">
+                <div class="w-12 h-12 rounded-full bg-zinc-800/80 flex items-center justify-center text-xl">
+                  📄
+                </div>
+                <div class="text-sm font-medium text-zinc-200">
+                  Click to browse or drag & drop a <span class="text-indigo-400">.torrent</span> file
+                </div>
+                <p class="text-xs text-zinc-500">
+                  Direct upload supports both private & public trackers
+                </p>
+              </div>
+              <div v-else class="flex flex-col items-center gap-2">
+                <div class="w-12 h-12 rounded-full bg-emerald-900/40 border border-emerald-600/60 flex items-center justify-center text-xl text-emerald-400">
+                  ✓
+                </div>
+                <div class="text-sm font-semibold text-emerald-300 break-all max-w-md">
+                  {{ selectedFile.name }}
+                </div>
+                <div class="text-xs text-zinc-400">
+                  {{ (selectedFile.size / 1024).toFixed(1) }} KB • Click to replace
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Media Type radio selection -->
@@ -205,13 +276,13 @@
               class="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-50"
             >
             <p class="text-xs text-zinc-500 mt-1.5">
-              If left blank, the title is automatically extracted from the magnet name.
+              If left blank, the title is automatically extracted from the magnet name or torrent file.
             </p>
           </div>
 
           <button
             type="submit"
-            :disabled="isSearching || !magnetLink.trim()"
+            :disabled="isSearching || (inputMode === 'magnet' ? !magnetLink.trim() : !selectedFile)"
             class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg shadow transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             <svg
@@ -479,9 +550,10 @@
           </p>
         </div>
 
-        <!-- Magnet link summary -->
+        <!-- Source summary -->
         <div class="text-xs text-zinc-500 break-all bg-zinc-950 p-3 rounded-lg border border-zinc-800/50">
-          <span class="text-zinc-400 font-semibold">Magnet:</span> {{ magnetLink.slice(0, 80) }}...
+          <span class="text-zinc-400 font-semibold">{{ inputMode === 'file' ? 'Torrent File:' : 'Magnet:' }}</span>
+          {{ inputMode === 'file' ? selectedFile?.name : (magnetLink.length > 80 ? magnetLink.slice(0, 80) + '...' : magnetLink) }}
         </div>
 
         <div class="flex items-center justify-between pt-4 border-t border-zinc-800">
@@ -534,6 +606,7 @@ import Navbar from '../components/Navbar.vue';
 import { api, ApiError } from '../lib/api';
 import { useRequestsStore, MediaType, DownloadRequest } from '../stores/requests';
 import { formatMediaType } from '../lib/formatters';
+import { parseTorrentFile, fileToBase64, ParsedTorrentClient } from '../lib/torrentParser';
 
 interface MetadataCandidate {
   id: string;
@@ -550,7 +623,13 @@ const requestsStore = useRequestsStore();
 const currentStep = ref<1 | 2 | 3>(1);
 
 // Step 1 State
+const inputMode = ref<'magnet' | 'file'>('magnet');
 const magnetLink = ref('');
+const selectedFile = ref<File | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const isDragging = ref(false);
+const parsedTorrent = ref<ParsedTorrentClient | null>(null);
+
 const mediaType = ref<MediaType>('movie');
 const customQuery = ref('');
 const isSearching = ref(false);
@@ -571,18 +650,65 @@ const seasonNumber = ref<number | null>(null);
 const isSubmitting = ref(false);
 const step3Error = ref<string | null>(null);
 
+async function processFile(file: File) {
+  if (!file.name.toLowerCase().endsWith('.torrent')) {
+    step1Error.value = 'Please select a valid .torrent file.';
+    return;
+  }
+
+  selectedFile.value = file;
+  step1Error.value = null;
+
+  try {
+    const parsed = await parseTorrentFile(file);
+    parsedTorrent.value = parsed;
+    magnetLink.value = parsed.magnetUri;
+    if (!customQuery.value.trim()) {
+      customQuery.value = parsed.name;
+    }
+    // Auto-search metadata immediately on file drop
+    await handleSearchMetadata();
+  } catch (err) {
+    step1Error.value = 'Failed to read .torrent file: ' + ((err as Error).message || 'Invalid format');
+  }
+}
+
+function handleFileInputChange(e: Event) {
+  const target = e.target as HTMLInputElement;
+  if (target.files && target.files.length > 0) {
+    processFile(target.files[0]);
+  }
+}
+
+function handleFileDrop(e: DragEvent) {
+  isDragging.value = false;
+  if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+    processFile(e.dataTransfer.files[0]);
+  }
+}
+
 async function handleSearchMetadata() {
-  if (!magnetLink.value.trim()) return;
+  if (inputMode.value === 'magnet' && !magnetLink.value.trim()) return;
+  if (inputMode.value === 'file' && !selectedFile.value) return;
 
   isSearching.value = true;
   step1Error.value = null;
 
   try {
-    const data = await api.post<{ candidates: MetadataCandidate[] }>('/requests/search-metadata', {
-      magnetLink: magnetLink.value.trim(),
+    const payload: Record<string, any> = {
       mediaType: mediaType.value,
       query: customQuery.value.trim() || undefined,
-    });
+    };
+
+    if (inputMode.value === 'file' && selectedFile.value) {
+      const base64 = await fileToBase64(selectedFile.value);
+      payload.torrentFileBase64 = base64;
+      payload.magnetLink = magnetLink.value || undefined;
+    } else {
+      payload.magnetLink = magnetLink.value.trim();
+    }
+
+    const data = await api.post<{ candidates: MetadataCandidate[] }>('/requests/search-metadata', payload);
 
     candidates.value = data.candidates || [];
     selectedCandidate.value = candidates.value.length > 0 ? candidates.value[0] : null;
@@ -591,7 +717,7 @@ async function handleSearchMetadata() {
     if (err instanceof ApiError) {
       step1Error.value = err.message;
     } else {
-      step1Error.value = 'Failed to search metadata. Please check the magnet link.';
+      step1Error.value = 'Failed to search metadata. Please check the input.';
     }
   } finally {
     isSearching.value = false;
@@ -610,15 +736,25 @@ async function handleConfirmRequest() {
   step3Error.value = null;
 
   try {
-    const res = await api.post<{ request: DownloadRequest }>('/requests', {
-      magnetLink: magnetLink.value.trim(),
+    const payload: Record<string, any> = {
       mediaType: mediaType.value,
       metadataId: selectedCandidate.value.id,
       metadataSource: selectedCandidate.value.source,
       title: selectedCandidate.value.title,
       year: selectedCandidate.value.year ?? undefined,
       seasonNumber: seasonNumber.value ?? undefined,
-    });
+    };
+
+    if (inputMode.value === 'file' && selectedFile.value) {
+      const base64 = await fileToBase64(selectedFile.value);
+      payload.torrentFileBase64 = base64;
+      payload.torrentFileName = selectedFile.value.name;
+      payload.magnetLink = magnetLink.value || undefined;
+    } else {
+      payload.magnetLink = magnetLink.value.trim();
+    }
+
+    const res = await api.post<{ request: DownloadRequest }>('/requests', payload);
 
     if (res.request.status === 'queued') {
       requestsStore.showToast(

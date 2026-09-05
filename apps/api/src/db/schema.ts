@@ -43,6 +43,7 @@ export const downloadRequests = sqliteTable('download_requests', {
   lastPlayedAt: text('last_played_at'),
   scheduledDeleteAt: text('scheduled_delete_at'),
   sizeBytes: integer('size_bytes'),
+  torrentFilePath: text('torrent_file_path'),
 });
 
 export const systemConfig = sqliteTable('system_config', {

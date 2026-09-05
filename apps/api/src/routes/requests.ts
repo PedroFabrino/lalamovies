@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
@@ -5,22 +7,45 @@ import { eq, desc } from 'drizzle-orm';
 import { authMiddleware, adminGuard } from '../middleware/auth';
 import { systemConfig, downloadRequests, users, DownloadRequest } from '../db/schema';
 import { MetadataApiError } from '../services/metadata';
+import { parseTorrentBuffer } from '../services/torrentParser';
 
-const searchMetadataSchema = z.object({
-  magnetLink: z.string().min(1, 'Magnet link is required'),
-  mediaType: z.enum(['movie', 'tv_show', 'anime']),
-  query: z.string().optional(),
-});
+const searchMetadataSchema = z
+  .object({
+    magnetLink: z.string().optional(),
+    torrentFileBase64: z.string().optional(),
+    mediaType: z.enum(['movie', 'tv_show', 'anime']),
+    query: z.string().optional(),
+  })
+  .refine(
+    (data) =>
+      Boolean(
+        (data.magnetLink && data.magnetLink.trim().length > 0) ||
+          data.torrentFileBase64 ||
+          (data.query && data.query.trim().length > 0)
+      ),
+    {
+      message: 'Either magnetLink, torrentFileBase64, or explicit query is required',
+    }
+  );
 
-const createRequestSchema = z.object({
-  magnetLink: z.string().min(1, 'Magnet link is required'),
-  mediaType: z.enum(['movie', 'tv_show', 'anime']),
-  metadataId: z.string().min(1, 'Metadata ID is required'),
-  metadataSource: z.enum(['tmdb', 'anilist']),
-  title: z.string().min(1, 'Title is required'),
-  year: z.number().int().optional(),
-  seasonNumber: z.number().int().optional(),
-});
+const createRequestSchema = z
+  .object({
+    magnetLink: z.string().optional(),
+    torrentFileBase64: z.string().optional(),
+    torrentFileName: z.string().optional(),
+    mediaType: z.enum(['movie', 'tv_show', 'anime']),
+    metadataId: z.string().min(1, 'Metadata ID is required'),
+    metadataSource: z.enum(['tmdb', 'anilist']),
+    title: z.string().min(1, 'Title is required'),
+    year: z.number().int().optional(),
+    seasonNumber: z.number().int().optional(),
+  })
+  .refine(
+    (data) => Boolean((data.magnetLink && data.magnetLink.trim().length > 0) || data.torrentFileBase64),
+    {
+      message: 'Either magnetLink or torrentFileBase64 is required',
+    }
+  );
 
 export const requestRoutes: FastifyPluginAsync = async (app) => {
   // All /requests routes require authentication
@@ -36,17 +61,27 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const { magnetLink, mediaType, query: explicitQuery } = parseResult.data;
+    const { magnetLink, torrentFileBase64, mediaType, query: explicitQuery } = parseResult.data;
 
-    const searchQuery =
-      explicitQuery && explicitQuery.trim().length > 0
-        ? explicitQuery.trim()
-        : app.metadata.extractTitleFromMagnet(magnetLink);
+    let searchQuery = explicitQuery && explicitQuery.trim().length > 0 ? explicitQuery.trim() : '';
+
+    if (!searchQuery && torrentFileBase64) {
+      try {
+        const parsed = parseTorrentBuffer(Buffer.from(torrentFileBase64, 'base64'));
+        searchQuery = parsed.name;
+      } catch (err) {
+        request.log.warn(err, 'Failed to parse torrent buffer in search-metadata');
+      }
+    }
+
+    if (!searchQuery && magnetLink) {
+      searchQuery = app.metadata.extractTitleFromMagnet(magnetLink);
+    }
 
     if (!searchQuery) {
       return reply.status(400).send({
         error: 'Bad Request',
-        message: 'Could not extract search query from magnet link',
+        message: 'Could not extract search query from magnet link or torrent file',
       });
     }
 
@@ -109,8 +144,42 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const { magnetLink, mediaType, metadataId, metadataSource, title, year, seasonNumber } =
-      parseResult.data;
+    const {
+      magnetLink,
+      torrentFileBase64,
+      torrentFileName,
+      mediaType,
+      metadataId,
+      metadataSource,
+      title,
+      year,
+      seasonNumber,
+    } = parseResult.data;
+
+    let torrentBuffer: Buffer | null = null;
+    let effectiveMagnetLink = magnetLink || '';
+
+    if (torrentFileBase64) {
+      try {
+        torrentBuffer = Buffer.from(torrentFileBase64, 'base64');
+        const parsed = parseTorrentBuffer(torrentBuffer);
+        if (!effectiveMagnetLink) {
+          effectiveMagnetLink = parsed.magnetUri;
+        }
+      } catch (err) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'Invalid or corrupt .torrent file',
+        });
+      }
+    }
+
+    if (!effectiveMagnetLink) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Could not resolve magnet link or torrent file',
+      });
+    }
 
     // 2. Check concurrent download limit
     const configRow = app.db
@@ -124,11 +193,21 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
 
     let status: 'queued' | 'downloading' = 'queued';
     let qbTorrentHash: string | null = null;
+    let torrentFilePath: string | null = null;
+    const stagingPath = process.env.STAGING_PATH || '/media_data/downloads/staging';
+    const requestId = randomUUID();
 
     if (activeCount < concurrentLimit) {
-      const stagingPath = process.env.STAGING_PATH || '/media_data/downloads/staging';
       try {
-        qbTorrentHash = await app.qbittorrent.addTorrent(magnetLink, stagingPath);
+        if (torrentBuffer) {
+          qbTorrentHash = await app.qbittorrent.addTorrentFile(
+            torrentBuffer,
+            stagingPath,
+            torrentFileName || `${title}.torrent`
+          );
+        } else {
+          qbTorrentHash = await app.qbittorrent.addTorrent(effectiveMagnetLink, stagingPath);
+        }
         status = 'downloading';
       } catch (err) {
         request.log.error(err, 'Could not add torrent to qBittorrent immediately, falling back to queued');
@@ -136,11 +215,21 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
+    // If queued and we have a torrent file, save it temporarily on disk for the poller
+    if (status === 'queued' && torrentBuffer) {
+      const torrentsDir = path.resolve(path.dirname(stagingPath), 'torrents');
+      if (!fs.existsSync(torrentsDir)) {
+        fs.mkdirSync(torrentsDir, { recursive: true });
+      }
+      torrentFilePath = path.join(torrentsDir, `${requestId}.torrent`);
+      fs.writeFileSync(torrentFilePath, torrentBuffer);
+    }
+
     // 3. Insert record in download_requests table
     const newRequest: DownloadRequest = {
-      id: randomUUID(),
+      id: requestId,
       userId: request.currentUser!.id,
-      magnetLink,
+      magnetLink: effectiveMagnetLink,
       mediaType,
       status,
       metadataId,
@@ -157,6 +246,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       lastPlayedAt: null,
       scheduledDeleteAt: null,
       sizeBytes: null,
+      torrentFilePath,
     };
 
     app.db.insert(downloadRequests).values(newRequest).run();

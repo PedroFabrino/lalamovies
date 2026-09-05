@@ -8,6 +8,8 @@ export interface TorrentInfo {
   size: number;
 }
 
+import { parseTorrentBuffer } from './torrentParser';
+
 export class QBittorrentError extends Error {
   constructor(message: string, public statusCode = 502) {
     super(message);
@@ -17,6 +19,7 @@ export class QBittorrentError extends Error {
 
 export interface IQBittorrentService {
   addTorrent(magnetLink: string, savePath?: string): Promise<string>;
+  addTorrentFile(fileBuffer: Buffer | Uint8Array, savePath?: string, fileName?: string): Promise<string>;
   getActiveTorrentCount(): Promise<number>;
   getTorrentStatus(hash: string): Promise<TorrentInfo | null>;
   removeTorrent(hash: string, deleteFiles?: boolean): Promise<void>;
@@ -136,6 +139,37 @@ export class QBittorrentService implements IQBittorrentService {
     } catch (err) {
       if (err instanceof QBittorrentError) throw err;
       throw new QBittorrentError(`Failed to add torrent to qBittorrent: ${(err as Error).message}`);
+    }
+  }
+
+  async addTorrentFile(fileBuffer: Buffer | Uint8Array, savePath?: string, fileName = 'upload.torrent'): Promise<string> {
+    const { infoHash } = parseTorrentBuffer(fileBuffer);
+    const formData = new FormData();
+    const blob = new Blob([fileBuffer], { type: 'application/x-bittorrent' });
+    formData.append('torrents', blob, fileName);
+    if (savePath) {
+      formData.append('savepath', savePath);
+    }
+
+    try {
+      const res = await this.fetchWithAuth('/api/v2/torrents/add', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new QBittorrentError(`Failed to add torrent file: HTTP ${res.status}`);
+      }
+
+      const text = await res.text();
+      if (text.trim() === 'Fails.') {
+        throw new QBittorrentError('qBittorrent rejected the torrent file');
+      }
+
+      return infoHash;
+    } catch (err) {
+      if (err instanceof QBittorrentError) throw err;
+      throw new QBittorrentError(`Failed to add torrent file to qBittorrent: ${(err as Error).message}`);
     }
   }
 
