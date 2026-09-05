@@ -1,3 +1,5 @@
+import { cleanTorrentTitle } from '../utils/torrentTitleCleaner';
+
 export interface MetadataCandidate {
   id: string;
   source: 'tmdb' | 'anilist';
@@ -28,63 +30,8 @@ export class MetadataService implements IMetadataService {
   }
 
   extractTitleFromMagnet(magnetLink: string): string {
-    let raw = magnetLink;
-
-    // 1. Extract dn (display name) if this is a magnet URI
-    const dnMatch = magnetLink.match(/[?&]dn=([^&]+)/i);
-    if (dnMatch && dnMatch[1]) {
-      try {
-        raw = decodeURIComponent(dnMatch[1].replace(/\+/g, ' '));
-      } catch {
-        raw = dnMatch[1];
-      }
-    }
-
-    // 2. Strip bracketed expressions, e.g. [SubsPlease], [YTS.MX], [1080p]
-    let cleaned = raw.replace(/\[[^\]]*\]/g, ' ');
-    cleaned = cleaned.replace(/\{[^}]*\}/g, ' ');
-
-    // 3. Strip trailing release group suffix after hyphen, e.g. -CTU, -RARBG, -YTS
-    cleaned = cleaned.replace(/-\s*[A-Za-z0-9]+(\.[a-z0-9]{2,4})?$/i, ' ');
-
-    // 4. Preserve 4-digit years in parentheses (e.g. "(2022)"), strip other parens
-    cleaned = cleaned.replace(/\((?!\d{4}\b)[^)]*\)/g, ' ');
-
-    // 5. Strip common file extensions
-    cleaned = cleaned.replace(/\.(mkv|mp4|avi|wmv|iso|ts|mov)$/i, '');
-
-    // 6. Strip resolution & source tags
-    cleaned = cleaned.replace(
-      /\b(2160p|4k|1080p|1080i|720p|480p|576p|uhd|fhd|hdrip|webrip|web-dl|webdl|bluray|blu-ray|bdrip|brrip|dvdrip|remux|hdtv)\b/gi,
-      ' '
-    );
-
-    // 7. Strip codecs & formats
-    cleaned = cleaned.replace(
-      /\b(x264|x265|h264|h265|hevc|av1|xvid|divx|10bit|8bit|hdr|sdr|dv|dovi)\b/gi,
-      ' '
-    );
-
-    // 8. Strip audio specifications (e.g. AAC5.1, AAC2.0, DDP5.1, 5.1, 7.1)
-    cleaned = cleaned.replace(
-      /\b(aac\d*(\.\d+)?|ac3|eac3|dts(-hd)?|truehd|ddp\d*(\.\d+)?|dd\d*(\.\d+)?|\d\.\d|atmos|mp3|flac)\b/gi,
-      ' '
-    );
-
-    // 9. Strip season / episode / batch tags
-    cleaned = cleaned.replace(
-      /\b(s\d{1,2}e\d{1,2}|s\d{1,2}|season\s*\d{1,2}|complete|batch|episode\s*\d{1,3})\b/gi,
-      ' '
-    );
-
-    // 10. Replace dots, underscores, dashes, plus signs with spaces
-    cleaned = cleaned.replace(/[._\-+]/g, ' ');
-
-    // 11. Clean up extra punctuation and collapse whitespace
-    cleaned = cleaned.replace(/[()]/g, ' ');
-    cleaned = cleaned.replace(/\s+/g, ' ').trim();
-
-    return cleaned || raw.trim();
+    const cleaned = cleanTorrentTitle(magnetLink);
+    return cleaned.title || (magnetLink.startsWith('magnet:') ? '' : magnetLink.trim());
   }
 
   async searchTMDB(

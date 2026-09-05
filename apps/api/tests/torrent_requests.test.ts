@@ -141,9 +141,9 @@ describe('Torrent File Support', () => {
 
     expect(res.statusCode).toBe(200);
     const json = JSON.parse(res.body);
-    expect(json.query).toBe('Dune.Part.Two.2024.2160p');
+    expect(json.query).toBe('Dune Part Two 2024');
     expect(json.candidates.length).toBeGreaterThan(0);
-    expect(json.candidates[0].title).toBe('Dune.Part.Two.2024.2160p');
+    expect(json.candidates[0].title).toBe('Dune Part Two 2024');
   });
 
   it('creates request and transmits torrent file directly to qBittorrent when slots available', async () => {

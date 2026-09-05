@@ -1,9 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import crypto from 'node:crypto';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app';
 import { MetadataService, IMetadataService } from '../src/services/metadata';
 import { IJellyfinService } from '../src/services/jellyfin';
 import { systemConfig } from '../src/db/schema';
+import { cleanTorrentTitle } from '../src/utils/torrentTitleCleaner';
+
+function createDummyTorrentBuffer(name: string, length = 123456): { buffer: Buffer; infoHash: string } {
+  const infoDict = `d6:lengthi${length}e4:name${name.length}:${name}e`;
+  const fullTorrent = `d4:info${infoDict}e`;
+  const infoHash = crypto.createHash('sha1').update(Buffer.from(infoDict)).digest('hex').toLowerCase();
+  return { buffer: Buffer.from(fullTorrent), infoHash };
+}
 
 class DummyJellyfinService implements IJellyfinService {
   async authenticateUser(username: string) {
@@ -26,7 +35,7 @@ describe('Metadata Service - Unit Tests', () => {
       ],
       [
         '[SubsPlease] Frieren - Beyond Journey\'s End - 28 (1080p) [9876ABCD].mkv',
-        'Frieren Beyond Journey\'s End 28',
+        'Frieren - Beyond Journey\'s End - 28',
       ],
       [
         'Breaking.Bad.S01E01.720p.HDTV.x264-CTU',
@@ -38,11 +47,23 @@ describe('Metadata Service - Unit Tests', () => {
       ],
       [
         '[Erai-raws] Shingeki no Kyojin - The Final Season [1080p][HEVC]',
-        'Shingeki no Kyojin The Final Season',
+        'Shingeki no Kyojin - The Final Season',
       ],
       [
         'Fight Club',
         'Fight Club',
+      ],
+      [
+        'Crowned.in.a.Hundred.Days.S01E01.1080p.CR.WEB-DL.AAC2.0.H.264-BiOMA.mkv',
+        'Crowned in a Hundred Days',
+      ],
+      [
+        'Inception.2010.1080p.BluRay.x264-SPARKS.mkv',
+        'Inception 2010',
+      ],
+      [
+        'Show.Name.Season.01',
+        'Show Name',
       ],
     ];
 
@@ -183,11 +204,7 @@ describe('POST /requests/search-metadata - Route Integration', () => {
   let userCookie: string;
 
   const mockMetadataService: IMetadataService = {
-    extractTitleFromMagnet: vi.fn((link: string) => {
-      if (link.includes('The.Batman')) return 'The Batman';
-      if (link.includes('Frieren')) return 'Frieren';
-      return 'Generic Query';
-    }),
+    extractTitleFromMagnet: vi.fn((link: string) => cleanTorrentTitle(link).title),
     searchTMDB: vi.fn(async (query) => [
       {
         id: '101',
@@ -211,6 +228,7 @@ describe('POST /requests/search-metadata - Route Integration', () => {
   };
 
   beforeEach(async () => {
+    vi.clearAllMocks();
     app = buildApp({
       dbPath: ':memory:',
       jellyfinService: new DummyJellyfinService(),
@@ -269,7 +287,7 @@ describe('POST /requests/search-metadata - Route Integration', () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.query).toBe('The Batman');
+    expect(body.query).toBe('The Batman 2022');
     expect(body.mediaType).toBe('movie');
     expect(body.candidates).toHaveLength(1);
     expect(body.candidates[0].source).toBe('tmdb');
@@ -316,6 +334,49 @@ describe('POST /requests/search-metadata - Route Integration', () => {
       'The Batman',
       'movie',
       'custom_db_api_key'
+    );
+  });
+
+  it('cleans title from torrentFileBase64 when no explicit query is provided', async () => {
+    const { buffer } = createDummyTorrentBuffer('Inception.2010.1080p.BluRay.x264-SPARKS.mkv');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/requests/search-metadata',
+      cookies: { token: userCookie },
+      payload: {
+        torrentFileBase64: buffer.toString('base64'),
+        mediaType: 'movie',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.query).toBe('Inception 2010');
+    expect(mockMetadataService.searchTMDB).toHaveBeenCalledWith(
+      'Inception 2010',
+      'movie',
+      expect.anything()
+    );
+  });
+
+  it('cleans title from magnetLink TV episode with scene tags when no explicit query is provided', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/requests/search-metadata',
+      cookies: { token: userCookie },
+      payload: {
+        magnetLink: 'magnet:?xt=urn:btih:abc&dn=Crowned.in.a.Hundred.Days.S01E01.1080p.CR.WEB-DL.AAC2.0.H.264-BiOMA.mkv',
+        mediaType: 'tv_show',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.query).toBe('Crowned in a Hundred Days');
+    expect(mockMetadataService.searchTMDB).toHaveBeenCalledWith(
+      'Crowned in a Hundred Days',
+      'tv_show',
+      expect.anything()
     );
   });
 });

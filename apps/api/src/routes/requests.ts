@@ -8,6 +8,7 @@ import { authMiddleware, adminGuard } from '../middleware/auth';
 import { systemConfig, downloadRequests, users, DownloadRequest } from '../db/schema';
 import { MetadataApiError } from '../services/metadata';
 import { parseTorrentBuffer } from '../services/torrentParser';
+import { cleanTorrentTitle } from '../utils/torrentTitleCleaner';
 
 const searchMetadataSchema = z
   .object({
@@ -68,7 +69,8 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
     if (!searchQuery && torrentFileBase64) {
       try {
         const parsed = parseTorrentBuffer(Buffer.from(torrentFileBase64, 'base64'));
-        searchQuery = parsed.name;
+        const cleaned = cleanTorrentTitle(parsed.name);
+        searchQuery = cleaned.title || parsed.name;
       } catch (err) {
         request.log.warn(err, 'Failed to parse torrent buffer in search-metadata');
       }
