@@ -40,6 +40,7 @@ const createRequestSchema = z
     title: z.string().min(1, 'Title is required'),
     year: z.number().int().optional(),
     seasonNumber: z.number().int().optional(),
+    episodeNumber: z.number().int().optional(),
   })
   .refine(
     (data) => Boolean((data.magnetLink && data.magnetLink.trim().length > 0) || data.torrentFileBase64),
@@ -47,6 +48,36 @@ const createRequestSchema = z
       message: 'Either magnetLink or torrentFileBase64 is required',
     }
   );
+
+const batchItemSchema = z
+  .object({
+    magnetLink: z.string().optional(),
+    torrentFileBase64: z.string().optional(),
+    torrentFileName: z.string().optional(),
+    mediaType: z.enum(['movie', 'tv_show', 'anime']).optional(),
+    metadataId: z.string().optional(),
+    metadataSource: z.enum(['tmdb', 'anilist']).optional(),
+    title: z.string().optional(),
+    year: z.number().int().optional(),
+    seasonNumber: z.number().int().optional(),
+    episodeNumber: z.number().int().optional(),
+  })
+  .refine(
+    (data) => Boolean((data.magnetLink && data.magnetLink.trim().length > 0) || data.torrentFileBase64),
+    {
+      message: 'Either magnetLink or torrentFileBase64 is required for each batch item',
+    }
+  );
+
+const batchRequestSchema = z.object({
+  mediaType: z.enum(['movie', 'tv_show', 'anime']).optional(),
+  metadataId: z.string().optional(),
+  metadataSource: z.enum(['tmdb', 'anilist']).optional(),
+  title: z.string().optional(),
+  year: z.number().int().optional(),
+  seasonNumber: z.number().int().optional(),
+  items: z.array(batchItemSchema).min(1, 'At least one item is required in the batch'),
+});
 
 export const requestRoutes: FastifyPluginAsync = async (app) => {
   // All /requests routes require authentication
@@ -159,6 +190,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       title,
       year,
       seasonNumber,
+      episodeNumber,
     } = parseResult.data;
 
     let torrentBuffer: Buffer | null = null;
@@ -268,6 +300,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       title,
       year: year ?? null,
       seasonNumber: seasonNumber ?? null,
+      episodeNumber: episodeNumber ?? null,
       jellyfinPath: null,
       keepFlag: false,
       qbTorrentHash,
@@ -284,6 +317,217 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
     app.db.insert(downloadRequests).values(newRequest).run();
 
     return reply.status(201).send({ request: newRequest });
+  });
+
+  // POST /requests/batch — create batch download requests atomically
+  app.post('/batch', async (request, reply) => {
+    const parseResult = batchRequestSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: parseResult.error.issues[0]?.message || 'Invalid request body',
+      });
+    }
+
+    const {
+      mediaType: topMediaType,
+      metadataId: topMetadataId,
+      metadataSource: topMetadataSource,
+      title: topTitle,
+      year: topYear,
+      seasonNumber: topSeasonNumber,
+      items,
+    } = parseResult.data;
+
+    // Validate that every item has required metadata
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const mType = item.mediaType || topMediaType;
+      const mId = item.metadataId || topMetadataId;
+      const mSource = item.metadataSource || topMetadataSource;
+      const t = item.title || topTitle;
+
+      if (!mType || !mId || !mSource || !t) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: `Item #${i + 1} is missing required metadata (mediaType, metadataId, metadataSource, or title)`,
+        });
+      }
+    }
+
+    // 1. Host disk safety check
+    const hostDiskSafe = app.cleanup.isHostDiskSafe ? app.cleanup.isHostDiskSafe() : true;
+    const space = app.cleanup.isSpaceSufficient ? app.cleanup.isSpaceSufficient() : { sufficient: true, percentFree: 100, threshold: 15 };
+    if (!hostDiskSafe || !space.sufficient) {
+      return reply.status(422).send({
+        error: 'Unprocessable Entity',
+        message: !hostDiskSafe
+          ? 'Insufficient host disk space (< 10 GB free)'
+          : `Insufficient disk space (${space.percentFree}% free, minimum required is ${space.threshold}%)`,
+      });
+    }
+
+    // 2. Storage quota check (85% threshold)
+    const quotaRow = app.db
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.key, 'storage_quota_gb'))
+      .get();
+
+    const storageQuotaGb = quotaRow ? parseInt(quotaRow.value, 10) : parseInt(process.env.STORAGE_QUOTA_GB || '150', 10);
+    const storageQuotaBytes = storageQuotaGb * 1024 * 1024 * 1024;
+    const currentFootprintBytes = app.fileSystem.getStorageFootprintBytes ? app.fileSystem.getStorageFootprintBytes() : 0;
+    const isQuotaExceeded = storageQuotaBytes > 0 && (currentFootprintBytes / storageQuotaBytes) >= 0.85;
+
+    // 3. Concurrent slots calculation
+    const configRow = app.db
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.key, 'concurrent_limit'))
+      .get();
+
+    const concurrentLimit = configRow ? parseInt(configRow.value, 10) : 2;
+    const activeCount = await app.qbittorrent.getActiveTorrentCount();
+    let availableSlots = isQuotaExceeded ? 0 : Math.max(0, concurrentLimit - activeCount);
+
+    const stagingPath = process.env.STAGING_PATH || '/media_data/downloads/staging';
+    const torrentsDir = path.resolve(path.dirname(stagingPath), 'torrents');
+
+    const newRequests: DownloadRequest[] = [];
+
+    for (const item of items) {
+      const mediaType = (item.mediaType || topMediaType)!;
+      const metadataId = (item.metadataId || topMetadataId)!;
+      const metadataSource = (item.metadataSource || topMetadataSource)!;
+      const title = (item.title || topTitle)!;
+      const year = item.year ?? topYear ?? null;
+      const seasonNumber = item.seasonNumber ?? topSeasonNumber ?? null;
+      const episodeNumber = item.episodeNumber ?? null;
+
+      let torrentBuffer: Buffer | null = null;
+      let effectiveMagnetLink = item.magnetLink || '';
+      let torrentSizeBytes: number | null = null;
+
+      if (item.torrentFileBase64) {
+        try {
+          torrentBuffer = Buffer.from(item.torrentFileBase64, 'base64');
+          const parsed = parseTorrentBuffer(torrentBuffer);
+          if (!effectiveMagnetLink) {
+            effectiveMagnetLink = parsed.magnetUri;
+          }
+          torrentSizeBytes = parsed.totalSize || null;
+        } catch (err) {
+          return reply.status(400).send({
+            error: 'Bad Request',
+            message: `Invalid or corrupt .torrent file in batch: ${item.torrentFileName || 'unnamed'}`,
+          });
+        }
+      }
+
+      if (!effectiveMagnetLink) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: `Could not resolve magnet link or torrent file for ${title}`,
+        });
+      }
+
+      const requestId = randomUUID();
+      let status: 'queued' | 'downloading' = 'queued';
+      let deferredReason: 'waiting_for_space' | 'waiting_for_slot' | null = null;
+      let qbTorrentHash: string | null = null;
+      let torrentFilePath: string | null = null;
+
+      if (isQuotaExceeded) {
+        status = 'queued';
+        deferredReason = 'waiting_for_space';
+      } else if (availableSlots > 0) {
+        try {
+          if (torrentBuffer) {
+            qbTorrentHash = await app.qbittorrent.addTorrentFile(
+              torrentBuffer,
+              stagingPath,
+              item.torrentFileName || `${title}.torrent`
+            );
+          } else {
+            qbTorrentHash = await app.qbittorrent.addTorrent(effectiveMagnetLink, stagingPath);
+          }
+          status = 'downloading';
+          deferredReason = null;
+          availableSlots--;
+        } catch (err) {
+          request.log.error(err, `Failed to add batch item ${title} immediately, falling back to queued`);
+          status = 'queued';
+          deferredReason = 'waiting_for_slot';
+        }
+      } else {
+        status = 'queued';
+        deferredReason = 'waiting_for_slot';
+      }
+
+      if (status === 'queued' && torrentBuffer) {
+        if (!fs.existsSync(torrentsDir)) {
+          fs.mkdirSync(torrentsDir, { recursive: true });
+        }
+        torrentFilePath = path.join(torrentsDir, `${requestId}.torrent`);
+        fs.writeFileSync(torrentFilePath, torrentBuffer);
+      }
+
+      newRequests.push({
+        id: requestId,
+        userId: request.currentUser!.id,
+        magnetLink: effectiveMagnetLink,
+        mediaType,
+        status,
+        metadataId,
+        metadataSource,
+        title,
+        year,
+        seasonNumber,
+        episodeNumber,
+        jellyfinPath: null,
+        keepFlag: false,
+        qbTorrentHash,
+        errorMessage: null,
+        requestedAt: new Date().toISOString(),
+        downloadedAt: null,
+        lastPlayedAt: null,
+        scheduledDeleteAt: null,
+        sizeBytes: torrentSizeBytes,
+        torrentFilePath,
+        deferredReason,
+      });
+    }
+
+    // 4. Atomic transaction insertion into SQLite
+    const insertStmt = app.sqlite.prepare(`
+      INSERT INTO download_requests (
+        id, user_id, magnet_link, media_type, status, metadata_id, metadata_source,
+        title, year, season_number, episode_number, jellyfin_path, keep_flag,
+        qb_torrent_hash, error_message, requested_at, downloaded_at, last_played_at,
+        scheduled_delete_at, size_bytes, torrent_file_path, deferred_reason
+      ) VALUES (
+        @id, @userId, @magnetLink, @mediaType, @status, @metadataId, @metadataSource,
+        @title, @year, @seasonNumber, @episodeNumber, @jellyfinPath, @keepFlag,
+        @qbTorrentHash, @errorMessage, @requestedAt, @downloadedAt, @lastPlayedAt,
+        @scheduledDeleteAt, @sizeBytes, @torrentFilePath, @deferredReason
+      )
+    `);
+
+    const insertMany = app.sqlite.transaction((reqs: DownloadRequest[]) => {
+      for (const req of reqs) {
+        insertStmt.run({
+          ...req,
+          keepFlag: req.keepFlag ? 1 : 0,
+        });
+      }
+    });
+
+    insertMany(newRequests);
+
+    return reply.status(201).send({
+      requests: newRequests,
+      count: newRequests.length,
+    });
   });
 
   // GET /requests — list requests

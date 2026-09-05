@@ -23,6 +23,7 @@ export interface DownloadRequest {
   title: string;
   year: number | null;
   seasonNumber: number | null;
+  episodeNumber?: number | null;
   jellyfinPath: string | null;
   keepFlag: boolean;
   qbTorrentHash: string | null;

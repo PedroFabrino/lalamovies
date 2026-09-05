@@ -1133,61 +1133,49 @@ async function handleConfirmRequest() {
   try {
     if (inputMode.value === 'file' && validBatchItems.value.length > 1) {
       submitProgress.value = { current: 0, total: validBatchItems.value.length };
-      let successCount = 0;
-      let failCount = 0;
-      let lastErrorMessage = '';
-      let isStorageQuotaExceeded = false;
 
+      const itemsPayload = [];
       for (let i = 0; i < validBatchItems.value.length; i++) {
         const item = validBatchItems.value[i];
         submitProgress.value.current = i + 1;
-
-        try {
-          const base64 = await fileToBase64(item.file);
-          const payload: Record<string, any> = {
-            mediaType: mediaType.value,
-            metadataId: selectedCandidate.value.id,
-            metadataSource: selectedCandidate.value.source,
-            title: selectedCandidate.value.title,
-            year: selectedCandidate.value.year ?? undefined,
-            seasonNumber: item.seasonNumber ?? seasonNumber.value ?? undefined,
-            torrentFileBase64: base64,
-            torrentFileName: item.fileName,
-            magnetLink: item.parsed?.magnetUri || undefined,
-          };
-
-          await api.post<{ request: DownloadRequest }>('/requests', payload);
-          successCount++;
-        } catch (err) {
-          failCount++;
-          if (err instanceof ApiError) {
-            if (err.statusCode === 422) {
-              isStorageQuotaExceeded = true;
-              lastErrorMessage = 'Insufficient disk space.';
-            } else {
-              lastErrorMessage = err.message;
-            }
-          } else {
-            lastErrorMessage = (err as Error).message || 'Failed to submit request';
-          }
-        }
+        const base64 = await fileToBase64(item.file);
+        itemsPayload.push({
+          torrentFileBase64: base64,
+          torrentFileName: item.fileName,
+          magnetLink: item.parsed?.magnetUri || undefined,
+          seasonNumber: item.seasonNumber ?? seasonNumber.value ?? undefined,
+          episodeNumber: item.episodeNumber ?? undefined,
+        });
       }
 
-      if (failCount > 0 && successCount === 0) {
-        step3Error.value = isStorageQuotaExceeded
-          ? 'Not enough disk space — please ask an admin to free up space.'
-          : `Failed to submit batch: ${lastErrorMessage}`;
-        return;
-      }
+      const batchPayload = {
+        mediaType: mediaType.value,
+        metadataId: selectedCandidate.value.id,
+        metadataSource: selectedCandidate.value.source,
+        title: selectedCandidate.value.title,
+        year: selectedCandidate.value.year ?? undefined,
+        seasonNumber: seasonNumber.value ?? undefined,
+        items: itemsPayload,
+      };
 
-      if (failCount > 0) {
+      const res = await api.post<{ requests: DownloadRequest[]; count: number }>('/requests/batch', batchPayload);
+
+      const queuedCount = res.requests.filter((r) => r.status === 'queued').length;
+      const downloadingCount = res.requests.filter((r) => r.status === 'downloading').length;
+
+      if (downloadingCount > 0 && queuedCount > 0) {
         requestsStore.showToast(
-          `Partial batch completion: ${successCount} queued, ${failCount} failed.`,
+          `Batch submitted: ${downloadingCount} downloading, ${queuedCount} queued`,
+          'success'
+        );
+      } else if (queuedCount > 0) {
+        requestsStore.showToast(
+          `Batch submitted: ${queuedCount} request(s) queued`,
           'info'
         );
       } else {
         requestsStore.showToast(
-          `Batch submitted successfully: ${successCount} requests queued.`,
+          `Batch submitted: ${res.count} download(s) started`,
           'success'
         );
       }
@@ -1203,6 +1191,7 @@ async function handleConfirmRequest() {
         title: selectedCandidate.value.title,
         year: selectedCandidate.value.year ?? undefined,
         seasonNumber: singleItem?.seasonNumber ?? seasonNumber.value ?? undefined,
+        episodeNumber: singleItem?.episodeNumber ?? undefined,
       };
 
       if (inputMode.value === 'file') {

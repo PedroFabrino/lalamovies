@@ -70,15 +70,16 @@ export class FileSystemService implements IFileSystemService {
     const subDir = params.mediaType === 'anime' ? 'anime' : 'shows';
     const seasonNum = params.seasonNumber ?? 1;
     const seasonFolder = `Season ${this.padNumber(seasonNum, 2)}`;
+    const showFolderName = params.year ? `${cleanTitle} (${params.year})` : cleanTitle;
 
     if (params.isSeasonPack) {
-      return path.join(root, subDir, cleanTitle, seasonFolder);
+      return path.join(root, subDir, showFolderName, seasonFolder);
     }
 
     const epNum = params.episodeNumber ?? 1;
     const epCode = `S${this.padNumber(seasonNum, 2)}E${this.padNumber(epNum, 2)}`;
     const fileName = `${cleanTitle} ${epCode}.${ext}`;
-    return path.join(root, subDir, cleanTitle, seasonFolder, fileName);
+    return path.join(root, subDir, showFolderName, seasonFolder, fileName);
   }
 
   hardlink(srcPath: string, destPath: string): void {

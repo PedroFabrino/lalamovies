@@ -154,6 +154,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.register(authRoutes, { prefix: '/auth' });
   app.register(inviteRoutes, { prefix: '/invites' });
   app.register(requestRoutes, { prefix: '/requests' });
+  app.register(requestRoutes, { prefix: '/api/requests' });
   app.register(adminRoutes, { prefix: '/admin' });
   app.register(wsRoutes);
 

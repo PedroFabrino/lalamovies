@@ -94,6 +94,7 @@ export class DownloadPoller {
               title: req.title,
               year: req.year,
               seasonNumber: req.seasonNumber,
+              episodeNumber: req.episodeNumber,
               isSeasonPack: isDirectory || (req.mediaType !== 'movie' && !ext),
               ext,
             });

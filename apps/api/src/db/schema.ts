@@ -34,6 +34,7 @@ export const downloadRequests = sqliteTable('download_requests', {
   title: text('title').notNull(),
   year: integer('year'),
   seasonNumber: integer('season_number'),
+  episodeNumber: integer('episode_number'),
   jellyfinPath: text('jellyfin_path'),
   keepFlag: integer('keep_flag', { mode: 'boolean' }).notNull().default(false),
   qbTorrentHash: text('qb_torrent_hash'),

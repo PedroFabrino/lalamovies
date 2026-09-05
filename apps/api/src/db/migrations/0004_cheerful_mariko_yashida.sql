@@ -1,0 +1,1 @@
+ALTER TABLE `download_requests` ADD `episode_number` integer;
