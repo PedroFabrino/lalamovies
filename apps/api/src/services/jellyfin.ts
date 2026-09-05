@@ -35,7 +35,11 @@ export class JellyfinService implements IJellyfinService {
   private deviceId = 'mdm-server';
   private version = '1.0.0';
 
-  constructor(baseUrl?: string, apiKey?: string) {
+  constructor(
+    baseUrl?: string,
+    apiKey?: string,
+    private getDynamicApiKey?: () => string | null | undefined
+  ) {
     this.baseUrl = (baseUrl || process.env.JELLYFIN_URL || 'http://localhost:8096').replace(/\/$/, '');
     this.apiKey = apiKey || process.env.JELLYFIN_API_KEY || '';
   }
@@ -49,8 +53,9 @@ export class JellyfinService implements IJellyfinService {
       'Content-Type': 'application/json',
       'X-Emby-Authorization': this.getAuthHeader(),
     };
-    if (this.apiKey) {
-      headers['X-Emby-Token'] = this.apiKey;
+    const key = (this.getDynamicApiKey ? this.getDynamicApiKey() : null) || this.apiKey;
+    if (key) {
+      headers['X-Emby-Token'] = key;
     }
     return headers;
   }

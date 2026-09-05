@@ -4,7 +4,8 @@ import fastifyCookie from '@fastify/cookie';
 import fastifyJwt from '@fastify/jwt';
 import fastifyWebsocket from '@fastify/websocket';
 import Database from 'better-sqlite3';
-import { initDatabase, AppDatabase } from './db';
+import { eq } from 'drizzle-orm';
+import { initDatabase, AppDatabase, systemConfig } from './db';
 import { IJellyfinService, JellyfinService } from './services/jellyfin';
 import { IMetadataService, MetadataService } from './services/metadata';
 import { IQBittorrentService, QBittorrentService } from './services/qbittorrent';
@@ -58,7 +59,16 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
 
   const { db, sqlite } = initDatabase(options.dbPath, options.runMigrate ?? true);
   const qbittorrent = options.qbittorrentService ?? new QBittorrentService();
-  const jellyfin = options.jellyfinService ?? new JellyfinService();
+  const jellyfin =
+    options.jellyfinService ??
+    new JellyfinService(undefined, undefined, () => {
+      const row = db
+        .select()
+        .from(systemConfig)
+        .where(eq(systemConfig.key, 'jellyfin_api_key'))
+        .get();
+      return row?.value || process.env.JELLYFIN_API_KEY || '';
+    });
   const notifications = options.notificationService ?? new NotificationService();
   const cleanup =
     options.cleanupService ?? new CleanupService(db, qbittorrent, jellyfin, notifications);
