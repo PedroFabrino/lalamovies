@@ -13,6 +13,9 @@
 #
 # Caddy will automatically obtain and renew a free Let's Encrypt TLS
 # certificate for the domain — no manual certificate management needed.
+{
+    email pfabrino@gmail.com
+}
 
 {$JELLYFIN_DOMAIN} {
     # Reverse proxy all traffic to the Jellyfin container.
