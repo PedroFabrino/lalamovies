@@ -321,6 +321,7 @@ describe('Admin REST Endpoints (Ticket 10)', () => {
         concurrent_limit: '2',
         disk_warn_threshold: '20',
         disk_reject_threshold: '15',
+        storage_quota_gb: '150',
       });
     });
 
@@ -331,6 +332,7 @@ describe('Admin REST Endpoints (Ticket 10)', () => {
         cookies: { token: adminCookie },
         payload: {
           concurrent_limit: 4,
+          storage_quota_gb: 200,
           disk_warn_threshold: 25,
           tmdb_api_key: 'custom_tmdb_key_xyz',
         },
@@ -339,12 +341,13 @@ describe('Admin REST Endpoints (Ticket 10)', () => {
       expect(res.statusCode).toBe(200);
       const data = JSON.parse(res.payload);
       expect(data.config.concurrent_limit).toBe('4');
+      expect(data.config.storage_quota_gb).toBe('200');
       expect(data.config.disk_warn_threshold).toBe('25');
       expect(data.config.tmdb_api_key).toBe('custom_tmdb_key_xyz');
 
       // Verify in DB
-      const row = app.db.select().from(systemConfig).where(eq(systemConfig.key, 'concurrent_limit')).get();
-      expect(row?.value).toBe('4');
+      const row = app.db.select().from(systemConfig).where(eq(systemConfig.key, 'storage_quota_gb')).get();
+      expect(row?.value).toBe('200');
     });
 
     it('PUT /admin/config validates numeric thresholds (positive integers, limit >= 1)', async () => {
@@ -356,6 +359,24 @@ describe('Admin REST Endpoints (Ticket 10)', () => {
         payload: { concurrent_limit: 0 },
       });
       expect(res1.statusCode).toBe(400);
+
+      // storage_quota_gb < 1
+      const resQuota0 = await app.inject({
+        method: 'PUT',
+        url: '/admin/config',
+        cookies: { token: adminCookie },
+        payload: { storage_quota_gb: 0 },
+      });
+      expect(resQuota0.statusCode).toBe(400);
+
+      // storage_quota_gb invalid
+      const resQuotaInvalid = await app.inject({
+        method: 'PUT',
+        url: '/admin/config',
+        cookies: { token: adminCookie },
+        payload: { storage_quota_gb: 'invalid_number' },
+      });
+      expect(resQuotaInvalid.statusCode).toBe(400);
 
       // disk_warn_threshold negative
       const res2 = await app.inject({
@@ -465,6 +486,26 @@ describe('Admin REST Endpoints (Ticket 10)', () => {
       expect(data.candidates).toBeInstanceOf(Array);
       expect(data.candidates.length).toBe(1);
       expect(data.candidates[0].title).toBe('Candidate Movie');
+    });
+
+    it('GET /admin/disk returns disk statistics, storage quota, and footprint gauge data', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/admin/disk',
+        cookies: { token: adminCookie },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = JSON.parse(res.payload);
+      expect(data).toHaveProperty('percentFree');
+      expect(data).toHaveProperty('percentUsed');
+      expect(data).toHaveProperty('warnThreshold');
+      expect(data).toHaveProperty('rejectThreshold');
+      expect(data.storageQuotaGb).toBe(150);
+      expect(data.storageQuotaBytes).toBe(150 * 1024 * 1024 * 1024);
+      expect(data.storageFootprintBytes).toBeGreaterThanOrEqual(0);
+      expect(data.storageFootprintGb).toBeGreaterThanOrEqual(0);
+      expect(data.quotaUsedPercent).toBeGreaterThanOrEqual(0);
     });
   });
 });

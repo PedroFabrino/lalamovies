@@ -136,12 +136,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
     // Validate numeric thresholds and limits
     for (const [key, val] of Object.entries(updates)) {
-      if (key === 'concurrent_limit') {
+      if (key === 'concurrent_limit' || key === 'storage_quota_gb') {
         const num = Number(val);
         if (!Number.isInteger(num) || num < 1) {
           return reply.status(400).send({
             error: 'Bad Request',
-            message: 'concurrent_limit must be a positive integer >= 1',
+            message: `${key} must be a positive integer >= 1`,
           });
         }
       } else if (key === 'disk_warn_threshold' || key === 'disk_reject_threshold') {
@@ -221,7 +221,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ candidates });
   });
 
-  // GET /admin/disk — returns disk usage and thresholds
+  // GET /admin/disk — returns disk usage, quota, and thresholds
   app.get('/disk', async (_request, reply) => {
     const percentFree = app.cleanup.getPercentFree ? app.cleanup.getPercentFree() : 100;
     const warnRow = app.db
@@ -234,12 +234,30 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       .from(systemConfig)
       .where(eq(systemConfig.key, 'disk_reject_threshold'))
       .get();
+    const quotaRow = app.db
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.key, 'storage_quota_gb'))
+      .get();
+
+    const storageQuotaGb = quotaRow ? parseInt(quotaRow.value, 10) : parseInt(process.env.STORAGE_QUOTA_GB || '150', 10);
+    const storageQuotaBytes = storageQuotaGb * 1024 * 1024 * 1024;
+    const footprintBytes = app.fileSystem.getStorageFootprintBytes ? app.fileSystem.getStorageFootprintBytes() : 0;
+    const storageFootprintGb = Number((footprintBytes / (1024 * 1024 * 1024)).toFixed(2));
+    const quotaUsedPercent = storageQuotaGb > 0
+      ? Math.min(100, Math.round((footprintBytes / storageQuotaBytes) * 1000) / 10)
+      : 0;
 
     return reply.send({
       percentFree,
       percentUsed: Math.max(0, 100 - percentFree),
       warnThreshold: warnRow ? parseInt(warnRow.value, 10) : 20,
       rejectThreshold: rejectRow ? parseInt(rejectRow.value, 10) : 15,
+      storageQuotaGb,
+      storageQuotaBytes,
+      storageFootprintBytes: footprintBytes,
+      storageFootprintGb,
+      quotaUsedPercent,
     });
   });
 };

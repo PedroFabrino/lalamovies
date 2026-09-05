@@ -35,6 +35,7 @@ describe('Database Schema & Migrations', () => {
       concurrent_limit: '2',
       disk_warn_threshold: '20',
       disk_reject_threshold: '15',
+      storage_quota_gb: '150',
     });
   });
 

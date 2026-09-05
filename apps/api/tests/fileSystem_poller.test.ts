@@ -124,6 +124,47 @@ describe('FileSystemService', () => {
       '/media/movies/Mission Impossible  Fallout 2018 (2018)/Mission Impossible  Fallout 2018 (2018).mkv'
     );
   });
+
+  describe('getStorageFootprintBytes', () => {
+    let tmpDir: string;
+
+    beforeEach(() => {
+      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mdm-fs-test-'));
+    });
+
+    afterEach(() => {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it('returns 0 if path does not exist', () => {
+      expect(fsService.getStorageFootprintBytes(path.join(tmpDir, 'does-not-exist'))).toBe(0);
+    });
+
+    it('calculates physical footprint without double-counting hardlinked files', () => {
+      const stagingDir = path.join(tmpDir, 'staging');
+      const libraryDir = path.join(tmpDir, 'library');
+      fs.mkdirSync(stagingDir, { recursive: true });
+      fs.mkdirSync(libraryDir, { recursive: true });
+
+      // Create a 1 MB file in staging
+      const testFile1 = path.join(stagingDir, 'movie.mkv');
+      const buffer1MB = Buffer.alloc(1024 * 1024, 1);
+      fs.writeFileSync(testFile1, buffer1MB);
+
+      // Create another 512 KB standalone file
+      const testFile2 = path.join(stagingDir, 'sample.mkv');
+      const buffer512KB = Buffer.alloc(512 * 1024, 2);
+      fs.writeFileSync(testFile2, buffer512KB);
+
+      // Hardlink movie.mkv into library
+      const hardlinkedFile = path.join(libraryDir, 'movie.mkv');
+      fs.linkSync(testFile1, hardlinkedFile);
+
+      // Total physical bytes on disk should be 1.5 MB (1024*1024 + 512*1024), NOT 2.5 MB!
+      const totalFootprint = fsService.getStorageFootprintBytes(tmpDir);
+      expect(totalFootprint).toBe(1024 * 1024 + 512 * 1024);
+    });
+  });
 });
 
 describe('DownloadPoller & Hardlink Integration', () => {

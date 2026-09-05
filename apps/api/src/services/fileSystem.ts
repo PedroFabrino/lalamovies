@@ -16,6 +16,7 @@ export interface IFileSystemService {
   buildLibraryPath(params: BuildLibraryPathParams): string;
   hardlink(srcPath: string, destPath: string): void;
   hardlinkDirectory(srcDir: string, destDir: string): void;
+  getStorageFootprintBytes(targetPath?: string | string[]): number;
 }
 
 export class FileSystemService implements IFileSystemService {
@@ -117,5 +118,59 @@ export class FileSystemService implements IFileSystemService {
         this.hardlink(srcEntryPath, destEntryPath);
       }
     }
+  }
+
+  getStorageFootprintBytes(targetPath?: string | string[]): number {
+    let pathsToScan: string[] = [];
+    if (targetPath) {
+      pathsToScan = Array.isArray(targetPath) ? targetPath : [targetPath];
+    } else {
+      if (fs.existsSync('/media_data')) {
+        pathsToScan = ['/media_data'];
+      } else {
+        const staging = process.env.STAGING_PATH || path.resolve(process.cwd(), 'downloads', 'staging');
+        const media = this.defaultMediaBasePath;
+        pathsToScan = [staging, media];
+      }
+    }
+
+    const seenInodes = new Set<string>();
+    let totalBytes = 0;
+    const stack: string[] = [...pathsToScan];
+
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      if (!fs.existsSync(current)) continue;
+
+      let stat: fs.Stats;
+      try {
+        stat = fs.lstatSync(current);
+      } catch {
+        continue;
+      }
+
+      if (stat.isSymbolicLink()) {
+        continue;
+      }
+
+      if (stat.isDirectory()) {
+        try {
+          const entries = fs.readdirSync(current);
+          for (const entry of entries) {
+            stack.push(path.join(current, entry));
+          }
+        } catch {
+          // ignore read errors
+        }
+      } else if (stat.isFile()) {
+        const inodeKey = `${stat.dev}:${stat.ino}`;
+        if (!seenInodes.has(inodeKey)) {
+          seenInodes.add(inodeKey);
+          totalBytes += stat.size;
+        }
+      }
+    }
+
+    return totalBytes;
   }
 }

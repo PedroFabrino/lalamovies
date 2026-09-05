@@ -68,6 +68,7 @@ export function seedDefaultConfig(db: AppDatabase) {
     concurrent_limit: '2',
     disk_warn_threshold: '20',
     disk_reject_threshold: '15',
+    storage_quota_gb: process.env.STORAGE_QUOTA_GB || '150',
   };
 
   for (const [key, value] of Object.entries(defaults)) {

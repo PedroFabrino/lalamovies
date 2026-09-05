@@ -388,7 +388,28 @@
             class="space-y-6"
             @submit.prevent="handleSaveConfig"
           >
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label
+                  for="storage_quota_gb"
+                  class="block text-xs font-medium text-zinc-300 mb-1.5"
+                >
+                  Storage Quota (GB)
+                </label>
+                <input
+                  id="storage_quota_gb"
+                  v-model.number="configForm.storage_quota_gb"
+                  type="number"
+                  min="1"
+                  step="1"
+                  required
+                  class="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                <p class="text-[11px] text-zinc-500 mt-1">
+                  Media stack quota allocation
+                </p>
+              </div>
+
               <div>
                 <label
                   for="concurrent_limit"
@@ -404,6 +425,9 @@
                   required
                   class="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
+                <p class="text-[11px] text-zinc-500 mt-1">
+                  Simultaneous active downloads
+                </p>
               </div>
 
               <div>
@@ -531,6 +555,117 @@
         v-else-if="activeTab === 'cleanup'"
         class="space-y-8"
       >
+        <!-- Storage Quota & Media Footprint Card -->
+        <div class="bg-zinc-900/60 border border-zinc-800 rounded-xl p-6 shadow-xl space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-lg font-semibold text-white">
+                  Media Storage Quota
+                </h2>
+                <span
+                  v-if="diskInfo"
+                  class="px-2 py-0.5 rounded text-xs font-medium border"
+                  :class="diskInfo.quotaUsedPercent >= 100 || (diskInfo.percentFree <= diskInfo.rejectThreshold)
+                    ? 'bg-red-950/80 text-red-300 border-red-800'
+                    : diskInfo.quotaUsedPercent >= 80 || (diskInfo.percentFree <= diskInfo.warnThreshold)
+                      ? 'bg-amber-950/80 text-amber-300 border-amber-800'
+                      : 'bg-emerald-950/80 text-emerald-300 border-emerald-800'"
+                >
+                  {{
+                    diskInfo.quotaUsedPercent >= 100
+                      ? 'Quota Exceeded'
+                      : diskInfo.quotaUsedPercent >= 80
+                        ? 'Quota Warning'
+                        : 'Healthy'
+                  }}
+                </span>
+              </div>
+              <p class="text-xs text-zinc-400 mt-0.5">
+                Physical disk footprint of staging area and library (hardlinks deduplicated) against configured quota.
+              </p>
+            </div>
+            <button
+              type="button"
+              class="text-xs text-indigo-400 hover:text-indigo-300 transition self-start sm:self-auto cursor-pointer"
+              @click="activeTab = 'config'"
+            >
+              Configure Quota &rarr;
+            </button>
+          </div>
+
+          <div
+            v-if="diskInfo"
+            class="space-y-3"
+          >
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+              <div class="flex items-baseline gap-2">
+                <span class="text-2xl font-bold text-white tracking-tight">
+                  {{ diskInfo.storageFootprintGb }} GB
+                </span>
+                <span class="text-xs text-zinc-400">
+                  used of <strong class="text-zinc-200">{{ diskInfo.storageQuotaGb }} GB</strong> quota
+                </span>
+              </div>
+              <span class="text-sm font-semibold text-zinc-300">
+                {{ diskInfo.quotaUsedPercent }}%
+              </span>
+            </div>
+
+            <!-- Storage Quota Gauge Bar -->
+            <div class="w-full bg-zinc-950 border border-zinc-800 rounded-full h-3.5 overflow-hidden p-0.5">
+              <div
+                class="h-full rounded-full transition-all duration-500"
+                :class="diskInfo.quotaUsedPercent >= 100
+                  ? 'bg-red-500'
+                  : diskInfo.quotaUsedPercent >= 80
+                    ? 'bg-amber-500'
+                    : 'bg-indigo-500'"
+                :style="{ width: `${Math.min(100, diskInfo.quotaUsedPercent)}%` }"
+              />
+            </div>
+
+            <div class="flex justify-between text-[11px] text-zinc-500">
+              <span>0 GB</span>
+              <span class="text-amber-400">80% Warning ({{ (diskInfo.storageQuotaGb * 0.8).toFixed(0) }} GB)</span>
+              <span>{{ diskInfo.storageQuotaGb }} GB</span>
+            </div>
+
+            <!-- Warning Alert Banner if near or over quota -->
+            <div
+              v-if="diskInfo.quotaUsedPercent >= 80"
+              class="p-3 rounded-lg border text-xs flex items-start gap-2.5"
+              :class="diskInfo.quotaUsedPercent >= 100
+                ? 'bg-red-950/40 border-red-800 text-red-300'
+                : 'bg-amber-950/40 border-amber-800 text-amber-300'"
+            >
+              <svg
+                class="w-4 h-4 shrink-0 mt-0.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <div>
+                <span class="font-semibold">
+                  {{ diskInfo.quotaUsedPercent >= 100 ? 'Storage Quota Exceeded!' : 'Storage Quota Warning' }}
+                </span>
+                <p class="text-zinc-400 text-[11px] mt-0.5">
+                  {{ diskInfo.quotaUsedPercent >= 100
+                    ? 'Storage usage has exceeded the configured quota limit. Trigger cleanup or increase quota in System Config.'
+                    : 'Storage usage has reached or passed 80% of configured quota. Consider cleaning old media.' }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Disk Usage Card -->
         <div class="bg-zinc-900/60 border border-zinc-800 rounded-xl p-6 shadow-xl">
           <div class="flex items-center justify-between mb-4">
@@ -934,6 +1069,11 @@ interface DiskInfo {
   percentUsed: number;
   warnThreshold: number;
   rejectThreshold: number;
+  storageQuotaGb: number;
+  storageQuotaBytes: number;
+  storageFootprintBytes: number;
+  storageFootprintGb: number;
+  quotaUsedPercent: number;
 }
 
 const authStore = useAuthStore();
@@ -968,6 +1108,7 @@ const configErrorMessage = ref<string | null>(null);
 const showTmdbKey = ref(false);
 
 const configForm = reactive({
+  storage_quota_gb: 150,
   concurrent_limit: 2,
   disk_warn_threshold: 20,
   disk_reject_threshold: 15,
@@ -1102,6 +1243,7 @@ async function loadConfig() {
   try {
     const data = await api.get<{ config: Record<string, string> }>('/admin/config');
     const c = data.config;
+    if (c.storage_quota_gb) configForm.storage_quota_gb = parseInt(c.storage_quota_gb, 10);
     if (c.concurrent_limit) configForm.concurrent_limit = parseInt(c.concurrent_limit, 10);
     if (c.disk_warn_threshold) configForm.disk_warn_threshold = parseInt(c.disk_warn_threshold, 10);
     if (c.disk_reject_threshold) configForm.disk_reject_threshold = parseInt(c.disk_reject_threshold, 10);
@@ -1120,6 +1262,7 @@ async function handleSaveConfig() {
   try {
     await api.put('/admin/config', configForm);
     configSuccessMessage.value = 'Settings saved successfully.';
+    await loadDiskAndCandidates();
     setTimeout(() => {
       configSuccessMessage.value = null;
     }, 4000);
