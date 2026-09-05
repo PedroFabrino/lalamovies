@@ -80,6 +80,134 @@ describe('DiscordNotifier & ResendNotifier (Ticket 15)', () => {
       expect(embed.timestamp).toBeDefined();
     });
 
+    it('sends download.completed with movie year in title and field', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+        statusText: 'No Content',
+      });
+
+      const webhookUrl = 'https://discord.com/api/webhooks/test/123';
+      const notifier = new DiscordNotifier(webhookUrl);
+
+      const payload: NotificationPayload = {
+        title: 'Inception',
+        requestId: 'req_123',
+        mediaType: 'movie',
+        year: 2010,
+        requestedBy: 'alice',
+      };
+
+      await notifier.send('download.completed', payload);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const parsedBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+      const embed = parsedBody.embeds[0];
+
+      expect(embed.description).toContain('**Inception (2010)** has finished downloading');
+      expect(embed.fields).toContainEqual({
+        name: 'Year',
+        value: '2010',
+        inline: true,
+      });
+    });
+
+    it('sends download.completed with TV show season and episode in title and fields', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+        statusText: 'No Content',
+      });
+
+      const webhookUrl = 'https://discord.com/api/webhooks/test/123';
+      const notifier = new DiscordNotifier(webhookUrl);
+
+      const payload: NotificationPayload = {
+        title: 'Breaking Bad',
+        requestId: 'req_456',
+        mediaType: 'tv_show',
+        seasonNumber: 2,
+        episodeNumber: 5,
+        requestedBy: 'alice',
+      };
+
+      await notifier.send('download.completed', payload);
+
+      const parsedBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+      const embed = parsedBody.embeds[0];
+
+      expect(embed.description).toContain('**Breaking Bad - S02E05** has finished downloading');
+      expect(embed.fields).toContainEqual({
+        name: 'Season',
+        value: '02',
+        inline: true,
+      });
+      expect(embed.fields).toContainEqual({
+        name: 'Episode',
+        value: '05',
+        inline: true,
+      });
+    });
+
+    it('sends download.completed with TV show season pack in title and fields', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+        statusText: 'No Content',
+      });
+
+      const webhookUrl = 'https://discord.com/api/webhooks/test/123';
+      const notifier = new DiscordNotifier(webhookUrl);
+
+      const payload: NotificationPayload = {
+        title: 'Attack on Titan',
+        requestId: 'req_789',
+        mediaType: 'anime',
+        seasonNumber: 1,
+        episodeNumber: null,
+      };
+
+      await notifier.send('download.completed', payload);
+
+      const parsedBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+      const embed = parsedBody.embeds[0];
+
+      expect(embed.description).toContain('**Attack on Titan - Season 01** has finished downloading');
+      expect(embed.fields).toContainEqual({
+        name: 'Season',
+        value: '01',
+        inline: true,
+      });
+      expect(embed.fields.some((f: any) => f.name === 'Episode')).toBe(false);
+    });
+
+    it('prioritizes JELLYFIN_PUBLIC_URL over JELLYFIN_URL', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+        statusText: 'No Content',
+      });
+
+      process.env.JELLYFIN_PUBLIC_URL = 'https://watch.lalamovies.stream';
+      process.env.JELLYFIN_URL = 'http://jellyfin:8096';
+
+      const notifier = new DiscordNotifier('https://discord.com/api/webhooks/test/123');
+
+      await notifier.send('download.completed', {
+        title: 'Test Movie',
+        mediaType: 'movie',
+      });
+
+      const parsedBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+      const embed = parsedBody.embeds[0];
+
+      expect(embed.fields).toContainEqual({
+        name: 'Jellyfin',
+        value: '[Open in Jellyfin](https://watch.lalamovies.stream)',
+        inline: false,
+      });
+    });
+
     it('sends cleanup.scheduled event with scheduled time and keep flag notice', async () => {
       fetchMock.mockResolvedValueOnce({
         ok: true,

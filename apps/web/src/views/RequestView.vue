@@ -463,25 +463,94 @@
           <button
             type="button"
             class="px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-zinc-900 border border-zinc-800 rounded-lg hover:bg-zinc-800 transition cursor-pointer"
-            @click="currentStep = 1"
+            @click="currentStep = 1; step2Error = null"
           >
             Back to Step 1
           </button>
+        </div>
+
+        <!-- In-Place Search Bar -->
+        <form
+          class="flex items-center gap-3 bg-zinc-900/60 border border-zinc-800 rounded-xl p-3"
+          @submit.prevent="handleSearchMetadata"
+        >
+          <div class="relative flex-1">
+            <input
+              ref="step2QueryInputRef"
+              v-model="customQuery"
+              type="text"
+              required
+              :disabled="isSearching"
+              placeholder="Refine title or search query..."
+              class="w-full px-3.5 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-50"
+            />
+          </div>
+          <button
+            type="submit"
+            :disabled="isSearching || !customQuery.trim()"
+            class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg shadow transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
+          >
+            <svg
+              v-if="isSearching"
+              class="animate-spin h-4 w-4 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              />
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v8H4z"
+              />
+            </svg>
+            <span>{{ isSearching ? 'Searching...' : 'Search' }}</span>
+          </button>
+        </form>
+
+        <!-- Step 2 Error Alert -->
+        <div
+          v-if="step2Error"
+          class="p-4 bg-red-950/50 border border-red-800/80 rounded-lg text-sm text-red-200 flex items-start gap-3"
+        >
+          <svg
+            class="w-5 h-5 text-red-400 shrink-0 mt-0.5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          <span>{{ step2Error }}</span>
         </div>
 
         <div
           v-if="candidates.length === 0"
           class="bg-zinc-900/40 border border-zinc-800 rounded-xl p-8 text-center"
         >
-          <p class="text-zinc-400 text-sm mb-4">
-            No metadata matches found for this query.
+          <p class="text-zinc-400 text-sm mb-2">
+            No metadata matches found for "{{ customQuery }}".
+          </p>
+          <p class="text-xs text-zinc-500 mb-4">
+            Try adjusting your search query in the bar above or check the spelling.
           </p>
           <button
             type="button"
             class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-sm rounded-lg transition cursor-pointer"
-            @click="currentStep = 1"
+            @click="currentStep = 1; step2Error = null"
           >
-            Edit Search Query
+            Back to Step 1
           </button>
         </div>
 
@@ -914,6 +983,8 @@ const mediaTypeOptions: { value: MediaType; label: string; icon: string }[] = [
 // Step 2 State
 const candidates = ref<MetadataCandidate[]>([]);
 const selectedCandidate = ref<MetadataCandidate | null>(null);
+const step2Error = ref<string | null>(null);
+const step2QueryInputRef = ref<HTMLInputElement | null>(null);
 
 // Step 3 State
 const seasonNumber = ref<number | null>(null);
@@ -1092,8 +1163,13 @@ function handleFileDrop(e: DragEvent) {
 
 async function handleSearchMetadata() {
   if (!customQuery.value.trim()) {
-    step1Error.value = 'Media Title / Search Query is required.';
-    customQueryInputRef.value?.focus();
+    if (currentStep.value === 2) {
+      step2Error.value = 'Media Title / Search Query is required.';
+      step2QueryInputRef.value?.focus();
+    } else {
+      step1Error.value = 'Media Title / Search Query is required.';
+      customQueryInputRef.value?.focus();
+    }
     return;
   }
 
@@ -1102,6 +1178,7 @@ async function handleSearchMetadata() {
 
   isSearching.value = true;
   step1Error.value = null;
+  step2Error.value = null;
 
   try {
     const payload: Record<string, any> = {
@@ -1126,10 +1203,14 @@ async function handleSearchMetadata() {
     selectedCandidate.value = candidates.value.length > 0 ? candidates.value[0] : null;
     currentStep.value = 2;
   } catch (err) {
-    if (err instanceof ApiError) {
-      step1Error.value = err.message;
+    const msg =
+      err instanceof ApiError
+        ? err.message
+        : 'Failed to search metadata. Please check the input.';
+    if (currentStep.value === 2) {
+      step2Error.value = msg;
     } else {
-      step1Error.value = 'Failed to search metadata. Please check the input.';
+      step1Error.value = msg;
     }
   } finally {
     isSearching.value = false;

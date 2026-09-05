@@ -144,9 +144,16 @@ export class DownloadPoller {
                 title: req.title,
                 requestId: req.id,
                 mediaType: req.mediaType,
+                year: req.year,
+                seasonNumber: req.seasonNumber,
+                episodeNumber: req.episodeNumber,
                 requestedBy,
                 path: destPath,
-                jellyfinUrl: process.env.JELLYFIN_URL || undefined,
+                jellyfinUrl:
+                  process.env.JELLYFIN_PUBLIC_URL ||
+                  (process.env.JELLYFIN_DOMAIN ? `https://${process.env.JELLYFIN_DOMAIN}` : undefined) ||
+                  process.env.JELLYFIN_URL ||
+                  undefined,
               });
             }
 

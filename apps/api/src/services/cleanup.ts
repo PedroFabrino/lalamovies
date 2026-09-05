@@ -218,6 +218,10 @@ export class CleanupService implements ICleanupService {
         await this.notificationService.send('cleanup.scheduled', {
           title: item.title,
           requestId: item.id,
+          mediaType: item.mediaType,
+          year: item.year,
+          seasonNumber: item.seasonNumber,
+          episodeNumber: item.episodeNumber,
           scheduledDeleteAt,
           path: item.jellyfinPath ?? undefined,
         });
@@ -310,6 +314,10 @@ export class CleanupService implements ICleanupService {
         await this.notificationService.send('cleanup.done', {
           title: item.title,
           requestId: item.id,
+          mediaType: item.mediaType,
+          year: item.year,
+          seasonNumber: item.seasonNumber,
+          episodeNumber: item.episodeNumber,
           requestedBy,
           path: item.jellyfinPath ?? undefined,
         });
@@ -380,6 +388,10 @@ export class CleanupService implements ICleanupService {
       await this.notificationService.send('cleanup.done', {
         title: request.title,
         requestId: request.id,
+        mediaType: request.mediaType,
+        year: request.year,
+        seasonNumber: request.seasonNumber,
+        episodeNumber: request.episodeNumber,
         requestedBy,
         path: request.jellyfinPath ?? undefined,
       });

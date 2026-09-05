@@ -17,6 +17,7 @@ services:
       - MEDIA_PATH=/media_data/media
       - STORAGE_QUOTA_GB=${STORAGE_QUOTA_GB:-150}
       - JELLYFIN_URL=http://jellyfin:8096
+      - JELLYFIN_PUBLIC_URL=${JELLYFIN_PUBLIC_URL:-https://${JELLYFIN_DOMAIN:-watch.lalamovies.stream}}
       - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
       - QBITTORRENT_URL=http://qbittorrent:8080
       - QBITTORRENT_USER=${QBITTORRENT_USER:-admin}

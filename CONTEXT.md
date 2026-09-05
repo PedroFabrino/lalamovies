@@ -76,7 +76,7 @@ _Avoid_: pin, lock, favorite
 ### Notifications
 
 **Notification**:
-An alert dispatched via Discord webhook (and optionally Resend email) to inform users of significant events: download completion, impending automatic Cleanup (24 h before), and Cleanup completion.
+An alert dispatched via Discord webhook (and optionally Resend email) to inform users of significant events: download completion, impending automatic Cleanup (24 h before), and Cleanup completion. Notifications display enriched media headers (release year for Movies, season/episode for TV Shows/Anime) and direct users to content via the public Jellyfin streaming URL.
 _Avoid_: alert, message, event
 
 ### Environments & Infrastructure

@@ -4,11 +4,33 @@ export interface NotificationPayload {
   title: string;
   requestId?: string;
   mediaType?: string;
+  year?: number | null;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
   requestedBy?: string;
   scheduledDeleteAt?: string;
   path?: string;
   reason?: string;
   jellyfinUrl?: string;
+}
+
+export function formatNotificationMediaTitle(payload: NotificationPayload): string {
+  const { title, mediaType, year, seasonNumber, episodeNumber } = payload;
+  if (mediaType === 'movie' && year) {
+    return `${title} (${year})`;
+  }
+  if (mediaType === 'tv_show' || mediaType === 'anime') {
+    if (episodeNumber !== null && episodeNumber !== undefined) {
+      const s = String(seasonNumber ?? 1).padStart(2, '0');
+      const e = String(episodeNumber).padStart(2, '0');
+      return `${title} - S${s}E${e}`;
+    }
+    if (seasonNumber !== null && seasonNumber !== undefined) {
+      const s = String(seasonNumber).padStart(2, '0');
+      return `${title} - Season ${s}`;
+    }
+  }
+  return title;
 }
 
 export interface INotificationService {
@@ -41,6 +63,7 @@ export class DiscordNotifier implements INotificationService {
       return; // Silently no-op if no URL configured
     }
 
+    const displayTitle = formatNotificationMediaTitle(payload);
     let title = 'Media Download Manager';
     let description = '';
     let color = 0x3b82f6; // Blue default
@@ -49,7 +72,7 @@ export class DiscordNotifier implements INotificationService {
     switch (event) {
       case 'download.completed': {
         title = 'Download Completed';
-        description = `**${payload.title}** has finished downloading and is now available in Jellyfin.`;
+        description = `**${displayTitle}** has finished downloading and is now available in Jellyfin.`;
         color = 0x22c55e; // Green
 
         if (payload.mediaType) {
@@ -59,6 +82,29 @@ export class DiscordNotifier implements INotificationService {
             inline: true,
           });
         }
+        if (payload.mediaType === 'movie' && payload.year) {
+          fields.push({
+            name: 'Year',
+            value: String(payload.year),
+            inline: true,
+          });
+        }
+        if (payload.mediaType === 'tv_show' || payload.mediaType === 'anime') {
+          if (payload.seasonNumber !== null && payload.seasonNumber !== undefined) {
+            fields.push({
+              name: 'Season',
+              value: String(payload.seasonNumber).padStart(2, '0'),
+              inline: true,
+            });
+          }
+          if (payload.episodeNumber !== null && payload.episodeNumber !== undefined) {
+            fields.push({
+              name: 'Episode',
+              value: String(payload.episodeNumber).padStart(2, '0'),
+              inline: true,
+            });
+          }
+        }
         if (payload.requestedBy) {
           fields.push({
             name: 'Requested By',
@@ -66,7 +112,11 @@ export class DiscordNotifier implements INotificationService {
             inline: true,
           });
         }
-        const jfUrl = payload.jellyfinUrl || process.env.JELLYFIN_URL;
+        const jfUrl =
+          payload.jellyfinUrl ||
+          process.env.JELLYFIN_PUBLIC_URL ||
+          (process.env.JELLYFIN_DOMAIN ? `https://${process.env.JELLYFIN_DOMAIN}` : undefined) ||
+          process.env.JELLYFIN_URL;
         if (jfUrl) {
           fields.push({
             name: 'Jellyfin',
@@ -78,7 +128,7 @@ export class DiscordNotifier implements INotificationService {
       }
       case 'cleanup.scheduled': {
         title = 'Cleanup Warning (24h Notice)';
-        description = `**${payload.title}** is scheduled for auto-deletion in 24 hours to free up disk space. An Admin can set the Keep Flag in the dashboard to cancel deletion.`;
+        description = `**${displayTitle}** is scheduled for auto-deletion in 24 hours to free up disk space. An Admin can set the Keep Flag in the dashboard to cancel deletion.`;
         color = 0xf59e0b; // Amber/Orange
 
         if (payload.scheduledDeleteAt) {
@@ -97,7 +147,7 @@ export class DiscordNotifier implements INotificationService {
       }
       case 'cleanup.done': {
         title = 'Media Cleaned Up';
-        description = `**${payload.title}** has been removed from the server library to reclaim disk space.`;
+        description = `**${displayTitle}** has been removed from the server library to reclaim disk space.`;
         color = 0xef4444; // Red
 
         if (payload.requestedBy) {
