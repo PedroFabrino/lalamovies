@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cleanTorrentTitle } from '../src/utils/torrentTitleCleaner';
+import { cleanTorrentTitle, extractEpisodeInfo } from '../src/utils/torrentTitleCleaner';
 
 describe('Torrent Title Cleaning Engine & Metadata Extraction Suite (#14)', () => {
   describe('TV Episode Patterns', () => {
@@ -262,6 +262,101 @@ describe('Torrent Title Cleaning Engine & Metadata Extraction Suite (#14)', () =
       expect(cleanTorrentTitle('   ')).toEqual({ title: '' });
       expect(cleanTorrentTitle(null as any)).toEqual({ title: '' });
       expect(cleanTorrentTitle(undefined as any)).toEqual({ title: '' });
+    });
+  });
+
+  describe('extractEpisodeInfo - Multi-Torrent Episode Auto-Mapper (#7)', () => {
+    it('extracts standard scene SxxExx patterns', () => {
+      expect(extractEpisodeInfo('Attack.on.Titan.S04E28.The.Dawn.of.Humanity.1080p.mkv')).toEqual({
+        seasonNumber: 4,
+        episodeNumber: 28,
+      });
+
+      expect(extractEpisodeInfo('Severance.s1e1.720p.WEB-DL.mkv')).toEqual({
+        seasonNumber: 1,
+        episodeNumber: 1,
+      });
+
+      expect(extractEpisodeInfo('Show.Name.S02E05-E06.1080p.mkv')).toEqual({
+        seasonNumber: 2,
+        episodeNumber: 5,
+      });
+    });
+
+    it('extracts cross notation (1x03, 02x15)', () => {
+      expect(extractEpisodeInfo('Game.of.Thrones.1x03.Lord.Snow.720p.mkv')).toEqual({
+        seasonNumber: 1,
+        episodeNumber: 3,
+      });
+
+      expect(extractEpisodeInfo('The.Wire.02x15.mkv')).toEqual({
+        seasonNumber: 2,
+        episodeNumber: 15,
+      });
+    });
+
+    it('extracts anime dash notation with release groups', () => {
+      expect(extractEpisodeInfo('[SubsPlease] Sousou no Frieren - 01 (1080p) [ABCD1234].mkv')).toEqual({
+        seasonNumber: undefined,
+        episodeNumber: 1,
+      });
+
+      expect(extractEpisodeInfo('[Erai-raws] Jujutsu Kaisen - 24 [1080p].mkv')).toEqual({
+        seasonNumber: undefined,
+        episodeNumber: 24,
+      });
+
+      expect(extractEpisodeInfo('[HorribleSubs] One Piece - 950 [720p].mkv')).toEqual({
+        seasonNumber: undefined,
+        episodeNumber: 950,
+      });
+
+      expect(extractEpisodeInfo('[SubsPlease] Bleach TYBW - 15v2 (1080p).mkv')).toEqual({
+        seasonNumber: undefined,
+        episodeNumber: 15,
+      });
+    });
+
+    it('extracts anime with explicit season and dash episode', () => {
+      expect(extractEpisodeInfo('[SubsPlease] Bleach - S02 - 14 (1080p).mkv')).toEqual({
+        seasonNumber: 2,
+        episodeNumber: 14,
+      });
+
+      expect(extractEpisodeInfo('Show Name Season 3 - 05.mkv')).toEqual({
+        seasonNumber: 3,
+        episodeNumber: 5,
+      });
+    });
+
+    it('extracts episode prefix notation (EP04, Episode 07)', () => {
+      expect(extractEpisodeInfo('Spy.x.Family.EP15.1080p.CR.WEB-DL.mkv')).toEqual({
+        seasonNumber: undefined,
+        episodeNumber: 15,
+      });
+
+      expect(extractEpisodeInfo('DanMachi.IV.Episode.08.1080p.mkv')).toEqual({
+        seasonNumber: undefined,
+        episodeNumber: 8,
+      });
+
+      expect(extractEpisodeInfo('Show.Name.Ep.03.720p.mkv')).toEqual({
+        seasonNumber: undefined,
+        episodeNumber: 3,
+      });
+    });
+
+    it('extracts delimited standalone episode digits before video specs', () => {
+      expect(extractEpisodeInfo('Bleach.TYBW.05.1080p.WEB-DL.mkv')).toEqual({
+        seasonNumber: undefined,
+        episodeNumber: 5,
+      });
+    });
+
+    it('handles edge cases safely without crashing', () => {
+      expect(extractEpisodeInfo('')).toEqual({});
+      expect(extractEpisodeInfo(null as any)).toEqual({});
+      expect(extractEpisodeInfo('Movie.Without.Episodes.2024.1080p.mkv')).toEqual({});
     });
   });
 });

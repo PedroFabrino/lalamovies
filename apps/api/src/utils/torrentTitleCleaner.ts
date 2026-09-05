@@ -133,3 +133,75 @@ function cleanSeparators(str: string): string {
     .replace(/^[\s\-–—:]+|[\s\-–—:]+$/g, '')
     .trim();
 }
+
+export interface ExtractedEpisodeInfo {
+  seasonNumber?: number;
+  episodeNumber?: number;
+}
+
+/**
+ * Extracts season and episode numbers from release filenames.
+ * Supports standard scene (S01E05), cross notation (1x03), anime dash notation ([Group] Title - 01),
+ * episode prefixes (EP04, Episode 07), and standalone delimited episode numbers.
+ */
+export function extractEpisodeInfo(filename: string): ExtractedEpisodeInfo {
+  if (!filename || typeof filename !== 'string') return {};
+
+  const name = filename.replace(/\.(mkv|mp4|avi|wmv|mov|m4v|flv|webm|ts|iso|torrent)$/i, '').trim();
+
+  // 1. Standard scene notation: S01E05, s2e12, S02E05-E06
+  const sxxExxMatch = name.match(/(?:^|[\s._\-])s(\d{1,2})e(\d{1,3})(?:-[eE]?\d{1,3})?/i);
+  if (sxxExxMatch) {
+    return {
+      seasonNumber: parseInt(sxxExxMatch[1], 10),
+      episodeNumber: parseInt(sxxExxMatch[2], 10),
+    };
+  }
+
+  // 2. Multi-part / Cross notation: 1x03, 02x15
+  const crossMatch = name.match(/(?:^|[\s._\-])(\d{1,2})x(\d{1,3})/i);
+  if (crossMatch) {
+    return {
+      seasonNumber: parseInt(crossMatch[1], 10),
+      episodeNumber: parseInt(crossMatch[2], 10),
+    };
+  }
+
+  // Check for standalone season indicator (Season 2, S02) for fallback
+  const seasonMatch = name.match(/(?:^|[\s._\-])(?:season|series)[\s._\-]*(\d{1,2})(?=$|[\s._\-])/i)
+    || name.match(/(?:^|[\s._\-])s(\d{1,2})(?=$|[\s._\-])/i);
+  const detectedSeason = seasonMatch ? parseInt(seasonMatch[1], 10) : undefined;
+
+  // 3. Anime release with dash & episode number:
+  // e.g. "[SubsPlease] Title - 01 (1080p)", "Title - 12", "Title - 05v2"
+  const animeDashMatch = name.match(/(?:^|[\s._\-])-\s*(\d{1,4})(?:v\d)?(?=$|[\s._\(\[])/i);
+  if (animeDashMatch) {
+    return {
+      seasonNumber: detectedSeason,
+      episodeNumber: parseInt(animeDashMatch[1], 10),
+    };
+  }
+
+  // 4. Episode prefix: EP04, Ep. 07, Episode 10
+  const epPrefixMatch = name.match(/(?:^|[\s._\-])(?:ep|episode)[\s._\-]*(\d{1,4})/i);
+  if (epPrefixMatch) {
+    return {
+      seasonNumber: detectedSeason,
+      episodeNumber: parseInt(epPrefixMatch[1], 10),
+    };
+  }
+
+  // 5. Delimited standalone episode digits before video specs: "Title.05.1080p"
+  const delimitedMatch = name.match(/(?:^|[\s._\-])(\d{1,3})(?:$|[\s._\-\(\[]+(?:1080p|720p|2160p|480p|bdrip|webrip|web-dl|bluray|x264|x265|hevc|aac))/i);
+  if (delimitedMatch) {
+    return {
+      seasonNumber: detectedSeason,
+      episodeNumber: parseInt(delimitedMatch[1], 10),
+    };
+  }
+
+  return {
+    seasonNumber: detectedSeason,
+  };
+}
+

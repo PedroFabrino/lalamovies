@@ -183,12 +183,31 @@
             </p>
           </div>
 
-          <!-- Torrent file dropzone -->
-          <div v-else>
-            <label class="block text-sm font-medium text-zinc-300 mb-2">
-              Upload .torrent File
-            </label>
+          <!-- Torrent file dropzone / batch list -->
+          <div v-else class="space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="block text-sm font-medium text-zinc-300">
+                Upload .torrent Files
+              </label>
+              <span v-if="batchItems.length > 0" class="text-xs text-zinc-400">
+                {{ validBatchItems.length }} valid torrent{{ validBatchItems.length === 1 ? '' : 's' }}
+                <span v-if="validBatchItems.length > 0">({{ formatBytes(totalBatchSize) }})</span>
+              </span>
+            </div>
+
+            <!-- Hidden input for file selection with multiple -->
+            <input
+              ref="fileInputRef"
+              type="file"
+              accept=".torrent"
+              multiple
+              class="hidden"
+              @change="handleFileInputChange"
+            />
+
+            <!-- Drag & Drop Zone if no items -->
             <div
+              v-if="batchItems.length === 0"
               @dragover.prevent="isDragging = true"
               @dragleave.prevent="isDragging = false"
               @drop.prevent="handleFileDrop"
@@ -196,39 +215,122 @@
               class="relative border-2 border-dashed rounded-xl p-8 text-center transition cursor-pointer"
               :class="isDragging
                 ? 'border-indigo-500 bg-indigo-950/20 ring-4 ring-indigo-500/10'
-                : selectedFile
-                  ? 'border-emerald-600/60 bg-emerald-950/15'
-                  : 'border-zinc-800 bg-zinc-950/40 hover:border-zinc-700 hover:bg-zinc-900/30'"
+                : 'border-zinc-800 bg-zinc-950/40 hover:border-zinc-700 hover:bg-zinc-900/30'"
             >
-              <input
-                ref="fileInputRef"
-                type="file"
-                accept=".torrent"
-                class="hidden"
-                @change="handleFileInputChange"
-              />
-              <div v-if="!selectedFile" class="flex flex-col items-center gap-2">
+              <div class="flex flex-col items-center gap-2">
                 <div class="w-12 h-12 rounded-full bg-zinc-800/80 flex items-center justify-center text-xl">
                   📄
                 </div>
                 <div class="text-sm font-medium text-zinc-200">
-                  Click to browse or drag & drop a <span class="text-indigo-400">.torrent</span> file
+                  Click to browse or drag & drop <span class="text-indigo-400">.torrent</span> files
                 </div>
                 <p class="text-xs text-zinc-500">
-                  Direct upload supports both private & public trackers
+                  Supports single torrents or multi-torrent episode batches
                 </p>
               </div>
-              <div v-else class="flex flex-col items-center gap-2">
-                <div class="w-12 h-12 rounded-full bg-emerald-900/40 border border-emerald-600/60 flex items-center justify-center text-xl text-emerald-400">
-                  ✓
+            </div>
+
+            <!-- Batch Files Queue Container when batchItems.length > 0 -->
+            <div
+              v-else
+              @dragover.prevent="isDragging = true"
+              @dragleave.prevent="isDragging = false"
+              @drop.prevent="handleFileDrop"
+              class="rounded-xl border p-4 transition"
+              :class="isDragging
+                ? 'border-indigo-500 bg-indigo-950/20 ring-4 ring-indigo-500/10'
+                : 'border-zinc-800 bg-zinc-950/60'"
+            >
+              <!-- Action bar above list -->
+              <div class="flex items-center justify-between pb-3 mb-3 border-b border-zinc-800/80">
+                <div class="flex items-center gap-2">
+                  <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 text-xs font-semibold">
+                    <span>✓</span>
+                    <span>{{ validBatchItems.length }} Valid</span>
+                  </span>
+                  <span
+                    v-if="invalidBatchItems.length > 0"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-red-950/60 border border-red-800/60 text-red-300 text-xs font-semibold"
+                  >
+                    <span>⚠️</span>
+                    <span>{{ invalidBatchItems.length }} Invalid</span>
+                  </span>
                 </div>
-                <div class="text-sm font-semibold text-emerald-300 break-all max-w-md">
-                  {{ selectedFile.name }}
-                </div>
-                <div class="text-xs text-zinc-400">
-                  {{ (selectedFile.size / 1024).toFixed(1) }} KB • Click to replace
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    @click="fileInputRef?.click()"
+                    class="px-2.5 py-1 text-xs font-medium text-indigo-300 hover:text-indigo-200 bg-indigo-950/50 hover:bg-indigo-900/50 border border-indigo-800/50 rounded-md transition cursor-pointer flex items-center gap-1"
+                  >
+                    <span>+</span>
+                    <span>Add More</span>
+                  </button>
+                  <button
+                    type="button"
+                    @click="clearAllBatchItems"
+                    class="px-2.5 py-1 text-xs font-medium text-zinc-400 hover:text-red-300 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-md transition cursor-pointer"
+                  >
+                    Clear All
+                  </button>
                 </div>
               </div>
+
+              <!-- Scrollable file queue list -->
+              <div class="max-h-60 overflow-y-auto space-y-2 pr-1">
+                <div
+                  v-for="item in batchItems"
+                  :key="item.id"
+                  class="flex items-center justify-between p-2.5 rounded-lg border text-xs transition"
+                  :class="item.error
+                    ? 'bg-red-950/20 border-red-800/40 text-red-200'
+                    : 'bg-zinc-900/60 border-zinc-800 text-zinc-200'"
+                >
+                  <div class="flex items-center gap-2.5 min-w-0 flex-1 mr-3">
+                    <span
+                      class="w-6 h-6 rounded flex items-center justify-center shrink-0 text-xs font-bold"
+                      :class="item.error ? 'bg-red-900/50 text-red-400' : 'bg-emerald-900/40 text-emerald-400'"
+                    >
+                      {{ item.error ? '!' : '✓' }}
+                    </span>
+                    <div class="min-w-0 flex-1">
+                      <div class="font-medium truncate" :title="item.fileName">
+                        {{ item.fileName }}
+                      </div>
+                      <div class="flex items-center gap-2 text-[11px] text-zinc-400 mt-0.5">
+                        <span v-if="!item.error">{{ formatBytes(item.fileSizeBytes) }}</span>
+                        <span
+                          v-if="item.seasonNumber !== undefined || item.episodeNumber !== undefined"
+                          class="px-1.5 py-0.2 rounded bg-zinc-800 text-indigo-300 font-mono"
+                        >
+                          <span v-if="item.seasonNumber !== undefined">S{{ String(item.seasonNumber).padStart(2, '0') }}</span>
+                          <span v-if="item.episodeNumber !== undefined">E{{ String(item.episodeNumber).padStart(2, '0') }}</span>
+                        </span>
+                        <span v-if="item.error" class="text-red-400 font-medium">
+                          {{ item.error }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Remove badge button -->
+                  <button
+                    type="button"
+                    @click.stop="removeBatchItem(item.id)"
+                    class="shrink-0 w-6 h-6 rounded flex items-center justify-center transition cursor-pointer"
+                    :class="item.error
+                      ? 'text-red-400 hover:bg-red-900/60 hover:text-red-200'
+                      : 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200'"
+                    title="Remove file"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              <!-- Quick drag hint inside list container -->
+              <p class="text-[11px] text-zinc-500 text-center mt-2.5 pt-2 border-t border-zinc-800/60">
+                Drag and drop more files here to add to this batch
+              </p>
             </div>
           </div>
 
@@ -308,7 +410,7 @@
 
           <button
             type="submit"
-            :disabled="isSearching || !customQuery.trim() || (inputMode === 'magnet' ? !magnetLink.trim() : !selectedFile)"
+            :disabled="isSearching || !customQuery.trim() || (inputMode === 'magnet' ? !magnetLink.trim() : validBatchItems.length === 0)"
             class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg shadow transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             <svg
@@ -331,7 +433,15 @@
                 d="M4 12a8 8 0 018-8v8H4z"
               />
             </svg>
-            <span>{{ isSearching ? 'Searching Metadata...' : 'Find Matches & Continue' }}</span>
+            <span>
+              {{
+                isSearching
+                  ? 'Searching Metadata...'
+                  : validBatchItems.length > 1
+                    ? `Find Matches & Continue (${validBatchItems.length} torrents)`
+                    : 'Find Matches & Continue'
+              }}
+            </span>
           </button>
         </form>
       </div>
@@ -551,36 +661,137 @@
           </div>
         </div>
 
-        <!-- TV Show / Anime Season input -->
-        <div
-          v-if="mediaType === 'tv_show' || mediaType === 'anime'"
-          class="bg-zinc-950/40 border border-zinc-800/80 rounded-xl p-4"
-        >
-          <label
-            for="seasonNumber"
-            class="block text-sm font-medium text-zinc-300 mb-1.5"
-          >
-            Season Number <span class="text-xs text-zinc-500 font-normal">(Optional)</span>
-          </label>
-          <input
-            id="seasonNumber"
-            v-model.number="seasonNumber"
-            type="number"
-            min="1"
-            placeholder="e.g. 1"
-            :disabled="isSubmitting"
-            class="w-32 px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-50"
-          >
-          <p class="text-xs text-zinc-500 mt-1">
-            Specify season for TV show folder structure (e.g. Season 01). Leave empty if torrent contains multiple seasons.
-          </p>
+        <!-- Batch Review Table (Multi-torrent mode) -->
+        <div v-if="validBatchItems.length > 1" class="space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-white">
+              Episode Review & Mapping
+            </h3>
+            <span class="text-xs text-zinc-400">
+              Edit Season and Episode numbers before confirmation
+            </span>
+          </div>
+
+          <!-- Quick Season Applicator Bar -->
+          <div class="flex flex-wrap items-center justify-between gap-3 p-3 bg-zinc-950 border border-zinc-800 rounded-lg text-xs">
+            <div class="flex items-center gap-2">
+              <span class="text-zinc-400 font-medium">Quick Apply Season:</span>
+              <input
+                v-model.number="batchSeasonInput"
+                type="number"
+                min="1"
+                placeholder="1"
+                class="w-16 px-2 py-1 bg-zinc-900 border border-zinc-700 rounded text-center text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+              <button
+                type="button"
+                @click="applySeasonToAll"
+                class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-medium transition cursor-pointer"
+              >
+                Apply to All
+              </button>
+            </div>
+            <div class="text-zinc-400 font-medium">
+              <span>{{ validBatchItems.length }} Episodes</span> •
+              <span>{{ formatBytes(totalBatchSize) }} Total</span>
+            </div>
+          </div>
+
+          <!-- Interactive Review Table -->
+          <div class="overflow-x-auto rounded-lg border border-zinc-800 max-h-72 overflow-y-auto">
+            <table class="w-full text-left text-xs text-zinc-300">
+              <thead class="bg-zinc-950 sticky top-0 z-10 text-[11px] uppercase tracking-wider text-zinc-400 border-b border-zinc-800">
+                <tr>
+                  <th class="px-3 py-2.5 w-10 text-center">#</th>
+                  <th class="px-3 py-2.5 w-24">Season</th>
+                  <th class="px-3 py-2.5 w-24">Episode</th>
+                  <th class="px-3 py-2.5">Torrent File</th>
+                  <th class="px-3 py-2.5 w-24 text-right">Size</th>
+                  <th class="px-3 py-2.5 w-10 text-center"></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-zinc-800/60 bg-zinc-900/30 font-sans">
+                <tr
+                  v-for="(item, idx) in validBatchItems"
+                  :key="item.id"
+                  class="hover:bg-zinc-800/40 transition"
+                >
+                  <td class="px-3 py-2 text-center text-zinc-500 font-mono text-xs">
+                    {{ idx + 1 }}
+                  </td>
+                  <td class="px-3 py-2">
+                    <input
+                      v-model.number="item.seasonNumber"
+                      type="number"
+                      min="1"
+                      placeholder="1"
+                      class="w-18 px-2 py-1 bg-zinc-950 border border-zinc-800 rounded text-center text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </td>
+                  <td class="px-3 py-2">
+                    <input
+                      v-model.number="item.episodeNumber"
+                      type="number"
+                      min="1"
+                      placeholder="—"
+                      class="w-18 px-2 py-1 bg-zinc-950 border border-zinc-800 rounded text-center text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </td>
+                  <td class="px-3 py-2 max-w-xs sm:max-w-md truncate font-mono text-zinc-200 text-xs" :title="item.fileName">
+                    {{ item.fileName }}
+                  </td>
+                  <td class="px-3 py-2 text-right text-zinc-400 font-mono text-xs whitespace-nowrap">
+                    {{ formatBytes(item.fileSizeBytes) }}
+                  </td>
+                  <td class="px-3 py-2 text-center">
+                    <button
+                      type="button"
+                      @click="removeBatchItem(item.id)"
+                      class="text-zinc-500 hover:text-red-400 p-1 text-xs transition cursor-pointer"
+                      title="Remove from batch"
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        <!-- Source summary -->
-        <div class="text-xs text-zinc-500 break-all bg-zinc-950 p-3 rounded-lg border border-zinc-800/50">
-          <span class="text-zinc-400 font-semibold">{{ inputMode === 'file' ? 'Torrent File:' : 'Magnet:' }}</span>
-          {{ inputMode === 'file' ? selectedFile?.name : (magnetLink.length > 80 ? magnetLink.slice(0, 80) + '...' : magnetLink) }}
-        </div>
+        <!-- Single Item confirmation details (when validBatchItems.length <= 1) -->
+        <template v-else>
+          <!-- TV Show / Anime Season input -->
+          <div
+            v-if="mediaType === 'tv_show' || mediaType === 'anime'"
+            class="bg-zinc-950/40 border border-zinc-800/80 rounded-xl p-4"
+          >
+            <label
+              for="seasonNumber"
+              class="block text-sm font-medium text-zinc-300 mb-1.5"
+            >
+              Season Number <span class="text-xs text-zinc-500 font-normal">(Optional)</span>
+            </label>
+            <input
+              id="seasonNumber"
+              v-model.number="seasonNumber"
+              type="number"
+              min="1"
+              placeholder="e.g. 1"
+              :disabled="isSubmitting"
+              class="w-32 px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-50"
+            />
+            <p class="text-xs text-zinc-500 mt-1">
+              Specify season for TV show folder structure (e.g. Season 01). Leave empty if torrent contains multiple seasons.
+            </p>
+          </div>
+
+          <!-- Source summary -->
+          <div class="text-xs text-zinc-500 break-all bg-zinc-950 p-3 rounded-lg border border-zinc-800/50">
+            <span class="text-zinc-400 font-semibold">{{ inputMode === 'file' ? 'Torrent File:' : 'Magnet:' }}</span>
+            {{ inputMode === 'file' ? (validBatchItems[0]?.fileName || selectedFile?.name) : (magnetLink.length > 80 ? magnetLink.slice(0, 80) + '...' : magnetLink) }}
+          </div>
+        </template>
 
         <div class="flex items-center justify-between pt-4 border-t border-zinc-800">
           <button
@@ -593,7 +804,7 @@
           </button>
           <button
             type="button"
-            :disabled="isSubmitting"
+            :disabled="isSubmitting || (inputMode === 'file' && validBatchItems.length === 0)"
             class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg shadow transition flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             @click="handleConfirmRequest"
           >
@@ -617,7 +828,17 @@
                 d="M4 12a8 8 0 018-8v8H4z"
               />
             </svg>
-            <span>{{ isSubmitting ? 'Submitting...' : 'Confirm & Download' }}</span>
+            <span>
+              {{
+                isSubmitting
+                  ? (submitProgress.total > 1
+                    ? `Submitting (${submitProgress.current}/${submitProgress.total})...`
+                    : 'Submitting...')
+                  : validBatchItems.length > 1
+                    ? `Confirm & Submit Batch (${validBatchItems.length} torrents)`
+                    : 'Confirm & Download'
+              }}
+            </span>
           </button>
         </div>
       </div>
@@ -626,14 +847,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch } from 'vue';
+import { ref, computed, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import Navbar from '../components/Navbar.vue';
 import { api, ApiError } from '../lib/api';
 import { useRequestsStore, MediaType, DownloadRequest } from '../stores/requests';
-import { formatMediaType } from '../lib/formatters';
+import { formatMediaType, formatBytes } from '../lib/formatters';
 import { parseTorrentFile, fileToBase64, ParsedTorrentClient } from '../lib/torrentParser';
-import { cleanTorrentTitle } from '../lib/torrentTitleCleaner';
+import { cleanTorrentTitle, extractEpisodeInfo } from '../lib/torrentTitleCleaner';
 
 interface MetadataCandidate {
   id: string;
@@ -642,6 +863,17 @@ interface MetadataCandidate {
   year: number | null;
   posterUrl: string | null;
   overview: string | null;
+}
+
+export interface BatchItem {
+  id: string;
+  file: File;
+  fileName: string;
+  fileSizeBytes: number;
+  parsed?: ParsedTorrentClient;
+  error?: string;
+  seasonNumber?: number;
+  episodeNumber?: number;
 }
 
 const router = useRouter();
@@ -657,6 +889,16 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 const customQueryInputRef = ref<HTMLInputElement | null>(null);
 const isDragging = ref(false);
 const parsedTorrent = ref<ParsedTorrentClient | null>(null);
+
+// Batch state
+const batchItems = ref<BatchItem[]>([]);
+const batchSeasonInput = ref<number | null>(1);
+
+const validBatchItems = computed(() => batchItems.value.filter((i) => !i.error));
+const invalidBatchItems = computed(() => batchItems.value.filter((i) => Boolean(i.error)));
+const totalBatchSize = computed(() =>
+  validBatchItems.value.reduce((acc, i) => acc + (i.parsed?.totalSize || i.fileSizeBytes), 0)
+);
 
 const mediaType = ref<MediaType>('movie');
 const customQuery = ref('');
@@ -676,6 +918,7 @@ const selectedCandidate = ref<MetadataCandidate | null>(null);
 // Step 3 State
 const seasonNumber = ref<number | null>(null);
 const isSubmitting = ref(false);
+const submitProgress = ref({ current: 0, total: 0 });
 const step3Error = ref<string | null>(null);
 
 watch(magnetLink, async (newVal) => {
@@ -702,51 +945,131 @@ watch(magnetLink, async (newVal) => {
   }
 });
 
-async function processFile(file: File) {
-  if (!file.name.toLowerCase().endsWith('.torrent')) {
-    step1Error.value = 'Please select a valid .torrent file.';
-    return;
+function applySeasonToAll() {
+  if (batchSeasonInput.value === null || isNaN(batchSeasonInput.value)) return;
+  const s = batchSeasonInput.value;
+  seasonNumber.value = s;
+  for (const item of batchItems.value) {
+    if (!item.error) {
+      item.seasonNumber = s;
+    }
   }
+}
 
-  selectedFile.value = file;
+function removeBatchItem(id: string) {
+  batchItems.value = batchItems.value.filter((item) => item.id !== id);
+  const firstValid = batchItems.value.find((b) => !b.error);
+  if (firstValid) {
+    selectedFile.value = firstValid.file;
+    parsedTorrent.value = firstValid.parsed || null;
+    magnetLink.value = firstValid.parsed?.magnetUri || '';
+  } else {
+    selectedFile.value = null;
+    parsedTorrent.value = null;
+    magnetLink.value = '';
+  }
+}
+
+function clearAllBatchItems() {
+  batchItems.value = [];
+  selectedFile.value = null;
+  parsedTorrent.value = null;
+  magnetLink.value = '';
+}
+
+async function processFiles(files: FileList | File[]) {
+  const fileArray = Array.from(files);
+  if (fileArray.length === 0) return;
+
   step1Error.value = null;
 
-  try {
-    const parsed = await parseTorrentFile(file);
-    parsedTorrent.value = parsed;
-    magnetLink.value = parsed.magnetUri;
+  for (const file of fileArray) {
+    const id = `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 7)}`;
 
-    const cleaned = cleanTorrentTitle(parsed.name);
-    customQuery.value = cleaned.title || parsed.name;
-    if (cleaned.detectedMediaType) {
-      mediaType.value = cleaned.detectedMediaType;
-    }
-    if (cleaned.seasonNumber !== undefined) {
-      seasonNumber.value = cleaned.seasonNumber;
-    } else if (cleaned.detectedMediaType === 'movie') {
-      seasonNumber.value = null;
+    if (!file.name.toLowerCase().endsWith('.torrent')) {
+      batchItems.value.push({
+        id,
+        file,
+        fileName: file.name,
+        fileSizeBytes: file.size,
+        error: 'Invalid file type: must be a .torrent file',
+      });
+      continue;
     }
 
-    if (!customQuery.value.trim()) {
-      await nextTick();
-      customQueryInputRef.value?.focus();
+    try {
+      const parsed = await parseTorrentFile(file);
+      const episodeInfo = extractEpisodeInfo(file.name);
+      const cleaned = cleanTorrentTitle(parsed.name || file.name);
+
+      const detectedSeason = episodeInfo.seasonNumber ?? cleaned.seasonNumber ?? (seasonNumber.value || 1);
+      const detectedEp = episodeInfo.episodeNumber;
+
+      const item: BatchItem = {
+        id,
+        file,
+        fileName: file.name,
+        fileSizeBytes: parsed.totalSize || file.size,
+        parsed,
+        seasonNumber: detectedSeason,
+        episodeNumber: detectedEp,
+      };
+
+      batchItems.value.push(item);
+
+      // Auto-set mediaType to tv_show or anime if episodes detected or multiple items
+      if (cleaned.detectedMediaType) {
+        mediaType.value = cleaned.detectedMediaType;
+      } else if (detectedEp !== undefined || batchItems.value.filter((b) => !b.error).length > 1) {
+        if (mediaType.value === 'movie') {
+          mediaType.value = 'tv_show';
+        }
+      }
+
+      // Auto-populate customQuery from first valid item if empty
+      if (!customQuery.value.trim()) {
+        customQuery.value = cleaned.title || parsed.name;
+      }
+    } catch (err) {
+      batchItems.value.push({
+        id,
+        file,
+        fileName: file.name,
+        fileSizeBytes: file.size,
+        error: 'Corrupt or unreadable .torrent: ' + ((err as Error).message || 'Invalid format'),
+      });
     }
-  } catch (err) {
-    step1Error.value = 'Failed to read .torrent file: ' + ((err as Error).message || 'Invalid format');
+  }
+
+  const firstValid = batchItems.value.find((b) => !b.error);
+  if (firstValid) {
+    selectedFile.value = firstValid.file;
+    parsedTorrent.value = firstValid.parsed || null;
+    magnetLink.value = firstValid.parsed?.magnetUri || '';
+    if (firstValid.seasonNumber) {
+      seasonNumber.value = firstValid.seasonNumber;
+      batchSeasonInput.value = firstValid.seasonNumber;
+    }
+  }
+
+  if (!customQuery.value.trim()) {
+    await nextTick();
+    customQueryInputRef.value?.focus();
   }
 }
 
 function handleFileInputChange(e: Event) {
   const target = e.target as HTMLInputElement;
   if (target.files && target.files.length > 0) {
-    processFile(target.files[0]);
+    processFiles(target.files);
+    target.value = '';
   }
 }
 
 function handleFileDrop(e: DragEvent) {
   isDragging.value = false;
   if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
-    processFile(e.dataTransfer.files[0]);
+    processFiles(e.dataTransfer.files);
   }
 }
 
@@ -758,7 +1081,7 @@ async function handleSearchMetadata() {
   }
 
   if (inputMode.value === 'magnet' && !magnetLink.value.trim()) return;
-  if (inputMode.value === 'file' && !selectedFile.value) return;
+  if (inputMode.value === 'file' && validBatchItems.value.length === 0) return;
 
   isSearching.value = true;
   step1Error.value = null;
@@ -769,10 +1092,13 @@ async function handleSearchMetadata() {
       query: customQuery.value.trim(),
     };
 
-    if (inputMode.value === 'file' && selectedFile.value) {
-      const base64 = await fileToBase64(selectedFile.value);
-      payload.torrentFileBase64 = base64;
-      payload.magnetLink = magnetLink.value || undefined;
+    if (inputMode.value === 'file') {
+      const firstValid = validBatchItems.value[0];
+      if (firstValid) {
+        const base64 = await fileToBase64(firstValid.file);
+        payload.torrentFileBase64 = base64;
+        payload.magnetLink = firstValid.parsed?.magnetUri || undefined;
+      }
     } else {
       payload.magnetLink = magnetLink.value.trim();
     }
@@ -805,46 +1131,114 @@ async function handleConfirmRequest() {
   step3Error.value = null;
 
   try {
-    const payload: Record<string, any> = {
-      mediaType: mediaType.value,
-      metadataId: selectedCandidate.value.id,
-      metadataSource: selectedCandidate.value.source,
-      title: selectedCandidate.value.title,
-      year: selectedCandidate.value.year ?? undefined,
-      seasonNumber: seasonNumber.value ?? undefined,
-    };
+    if (inputMode.value === 'file' && validBatchItems.value.length > 1) {
+      submitProgress.value = { current: 0, total: validBatchItems.value.length };
+      let successCount = 0;
+      let failCount = 0;
+      let lastErrorMessage = '';
+      let isStorageQuotaExceeded = false;
 
-    if (inputMode.value === 'file' && selectedFile.value) {
-      const base64 = await fileToBase64(selectedFile.value);
-      payload.torrentFileBase64 = base64;
-      payload.torrentFileName = selectedFile.value.name;
-      payload.magnetLink = magnetLink.value || undefined;
-    } else {
-      payload.magnetLink = magnetLink.value.trim();
-    }
+      for (let i = 0; i < validBatchItems.value.length; i++) {
+        const item = validBatchItems.value[i];
+        submitProgress.value.current = i + 1;
 
-    const res = await api.post<{ request: DownloadRequest }>('/requests', payload);
+        try {
+          const base64 = await fileToBase64(item.file);
+          const payload: Record<string, any> = {
+            mediaType: mediaType.value,
+            metadataId: selectedCandidate.value.id,
+            metadataSource: selectedCandidate.value.source,
+            title: selectedCandidate.value.title,
+            year: selectedCandidate.value.year ?? undefined,
+            seasonNumber: item.seasonNumber ?? seasonNumber.value ?? undefined,
+            torrentFileBase64: base64,
+            torrentFileName: item.fileName,
+            magnetLink: item.parsed?.magnetUri || undefined,
+          };
 
-    if (res.request.status === 'queued') {
-      if (res.request.deferredReason === 'waiting_for_space') {
+          await api.post<{ request: DownloadRequest }>('/requests', payload);
+          successCount++;
+        } catch (err) {
+          failCount++;
+          if (err instanceof ApiError) {
+            if (err.statusCode === 422) {
+              isStorageQuotaExceeded = true;
+              lastErrorMessage = 'Insufficient disk space.';
+            } else {
+              lastErrorMessage = err.message;
+            }
+          } else {
+            lastErrorMessage = (err as Error).message || 'Failed to submit request';
+          }
+        }
+      }
+
+      if (failCount > 0 && successCount === 0) {
+        step3Error.value = isStorageQuotaExceeded
+          ? 'Not enough disk space — please ask an admin to free up space.'
+          : `Failed to submit batch: ${lastErrorMessage}`;
+        return;
+      }
+
+      if (failCount > 0) {
         requestsStore.showToast(
-          'Your request has been queued and will start automatically once storage space is available',
+          `Partial batch completion: ${successCount} queued, ${failCount} failed.`,
           'info'
         );
       } else {
         requestsStore.showToast(
-          'Your request has been queued and will start when a download slot is available',
-          'info'
+          `Batch submitted successfully: ${successCount} requests queued.`,
+          'success'
         );
       }
-    } else {
-      requestsStore.showToast(
-        `Download started: ${res.request.title}`,
-        'success'
-      );
-    }
 
-    router.push('/dashboard');
+      router.push('/dashboard');
+    } else {
+      submitProgress.value = { current: 0, total: 1 };
+      const singleItem = validBatchItems.value[0];
+      const payload: Record<string, any> = {
+        mediaType: mediaType.value,
+        metadataId: selectedCandidate.value.id,
+        metadataSource: selectedCandidate.value.source,
+        title: selectedCandidate.value.title,
+        year: selectedCandidate.value.year ?? undefined,
+        seasonNumber: singleItem?.seasonNumber ?? seasonNumber.value ?? undefined,
+      };
+
+      if (inputMode.value === 'file') {
+        const fileToUpload = singleItem?.file || selectedFile.value;
+        if (!fileToUpload) throw new Error('No torrent file selected');
+        const base64 = await fileToBase64(fileToUpload);
+        payload.torrentFileBase64 = base64;
+        payload.torrentFileName = fileToUpload.name;
+        payload.magnetLink = singleItem?.parsed?.magnetUri || magnetLink.value || undefined;
+      } else {
+        payload.magnetLink = magnetLink.value.trim();
+      }
+
+      const res = await api.post<{ request: DownloadRequest }>('/requests', payload);
+
+      if (res.request.status === 'queued') {
+        if (res.request.deferredReason === 'waiting_for_space') {
+          requestsStore.showToast(
+            'Your request has been queued and will start automatically once storage space is available',
+            'info'
+          );
+        } else {
+          requestsStore.showToast(
+            'Your request has been queued and will start when a download slot is available',
+            'info'
+          );
+        }
+      } else {
+        requestsStore.showToast(
+          `Download started: ${res.request.title}`,
+          'success'
+        );
+      }
+
+      router.push('/dashboard');
+    }
   } catch (err) {
     if (err instanceof ApiError) {
       if (err.statusCode === 422) {
@@ -854,7 +1248,7 @@ async function handleConfirmRequest() {
         step3Error.value = err.message;
       }
     } else {
-      step3Error.value = 'Failed to submit download request.';
+      step3Error.value = ((err as Error).message) || 'Failed to submit download request.';
     }
   } finally {
     isSubmitting.value = false;
