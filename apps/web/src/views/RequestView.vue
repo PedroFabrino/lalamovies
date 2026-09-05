@@ -963,10 +963,23 @@ function removeBatchItem(id: string) {
     selectedFile.value = firstValid.file;
     parsedTorrent.value = firstValid.parsed || null;
     magnetLink.value = firstValid.parsed?.magnetUri || '';
+    if (firstValid.seasonNumber) {
+      seasonNumber.value = firstValid.seasonNumber;
+      batchSeasonInput.value = firstValid.seasonNumber;
+    }
+    const cleaned = cleanTorrentTitle(firstValid.parsed?.name || firstValid.fileName);
+    if (cleaned.title) {
+      customQuery.value = cleaned.title;
+    }
   } else {
     selectedFile.value = null;
     parsedTorrent.value = null;
     magnetLink.value = '';
+    customQuery.value = '';
+    candidates.value = [];
+    selectedCandidate.value = null;
+    seasonNumber.value = null;
+    batchSeasonInput.value = 1;
   }
 }
 
@@ -975,6 +988,11 @@ function clearAllBatchItems() {
   selectedFile.value = null;
   parsedTorrent.value = null;
   magnetLink.value = '';
+  customQuery.value = '';
+  candidates.value = [];
+  selectedCandidate.value = null;
+  seasonNumber.value = null;
+  batchSeasonInput.value = 1;
 }
 
 async function processFiles(files: FileList | File[]) {
@@ -1025,11 +1043,6 @@ async function processFiles(files: FileList | File[]) {
           mediaType.value = 'tv_show';
         }
       }
-
-      // Auto-populate customQuery from first valid item if empty
-      if (!customQuery.value.trim()) {
-        customQuery.value = cleaned.title || parsed.name;
-      }
     } catch (err) {
       batchItems.value.push({
         id,
@@ -1049,6 +1062,10 @@ async function processFiles(files: FileList | File[]) {
     if (firstValid.seasonNumber) {
       seasonNumber.value = firstValid.seasonNumber;
       batchSeasonInput.value = firstValid.seasonNumber;
+    }
+    const cleaned = cleanTorrentTitle(firstValid.parsed?.name || firstValid.fileName);
+    if (cleaned.title) {
+      customQuery.value = cleaned.title;
     }
   }
 
