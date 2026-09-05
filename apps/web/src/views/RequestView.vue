@@ -259,6 +259,30 @@
             </div>
           </div>
 
+          <!-- Season Input (Step 1 - TV Show & Anime) -->
+          <div
+            v-if="mediaType === 'tv_show' || mediaType === 'anime'"
+          >
+            <label
+              for="step1SeasonNumber"
+              class="block text-sm font-medium text-zinc-300 mb-2"
+            >
+              Season Number <span class="text-xs text-zinc-500 font-normal">(Optional)</span>
+            </label>
+            <input
+              id="step1SeasonNumber"
+              v-model.number="seasonNumber"
+              type="number"
+              min="1"
+              placeholder="e.g. 1"
+              :disabled="isSearching"
+              class="w-32 px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-50"
+            >
+            <p class="text-xs text-zinc-500 mt-1.5">
+              Specify season for TV show folder structure (e.g. Season 01).
+            </p>
+          </div>
+
           <!-- Media Title / Search Query (Required) -->
           <div>
             <label
@@ -602,7 +626,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue';
+import { ref, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import Navbar from '../components/Navbar.vue';
 import { api, ApiError } from '../lib/api';
@@ -654,6 +678,30 @@ const seasonNumber = ref<number | null>(null);
 const isSubmitting = ref(false);
 const step3Error = ref<string | null>(null);
 
+watch(magnetLink, async (newVal) => {
+  if (inputMode.value !== 'magnet') return;
+  const trimmed = newVal.trim();
+  if (!trimmed) return;
+
+  const cleaned = cleanTorrentTitle(trimmed);
+  if (cleaned.title) {
+    customQuery.value = cleaned.title;
+  }
+  if (cleaned.detectedMediaType) {
+    mediaType.value = cleaned.detectedMediaType;
+  }
+  if (cleaned.seasonNumber !== undefined) {
+    seasonNumber.value = cleaned.seasonNumber;
+  } else if (cleaned.detectedMediaType === 'movie') {
+    seasonNumber.value = null;
+  }
+
+  if (!cleaned.title.trim()) {
+    await nextTick();
+    customQueryInputRef.value?.focus();
+  }
+});
+
 async function processFile(file: File) {
   if (!file.name.toLowerCase().endsWith('.torrent')) {
     step1Error.value = 'Please select a valid .torrent file.';
@@ -672,6 +720,11 @@ async function processFile(file: File) {
     customQuery.value = cleaned.title || parsed.name;
     if (cleaned.detectedMediaType) {
       mediaType.value = cleaned.detectedMediaType;
+    }
+    if (cleaned.seasonNumber !== undefined) {
+      seasonNumber.value = cleaned.seasonNumber;
+    } else if (cleaned.detectedMediaType === 'movie') {
+      seasonNumber.value = null;
     }
 
     if (!customQuery.value.trim()) {
