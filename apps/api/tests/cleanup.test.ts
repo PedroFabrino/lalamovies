@@ -234,6 +234,57 @@ describe('CleanupService, Notifiers & Cron (Ticket 09)', () => {
       expect(row?.scheduledDeleteAt).toBeNull();
     });
 
+    it('triggers cleanup when storage quota usage reaches 80% even if physical disk has plenty of space', async () => {
+      // Configure 100 GB storage quota
+      dbInstance.db
+        .insert(systemConfig)
+        .values({
+          key: 'storage_quota_gb',
+          value: '100',
+        })
+        .onConflictDoUpdate({ target: systemConfig.key, set: { value: '100' } })
+        .run();
+
+      // Free physical space is 90% (well above 20% warn threshold), but footprint is 80 GB (80% of 100 GB quota)
+      const mockFileSystem = {
+        buildLibraryPath: () => '',
+        hardlink: () => {},
+        hardlinkDirectory: () => {},
+        getStorageFootprintBytes: () => 80 * 1024 * 1024 * 1024,
+      };
+
+      const cleanup = new CleanupService(
+        dbInstance.db,
+        mockQb,
+        mockJf,
+        mockNotifications,
+        tempDir,
+        () => 90, // 90% physical free
+        () => 500 * 1024 * 1024 * 1024, // 500 GB free
+        mockFileSystem
+      );
+
+      dbInstance.db.insert(downloadRequests).values({
+        id: 'req_quota_candidate',
+        userId,
+        magnetLink: 'magnet:?xt=urn:btih:quota1',
+        mediaType: 'movie',
+        status: 'seeding',
+        metadataId: '100',
+        metadataSource: 'tmdb',
+        title: 'Quota Candidate Movie',
+        requestedAt: '2026-01-01T00:00:00Z',
+        keepFlag: false,
+        scheduledDeleteAt: null,
+      }).run();
+
+      const scheduled = await cleanup.checkDiskAndClean();
+      expect(scheduled.length).toBe(1);
+      expect(scheduled[0].id).toBe('req_quota_candidate');
+      expect(mockNotifications.sentEvents.length).toBe(1);
+      expect(mockNotifications.sentEvents[0].event).toBe('cleanup.scheduled');
+    });
+
     it('selects candidates in priority order (least-recently-played first, then oldest request) and respects keepFlag', async () => {
       // Free space is 10% (below 20% warn threshold)
       const cleanup = new CleanupService(

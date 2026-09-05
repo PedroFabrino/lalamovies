@@ -4,6 +4,7 @@ import { AppDatabase, systemConfig, downloadRequests, DownloadRequest, users } f
 import { IQBittorrentService } from './qbittorrent';
 import { IJellyfinService } from './jellyfin';
 import { INotificationService } from './notifications';
+import { IFileSystemService } from './fileSystem';
 
 export interface SpaceCheckResult {
   sufficient: boolean;
@@ -30,7 +31,9 @@ export class CleanupService implements ICleanupService {
     private notificationService?: INotificationService,
     private mediaPath?: string,
     private diskFreePercentProvider?: () => number,
-    private diskFreeBytesProvider?: () => number
+    private diskFreeBytesProvider?: () => number,
+    private fileSystemService?: IFileSystemService,
+    private storageFootprintProvider?: () => number
   ) {}
 
   getFreeDiskBytes(customPath?: string): number {
@@ -152,12 +155,34 @@ export class CleanupService implements ICleanupService {
 
     const warnThreshold = configRow ? parseInt(configRow.value, 10) : 20;
     const percentFree = this.getPercentFree(customPath);
+    const hostSafe = this.isHostDiskSafe(customPath);
 
-    if (percentFree >= warnThreshold) {
+    // Check storage quota threshold (80% usage triggers cleanup warning per Spec #3)
+    const quotaRow = this.db
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.key, 'storage_quota_gb'))
+      .get();
+
+    const storageQuotaGb = quotaRow
+      ? parseInt(quotaRow.value, 10)
+      : parseInt(process.env.STORAGE_QUOTA_GB || '150', 10);
+    const storageQuotaBytes = storageQuotaGb * 1024 * 1024 * 1024;
+    const footprintBytes = this.fileSystemService?.getStorageFootprintBytes
+      ? this.fileSystemService.getStorageFootprintBytes()
+      : this.storageFootprintProvider
+        ? this.storageFootprintProvider()
+        : 0;
+
+    const isQuotaWarnExceeded =
+      storageQuotaBytes > 0 && footprintBytes / storageQuotaBytes >= 0.8;
+    const isDiskSpaceLow = percentFree < warnThreshold || !hostSafe;
+
+    if (!isQuotaWarnExceeded && !isDiskSpaceLow) {
       return [];
     }
 
-    // Free space is below warn threshold!
+    // Free space is below warn threshold or storage quota >= 80%!
     // 1. Refresh play history from Jellyfin
     await this.refreshPlayHistory();
 

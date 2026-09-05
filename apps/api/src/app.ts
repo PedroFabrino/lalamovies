@@ -70,9 +70,19 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       return row?.value || process.env.JELLYFIN_API_KEY || '';
     });
   const notifications = options.notificationService ?? new NotificationService();
-  const cleanup =
-    options.cleanupService ?? new CleanupService(db, qbittorrent, jellyfin, notifications);
   const fileSystem = options.fileSystemService ?? new FileSystemService();
+  const cleanup =
+    options.cleanupService ??
+    new CleanupService(
+      db,
+      qbittorrent,
+      jellyfin,
+      notifications,
+      undefined,
+      undefined,
+      undefined,
+      fileSystem
+    );
   const metadata = options.metadataService ?? new MetadataService();
 
   const poller =

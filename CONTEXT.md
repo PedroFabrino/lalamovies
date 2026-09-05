@@ -78,3 +78,14 @@ _Avoid_: pin, lock, favorite
 **Notification**:
 An alert dispatched via Discord webhook (and optionally Resend email) to inform users of significant events: download completion, impending automatic Cleanup (24 h before), and Cleanup completion.
 _Avoid_: alert, message, event
+
+### Environments & Infrastructure
+
+**Production Stack**:
+The primary, live Docker Compose deployment serving active users, downloading media to the host HDD Library, and persisting application state to the dedicated SSD volume.
+_Avoid_: live container, host server, prod
+
+**Development Stack**:
+An isolated, secondary Docker Compose environment running parallel, non-conflicting instances of the core services (Fastify API, qBittorrent, Jellyfin) on dedicated alternate ports, with source code volume mounts and isolated host storage, used for safe feature development and integration testing without impacting the Production Stack.
+_Avoid_: test container, local docker, staging container
+
