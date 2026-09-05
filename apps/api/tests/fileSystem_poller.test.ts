@@ -176,8 +176,10 @@ describe('DownloadPoller & Hardlink Integration', () => {
   let mockJf: MockJellyfin;
   let fsService: FileSystemService;
   let poller: DownloadPoller;
+  let broadcastMsgs: any[];
 
   beforeEach(() => {
+    broadcastMsgs = [];
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mdm-test-'));
     stagingDir = path.join(tmpDir, 'staging');
     mediaDir = path.join(tmpDir, 'media');
@@ -187,7 +189,7 @@ describe('DownloadPoller & Hardlink Integration', () => {
     dbInstance = initDatabase(':memory:');
     mockQb = new MockQBService();
     mockJf = new MockJellyfin();
-        fsService = new FileSystemService(mediaDir);
+    fsService = new FileSystemService(mediaDir);
 
     dbInstance.db.insert(users).values({
       id: 'usr_1',
@@ -202,6 +204,7 @@ describe('DownloadPoller & Hardlink Integration', () => {
       fileSystem: fsService,
       jellyfin: mockJf,
       stagingPath: stagingDir,
+      broadcast: (msg) => broadcastMsgs.push(msg),
     });
   });
 
@@ -346,5 +349,89 @@ describe('DownloadPoller & Hardlink Integration', () => {
 
     expect(result?.status).toBe('error');
     expect(result?.errorMessage).toContain('Source file does not exist');
+  });
+
+  it('does not promote queued requests when quota headroom is zero or negative', async () => {
+    // Footprint is 130 GB -> availableHeadroom <= 0 (cap is 85% of 150GB = 127.5GB)
+    vi.spyOn(fsService, 'getStorageFootprintBytes').mockReturnValue(130 * 1024 * 1024 * 1024);
+
+    dbInstance.db.insert(downloadRequests).values({
+      id: 'q_over_quota',
+      userId: 'usr_1',
+      magnetLink: 'magnet:?xt=urn:btih:over_quota',
+      mediaType: 'movie',
+      status: 'queued',
+      metadataId: '101',
+      metadataSource: 'tmdb',
+      title: 'Over Quota Movie',
+      requestedAt: '2026-09-01T10:00:00.000Z',
+    }).run();
+
+    await poller.pollOnce();
+
+    const req = dbInstance.db.select().from(downloadRequests).where(eq(downloadRequests.id, 'q_over_quota')).get();
+    expect(req?.status).toBe('queued');
+    expect(req?.deferredReason).toBe('waiting_for_space');
+    expect(req?.qbTorrentHash).toBeNull();
+  });
+
+  it('implements greedy best-fit FIFO: skips large queued item that exceeds headroom and promotes subsequent smaller item', async () => {
+    // 150 GB * 0.85 = 127.5 GB cap.
+    // Set footprint to cap - 5 GB, so availableHeadroom = 5 GB
+    const quotaCapBytes = Math.floor(150 * 1024 * 1024 * 1024 * 0.85);
+    vi.spyOn(fsService, 'getStorageFootprintBytes').mockReturnValue(quotaCapBytes - 5 * 1024 * 1024 * 1024);
+
+    // Oldest item is 10 GB (too big for 5 GB headroom)
+    // Newer item is 2 GB (fits within 5 GB headroom)
+    dbInstance.db.insert(downloadRequests).values([
+      {
+        id: 'q_large',
+        userId: 'usr_1',
+        magnetLink: 'magnet:?xt=urn:btih:large_item',
+        mediaType: 'movie',
+        status: 'queued',
+        metadataId: '201',
+        metadataSource: 'tmdb',
+        title: 'Large 4K Movie',
+        sizeBytes: 10 * 1024 * 1024 * 1024,
+        requestedAt: '2026-09-01T10:00:00.000Z',
+      },
+      {
+        id: 'q_small',
+        userId: 'usr_1',
+        magnetLink: 'magnet:?xt=urn:btih:small_item',
+        mediaType: 'movie',
+        status: 'queued',
+        metadataId: '202',
+        metadataSource: 'tmdb',
+        title: 'Small 1080p Movie',
+        sizeBytes: 2 * 1024 * 1024 * 1024,
+        requestedAt: '2026-09-01T11:00:00.000Z',
+      },
+    ]).run();
+
+    await poller.pollOnce();
+
+    const qLarge = dbInstance.db.select().from(downloadRequests).where(eq(downloadRequests.id, 'q_large')).get();
+    const qSmall = dbInstance.db.select().from(downloadRequests).where(eq(downloadRequests.id, 'q_small')).get();
+
+    // qLarge remains queued with waiting_for_space
+    expect(qLarge?.status).toBe('queued');
+    expect(qLarge?.deferredReason).toBe('waiting_for_space');
+    expect(qLarge?.qbTorrentHash).toBeNull();
+
+    // qSmall is promoted to downloading, deferredReason cleared
+    expect(qSmall?.status).toBe('downloading');
+    expect(qSmall?.deferredReason).toBeNull();
+    expect(qSmall?.qbTorrentHash).toBeDefined();
+
+    // WebSocket broadcast sent for promoted request
+    const smallBroadcast = broadcastMsgs.find(msg => msg.requestId === 'q_small');
+    expect(smallBroadcast).toBeDefined();
+    expect(smallBroadcast).toEqual({
+      type: 'status',
+      requestId: 'q_small',
+      status: 'downloading',
+    });
   });
 });

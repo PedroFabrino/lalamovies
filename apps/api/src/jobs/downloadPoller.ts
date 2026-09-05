@@ -1,6 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, and, ne } from 'drizzle-orm';
 import { AppDatabase, downloadRequests, systemConfig, users } from '../db';
 import { IQBittorrentService } from '../services/qbittorrent';
 import { IFileSystemService } from '../services/fileSystem';
@@ -170,7 +170,20 @@ export class DownloadPoller {
         }
       }
 
-      // 2. Check for queued items to start if concurrent limit allows
+      // 2. Check for queued items to start if quota headroom and concurrent limit allow
+      const quotaRow = this.db
+        .select()
+        .from(systemConfig)
+        .where(eq(systemConfig.key, 'storage_quota_gb'))
+        .get();
+
+      const storageQuotaGb = quotaRow ? parseInt(quotaRow.value, 10) : parseInt(process.env.STORAGE_QUOTA_GB || '150', 10);
+      const storageQuotaBytes = storageQuotaGb * 1024 * 1024 * 1024;
+      const currentFootprintBytes = this.fileSystem.getStorageFootprintBytes ? this.fileSystem.getStorageFootprintBytes() : 0;
+
+      const quotaCapBytes = storageQuotaBytes > 0 ? Math.floor(storageQuotaBytes * 0.85) : Infinity;
+      let availableHeadroom = quotaCapBytes === Infinity ? Infinity : Math.max(0, quotaCapBytes - currentFootprintBytes);
+
       const configRow = this.db
         .select()
         .from(systemConfig)
@@ -179,18 +192,52 @@ export class DownloadPoller {
 
       const concurrentLimit = configRow ? parseInt(configRow.value, 10) : 2;
       const activeCount = await this.qbittorrent.getActiveTorrentCount();
+      let slotsAvailable = Math.max(0, concurrentLimit - activeCount);
 
-      if (activeCount < concurrentLimit) {
-        const slotsAvailable = concurrentLimit - activeCount;
+      if (availableHeadroom <= 0) {
+        // Quota usage >= 85%, cannot promote any requests; mark non-deferred items as waiting_for_space
+        const queuedItems = this.db
+          .select({ id: downloadRequests.id, deferredReason: downloadRequests.deferredReason })
+          .from(downloadRequests)
+          .where(eq(downloadRequests.status, 'queued'))
+          .all();
+
+        for (const item of queuedItems) {
+          if (item.deferredReason !== 'waiting_for_space') {
+            this.db
+              .update(downloadRequests)
+              .set({ deferredReason: 'waiting_for_space' })
+              .where(eq(downloadRequests.id, item.id))
+              .run();
+          }
+        }
+      } else if (slotsAvailable > 0) {
+        // Query all queued requests in FIFO order
         const queuedRequests = this.db
           .select()
           .from(downloadRequests)
           .where(eq(downloadRequests.status, 'queued'))
           .orderBy(asc(downloadRequests.requestedAt))
-          .limit(slotsAvailable)
           .all();
 
         for (const queuedReq of queuedRequests) {
+          if (slotsAvailable <= 0) break;
+
+          const reqSize = queuedReq.sizeBytes ?? 0;
+
+          // Greedy Best-Fit: if item exceeds remaining headroom, skip it and continue checking smaller items
+          if (reqSize > availableHeadroom) {
+            if (queuedReq.deferredReason !== 'waiting_for_space') {
+              this.db
+                .update(downloadRequests)
+                .set({ deferredReason: 'waiting_for_space' })
+                .where(eq(downloadRequests.id, queuedReq.id))
+                .run();
+            }
+            continue;
+          }
+
+          // Item fits within available headroom and slot available! Promote to downloading
           try {
             let hash: string;
             if (queuedReq.torrentFilePath && fs.existsSync(queuedReq.torrentFilePath)) {
@@ -227,6 +274,11 @@ export class DownloadPoller {
             });
 
             this.logger?.info(`Started queued request: ${queuedReq.title} (hash: ${hash})`);
+
+            if (availableHeadroom !== Infinity) {
+              availableHeadroom -= reqSize;
+            }
+            slotsAvailable--;
           } catch (err) {
             this.logger?.error(`Failed to start queued request ${queuedReq.title}:`, err);
           }
