@@ -22,6 +22,11 @@ _Avoid_: content type, category
 A Download Request whose torrent contains multiple files for an entire season of a TV Show or Anime. Treated as a single request; all files move together to a season subdirectory under the Library.
 _Avoid_: bulk download, multi-file torrent
 
+**Batch Submission**:
+The submission of multiple torrent files simultaneously, parsed into individual Download Requests sharing a common Metadata Match or individually assigned metadata, confirmed together through a batch staging queue.
+_Avoid_: multi-upload, bulk add
+
+
 ### File System
 
 **Staging Area**:
@@ -35,6 +40,10 @@ _Avoid_: media folder, Plex library, collection
 **Hardlink Move**:
 The operation that promotes a completed download from the Staging Area to the Library by creating a filesystem hardlink. Allows qBittorrent to continue seeding from the Staging Area path while Jellyfin reads the Library path with no disk duplication.
 _Avoid_: copy, transfer, move
+
+**Storage Quota**:
+The configured maximum disk storage capacity (in gigabytes) allocated to the entire media stack (Staging Area + Library). Governs download scheduling and cleanup triggers independently of physical disk size.
+_Avoid_: disk cap, hard drive limit, container size
 
 ### Users & Access
 
@@ -57,7 +66,7 @@ The process of removing media from disk, stopping the associated torrent in qBit
 _Avoid_: deletion, purge, removal
 
 **Cleanup Policy**:
-The rules governing automatic Cleanup. Triggers when free disk space falls below 20% of total capacity. Priority: least-recently-played first, then oldest Download Request first. Items marked Keep are immune. A 24-hour Notification precedes any automatic deletion.
+The rules governing automatic Cleanup. Evaluated against the Storage Quota (with a secondary safety check on the host disk). Triggers automatic Cleanup when free quota falls below 20%. When free quota falls below 15%, incoming Download Requests are deferred in the ``queued`` state until space is freed. Priority: least-recently-played first, then oldest Download Request first. Items marked Keep are immune. A 24-hour Notification precedes any automatic deletion.
 _Avoid_: retention policy, eviction policy
 
 **Keep Flag**:

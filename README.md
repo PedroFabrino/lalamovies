@@ -22,7 +22,7 @@ A self-hosted media download and automation platform designed for small, trusted
   [TV / Jellyfin Client]        ← direct to home IP, bypasses Cloudflare proxy
 ```
 
-- **Shared Volume**: All storage (`/media_data/downloads/staging`, `/media_data/media`, `/media_data/data`) resides on a single Docker named volume (`media_data`), ensuring atomic filesystem hardlinks without data duplication.
+- **Storage Separation**: Media storage (`/media_data/downloads/staging`, `/media_data/media`) resides on a shared volume (`media_data`) ensuring atomic filesystem hardlinks without data duplication, while the SQLite database resides on a dedicated SSD volume (`app_db`).
 - **Identity Provider**: Jellyfin serves as the single source of truth for authentication.
 - **Cleanup**: Proactive disk space checks (< 15% reject threshold, < 20% nightly warning threshold) and play-history LRU cleanup with admin keep-flag immunity.
 - **Split Egress**: The Fastify API is exposed via Cloudflare Tunnel (lightweight JSON/WebSocket traffic, compliant with Cloudflare ToS). Jellyfin is exposed via Caddy on a dedicated subdomain with DNS-only Cloudflare routing, so video traffic never passes through Cloudflare's proxy network.
@@ -274,7 +274,7 @@ The application includes an invite system that provisionally links new users dir
 | `HOST` | No | `0.0.0.0` | Bind address for Fastify |
 | `NODE_ENV` | No | `development` | Application environment (`development` / `production`) |
 | `JWT_SECRET` | **Yes** | — | Cryptographic secret for signing session JWT tokens |
-| `DATABASE_PATH` | No | `/media_data/data/app.db` | File path to the SQLite database file |
+| `DATABASE_PATH` | No | `/data/app.db` | File path to the SQLite database file |
 | `STAGING_PATH` | No | `/media_data/downloads/staging` | Staging Area directory where torrents download |
 | `MEDIA_PATH` | No | `/media_data/media` | Root directory for hardlinked Jellyfin media libraries |
 | `JELLYFIN_URL` | **Yes** | `http://jellyfin:8096` | Internal HTTP address of the Jellyfin server |

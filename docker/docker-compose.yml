@@ -12,7 +12,7 @@ services:
       - PORT=3000
       - HOST=0.0.0.0
       - NODE_ENV=production
-      - DATABASE_PATH=/media_data/data/app.db
+      - DATABASE_PATH=${DATABASE_PATH:-/data/app.db}
       - STAGING_PATH=/media_data/downloads/staging
       - MEDIA_PATH=/media_data/media
       - JELLYFIN_URL=http://jellyfin:8096
@@ -25,6 +25,7 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - FRONTEND_URL=${FRONTEND_URL:-https://lalamovies.stream}
     volumes:
+      - app_db:/data
       - media_data:/media_data
     depends_on:
       - qbittorrent
@@ -95,12 +96,14 @@ services:
       - api
 
 volumes:
+  app_db:
+    # Dedicated Docker named volume for SQLite database (app.db) on SSD storage.
+    # Decoupled from media storage for high IOPS and zero NTFS lock contention.
   media_data:
     # Single named Docker volume mounted at /media_data on all services.
     # Subdirectories:
     #   /media_data/downloads/staging  (Staging Area)
     #   /media_data/media              (Library: movies, shows, anime)
-    #   /media_data/data               (SQLite DB)
     # Because all these paths share the exact same filesystem mount, hardlinks work seamlessly.
   caddy_data:
     # Stores Caddy's TLS certificates and ACME account data (Let's Encrypt).
