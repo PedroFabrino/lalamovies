@@ -22,9 +22,25 @@ _Avoid_: content type, category
 A Download Request whose torrent contains multiple files for an entire season of a TV Show or Anime. Treated as a single request; all files move together to a season subdirectory under the Library.
 _Avoid_: bulk download, multi-file torrent
 
+**Episode Selection**:
+A mode of Download Request for episodic media specifying an exact season and episode number, as an alternative to a Season Pack.
+_Avoid_: single episode request, episode item
+
 **Batch Submission**:
 The submission of multiple torrent files simultaneously, parsed into individual Download Requests sharing a common Metadata Match or individually assigned metadata, confirmed together through a batch staging queue.
 _Avoid_: multi-upload, bulk add
+
+**Indexer**:
+A torrent tracker or provider configured in Prowlarr queried for media releases.
+_Avoid_: torrent site, tracker, provider
+
+**Release Candidate**:
+A torrent release entry returned by an Indexer for a Metadata Match, evaluated before selection into a Download Request.
+_Avoid_: torrent match, search hit, result
+
+**Release Scoring**:
+The automated ranking applied to Release Candidates based on resolution, file size, and seeders to determine the default recommendation.
+_Avoid_: sorting, filtering, ranking
 
 
 ### File System
