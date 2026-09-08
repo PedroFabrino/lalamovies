@@ -165,6 +165,28 @@ export class DiscoveryService implements IDiscoveryService {
       const seasonNumber = epInfo.seasonNumber ?? cleaned.seasonNumber ?? null;
       const episodeNumber = epInfo.episodeNumber ?? null;
 
+      // Semantic media type filtering:
+      if (mediaType === 'movie') {
+        // Exclude TV packs and episodes from Movies tab
+        if (
+          seasonNumber !== null ||
+          episodeNumber !== null ||
+          cleaned.detectedMediaType === 'tv_show' ||
+          /(?:^|[\s._\-])(?:s\d{1,2}|season[\s._\-]*\d{1,2}|ep?[\s._\-]*\d{1,3}|episode[\s._\-]*\d{1,3})(?:$|[\s._\-])/i.test(candidate.title)
+        ) {
+          continue;
+        }
+      } else if (mediaType === 'tv_show') {
+        // Exclude standalone movies from TV tab
+        if (
+          seasonNumber === null &&
+          episodeNumber === null &&
+          cleaned.detectedMediaType === 'movie'
+        ) {
+          continue;
+        }
+      }
+
       let dedupeKey: string;
       if (mediaType === 'movie') {
         dedupeKey = cleanTitle.toLowerCase();

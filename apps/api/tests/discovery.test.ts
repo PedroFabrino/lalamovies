@@ -259,6 +259,60 @@ describe('DiscoveryService - Unit Tests', () => {
     expect(result.items[0].id).toBe('good1');
   });
 
+  it('strictly filters out TV seasons and episodes from movies feed', async () => {
+    prowlarr.candidates = [
+      {
+        guid: 'tv-pack',
+        title: 'THE.GHOST.IN.THE.SHELL.S01.1080p',
+        sizeBytes: 3500000000,
+        formattedSize: '3.5 GB',
+        seeders: 50,
+        leechers: 1,
+        downloadUrl: 'magnet:?xt=urn:btih:tv1',
+        indexer: 'Nyaa',
+        resolution: '1080p',
+        codec: 'x264',
+        source: 'web',
+        score: 120,
+        isLowHealth: false,
+      },
+      {
+        guid: 'tv-ep',
+        title: 'Koukaku.Kidoutai.S01E10.1080p',
+        sizeBytes: 1500000000,
+        formattedSize: '1.5 GB',
+        seeders: 70,
+        leechers: 1,
+        downloadUrl: 'magnet:?xt=urn:btih:tv2',
+        indexer: 'Nyaa',
+        resolution: '1080p',
+        codec: 'x264',
+        source: 'web',
+        score: 120,
+        isLowHealth: false,
+      },
+      {
+        guid: 'real-movie',
+        title: 'Moana.2.2024.1080p.WEB-DL',
+        sizeBytes: 2000000000,
+        formattedSize: '2 GB',
+        seeders: 100,
+        leechers: 1,
+        downloadUrl: 'magnet:?xt=urn:btih:moana',
+        indexer: 'YTS',
+        resolution: '1080p',
+        codec: 'x264',
+        source: 'web',
+        score: 120,
+        isLowHealth: false,
+      },
+    ];
+
+    const result = await service.getFeed('movies');
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].id).toBe('real-movie');
+  });
+
   it('deduplicates identical media keeping the highest-scoring release', async () => {
     prowlarr.candidates = [
       {

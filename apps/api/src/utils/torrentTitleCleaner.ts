@@ -58,7 +58,21 @@ export function cleanTorrentTitle(rawInput: string): CleanedTorrentResult {
     };
   }
 
-  // 5. Season pack patterns: Season 1, Season.01, Series 1, S01, S1
+  // 5. Season pack patterns: Season 1, Season.01, Series 1, S01, S1, 2nd Season
+  const seasonOrdinalRegex = /(?:^|[\s._\-])(\d{1,2})(?:nd|rd|th|st)[\s._\-]*(?:season|series)(?:$|[\s._\-].*$)/i;
+  const seasonOrdinalMatch = raw.match(seasonOrdinalRegex);
+  if (seasonOrdinalMatch) {
+    const season = parseInt(seasonOrdinalMatch[1], 10);
+    const markerIndex = seasonOrdinalMatch.index ?? 0;
+    const rawPrefix = raw.slice(0, markerIndex);
+    const cleanShowTitle = cleanSeparators(rawPrefix);
+    return {
+      title: cleanShowTitle,
+      seasonNumber: isNaN(season) ? undefined : season,
+      detectedMediaType: 'tv_show',
+    };
+  }
+
   const seasonWordRegex = /(?:^|[\s._\-])(?:season|series)[\s._\-]*(\d{1,2})(?:$|[\s._\-].*$)/i;
   const seasonWordMatch = raw.match(seasonWordRegex);
   if (seasonWordMatch) {
@@ -167,9 +181,10 @@ export function extractEpisodeInfo(filename: string): ExtractedEpisodeInfo {
     };
   }
 
-  // Check for standalone season indicator (Season 2, S02) for fallback
+  // Check for standalone season indicator (Season 2, S02, 2nd Season) for fallback
   const seasonMatch = name.match(/(?:^|[\s._\-])(?:season|series)[\s._\-]*(\d{1,2})(?=$|[\s._\-])/i)
-    || name.match(/(?:^|[\s._\-])s(\d{1,2})(?=$|[\s._\-])/i);
+    || name.match(/(?:^|[\s._\-])s(\d{1,2})(?=$|[\s._\-])/i)
+    || name.match(/(?:^|[\s._\-])(\d{1,2})(?:nd|rd|th|st)[\s._\-]*(?:season|series)(?=$|[\s._\-])/i);
   const detectedSeason = seasonMatch ? parseInt(seasonMatch[1], 10) : undefined;
 
   // 3. Anime release with dash & episode number:
