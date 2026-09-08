@@ -105,6 +105,8 @@ export class MetadataService implements IMetadataService {
         year,
         posterUrl,
         overview: item.overview || null,
+        romajiTitle: item.original_name || item.original_title || null,
+        englishTitle: item.name || item.title || null,
       };
     });
   }

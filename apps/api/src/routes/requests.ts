@@ -195,7 +195,42 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
 
     try {
       if (mediaType === 'anime') {
-        const candidates = await app.metadata.searchAniList(searchQuery);
+        let candidates: MetadataCandidate[] = [];
+        try {
+          candidates = await app.metadata.searchAniList(searchQuery);
+        } catch (aniErr) {
+          request.log.warn(aniErr, 'AniList search failed, falling back to TMDB for anime');
+        }
+
+        // If AniList failed or returned 0 results, fall back to TMDB
+        if (candidates.length === 0) {
+          const configRow = app.db
+            .select()
+            .from(systemConfig)
+            .where(eq(systemConfig.key, 'tmdb_api_key'))
+            .get();
+
+          const apiKey = configRow?.value || process.env.TMDB_API_KEY;
+          if (apiKey) {
+            try {
+              const tvCandidates = await app.metadata.searchTMDB(searchQuery, 'tv_show', apiKey);
+              const movieCandidates = tvCandidates.length < 3
+                ? await app.metadata.searchTMDB(searchQuery, 'movie', apiKey)
+                : [];
+              const combined = [...tvCandidates, ...movieCandidates];
+              const seen = new Set<string>();
+              for (const c of combined) {
+                if (!seen.has(c.id)) {
+                  seen.add(c.id);
+                  candidates.push(c);
+                }
+              }
+            } catch (tmdbErr) {
+              request.log.warn(tmdbErr, 'TMDB anime fallback search failed');
+            }
+          }
+        }
+
         return reply.send({
           query: searchQuery,
           mediaType,

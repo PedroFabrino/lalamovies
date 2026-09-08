@@ -113,7 +113,7 @@ describe('Metadata Service - Unit Tests', () => {
       const results = await service.searchTMDB('Inception', 'movie', 'valid_key');
 
       expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(results[0]).toMatchObject({
         id: '27205',
         source: 'tmdb',
         title: 'Inception',
@@ -312,6 +312,45 @@ describe('POST /requests/search-metadata - Route Integration', () => {
     expect(body.mediaType).toBe('anime');
     expect(body.candidates).toHaveLength(1);
     expect(body.candidates[0].source).toBe('anilist');
+  });
+
+  it('falls back to TMDB for anime mediaType when AniList fails or is unavailable', async () => {
+    mockMetadataService.searchAniList.mockRejectedValueOnce(new Error('AniList API disabled'));
+    mockMetadataService.searchTMDB.mockImplementation(async (_query, mediaType) => {
+      if (mediaType === 'tv_show') {
+        return [
+          {
+            id: '94664',
+            source: 'tmdb',
+            title: 'Mushoku Tensei: Jobless Reincarnation',
+            year: 2021,
+            posterUrl: null,
+            overview: 'Reincarnated in a new world...',
+            romajiTitle: '無職転生 ～異世界行ったら本気だす～',
+            englishTitle: 'Mushoku Tensei: Jobless Reincarnation',
+          },
+        ];
+      }
+      return [];
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/requests/search-metadata',
+      cookies: { token: userCookie },
+      payload: {
+        query: 'Mushoku Tensei',
+        mediaType: 'anime',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.query).toBe('Mushoku Tensei');
+    expect(body.mediaType).toBe('anime');
+    expect(body.candidates).toHaveLength(1);
+    expect(body.candidates[0].title).toBe('Mushoku Tensei: Jobless Reincarnation');
+    expect(body.candidates[0].source).toBe('tmdb');
   });
 
   it('reads tmdb_api_key from system_config when querying TMDB', async () => {
