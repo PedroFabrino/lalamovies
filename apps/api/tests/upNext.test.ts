@@ -233,6 +233,59 @@ describe('UpNextService - Unit Tests', () => {
     });
   });
 
+  it('isolates up-next recommendations strictly per user', async () => {
+    const otherUserId = 'user-2';
+    db.insert(users).values({
+      id: otherUserId,
+      username: 'alexandre',
+      role: 'user',
+      jellyfinUserId: 'jf_alexandre',
+      createdAt: new Date().toISOString(),
+    }).run();
+
+    // Alexandre requested Severance S01
+    db.insert(downloadRequests).values({
+      id: 'req-alexandre',
+      userId: otherUserId,
+      magnetLink: 'magnet:?xt=urn:btih:sev',
+      mediaType: 'tv_show',
+      status: 'done',
+      metadataId: '95396',
+      metadataSource: 'tmdb',
+      title: 'Severance',
+      seasonNumber: 1,
+      episodeNumber: null,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    // Fabrino requested nothing
+    const fabrinoResult = await service.getUpNext(testUserId);
+    expect(fabrinoResult.available).toBe(true);
+    expect(fabrinoResult.items).toHaveLength(0);
+
+    // Alexandre gets Severance
+    prowlarr.candidatesToReturn = [
+      {
+        guid: 'sev-s2',
+        title: 'Severance.S02.1080p.WEB-DL',
+        sizeBytes: 15000000000,
+        formattedSize: '15 GB',
+        seeders: 50,
+        leechers: 5,
+        downloadUrl: 'magnet:?xt=urn:btih:sevs2',
+        indexer: 'Tracker',
+        resolution: '1080p',
+        codec: 'x264',
+        source: 'web',
+        score: 140,
+        isLowHealth: false,
+      },
+    ];
+    const alexandreResult = await service.getUpNext(otherUserId);
+    expect(alexandreResult.items).toHaveLength(1);
+    expect(alexandreResult.items[0].showTitle).toBe('Severance');
+  });
+
   it('ignores requests older than 90 days', async () => {
     const oldDate = new Date(Date.now() - 95 * 24 * 60 * 60 * 1000).toISOString();
     db.insert(downloadRequests).values({
