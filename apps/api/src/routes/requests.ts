@@ -79,9 +79,44 @@ const batchRequestSchema = z.object({
   items: z.array(batchItemSchema).min(1, 'At least one item is required in the batch'),
 });
 
+const searchReleasesSchema = z.object({
+  metadataId: z.string().min(1, 'Metadata ID is required'),
+  metadataSource: z.enum(['tmdb', 'anilist']),
+  mediaType: z.enum(['movie', 'tv_show', 'anime']),
+  title: z.string().min(1, 'Title is required'),
+  year: z.number().int().optional().nullable(),
+  seasonNumber: z.number().int().optional().nullable(),
+  episodeNumber: z.number().int().optional().nullable(),
+  romajiTitle: z.string().optional().nullable(),
+});
+
 export const requestRoutes: FastifyPluginAsync = async (app) => {
   // All /requests routes require authentication
   app.addHook('preHandler', authMiddleware);
+
+  // POST /requests/search-releases
+  app.post('/search-releases', async (request, reply) => {
+    const parseResult = searchReleasesSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: parseResult.error.issues[0]?.message || 'Invalid request body',
+      });
+    }
+
+    const { title, year } = parseResult.data;
+
+    try {
+      const result = await app.prowlarr.searchMovieReleases(title, year);
+      return reply.send(result);
+    } catch (err) {
+      request.log.error(err, 'Failed to search torrent releases via Prowlarr');
+      return reply.status(500).send({
+        error: 'Internal Server Error',
+        message: 'Failed to search torrent releases',
+      });
+    }
+  });
 
   // POST /requests/search-metadata
   app.post('/search-metadata', async (request, reply) => {

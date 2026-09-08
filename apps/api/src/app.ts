@@ -12,6 +12,7 @@ import { IQBittorrentService, QBittorrentService } from './services/qbittorrent'
 import { ICleanupService, CleanupService } from './services/cleanup';
 import { INotificationService, NotificationService } from './services/notifications';
 import { IFileSystemService, FileSystemService } from './services/fileSystem';
+import { IProwlarrService, ProwlarrService } from './services/prowlarr';
 import { DownloadPoller } from './jobs/downloadPoller';
 import { CleanupCron } from './jobs/cleanupCron';
 import { authRoutes } from './routes/auth';
@@ -29,6 +30,7 @@ export interface AppOptions {
   cleanupService?: ICleanupService;
   notificationService?: INotificationService;
   fileSystemService?: IFileSystemService;
+  prowlarrService?: IProwlarrService;
   downloadPoller?: DownloadPoller;
   cleanupCron?: CleanupCron;
   startPoller?: boolean;
@@ -47,6 +49,7 @@ declare module 'fastify' {
     notifications: INotificationService;
     cleanupCron: CleanupCron;
     fileSystem: IFileSystemService;
+    prowlarr: IProwlarrService;
     poller: DownloadPoller;
     broadcast: BroadcastFunction;
   }
@@ -84,6 +87,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       fileSystem
     );
   const metadata = options.metadataService ?? new MetadataService();
+  const prowlarr = options.prowlarrService ?? new ProwlarrService();
 
   const poller =
     options.downloadPoller ??
@@ -131,6 +135,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.decorate('notifications', notifications);
   app.decorate('cleanupCron', cleanupCron);
   app.decorate('fileSystem', fileSystem);
+  app.decorate('prowlarr', prowlarr);
   app.decorate('poller', poller);
 
   app.addHook('onClose', async () => {

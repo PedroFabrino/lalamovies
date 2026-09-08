@@ -23,6 +23,8 @@ services:
       - QBITTORRENT_USER=${QBITTORRENT_USER:-admin}
       - QBITTORRENT_PASSWORD=${QBITTORRENT_PASSWORD:-adminadmin}
       - TMDB_API_KEY=${TMDB_API_KEY}
+      - PROWLARR_URL=${PROWLARR_URL:-http://prowlarr:9696}
+      - PROWLARR_API_KEY=${PROWLARR_API_KEY}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
       - JWT_SECRET=${JWT_SECRET}
       - FRONTEND_URL=${FRONTEND_URL:-https://lalamovies.stream}
@@ -32,6 +34,7 @@ services:
     depends_on:
       - qbittorrent
       - jellyfin
+      - prowlarr
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
@@ -65,6 +68,19 @@ services:
       - ./config/jellyfin:/config
       - ./cache/jellyfin:/cache
       - ${MEDIA_DATA_PATH:-D:/MediaServer/media_data}:/media_data
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: mdm-prowlarr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-UTC}
+    ports:
+      - "${PROWLARR_PORT:-9696}:9696"
+    volumes:
+      - ./config/prowlarr:/config
 
   # Caddy acts as a reverse proxy / TLS terminator for Jellyfin ONLY.
   # The Fastify API continues to be exposed via the cloudflared tunnel above.

@@ -136,15 +136,15 @@
         </div>
 
         <!-- Input Mode Switcher Tabs -->
-        <div class="flex items-center gap-1.5 p-1 bg-zinc-950 border border-zinc-800 rounded-lg max-w-xs mb-6">
+        <div class="flex items-center gap-1.5 p-1 bg-zinc-950 border border-zinc-800 rounded-lg max-w-sm mb-6">
           <button
             type="button"
-            @click="inputMode = 'file'"
+            @click="inputMode = 'search'"
             class="flex-1 py-1.5 px-3 rounded-md text-xs font-medium transition cursor-pointer flex items-center justify-center gap-1.5"
-            :class="inputMode === 'file' ? 'bg-indigo-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'"
+            :class="inputMode === 'search' ? 'bg-indigo-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'"
           >
-            <span>📄</span>
-            <span>Torrent File</span>
+            <span>🔍</span>
+            <span>Search</span>
           </button>
           <button
             type="button"
@@ -155,14 +155,28 @@
             <span>🧲</span>
             <span>Magnet Link</span>
           </button>
+          <button
+            type="button"
+            @click="inputMode = 'file'"
+            class="flex-1 py-1.5 px-3 rounded-md text-xs font-medium transition cursor-pointer flex items-center justify-center gap-1.5"
+            :class="inputMode === 'file' ? 'bg-indigo-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'"
+          >
+            <span>📄</span>
+            <span>Torrent File</span>
+          </button>
         </div>
 
         <form
           class="space-y-6"
           @submit.prevent="handleSearchMetadata"
         >
+          <!-- Search Mode banner -->
+          <div v-if="inputMode === 'search'" class="p-3.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-xs text-zinc-400">
+            Type a title below. We'll match metadata and automatically find the best healthy 1080p release via Prowlarr.
+          </div>
+
           <!-- Magnet link input -->
-          <div v-if="inputMode === 'magnet'">
+          <div v-else-if="inputMode === 'magnet'">
             <label
               for="magnetLink"
               class="block text-sm font-medium text-zinc-300 mb-2"
@@ -184,7 +198,7 @@
           </div>
 
           <!-- Torrent file dropzone / batch list -->
-          <div v-else class="space-y-3">
+          <div v-else-if="inputMode === 'file'" class="space-y-3">
             <div class="flex items-center justify-between">
               <label class="block text-sm font-medium text-zinc-300">
                 Upload .torrent Files
@@ -855,8 +869,75 @@
             </p>
           </div>
 
-          <!-- Source summary -->
-          <div class="text-xs text-zinc-500 break-all bg-zinc-950 p-3 rounded-lg border border-zinc-800/50">
+          <!-- Source summary / Release Recommendation -->
+          <div v-if="inputMode === 'search'" class="space-y-4">
+            <!-- Loading state -->
+            <div v-if="isSearchingReleases" class="p-8 border border-zinc-800 rounded-xl bg-zinc-950/60 text-center">
+              <svg class="animate-spin h-6 w-6 text-indigo-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              <p class="text-sm font-medium text-zinc-300">Searching indexers for "{{ selectedCandidate?.title }}"...</p>
+              <p class="text-xs text-zinc-500 mt-1">Ranking 1080p releases, health, and file sizes via Prowlarr</p>
+            </div>
+
+            <!-- Recommended release card -->
+            <div v-else-if="recommendedRelease" class="p-5 border border-indigo-500/50 bg-indigo-950/20 rounded-xl space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-950/80 border border-emerald-700/80 text-emerald-300 text-xs font-semibold">
+                  <span>★</span>
+                  <span>Recommended Release</span>
+                </span>
+                <span class="text-xs font-mono text-zinc-400">
+                  via {{ recommendedRelease.indexer }}
+                </span>
+              </div>
+
+              <div>
+                <h4 class="font-mono text-sm text-white font-medium break-all">
+                  {{ recommendedRelease.title }}
+                </h4>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-2 text-xs">
+                <span class="px-2 py-0.5 rounded bg-emerald-900/60 text-emerald-300 border border-emerald-700/60 font-medium">
+                  {{ recommendedRelease.resolution }}
+                </span>
+                <span v-if="recommendedRelease.codec !== 'unknown'" class="px-2 py-0.5 rounded bg-indigo-900/60 text-indigo-300 border border-indigo-700/60 font-medium">
+                  {{ recommendedRelease.codec }}
+                </span>
+                <span v-if="recommendedRelease.source !== 'unknown'" class="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 font-medium uppercase text-[11px]">
+                  {{ recommendedRelease.source }}
+                </span>
+                <span class="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 font-mono">
+                  {{ recommendedRelease.formattedSize }}
+                </span>
+                <span class="px-2 py-0.5 rounded border font-medium flex items-center gap-1"
+                  :class="recommendedRelease.isLowHealth
+                    ? 'bg-amber-950/60 border-amber-800/80 text-amber-300'
+                    : 'bg-emerald-950/60 border-emerald-800/60 text-emerald-300'"
+                >
+                  <span>{{ recommendedRelease.isLowHealth ? '⚠️' : '✓' }}</span>
+                  <span>{{ recommendedRelease.seeders }} seeders</span>
+                </span>
+              </div>
+            </div>
+
+            <!-- Prowlarr not configured -->
+            <div v-else-if="!isProwlarrConfigured" class="p-4 border border-amber-800/60 bg-amber-950/30 rounded-xl text-amber-200 text-sm">
+              <p class="font-medium">Prowlarr is not configured.</p>
+              <p class="text-xs text-amber-300/80 mt-1">Please set PROWLARR_API_KEY or switch to the Magnet Link tab to enter a link manually.</p>
+            </div>
+
+            <!-- No releases found -->
+            <div v-else class="p-4 border border-zinc-800 bg-zinc-950/60 rounded-xl text-zinc-400 text-sm">
+              <p class="font-medium text-zinc-200">No healthy release found automatically.</p>
+              <p class="text-xs text-zinc-400 mt-1">Try switching to the Magnet Link tab to paste a link directly.</p>
+            </div>
+          </div>
+
+          <!-- Source summary for magnet/file modes -->
+          <div v-else class="text-xs text-zinc-500 break-all bg-zinc-950 p-3 rounded-lg border border-zinc-800/50">
             <span class="text-zinc-400 font-semibold">{{ inputMode === 'file' ? 'Torrent File:' : 'Magnet:' }}</span>
             {{ inputMode === 'file' ? (validBatchItems[0]?.fileName || selectedFile?.name) : (magnetLink.length > 80 ? magnetLink.slice(0, 80) + '...' : magnetLink) }}
           </div>
@@ -873,7 +954,7 @@
           </button>
           <button
             type="button"
-            :disabled="isSubmitting || (inputMode === 'file' && validBatchItems.length === 0)"
+            :disabled="isSubmitting || (inputMode === 'file' && validBatchItems.length === 0) || (inputMode === 'search' && (isSearchingReleases || !recommendedRelease))"
             class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg shadow transition flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             @click="handleConfirmRequest"
           >
@@ -934,6 +1015,22 @@ interface MetadataCandidate {
   overview: string | null;
 }
 
+export interface ReleaseCandidate {
+  guid: string;
+  title: string;
+  sizeBytes: number;
+  formattedSize: string;
+  seeders: number;
+  leechers: number;
+  downloadUrl: string;
+  indexer: string;
+  resolution: string;
+  codec: string;
+  source: string;
+  score: number;
+  isLowHealth: boolean;
+}
+
 export interface BatchItem {
   id: string;
   file: File;
@@ -951,8 +1048,13 @@ const requestsStore = useRequestsStore();
 const currentStep = ref<1 | 2 | 3>(1);
 
 // Step 1 State
-const inputMode = ref<'magnet' | 'file'>('file');
+const inputMode = ref<'search' | 'magnet' | 'file'>('search');
 const magnetLink = ref('');
+const isSearchingReleases = ref(false);
+const recommendedRelease = ref<ReleaseCandidate | null>(null);
+const releaseCandidates = ref<ReleaseCandidate[]>([]);
+const releaseSearchError = ref<string | null>(null);
+const isProwlarrConfigured = ref(true);
 const selectedFile = ref<File | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const customQueryInputRef = ref<HTMLInputElement | null>(null);
@@ -1193,7 +1295,7 @@ async function handleSearchMetadata() {
         payload.torrentFileBase64 = base64;
         payload.magnetLink = firstValid.parsed?.magnetUri || undefined;
       }
-    } else {
+    } else if (inputMode.value === 'magnet') {
       payload.magnetLink = magnetLink.value.trim();
     }
 
@@ -1217,9 +1319,48 @@ async function handleSearchMetadata() {
   }
 }
 
-function selectCandidate(candidate: MetadataCandidate) {
+async function fetchReleasesForCandidate(candidate: MetadataCandidate) {
+  isSearchingReleases.value = true;
+  releaseSearchError.value = null;
+  recommendedRelease.value = null;
+  releaseCandidates.value = [];
+
+  try {
+    const data = await api.post<{
+      recommended: ReleaseCandidate | null;
+      candidates: ReleaseCandidate[];
+      totalFound: number;
+      isConfigured: boolean;
+    }>('/requests/search-releases', {
+      metadataId: candidate.id,
+      metadataSource: candidate.source,
+      mediaType: mediaType.value,
+      title: candidate.title,
+      year: candidate.year,
+      seasonNumber: seasonNumber.value,
+    });
+
+    isProwlarrConfigured.value = data.isConfigured;
+    recommendedRelease.value = data.recommended;
+    releaseCandidates.value = data.candidates || [];
+
+    if (data.recommended) {
+      magnetLink.value = data.recommended.downloadUrl;
+    }
+  } catch (err) {
+    releaseSearchError.value =
+      err instanceof ApiError ? err.message : 'Failed to search releases for this title.';
+  } finally {
+    isSearchingReleases.value = false;
+  }
+}
+
+async function selectCandidate(candidate: MetadataCandidate) {
   selectedCandidate.value = candidate;
   currentStep.value = 3;
+  if (inputMode.value === 'search') {
+    await fetchReleasesForCandidate(candidate);
+  }
 }
 
 async function handleConfirmRequest() {
@@ -1299,6 +1440,10 @@ async function handleConfirmRequest() {
         payload.torrentFileBase64 = base64;
         payload.torrentFileName = fileToUpload.name;
         payload.magnetLink = singleItem?.parsed?.magnetUri || magnetLink.value || undefined;
+      } else if (inputMode.value === 'search') {
+        const link = recommendedRelease.value?.downloadUrl || magnetLink.value.trim();
+        if (!link) throw new Error('No torrent release selected');
+        payload.magnetLink = link;
       } else {
         payload.magnetLink = magnetLink.value.trim();
       }
