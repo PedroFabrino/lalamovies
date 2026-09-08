@@ -21,8 +21,81 @@ export class MetadataApiError extends Error {
 
 export interface IMetadataService {
   extractTitleFromMagnet(magnetLink: string): string;
-  searchTMDB(query: string, mediaType: 'movie' | 'tv_show', apiKey?: string): Promise<MetadataCandidate[]>;
-  searchAniList(query: string): Promise<MetadataCandidate[]>;
+  searchTMDB(
+    query: string,
+    mediaType: 'movie' | 'tv_show',
+    apiKey?: string,
+    year?: number | null
+  ): Promise<MetadataCandidate[]>;
+  searchAniList(query: string, year?: number | null): Promise<MetadataCandidate[]>;
+}
+
+export function rankMetadataCandidates<T extends { title: string; year: number | null; romajiTitle?: string | null; englishTitle?: string | null }>(
+  candidates: T[],
+  targetTitle: string,
+  targetYear?: number | null
+): T[] {
+  if (candidates.length <= 1) return candidates;
+
+  const normalize = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/['’".,_\-:]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const normTarget = normalize(targetTitle);
+
+  return [...candidates].sort((a, b) => {
+    let scoreA = 0;
+    let scoreB = 0;
+
+    const normA = normalize(a.title);
+    const normB = normalize(b.title);
+    const romajiA = a.romajiTitle ? normalize(a.romajiTitle) : '';
+    const romajiB = b.romajiTitle ? normalize(b.romajiTitle) : '';
+    const engA = a.englishTitle ? normalize(a.englishTitle) : '';
+    const engB = b.englishTitle ? normalize(b.englishTitle) : '';
+
+    // Exact title match: +100
+    if (normA === normTarget || romajiA === normTarget || engA === normTarget) scoreA += 100;
+    if (normB === normTarget || romajiB === normTarget || engB === normTarget) scoreB += 100;
+
+    // Substring / prefix match
+    if (normA !== normTarget && romajiA !== normTarget && engA !== normTarget) {
+      if (normA.startsWith(normTarget) || normTarget.startsWith(normA)) scoreA += 30;
+      else if (normA.includes(normTarget) || normTarget.includes(normA)) scoreA += 15;
+    }
+    if (normB !== normTarget && romajiB !== normTarget && engB !== normTarget) {
+      if (normB.startsWith(normTarget) || normTarget.startsWith(normB)) scoreB += 30;
+      else if (normB.includes(normTarget) || normTarget.includes(normB)) scoreB += 15;
+    }
+
+    // Word count penalty: extra words reduce match confidence
+    const wordsTarget = normTarget.split(' ').filter(Boolean).length;
+    const wordsA = normA.split(' ').filter(Boolean).length;
+    const wordsB = normB.split(' ').filter(Boolean).length;
+    scoreA -= Math.abs(wordsA - wordsTarget) * 5;
+    scoreB -= Math.abs(wordsB - wordsTarget) * 5;
+
+    // Year matching
+    if (targetYear !== undefined && targetYear !== null) {
+      if (a.year !== null) {
+        const diffA = Math.abs(a.year - targetYear);
+        if (diffA === 0) scoreA += 100;
+        else if (diffA === 1) scoreA += 50;
+        else scoreA -= diffA * 15;
+      }
+      if (b.year !== null) {
+        const diffB = Math.abs(b.year - targetYear);
+        if (diffB === 0) scoreB += 100;
+        else if (diffB === 1) scoreB += 50;
+        else scoreB -= diffB * 15;
+      }
+    }
+
+    return scoreB - scoreA;
+  });
 }
 
 export class MetadataService implements IMetadataService {
@@ -40,7 +113,8 @@ export class MetadataService implements IMetadataService {
   async searchTMDB(
     query: string,
     mediaType: 'movie' | 'tv_show',
-    apiKey?: string
+    apiKey?: string,
+    year?: number | null
   ): Promise<MetadataCandidate[]> {
     const key = apiKey || this.defaultTmdbKey || process.env.TMDB_API_KEY;
     if (!key) {
@@ -48,53 +122,68 @@ export class MetadataService implements IMetadataService {
     }
 
     const endpoint = mediaType === 'movie' ? 'movie' : 'tv';
-    const url = `https://api.themoviedb.org/3/search/${endpoint}?api_key=${encodeURIComponent(
+    const baseUrl = `https://api.themoviedb.org/3/search/${endpoint}?api_key=${encodeURIComponent(
       key
     )}&query=${encodeURIComponent(query)}&include_adult=false`;
 
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        headers: {
-          Accept: 'application/json',
-        },
-      });
-    } catch (err) {
-      throw new MetadataApiError(`Failed to connect to TMDB API: ${(err as Error).message}`, 502);
-    }
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new MetadataApiError('Invalid TMDB API key', 502);
+    const fetchResults = async (url: string) => {
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          headers: {
+            Accept: 'application/json',
+          },
+        });
+      } catch (err) {
+        throw new MetadataApiError(`Failed to connect to TMDB API: ${(err as Error).message}`, 502);
       }
-      throw new MetadataApiError(`TMDB API returned HTTP ${response.status}`, 502);
-    }
 
-    const data = (await response.json()) as {
-      results?: Array<{
-        id: number;
-        title?: string;
-        name?: string;
-        original_title?: string;
-        original_name?: string;
-        release_date?: string;
-        first_air_date?: string;
-        poster_path?: string;
-        overview?: string;
-        vote_average?: number;
-      }>;
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new MetadataApiError('Invalid TMDB API key', 502);
+        }
+        throw new MetadataApiError(`TMDB API returned HTTP ${response.status}`, 502);
+      }
+
+      const data = (await response.json()) as {
+        results?: Array<{
+          id: number;
+          title?: string;
+          name?: string;
+          original_title?: string;
+          original_name?: string;
+          release_date?: string;
+          first_air_date?: string;
+          poster_path?: string;
+          overview?: string;
+          vote_average?: number;
+        }>;
+      };
+
+      return data.results || [];
     };
 
-    const results = (data.results || []).slice(0, 5);
+    let rawResults: Array<any> = [];
+    if (year) {
+      const yearParam = mediaType === 'movie' ? `&primary_release_year=${year}` : `&first_air_date_year=${year}`;
+      rawResults = await fetchResults(baseUrl + yearParam);
+      if (rawResults.length === 0) {
+        rawResults = await fetchResults(baseUrl);
+      }
+    } else {
+      rawResults = await fetchResults(baseUrl);
+    }
 
-    return results.map((item) => {
+    const results = rawResults.slice(0, 10);
+
+    const candidates: MetadataCandidate[] = results.map((item) => {
       const title = item.title || item.name || item.original_title || item.original_name || 'Unknown Title';
       const dateStr = item.release_date || item.first_air_date;
-      let year: number | null = null;
+      let parsedYear: number | null = null;
       if (dateStr) {
         const parsed = parseInt(dateStr.slice(0, 4), 10);
         if (!isNaN(parsed)) {
-          year = parsed;
+          parsedYear = parsed;
         }
       }
 
@@ -108,7 +197,7 @@ export class MetadataService implements IMetadataService {
         id: String(item.id),
         source: 'tmdb',
         title,
-        year,
+        year: parsedYear,
         posterUrl,
         overview: item.overview || null,
         romajiTitle: item.original_name || item.original_title || null,
@@ -116,9 +205,11 @@ export class MetadataService implements IMetadataService {
         rating,
       };
     });
+
+    return rankMetadataCandidates(candidates, query, year);
   }
 
-  async searchAniList(query: string): Promise<MetadataCandidate[]> {
+  async searchAniList(query: string, year?: number | null): Promise<MetadataCandidate[]> {
     const graphqlQuery = `
       query ($search: String) {
         Page(page: 1, perPage: 5) {
@@ -195,10 +286,10 @@ export class MetadataService implements IMetadataService {
 
     const mediaList = data.data?.Page?.media || [];
 
-    return mediaList.slice(0, 5).map((item) => {
+    const candidates: MetadataCandidate[] = mediaList.slice(0, 5).map((item) => {
       const title =
         item.title?.english || item.title?.romaji || item.title?.native || 'Unknown Anime';
-      const year = item.startDate?.year ?? null;
+      const parsedYear = item.startDate?.year ?? null;
       const posterUrl = item.coverImage?.large || item.coverImage?.medium || null;
       let overview = item.description || null;
       if (overview) {
@@ -214,7 +305,7 @@ export class MetadataService implements IMetadataService {
         id: String(item.id),
         source: 'anilist',
         title,
-        year,
+        year: parsedYear,
         posterUrl,
         overview,
         romajiTitle: item.title?.romaji || null,
@@ -222,5 +313,7 @@ export class MetadataService implements IMetadataService {
         rating,
       };
     });
+
+    return rankMetadataCandidates(candidates, query, year);
   }
 }

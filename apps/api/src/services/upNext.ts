@@ -332,7 +332,7 @@ export class UpNextService implements IUpNextService {
 
         try {
           if (mediaType === 'anime') {
-            const aniRes = await this.metadata.searchAniList(showTitle);
+            const aniRes = await this.metadata.searchAniList(showTitle, year);
             if (aniRes && aniRes.length > 0) {
               posterUrl = aniRes[0].posterUrl;
               rating = aniRes[0].rating ?? null;
@@ -344,7 +344,7 @@ export class UpNextService implements IUpNextService {
               }
             }
           } else {
-            const tmdbRes = await this.metadata.searchTMDB(showTitle, 'tv_show', tmdbApiKey);
+            const tmdbRes = await this.metadata.searchTMDB(showTitle, 'tv_show', tmdbApiKey, year);
             if (tmdbRes && tmdbRes.length > 0) {
               posterUrl = tmdbRes[0].posterUrl;
               rating = tmdbRes[0].rating ?? null;

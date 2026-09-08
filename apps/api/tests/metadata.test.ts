@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import crypto from 'node:crypto';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app';
-import { MetadataService, IMetadataService } from '../src/services/metadata';
+import { MetadataService, IMetadataService, rankMetadataCandidates } from '../src/services/metadata';
 import { IJellyfinService } from '../src/services/jellyfin';
 import { systemConfig } from '../src/db/schema';
 import { cleanTorrentTitle } from '../src/utils/torrentTitleCleaner';
@@ -147,6 +147,121 @@ describe('Metadata Service - Unit Tests', () => {
       expect(results[0].title).toBe('Breaking Bad');
       expect(results[0].year).toBe(2008);
       expect(results[0].source).toBe('tmdb');
+    });
+
+    it('appends primary_release_year when year is provided for movies', async () => {
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          results: [
+            {
+              id: 1252959,
+              title: 'Compression',
+              release_date: '2024-03-24',
+            },
+          ],
+        }),
+      } as Response);
+
+      const results = await service.searchTMDB('Compression', 'movie', 'valid_key', 2024);
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining('&primary_release_year=2024'),
+        expect.any(Object)
+      );
+      expect(results[0].title).toBe('Compression');
+      expect(results[0].year).toBe(2024);
+    });
+
+    it('falls back to search without year if year-filtered search returns empty', async () => {
+      const fetchSpy = vi
+        .spyOn(global, 'fetch')
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ results: [] }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            results: [
+              {
+                id: 1252959,
+                title: 'Compression',
+                release_date: '2024-03-24',
+              },
+            ],
+          }),
+        } as Response);
+
+      const results = await service.searchTMDB('Compression', 'movie', 'valid_key', 2024);
+
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(results[0].title).toBe('Compression');
+    });
+  });
+
+  describe('rankMetadataCandidates', () => {
+    it('ranks exact title and year match over unrelated partial match (Compression vs Mardock Scramble)', () => {
+      const candidates = [
+        {
+          id: '73529',
+          source: 'tmdb' as const,
+          title: 'Mardock Scramble: The First Compression',
+          year: 2010,
+          posterUrl: null,
+          overview: null,
+        },
+        {
+          id: '1252959',
+          source: 'tmdb' as const,
+          title: 'Compression',
+          year: 2024,
+          posterUrl: null,
+          overview: null,
+        },
+        {
+          id: '553504',
+          source: 'tmdb' as const,
+          title: 'Compression',
+          year: 2017,
+          posterUrl: null,
+          overview: null,
+        },
+      ];
+
+      const ranked = rankMetadataCandidates(candidates, 'Compression', 2024);
+
+      expect(ranked[0].id).toBe('1252959');
+      expect(ranked[0].title).toBe('Compression');
+      expect(ranked[0].year).toBe(2024);
+
+      // Mardock Scramble should be ranked last
+      expect(ranked[2].id).toBe('73529');
+    });
+
+    it('prioritizes exact title match even when target year is not specified', () => {
+      const candidates = [
+        {
+          id: '1',
+          source: 'tmdb' as const,
+          title: 'Alien: Romulus Extended Preview',
+          year: 2024,
+          posterUrl: null,
+          overview: null,
+        },
+        {
+          id: '2',
+          source: 'tmdb' as const,
+          title: 'Alien: Romulus',
+          year: 2024,
+          posterUrl: null,
+          overview: null,
+        },
+      ];
+
+      const ranked = rankMetadataCandidates(candidates, 'Alien: Romulus');
+      expect(ranked[0].id).toBe('2');
+      expect(ranked[0].title).toBe('Alien: Romulus');
     });
   });
 

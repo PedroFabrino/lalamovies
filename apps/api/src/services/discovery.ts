@@ -254,7 +254,7 @@ export class DiscoveryService implements IDiscoveryService {
           if (mediaType === 'anime') {
             let aniMatch: any = null;
             try {
-              const aniResults = await this.metadata.searchAniList(cleanTitle);
+              const aniResults = await this.metadata.searchAniList(cleanTitle, year);
               if (aniResults && aniResults.length > 0) {
                 aniMatch = aniResults[0];
               }
@@ -274,7 +274,7 @@ export class DiscoveryService implements IDiscoveryService {
             } else {
               // Fallback to TMDB for anime
               try {
-                const tmdbResults = await this.metadata.searchTMDB(cleanTitle, 'tv_show', tmdbApiKey);
+                const tmdbResults = await this.metadata.searchTMDB(cleanTitle, 'tv_show', tmdbApiKey, year);
                 if (tmdbResults && tmdbResults.length > 0) {
                   const tmdbMatch = tmdbResults[0];
                   posterUrl = tmdbMatch.posterUrl;
@@ -293,7 +293,7 @@ export class DiscoveryService implements IDiscoveryService {
           } else {
             // Movie or TV Show
             const tmdbType = mediaType === 'movie' ? 'movie' : 'tv_show';
-            const tmdbResults = await this.metadata.searchTMDB(cleanTitle, tmdbType, tmdbApiKey);
+            const tmdbResults = await this.metadata.searchTMDB(cleanTitle, tmdbType, tmdbApiKey, year);
             if (tmdbResults && tmdbResults.length > 0) {
               const tmdbMatch = tmdbResults[0];
               posterUrl = tmdbMatch.posterUrl;
