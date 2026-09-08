@@ -62,7 +62,37 @@ export class DownloadPoller {
         .all();
 
       for (const req of activeRequests) {
-        if (!req.qbTorrentHash) continue;
+        if (!req.qbTorrentHash) {
+          if (this.qbittorrent.getAllTorrents) {
+            try {
+              const allTorrents = await this.qbittorrent.getAllTorrents();
+              const reqCleanTitle = req.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+              const matched = allTorrents.find((t) => {
+                const tCleanName = t.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                return tCleanName.includes(reqCleanTitle) || reqCleanTitle.includes(tCleanName);
+              });
+
+              if (matched) {
+                this.logger?.info(
+                  `Self-healed orphan download request ${req.title} (${req.id}) with hash ${matched.hash}`
+                );
+                this.db
+                  .update(downloadRequests)
+                  .set({ qbTorrentHash: matched.hash })
+                  .where(eq(downloadRequests.id, req.id))
+                  .run();
+                req.qbTorrentHash = matched.hash;
+              } else {
+                continue;
+              }
+            } catch (err) {
+              this.logger?.error(err, `Failed to reconcile missing qbTorrentHash for ${req.id}`);
+              continue;
+            }
+          } else {
+            continue;
+          }
+        }
 
         try {
           const torrentStatus = await this.qbittorrent.getTorrentStatus(req.qbTorrentHash);
@@ -85,9 +115,66 @@ export class DownloadPoller {
               .run();
 
             // Locate source file or directory in Staging Area
-            const sourceItem = path.join(this.stagingPath, torrentStatus.name);
-            const isDirectory = fs.existsSync(sourceItem) && fs.statSync(sourceItem).isDirectory();
-            const ext = path.extname(torrentStatus.name) || '.mkv';
+            let files: Array<{ name: string; size: number }> = [];
+            if (this.qbittorrent.getTorrentFiles) {
+              try {
+                files = await this.qbittorrent.getTorrentFiles(req.qbTorrentHash);
+              } catch (err) {
+                this.logger?.error(err, `Failed to get files for torrent ${req.qbTorrentHash}`);
+              }
+            }
+
+            let sourceItem = path.join(this.stagingPath, torrentStatus.name);
+            let isDirectory = false;
+            let ext = path.extname(torrentStatus.name) || '.mkv';
+
+            if (files.length > 0) {
+              const videoExtensions = ['.mkv', '.mp4', '.avi', '.ts', '.mov', '.webm', '.m4v'];
+              const videoFiles = files
+                .filter((f) => videoExtensions.includes(path.extname(f.name).toLowerCase()))
+                .sort((a, b) => b.size - a.size);
+
+              const firstSegment = files[0].name.split('/')[0];
+              const rootDir = path.join(this.stagingPath, firstSegment);
+
+              if (req.mediaType === 'movie') {
+                if (videoFiles.length > 0) {
+                  sourceItem = path.join(this.stagingPath, videoFiles[0].name);
+                  ext = path.extname(videoFiles[0].name) || '.mkv';
+                  isDirectory = false;
+                } else if (fs.existsSync(rootDir) && fs.statSync(rootDir).isDirectory()) {
+                  sourceItem = rootDir;
+                  isDirectory = true;
+                }
+              } else {
+                if (req.episodeNumber != null && videoFiles.length === 1) {
+                  sourceItem = path.join(this.stagingPath, videoFiles[0].name);
+                  ext = path.extname(videoFiles[0].name) || '.mkv';
+                  isDirectory = false;
+                } else if (fs.existsSync(rootDir) && fs.statSync(rootDir).isDirectory()) {
+                  sourceItem = rootDir;
+                  isDirectory = true;
+                }
+              }
+            } else if (!fs.existsSync(sourceItem)) {
+              const entries = fs.readdirSync(this.stagingPath);
+              const cleanTorrentName = torrentStatus.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+              const matched = entries.find((e) => {
+                const cleanEntry = e.toLowerCase().replace(/[^a-z0-9]/g, '');
+                return cleanEntry.includes(cleanTorrentName) || cleanTorrentName.includes(cleanEntry);
+              });
+              if (matched) {
+                sourceItem = path.join(this.stagingPath, matched);
+                isDirectory = fs.statSync(sourceItem).isDirectory();
+                ext = path.extname(matched) || '.mkv';
+              }
+            } else {
+              isDirectory = fs.statSync(sourceItem).isDirectory();
+            }
+
+            if (!fs.existsSync(sourceItem)) {
+              throw new Error(`Source file does not exist for hardlink: ${sourceItem}`);
+            }
 
             const destPath = this.fileSystem.buildLibraryPath({
               mediaType: req.mediaType,
@@ -104,6 +191,31 @@ export class DownloadPoller {
               this.fileSystem.hardlinkDirectory(sourceItem, destPath);
             } else {
               this.fileSystem.hardlink(sourceItem, destPath);
+            }
+
+            // Hardlink subtitles for movies if available
+            if (req.mediaType === 'movie' && !isDirectory && files.length > 0) {
+              const subFiles = files.filter((f) => {
+                const subExt = path.extname(f.name).toLowerCase();
+                return subExt === '.srt' || subExt === '.vtt';
+              });
+              for (const sub of subFiles) {
+                const subSrc = path.join(this.stagingPath, sub.name);
+                if (fs.existsSync(subSrc)) {
+                  const subExt = path.extname(sub.name);
+                  const destDir = path.dirname(destPath);
+                  const baseName = path.basename(destPath, path.extname(destPath));
+                  const langMatch = sub.name.match(/\.([a-z]{2,3})\.(srt|vtt)$/i);
+                  const subDest = langMatch
+                    ? path.join(destDir, `${baseName}.${langMatch[1]}${subExt}`)
+                    : path.join(destDir, `${baseName}${subExt}`);
+                  try {
+                    this.fileSystem.hardlink(subSrc, subDest);
+                  } catch {
+                    // non-fatal
+                  }
+                }
+              }
             }
 
             // Refresh Jellyfin library

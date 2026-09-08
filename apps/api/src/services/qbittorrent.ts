@@ -22,6 +22,8 @@ export interface IQBittorrentService {
   addTorrentFile(fileBuffer: Buffer | Uint8Array, savePath?: string, fileName?: string): Promise<string>;
   getActiveTorrentCount(): Promise<number>;
   getTorrentStatus(hash: string): Promise<TorrentInfo | null>;
+  getAllTorrents?(): Promise<TorrentInfo[]>;
+  getTorrentFiles?(hash: string): Promise<Array<{ name: string; size: number }>>;
   removeTorrent(hash: string, deleteFiles?: boolean): Promise<void>;
 }
 
@@ -39,7 +41,27 @@ export class QBittorrentService implements IQBittorrentService {
 
   private extractHashFromMagnet(magnetLink: string): string {
     const match = magnetLink.match(/urn:btih:([a-zA-Z0-9]+)/i);
-    return match ? match[1].toLowerCase() : '';
+    if (!match) return '';
+    const raw = match[1];
+    if (raw.length === 40) {
+      return raw.toLowerCase();
+    }
+    if (raw.length === 32) {
+      // Decode 32-char Base32 RFC 4648 to 40-char hex
+      const base32chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+      let bits = '';
+      for (const char of raw.toUpperCase()) {
+        const val = base32chars.indexOf(char);
+        if (val === -1) return raw.toLowerCase();
+        bits += val.toString(2).padStart(5, '0');
+      }
+      let hex = '';
+      for (let i = 0; i + 4 <= bits.length; i += 4) {
+        hex += parseInt(bits.substring(i, i + 4), 2).toString(16);
+      }
+      return hex.toLowerCase();
+    }
+    return raw.toLowerCase();
   }
 
   private async ensureAuthenticated(): Promise<string | null> {
@@ -114,10 +136,65 @@ export class QBittorrentService implements IQBittorrentService {
     return res;
   }
 
+  private async resolveTorrentSource(source: string): Promise<{
+    resolvedMagnet?: string;
+    torrentBuffer?: Buffer;
+    hash?: string;
+  }> {
+    if (!source.startsWith('http://') && !source.startsWith('https://')) {
+      const hash = this.extractHashFromMagnet(source);
+      return { resolvedMagnet: source, hash };
+    }
+
+    try {
+      let currentUrl = source;
+      for (let i = 0; i < 5; i++) {
+        const res = await fetch(currentUrl, { redirect: 'manual' });
+        if (res.status >= 300 && res.status < 400) {
+          const loc = res.headers.get('location');
+          if (!loc) break;
+          if (loc.startsWith('magnet:')) {
+            const hash = this.extractHashFromMagnet(loc);
+            return { resolvedMagnet: loc, hash };
+          }
+          currentUrl = new URL(loc, currentUrl).toString();
+          continue;
+        }
+
+        if (res.ok) {
+          const arrayBuffer = await res.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          // Check if bencoded torrent dictionary starts with 'd' (ASCII 100)
+          if (buffer.length > 0 && buffer[0] === 0x64) {
+            try {
+              const { infoHash } = parseTorrentBuffer(buffer);
+              return { torrentBuffer: buffer, hash: infoHash };
+            } catch {
+              // Not parseable, return buffer anyway
+              return { torrentBuffer: buffer };
+            }
+          }
+        }
+        break;
+      }
+    } catch {
+      // If fetching fails, fallback to passing URL directly
+    }
+
+    return { resolvedMagnet: source, hash: '' };
+  }
+
   async addTorrent(magnetLink: string, savePath?: string): Promise<string> {
-    const hash = this.extractHashFromMagnet(magnetLink);
+    const resolved = await this.resolveTorrentSource(magnetLink);
+    if (resolved.torrentBuffer) {
+      return this.addTorrentFile(resolved.torrentBuffer, savePath);
+    }
+
+    const effectiveLink = resolved.resolvedMagnet || magnetLink;
+    let hash = resolved.hash || this.extractHashFromMagnet(effectiveLink);
+
     const formData = new FormData();
-    formData.append('urls', magnetLink);
+    formData.append('urls', effectiveLink);
     if (savePath) {
       formData.append('savepath', savePath);
     }
@@ -135,6 +212,17 @@ export class QBittorrentService implements IQBittorrentService {
       const text = await res.text();
       if (text.trim() === 'Fails.') {
         throw new QBittorrentError('qBittorrent rejected the torrent magnet link');
+      }
+
+      if (!hash) {
+        try {
+          const torrents = await this.getAllTorrents();
+          if (torrents.length > 0) {
+            hash = torrents[0]?.hash || '';
+          }
+        } catch {
+          // ignore
+        }
       }
 
       return hash;
@@ -218,6 +306,45 @@ export class QBittorrentService implements IQBittorrentService {
       };
     } catch {
       return null;
+    }
+  }
+
+  async getAllTorrents(): Promise<TorrentInfo[]> {
+    try {
+      const res = await this.fetchWithAuth('/api/v2/torrents/info');
+      if (!res.ok) return [];
+      const data = (await res.json()) as Array<{
+        hash: string;
+        name: string;
+        progress: number;
+        dlspeed: number;
+        eta: number;
+        state: string;
+        size: number;
+      }>;
+      return (data || []).map((item) => ({
+        hash: item.hash,
+        name: item.name,
+        progress: item.progress,
+        dlspeed: item.dlspeed,
+        eta: item.eta,
+        state: item.state,
+        size: item.size,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  async getTorrentFiles(hash: string): Promise<Array<{ name: string; size: number }>> {
+    if (!hash) return [];
+    try {
+      const res = await this.fetchWithAuth(`/api/v2/torrents/files?hash=${encodeURIComponent(hash)}`);
+      if (!res.ok) return [];
+      const data = (await res.json()) as Array<{ name: string; size: number }>;
+      return (data || []).map((f) => ({ name: f.name, size: f.size }));
+    } catch {
+      return [];
     }
   }
 
