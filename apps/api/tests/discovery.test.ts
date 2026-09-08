@@ -412,6 +412,11 @@ describe('DiscoveryService - Unit Tests', () => {
     const res2 = await service.getFeed('movies');
     expect(res2.items).toHaveLength(1);
     expect(searchSpy).toHaveBeenCalledTimes(1);
+
+    // Call with forceRefresh = true should bypass cache
+    const res3 = await service.getFeed('movies', true);
+    expect(res3.items).toHaveLength(1);
+    expect(searchSpy).toHaveBeenCalledTimes(2);
   });
 
   it('deduplicates in-flight concurrent requests with mutex/promise', async () => {
@@ -595,5 +600,75 @@ describe('GET /discovery/feed - HTTP Integration', () => {
     const body = JSON.parse(res.body);
     expect(body.available).toBe(false);
     expect(body.items).toEqual([]);
+  });
+
+  it('sets Cache-Control: private, max-age=3600 on standard feed request', async () => {
+    prowlarr.candidates = [
+      {
+        guid: 'feed-1',
+        title: 'Alien.Romulus.2024.1080p.WEB-DL',
+        sizeBytes: 2500000000,
+        formattedSize: '2.5 GB',
+        seeders: 25,
+        leechers: 2,
+        downloadUrl: 'magnet:?xt=urn:btih:alien',
+        indexer: 'TorrentGalaxy',
+        resolution: '1080p',
+        codec: 'x264',
+        source: 'web',
+        score: 110,
+        isLowHealth: false,
+      },
+    ];
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/discovery/feed?category=movies',
+      cookies: { token },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['cache-control']).toBe('private, max-age=3600');
+  });
+
+  it('sets no-cache and bypasses cache when refresh=true', async () => {
+    const searchSpy = vi.spyOn(prowlarr, 'searchLatestByCategory');
+
+    prowlarr.candidates = [
+      {
+        guid: 'feed-1',
+        title: 'Alien.Romulus.2024.1080p.WEB-DL',
+        sizeBytes: 2500000000,
+        formattedSize: '2.5 GB',
+        seeders: 25,
+        leechers: 2,
+        downloadUrl: 'magnet:?xt=urn:btih:alien',
+        indexer: 'TorrentGalaxy',
+        resolution: '1080p',
+        codec: 'x264',
+        source: 'web',
+        score: 110,
+        isLowHealth: false,
+      },
+    ];
+
+    // First request populates cache
+    const res1 = await app.inject({
+      method: 'GET',
+      url: '/discovery/feed?category=movies',
+      cookies: { token },
+    });
+    expect(res1.statusCode).toBe(200);
+    expect(searchSpy).toHaveBeenCalledTimes(1);
+
+    // Refresh request bypasses cache
+    const res2 = await app.inject({
+      method: 'GET',
+      url: '/discovery/feed?category=movies&refresh=true',
+      cookies: { token },
+    });
+    expect(res2.statusCode).toBe(200);
+    expect(res2.headers['cache-control']).toBe('no-cache, no-store, must-revalidate');
+    expect(searchSpy).toHaveBeenCalledTimes(2);
   });
 });

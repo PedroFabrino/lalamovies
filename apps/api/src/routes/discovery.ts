@@ -6,6 +6,7 @@ const discoveryFeedQuerySchema = z.object({
   category: z.enum(['movies', 'tv', 'anime'], {
     message: "category must be one of: 'movies', 'tv', 'anime'",
   }),
+  refresh: z.enum(['true', 'false']).optional(),
 });
 
 export const discoveryRoutes: FastifyPluginAsync = async (app) => {
@@ -22,10 +23,16 @@ export const discoveryRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const { category } = parseResult.data;
+    const { category, refresh } = parseResult.data;
+    const forceRefresh = refresh === 'true';
 
     try {
-      const result = await app.discovery.getFeed(category);
+      const result = await app.discovery.getFeed(category, forceRefresh);
+      if (forceRefresh) {
+        reply.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+      } else {
+        reply.header('Cache-Control', 'private, max-age=3600');
+      }
       return reply.send(result);
     } catch (err) {
       request.log.error(err, 'Failed to retrieve discovery feed');

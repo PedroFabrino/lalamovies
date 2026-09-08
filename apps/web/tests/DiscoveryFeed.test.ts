@@ -221,6 +221,88 @@ describe('DiscoveryFeed.vue - Component Tests', () => {
     });
   });
 
+  it('uses fresh localStorage cache without triggering api.get on mount', async () => {
+    // Preload fresh items in localStorage (< 1h old)
+    store['mdm_discovery_cache_v1'] = JSON.stringify({
+      movies: {
+        timestamp: Date.now() - 5 * 60 * 1000, // 5 minutes old
+        items: [sampleMovieItem],
+      },
+    });
+
+    const wrapper = mount(DiscoveryFeed);
+    await flushPromises();
+
+    // Should NOT call api.get because cache is fresh
+    expect(api.get).not.toHaveBeenCalled();
+
+    // Card should be rendered immediately from localStorage cache
+    expect(wrapper.find('[data-testid="discovery-card"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Gladiator II');
+  });
+
+  it('re-fetches and updates cache when localStorage cache is expired (> 1h)', async () => {
+    // Preload expired items in localStorage (> 1h old)
+    store['mdm_discovery_cache_v1'] = JSON.stringify({
+      movies: {
+        timestamp: Date.now() - 65 * 60 * 1000, // 65 minutes old
+        items: [sampleMovieItem],
+      },
+    });
+
+    const updatedMovie: DiscoveryItem = {
+      ...sampleMovieItem,
+      title: 'Gladiator II Updated',
+    };
+
+    vi.mocked(api.get).mockResolvedValueOnce({
+      available: true,
+      items: [updatedMovie],
+    });
+
+    const wrapper = mount(DiscoveryFeed);
+    await flushPromises();
+
+    // Should call api.get because cache is expired
+    expect(api.get).toHaveBeenCalledWith('/discovery/feed?category=movies');
+
+    // Should update localStorage
+    const saved = JSON.parse(store['mdm_discovery_cache_v1']);
+    expect(saved.movies.items[0].title).toBe('Gladiator II Updated');
+    expect(wrapper.text()).toContain('Gladiator II Updated');
+  });
+
+  it('forces refresh when manual refresh button is clicked', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({
+      available: true,
+      items: [sampleMovieItem],
+    });
+
+    const wrapper = mount(DiscoveryFeed);
+    await flushPromises();
+
+    expect(api.get).toHaveBeenCalledWith('/discovery/feed?category=movies');
+
+    const freshMovie: DiscoveryItem = {
+      ...sampleMovieItem,
+      title: 'Freshly Fetched Movie',
+    };
+
+    vi.mocked(api.get).mockResolvedValueOnce({
+      available: true,
+      items: [freshMovie],
+    });
+
+    // Click refresh button
+    const refreshBtn = wrapper.find('[data-testid="button-refresh"]');
+    expect(refreshBtn.exists()).toBe(true);
+    await refreshBtn.trigger('click');
+    await flushPromises();
+
+    expect(api.get).toHaveBeenCalledWith('/discovery/feed?category=movies&refresh=true');
+    expect(wrapper.text()).toContain('Freshly Fetched Movie');
+  });
+
   it('hides gracefully when available is false or API throws', async () => {
     vi.mocked(api.get).mockResolvedValueOnce({
       available: false,

@@ -33,7 +33,7 @@ export interface DiscoveryFeedResult {
 }
 
 export interface IDiscoveryService {
-  getFeed(category: DiscoveryCategory): Promise<DiscoveryFeedResult>;
+  getFeed(category: DiscoveryCategory, forceRefresh?: boolean): Promise<DiscoveryFeedResult>;
   clearCache(): void;
 }
 
@@ -75,17 +75,17 @@ export class DiscoveryService implements IDiscoveryService {
     this.inflight.clear();
   }
 
-  async getFeed(category: DiscoveryCategory): Promise<DiscoveryFeedResult> {
+  async getFeed(category: DiscoveryCategory, forceRefresh = false): Promise<DiscoveryFeedResult> {
     if (!this.prowlarr.isConfigured()) {
       return { available: false, items: [], error: 'Prowlarr is not configured' };
     }
 
     const cached = this.cache.get(category);
-    if (cached && Date.now() - cached.timestamp < this.ttlMs) {
+    if (!forceRefresh && cached && Date.now() - cached.timestamp < this.ttlMs) {
       return { available: true, items: cached.data };
     }
 
-    if (this.inflight.has(category)) {
+    if (!forceRefresh && this.inflight.has(category)) {
       return this.inflight.get(category)!;
     }
 

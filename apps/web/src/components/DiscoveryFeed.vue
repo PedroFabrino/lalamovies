@@ -63,6 +63,26 @@
           </button>
         </div>
 
+        <!-- Refresh Feed Button -->
+        <button
+          type="button"
+          class="p-2 text-zinc-400 hover:text-zinc-200 bg-zinc-900 border border-zinc-800 rounded-lg hover:bg-zinc-800 transition cursor-pointer"
+          :title="loading ? 'Refreshing feed...' : 'Refresh Discovery Feed'"
+          :disabled="loading"
+          data-testid="button-refresh"
+          @click="fetchFeed(activeCategory, true)"
+        >
+          <svg
+            class="w-4 h-4 transition-transform duration-200"
+            :class="{ 'animate-spin': loading }"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
+
         <!-- Collapse / Expand Toggle Button -->
         <button
           type="button"
@@ -243,13 +263,53 @@ interface DiscoveryFeedResponse {
 
 const router = useRouter();
 
+const DISCOVERY_CACHE_KEY = 'mdm_discovery_cache_v1';
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+interface CachedCategoryData {
+  timestamp: number;
+  items: DiscoveryItem[];
+}
+
+type StoredCache = Partial<Record<CategoryTab, CachedCategoryData>>;
+
+function getStoredCache(): StoredCache {
+  try {
+    const raw = localStorage.getItem(DISCOVERY_CACHE_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+function saveCategoryToStorage(category: CategoryTab, items: DiscoveryItem[]) {
+  try {
+    const current = getStoredCache();
+    current[category] = {
+      timestamp: Date.now(),
+      items,
+    };
+    localStorage.setItem(DISCOVERY_CACHE_KEY, JSON.stringify(current));
+  } catch {
+    // Quota exceeded or storage unavailable
+  }
+}
+
+function isFresh(entry?: CachedCategoryData | null): boolean {
+  if (!entry || !entry.items || !Array.isArray(entry.items)) return false;
+  return Date.now() - entry.timestamp < CACHE_TTL_MS;
+}
+
+const initialStorage = getStoredCache();
+
 const available = ref(true);
 const loading = ref(false);
 const activeCategory = ref<CategoryTab>('movies');
 const categoryCache = ref<Record<CategoryTab, DiscoveryItem[]>>({
-  movies: [],
-  tv: [],
-  anime: [],
+  movies: isFresh(initialStorage.movies) ? initialStorage.movies!.items : [],
+  tv: isFresh(initialStorage.tv) ? initialStorage.tv!.items : [],
+  anime: isFresh(initialStorage.anime) ? initialStorage.anime!.items : [],
 });
 
 const isCollapsed = ref(localStorage.getItem('mdm_discovery_collapsed') === 'true');
@@ -261,22 +321,37 @@ function toggleCollapse() {
   localStorage.setItem('mdm_discovery_collapsed', String(isCollapsed.value));
 }
 
-async function fetchFeed(category: CategoryTab) {
-  if (categoryCache.value[category].length > 0) return;
+async function fetchFeed(category: CategoryTab, force = false) {
+  const current = getStoredCache();
+  const entry = current[category];
 
-  loading.value = true;
+  // If not forcing and local cache is fresh with items, avoid redundant network calls
+  if (!force && isFresh(entry) && categoryCache.value[category].length > 0) {
+    return;
+  }
+
+  // Only show loading placeholder when there are no items to display
+  if (categoryCache.value[category].length === 0) {
+    loading.value = true;
+  }
+
   try {
-    const res = await api.get<DiscoveryFeedResponse>(`/discovery/feed?category=${category}`);
+    const url = force ? `/discovery/feed?category=${category}&refresh=true` : `/discovery/feed?category=${category}`;
+    const res = await api.get<DiscoveryFeedResponse>(url);
     if (res.available === false) {
-      // If Prowlarr is disabled/offline, hide feed
-      available.value = false;
+      if (categoryCache.value[category].length === 0) {
+        available.value = false;
+      }
       return;
     }
     available.value = true;
     categoryCache.value[category] = res.items || [];
+    saveCategoryToStorage(category, res.items || []);
   } catch {
-    // Gracefully hide on network/API failure
-    available.value = false;
+    // Only mark unavailable if we don't have cached data to show
+    if (categoryCache.value[category].length === 0) {
+      available.value = false;
+    }
   } finally {
     loading.value = false;
   }
