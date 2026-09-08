@@ -375,27 +375,87 @@
             </div>
           </div>
 
-          <!-- Season Input (Step 1 - TV Show & Anime) -->
+          <!-- Scope & Season / Episode Inputs (Step 1 - TV Show & Anime) -->
           <div
             v-if="mediaType === 'tv_show' || mediaType === 'anime'"
+            class="space-y-3 p-4 bg-zinc-950/40 border border-zinc-800/80 rounded-xl"
           >
-            <label
-              for="step1SeasonNumber"
-              class="block text-sm font-medium text-zinc-300 mb-2"
-            >
-              Season Number <span class="text-xs text-zinc-500 font-normal">(Optional)</span>
-            </label>
-            <input
-              id="step1SeasonNumber"
-              v-model.number="seasonNumber"
-              type="number"
-              min="1"
-              placeholder="e.g. 1"
-              :disabled="isSearching"
-              class="w-32 px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-50"
-            >
-            <p class="text-xs text-zinc-500 mt-1.5">
-              Specify season for TV show folder structure (e.g. Season 01).
+            <div class="flex items-center justify-between">
+              <label class="block text-sm font-medium text-zinc-300">
+                Download Scope
+              </label>
+              <span class="text-xs text-zinc-500">
+                {{ downloadGranularity === 'season' ? 'Season Pack (max 25 GB cap)' : 'Single Episode (max 2 GB cap)' }}
+              </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 max-w-sm">
+              <button
+                type="button"
+                @click="onGranularityChange('season')"
+                class="py-2 px-3 rounded-lg border text-xs font-medium flex items-center justify-center gap-2 transition cursor-pointer"
+                :class="downloadGranularity === 'season'
+                  ? 'bg-indigo-600/20 border-indigo-500 text-indigo-200'
+                  : 'bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-zinc-200'"
+              >
+                <span>📦</span>
+                <span>Season Pack</span>
+              </button>
+              <button
+                type="button"
+                @click="onGranularityChange('episode')"
+                class="py-2 px-3 rounded-lg border text-xs font-medium flex items-center justify-center gap-2 transition cursor-pointer"
+                :class="downloadGranularity === 'episode'
+                  ? 'bg-indigo-600/20 border-indigo-500 text-indigo-200'
+                  : 'bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-zinc-200'"
+              >
+                <span>🎬</span>
+                <span>Single Episode</span>
+              </button>
+            </div>
+
+            <div class="flex items-center gap-4 pt-1">
+              <div>
+                <label
+                  for="step1SeasonNumber"
+                  class="block text-xs font-medium text-zinc-400 mb-1"
+                >
+                  Season Number
+                </label>
+                <input
+                  id="step1SeasonNumber"
+                  v-model.number="seasonNumber"
+                  type="number"
+                  min="1"
+                  placeholder="1"
+                  :disabled="isSearching"
+                  class="w-24 px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-50"
+                >
+              </div>
+
+              <div v-if="downloadGranularity === 'episode'">
+                <label
+                  for="step1EpisodeNumber"
+                  class="block text-xs font-medium text-zinc-400 mb-1"
+                >
+                  Episode Number
+                </label>
+                <input
+                  id="step1EpisodeNumber"
+                  v-model.number="episodeNumber"
+                  type="number"
+                  min="1"
+                  placeholder="1"
+                  :disabled="isSearching"
+                  class="w-24 px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-50"
+                >
+              </div>
+            </div>
+
+            <p class="text-xs text-zinc-500">
+              {{ downloadGranularity === 'season'
+                ? 'Downloads the entire season pack (default capped at 25 GB).'
+                : 'Downloads a single specific episode (default capped at 2 GB).' }}
             </p>
           </div>
 
@@ -741,6 +801,36 @@
             <p class="text-xs text-zinc-400 line-clamp-3 leading-relaxed">
               {{ selectedCandidate.overview || 'No overview available.' }}
             </p>
+
+            <!-- Anime title variant chips -->
+            <div
+              v-if="mediaType === 'anime' && (selectedCandidate.romajiTitle || selectedCandidate.englishTitle)"
+              class="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-zinc-800"
+            >
+              <span class="text-xs text-zinc-400 font-medium">Search Title:</span>
+              <button
+                v-if="selectedCandidate.romajiTitle || selectedCandidate.title"
+                type="button"
+                @click="setAnimeTitle(selectedCandidate.romajiTitle || selectedCandidate.title)"
+                class="px-2.5 py-1 rounded-md text-xs font-medium border transition cursor-pointer"
+                :class="activeAnimeTitle === (selectedCandidate.romajiTitle || selectedCandidate.title)
+                  ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm'
+                  : 'bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white'"
+              >
+                Romaji: {{ selectedCandidate.romajiTitle || selectedCandidate.title }}
+              </button>
+              <button
+                v-if="selectedCandidate.englishTitle"
+                type="button"
+                @click="setAnimeTitle(selectedCandidate.englishTitle)"
+                class="px-2.5 py-1 rounded-md text-xs font-medium border transition cursor-pointer"
+                :class="activeAnimeTitle === selectedCandidate.englishTitle
+                  ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm'
+                  : 'bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white'"
+              >
+                English: {{ selectedCandidate.englishTitle }}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -844,28 +934,89 @@
 
         <!-- Single Item confirmation details (when validBatchItems.length <= 1) -->
         <template v-else>
-          <!-- TV Show / Anime Season input -->
+          <!-- TV Show / Anime Scope & Inputs -->
           <div
             v-if="mediaType === 'tv_show' || mediaType === 'anime'"
-            class="bg-zinc-950/40 border border-zinc-800/80 rounded-xl p-4"
+            class="bg-zinc-950/40 border border-zinc-800/80 rounded-xl p-4 space-y-3"
           >
-            <label
-              for="seasonNumber"
-              class="block text-sm font-medium text-zinc-300 mb-1.5"
-            >
-              Season Number <span class="text-xs text-zinc-500 font-normal">(Optional)</span>
-            </label>
-            <input
-              id="seasonNumber"
-              v-model.number="seasonNumber"
-              type="number"
-              min="1"
-              placeholder="e.g. 1"
-              :disabled="isSubmitting"
-              class="w-32 px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-50"
-            />
-            <p class="text-xs text-zinc-500 mt-1">
-              Specify season for TV show folder structure (e.g. Season 01). Leave empty if torrent contains multiple seasons.
+            <div class="flex items-center justify-between">
+              <label class="block text-sm font-medium text-zinc-300">
+                Download Scope
+              </label>
+              <span class="text-xs text-zinc-500">
+                {{ downloadGranularity === 'season' ? 'Season Pack (max 25 GB cap)' : 'Single Episode (max 2 GB cap)' }}
+              </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 max-w-sm">
+              <button
+                type="button"
+                @click="onGranularityChange('season')"
+                class="py-1.5 px-3 rounded-lg border text-xs font-medium flex items-center justify-center gap-2 transition cursor-pointer"
+                :class="downloadGranularity === 'season'
+                  ? 'bg-indigo-600/20 border-indigo-500 text-indigo-200'
+                  : 'bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-zinc-200'"
+              >
+                <span>📦</span>
+                <span>Season Pack</span>
+              </button>
+              <button
+                type="button"
+                @click="onGranularityChange('episode')"
+                class="py-1.5 px-3 rounded-lg border text-xs font-medium flex items-center justify-center gap-2 transition cursor-pointer"
+                :class="downloadGranularity === 'episode'
+                  ? 'bg-indigo-600/20 border-indigo-500 text-indigo-200'
+                  : 'bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-zinc-200'"
+              >
+                <span>🎬</span>
+                <span>Single Episode</span>
+              </button>
+            </div>
+
+            <div class="flex items-center gap-4 pt-1">
+              <div>
+                <label
+                  for="seasonNumber"
+                  class="block text-xs font-medium text-zinc-400 mb-1"
+                >
+                  Season Number
+                </label>
+                <input
+                  id="seasonNumber"
+                  v-model.number="seasonNumber"
+                  type="number"
+                  min="1"
+                  placeholder="1"
+                  :disabled="isSubmitting"
+                  @change="onSeasonOrEpisodeChange"
+                  class="w-24 px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-50"
+                />
+              </div>
+
+              <div v-if="downloadGranularity === 'episode'">
+                <label
+                  for="episodeNumber"
+                  class="block text-xs font-medium text-zinc-400 mb-1"
+                >
+                  Episode Number
+                </label>
+                <input
+                  id="episodeNumber"
+                  v-model.number="episodeNumber"
+                  type="number"
+                  min="1"
+                  placeholder="1"
+                  :disabled="isSubmitting"
+                  @change="onSeasonOrEpisodeChange"
+                  class="w-24 px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-50"
+                />
+              </div>
+            </div>
+
+            <p class="text-xs text-zinc-500">
+              {{ downloadGranularity === 'season'
+                ? 'Targeting entire season for library naming (e.g. Season 01).'
+                : 'Targeting specific episode for library naming (e.g. S01E01).' }}
             </p>
           </div>
 
@@ -1013,6 +1164,8 @@ interface MetadataCandidate {
   year: number | null;
   posterUrl: string | null;
   overview: string | null;
+  romajiTitle?: string | null;
+  englishTitle?: string | null;
 }
 
 export interface ReleaseCandidate {
@@ -1090,9 +1243,54 @@ const step2QueryInputRef = ref<HTMLInputElement | null>(null);
 
 // Step 3 State
 const seasonNumber = ref<number | null>(null);
+const downloadGranularity = ref<'season' | 'episode'>('season');
+const episodeNumber = ref<number | null>(1);
+const activeAnimeTitle = ref<string | null>(null);
 const isSubmitting = ref(false);
 const submitProgress = ref({ current: 0, total: 0 });
 const step3Error = ref<string | null>(null);
+
+watch(mediaType, (newType) => {
+  if (newType === 'movie') {
+    seasonNumber.value = null;
+    episodeNumber.value = null;
+    downloadGranularity.value = 'season';
+  } else {
+    if (!seasonNumber.value) {
+      seasonNumber.value = 1;
+    }
+    if (downloadGranularity.value === 'episode' && !episodeNumber.value) {
+      episodeNumber.value = 1;
+    }
+  }
+});
+
+async function onGranularityChange(val: 'season' | 'episode') {
+  downloadGranularity.value = val;
+  if (val === 'episode' && !episodeNumber.value) {
+    episodeNumber.value = 1;
+  }
+  if (!seasonNumber.value) {
+    seasonNumber.value = 1;
+  }
+  if (currentStep.value === 3 && inputMode.value === 'search' && selectedCandidate.value) {
+    await fetchReleasesForCandidate(selectedCandidate.value);
+  }
+}
+
+async function onSeasonOrEpisodeChange() {
+  if (currentStep.value === 3 && inputMode.value === 'search' && selectedCandidate.value) {
+    await fetchReleasesForCandidate(selectedCandidate.value);
+  }
+}
+
+async function setAnimeTitle(title: string) {
+  if (activeAnimeTitle.value === title) return;
+  activeAnimeTitle.value = title;
+  if (currentStep.value === 3 && inputMode.value === 'search' && selectedCandidate.value) {
+    await fetchReleasesForCandidate(selectedCandidate.value);
+  }
+}
 
 watch(magnetLink, async (newVal) => {
   if (inputMode.value !== 'magnet') return;
@@ -1325,6 +1523,17 @@ async function fetchReleasesForCandidate(candidate: MetadataCandidate) {
   recommendedRelease.value = null;
   releaseCandidates.value = [];
 
+  const effectiveEpisode = downloadGranularity.value === 'episode' ? (episodeNumber.value ?? 1) : null;
+  const effectiveSeason = mediaType.value !== 'movie' ? (seasonNumber.value ?? 1) : null;
+
+  const isEnglishSelected = Boolean(candidate.englishTitle && activeAnimeTitle.value === candidate.englishTitle);
+  const primaryTitle = isEnglishSelected
+    ? candidate.englishTitle!
+    : (activeAnimeTitle.value || candidate.romajiTitle || candidate.title);
+  const fallbackTitle = isEnglishSelected
+    ? (candidate.romajiTitle || candidate.title)
+    : candidate.englishTitle;
+
   try {
     const data = await api.post<{
       recommended: ReleaseCandidate | null;
@@ -1335,9 +1544,12 @@ async function fetchReleasesForCandidate(candidate: MetadataCandidate) {
       metadataId: candidate.id,
       metadataSource: candidate.source,
       mediaType: mediaType.value,
-      title: candidate.title,
+      title: primaryTitle,
       year: candidate.year,
-      seasonNumber: seasonNumber.value,
+      seasonNumber: effectiveSeason,
+      episodeNumber: effectiveEpisode,
+      romajiTitle: isEnglishSelected ? primaryTitle : (candidate.romajiTitle || candidate.title),
+      englishTitle: isEnglishSelected ? fallbackTitle : candidate.englishTitle,
     });
 
     isProwlarrConfigured.value = data.isConfigured;
@@ -1357,6 +1569,7 @@ async function fetchReleasesForCandidate(candidate: MetadataCandidate) {
 
 async function selectCandidate(candidate: MetadataCandidate) {
   selectedCandidate.value = candidate;
+  activeAnimeTitle.value = candidate.romajiTitle || candidate.title;
   currentStep.value = 3;
   if (inputMode.value === 'search') {
     await fetchReleasesForCandidate(candidate);
@@ -1423,14 +1636,17 @@ async function handleConfirmRequest() {
     } else {
       submitProgress.value = { current: 0, total: 1 };
       const singleItem = validBatchItems.value[0];
+      const effectiveSeason = singleItem?.seasonNumber ?? (mediaType.value !== 'movie' ? (seasonNumber.value ?? 1) : undefined);
+      const effectiveEpisode = singleItem?.episodeNumber ?? (downloadGranularity.value === 'episode' ? (episodeNumber.value ?? 1) : undefined);
+
       const payload: Record<string, any> = {
         mediaType: mediaType.value,
         metadataId: selectedCandidate.value.id,
         metadataSource: selectedCandidate.value.source,
         title: selectedCandidate.value.title,
         year: selectedCandidate.value.year ?? undefined,
-        seasonNumber: singleItem?.seasonNumber ?? seasonNumber.value ?? undefined,
-        episodeNumber: singleItem?.episodeNumber ?? undefined,
+        seasonNumber: effectiveSeason ?? undefined,
+        episodeNumber: effectiveEpisode ?? undefined,
       };
 
       if (inputMode.value === 'file') {

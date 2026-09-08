@@ -245,6 +245,198 @@ describe('Prowlarr Service - Unit Tests', () => {
       expect(result.candidates[0].isLowHealth).toBe(true);
     });
   });
+
+  describe('searchReleases - TV Shows & Anime', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    const service = new ProwlarrService('http://localhost:9696', 'mock-key');
+
+    it('formats TV show Season Pack query with S01 and category 5000', async () => {
+      let capturedUrl = '';
+      vi.spyOn(global, 'fetch').mockImplementationOnce(async (url) => {
+        capturedUrl = String(url);
+        return {
+          ok: true,
+          json: async () => [],
+        } as Response;
+      });
+
+      await service.searchReleases({
+        mediaType: 'tv_show',
+        title: 'Breaking Bad',
+        seasonNumber: 1,
+      });
+
+      expect(capturedUrl).toContain('categories=5000');
+      expect(capturedUrl).toContain(encodeURIComponent('Breaking Bad S01'));
+    });
+
+    it('formats TV show Single Episode query with S01E05 and category 5000', async () => {
+      let capturedUrl = '';
+      vi.spyOn(global, 'fetch').mockImplementationOnce(async (url) => {
+        capturedUrl = String(url);
+        return {
+          ok: true,
+          json: async () => [],
+        } as Response;
+      });
+
+      await service.searchReleases({
+        mediaType: 'tv_show',
+        title: 'Breaking Bad',
+        seasonNumber: 1,
+        episodeNumber: 5,
+      });
+
+      expect(capturedUrl).toContain('categories=5000');
+      expect(capturedUrl).toContain(encodeURIComponent('Breaking Bad S01E05'));
+    });
+
+    it('routes Anime to categories 5070,2070 and uses Romaji title', async () => {
+      let capturedUrl = '';
+      vi.spyOn(global, 'fetch').mockImplementationOnce(async (url) => {
+        capturedUrl = String(url);
+        return {
+          ok: true,
+          json: async () => [
+            {
+              guid: 'a1',
+              title: '[SubsPlease] Sousou no Frieren - 01 (1080p)',
+              size: 1.4 * 1024 * 1024 * 1024,
+              indexer: 'Nyaa',
+              seeders: 40,
+              magnetUrl: 'magnet:?xt=urn:btih:a1',
+            },
+            {
+              guid: 'a2',
+              title: '[Erai-raws] Sousou no Frieren - 01 [1080p]',
+              size: 1.2 * 1024 * 1024 * 1024,
+              indexer: 'Nyaa',
+              seeders: 25,
+              magnetUrl: 'magnet:?xt=urn:btih:a2',
+            },
+            {
+              guid: 'a3',
+              title: 'Sousou no Frieren - 01 720p',
+              size: 700 * 1024 * 1024,
+              indexer: 'TokyoTosho',
+              seeders: 15,
+              magnetUrl: 'magnet:?xt=urn:btih:a3',
+            },
+          ],
+        } as Response;
+      });
+
+      const result = await service.searchReleases({
+        mediaType: 'anime',
+        title: "Frieren: Beyond Journey's End",
+        romajiTitle: 'Sousou no Frieren',
+        englishTitle: "Frieren: Beyond Journey's End",
+        episodeNumber: 1,
+      });
+
+      expect(capturedUrl).toContain('categories=5070,2070');
+      expect(capturedUrl).toContain(encodeURIComponent('Sousou no Frieren - 01'));
+      expect(result.totalFound).toBe(3);
+      expect(result.recommended?.title).toBe('[SubsPlease] Sousou no Frieren - 01 (1080p)');
+    });
+
+    it('falls back to English title when Romaji anime search finds fewer than 3 candidates', async () => {
+      const urls: string[] = [];
+      vi.spyOn(global, 'fetch')
+        .mockImplementationOnce(async (url) => {
+          urls.push(String(url));
+          return {
+            ok: true,
+            json: async () => [
+              {
+                guid: 'r1',
+                title: 'Shingeki no Kyojin - 01 (1080p)',
+                size: 1.4 * 1024 * 1024 * 1024,
+                indexer: 'Nyaa',
+                seeders: 10,
+                magnetUrl: 'magnet:?xt=urn:btih:r1',
+              },
+            ],
+          } as Response;
+        })
+        .mockImplementationOnce(async (url) => {
+          urls.push(String(url));
+          return {
+            ok: true,
+            json: async () => [
+              {
+                guid: 'e1',
+                title: 'Attack on Titan - 01 (1080p)',
+                size: 1.3 * 1024 * 1024 * 1024,
+                indexer: '1337x',
+                seeders: 30,
+                magnetUrl: 'magnet:?xt=urn:btih:e1',
+              },
+            ],
+          } as Response;
+        });
+
+      const result = await service.searchReleases({
+        mediaType: 'anime',
+        title: 'Attack on Titan',
+        romajiTitle: 'Shingeki no Kyojin',
+        englishTitle: 'Attack on Titan',
+        episodeNumber: 1,
+      });
+
+      expect(urls.length).toBe(2);
+      expect(urls[0]).toContain(encodeURIComponent('Shingeki no Kyojin - 01'));
+      expect(urls[1]).toContain(encodeURIComponent('Attack on Titan - 01'));
+      expect(result.totalFound).toBe(2);
+    });
+
+    it('applies episodic size limits (2GB cap for single episodes, 25GB cap for TV season packs)', () => {
+      const GB = 1024 * 1024 * 1024;
+
+      const singleEpGood = {
+        guid: '1',
+        title: 'Show.S01E01.1080p.x264',
+        sizeBytes: 1.2 * GB,
+        formattedSize: '1.2 GB',
+        seeders: 15,
+        leechers: 1,
+        downloadUrl: 'magnet:?xt=1',
+        indexer: '1337x',
+        resolution: '1080p' as const,
+        codec: 'x264' as const,
+        source: 'web' as const,
+      };
+
+      const singleEpBloated = {
+        ...singleEpGood,
+        guid: '2',
+        sizeBytes: 5 * GB,
+        formattedSize: '5.0 GB',
+      };
+
+      const scoreEpGood = service.scoreRelease(singleEpGood, { isSingleEpisode: true }).score;
+      const scoreEpBloated = service.scoreRelease(singleEpBloated, { isSingleEpisode: true }).score;
+      expect(scoreEpGood).toBeGreaterThan(scoreEpBloated);
+
+      const seasonPackGood = {
+        ...singleEpGood,
+        sizeBytes: 15 * GB,
+        formattedSize: '15.0 GB',
+      };
+      const seasonPackBloated = {
+        ...singleEpGood,
+        sizeBytes: 50 * GB,
+        formattedSize: '50.0 GB',
+      };
+
+      const scorePackGood = service.scoreRelease(seasonPackGood, { mediaType: 'tv_show', isSingleEpisode: false }).score;
+      const scorePackBloated = service.scoreRelease(seasonPackBloated, { mediaType: 'tv_show', isSingleEpisode: false }).score;
+      expect(scorePackGood).toBeGreaterThan(scorePackBloated);
+    });
+  });
 });
 
 describe('POST /requests/search-releases - Route Tests', () => {
@@ -302,30 +494,33 @@ describe('POST /requests/search-releases - Route Tests', () => {
   });
 
   it('returns release search results for valid movie request', async () => {
+    const mockResult = {
+      recommended: {
+        guid: 'rec-1',
+        title: 'Inception.2010.1080p.BluRay.x264',
+        sizeBytes: 3221225472,
+        formattedSize: '3.0 GB',
+        seeders: 42,
+        leechers: 5,
+        downloadUrl: 'magnet:?xt=urn:btih:rec1',
+        indexer: '1337x',
+        resolution: '1080p' as const,
+        codec: 'x264' as const,
+        source: 'bluray' as const,
+        score: 180,
+        isLowHealth: false,
+      },
+      candidates: [],
+      totalFound: 1,
+      isConfigured: true,
+    };
+
     const mockProwlarr: IProwlarrService = {
       isConfigured: () => true,
       parseReleaseTitle: vi.fn(),
       scoreRelease: vi.fn(),
-      searchMovieReleases: vi.fn().mockResolvedValue({
-        recommended: {
-          guid: 'rec-1',
-          title: 'Inception.2010.1080p.BluRay.x264',
-          sizeBytes: 3221225472,
-          formattedSize: '3.0 GB',
-          seeders: 42,
-          leechers: 5,
-          downloadUrl: 'magnet:?xt=urn:btih:rec1',
-          indexer: '1337x',
-          resolution: '1080p',
-          codec: 'x264',
-          source: 'bluray',
-          score: 180,
-          isLowHealth: false,
-        },
-        candidates: [],
-        totalFound: 1,
-        isConfigured: true,
-      }),
+      searchMovieReleases: vi.fn().mockResolvedValue(mockResult),
+      searchReleases: vi.fn().mockResolvedValue(mockResult),
     };
 
     const testApp = buildApp({
@@ -362,6 +557,76 @@ describe('POST /requests/search-releases - Route Tests', () => {
     expect(body.recommended?.title).toBe('Inception.2010.1080p.BluRay.x264');
     expect(body.recommended?.resolution).toBe('1080p');
     expect(body.recommended?.seeders).toBe(42);
+
+    await testApp.close();
+  });
+
+  it('handles TV show and Anime search-releases requests', async () => {
+    const mockProwlarr: IProwlarrService = {
+      isConfigured: () => true,
+      parseReleaseTitle: vi.fn(),
+      scoreRelease: vi.fn(),
+      searchMovieReleases: vi.fn(),
+      searchReleases: vi.fn().mockResolvedValue({
+        recommended: {
+          guid: 'rec-tv',
+          title: 'Breaking.Bad.S01.1080p.BluRay',
+          sizeBytes: 15 * 1024 * 1024 * 1024,
+          formattedSize: '15.0 GB',
+          seeders: 55,
+          leechers: 2,
+          downloadUrl: 'magnet:?xt=urn:btih:bb1',
+          indexer: '1337x',
+          resolution: '1080p',
+          codec: 'x264',
+          source: 'bluray',
+          score: 170,
+          isLowHealth: false,
+        },
+        candidates: [],
+        totalFound: 1,
+        isConfigured: true,
+      }),
+    };
+
+    const testApp = buildApp({
+      dbPath: ':memory:',
+      jellyfinService: new DummyJellyfinService(),
+      prowlarrService: mockProwlarr,
+      jwtSecret: 'test-jwt-secret-key-32-characters-minimum',
+    });
+    await testApp.ready();
+
+    const loginRes = await testApp.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { username: 'testuser', password: 'password123' },
+    });
+    const cookie = loginRes.cookies[0].value;
+
+    const res = await testApp.inject({
+      method: 'POST',
+      url: '/requests/search-releases',
+      cookies: { token: cookie },
+      payload: {
+        metadataId: '1396',
+        metadataSource: 'tmdb',
+        mediaType: 'tv_show',
+        title: 'Breaking Bad',
+        seasonNumber: 1,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.recommended?.title).toBe('Breaking.Bad.S01.1080p.BluRay');
+    expect(mockProwlarr.searchReleases).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mediaType: 'tv_show',
+        title: 'Breaking Bad',
+        seasonNumber: 1,
+      })
+    );
 
     await testApp.close();
   });

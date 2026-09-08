@@ -7,6 +7,8 @@ export interface MetadataCandidate {
   year: number | null;
   posterUrl: string | null;
   overview: string | null;
+  romajiTitle?: string | null;
+  englishTitle?: string | null;
 }
 
 export class MetadataApiError extends Error {
@@ -200,6 +202,8 @@ export class MetadataService implements IMetadataService {
         year,
         posterUrl,
         overview,
+        romajiTitle: item.title?.romaji || null,
+        englishTitle: item.title?.english || null,
       };
     });
   }

@@ -88,6 +88,7 @@ const searchReleasesSchema = z.object({
   seasonNumber: z.number().int().optional().nullable(),
   episodeNumber: z.number().int().optional().nullable(),
   romajiTitle: z.string().optional().nullable(),
+  englishTitle: z.string().optional().nullable(),
 });
 
 export const requestRoutes: FastifyPluginAsync = async (app) => {
@@ -104,10 +105,18 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const { title, year } = parseResult.data;
+    const { mediaType, title, year, seasonNumber, episodeNumber, romajiTitle, englishTitle } = parseResult.data;
 
     try {
-      const result = await app.prowlarr.searchMovieReleases(title, year);
+      const result = await app.prowlarr.searchReleases({
+        mediaType,
+        title,
+        year,
+        seasonNumber,
+        episodeNumber,
+        romajiTitle,
+        englishTitle,
+      });
       return reply.send(result);
     } catch (err) {
       request.log.error(err, 'Failed to search torrent releases via Prowlarr');

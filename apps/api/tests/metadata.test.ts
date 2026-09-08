@@ -194,6 +194,8 @@ describe('Metadata Service - Unit Tests', () => {
         year: 2013,
         posterUrl: 'https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx16498.jpg',
         overview: 'Several hundred years ago, humans were nearly exterminated by Titans.Now...',
+        romajiTitle: 'Shingeki no Kyojin',
+        englishTitle: 'Attack on Titan',
       });
     });
   });
