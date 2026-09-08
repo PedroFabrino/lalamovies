@@ -14,6 +14,7 @@ import { INotificationService, NotificationService } from './services/notificati
 import { IFileSystemService, FileSystemService } from './services/fileSystem';
 import { IProwlarrService, ProwlarrService } from './services/prowlarr';
 import { IDiscoveryService, DiscoveryService } from './services/discovery';
+import { IUpNextService, UpNextService } from './services/upNext';
 import { DownloadPoller } from './jobs/downloadPoller';
 import { CleanupCron } from './jobs/cleanupCron';
 import { authRoutes } from './routes/auth';
@@ -34,6 +35,7 @@ export interface AppOptions {
   fileSystemService?: IFileSystemService;
   prowlarrService?: IProwlarrService;
   discoveryService?: IDiscoveryService;
+  upNextService?: IUpNextService;
   downloadPoller?: DownloadPoller;
   cleanupCron?: CleanupCron;
   startPoller?: boolean;
@@ -54,6 +56,7 @@ declare module 'fastify' {
     fileSystem: IFileSystemService;
     prowlarr: IProwlarrService;
     discovery: IDiscoveryService;
+    upNext: IUpNextService;
     poller: DownloadPoller;
     broadcast: BroadcastFunction;
   }
@@ -95,6 +98,22 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   const discovery =
     options.discoveryService ??
     new DiscoveryService({
+      prowlarr,
+      metadata,
+      getTmdbApiKey: () => {
+        const row = db
+          .select()
+          .from(systemConfig)
+          .where(eq(systemConfig.key, 'tmdb_api_key'))
+          .get();
+        return row?.value || process.env.TMDB_API_KEY || undefined;
+      },
+    });
+
+  const upNext =
+    options.upNextService ??
+    new UpNextService({
+      db,
       prowlarr,
       metadata,
       getTmdbApiKey: () => {
@@ -155,6 +174,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.decorate('fileSystem', fileSystem);
   app.decorate('prowlarr', prowlarr);
   app.decorate('discovery', discovery);
+  app.decorate('upNext', upNext);
   app.decorate('poller', poller);
 
   app.addHook('onClose', async () => {

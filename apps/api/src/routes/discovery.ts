@@ -36,4 +36,24 @@ export const discoveryRoutes: FastifyPluginAsync = async (app) => {
       });
     }
   });
+
+  // GET /discovery/up-next
+  app.get('/up-next', async (request, reply) => {
+    const userId = request.currentUser?.id;
+    if (!userId) {
+      return reply.status(401).send({ error: 'Unauthorized', message: 'User not found' });
+    }
+
+    try {
+      const result = await app.upNext.getUpNext(userId);
+      return reply.send(result);
+    } catch (err) {
+      request.log.error(err, 'Failed to retrieve up-next releases');
+      return reply.send({
+        available: false,
+        items: [],
+        error: (err as Error).message,
+      });
+    }
+  });
 };

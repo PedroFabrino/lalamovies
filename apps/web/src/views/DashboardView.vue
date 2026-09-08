@@ -52,6 +52,9 @@
         </button>
       </div>
 
+      <!-- Up Next Shelf (Active Episodic Series) -->
+      <UpNextShelf />
+
       <!-- Discovery Feed Shelf (Curated Quality Releases) -->
       <DiscoveryFeed />
 
@@ -530,6 +533,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import Navbar from '../components/Navbar.vue';
+import UpNextShelf from '../components/UpNextShelf.vue';
 import DiscoveryFeed from '../components/DiscoveryFeed.vue';
 import { useAuthStore } from '../stores/auth';
 import { useRequestsStore, DownloadRequest } from '../stores/requests';
