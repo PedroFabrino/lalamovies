@@ -502,7 +502,7 @@
 
           <button
             type="submit"
-            :disabled="isSearching || !customQuery.trim() || (inputMode === 'magnet' ? !magnetLink.trim() : validBatchItems.length === 0)"
+            :disabled="isSearching || !customQuery.trim() || (inputMode === 'magnet' && !magnetLink.trim()) || (inputMode === 'file' && validBatchItems.length === 0)"
             class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg shadow transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             <svg
