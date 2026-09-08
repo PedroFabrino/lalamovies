@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { eq, desc } from 'drizzle-orm';
 import { authMiddleware, adminGuard } from '../middleware/auth';
 import { systemConfig, downloadRequests, users, DownloadRequest } from '../db/schema';
-import { MetadataApiError } from '../services/metadata';
+import { MetadataApiError, MetadataCandidate } from '../services/metadata';
 import { parseTorrentBuffer } from '../services/torrentParser';
 import { cleanTorrentTitle } from '../utils/torrentTitleCleaner';
 

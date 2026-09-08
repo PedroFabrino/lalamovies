@@ -86,7 +86,7 @@ export class DownloadPoller {
                 continue;
               }
             } catch (err) {
-              this.logger?.error(err, `Failed to reconcile missing qbTorrentHash for ${req.id}`);
+              this.logger?.error(`Failed to reconcile missing qbTorrentHash for ${req.id}`, err);
               continue;
             }
           } else {
@@ -120,7 +120,7 @@ export class DownloadPoller {
               try {
                 files = await this.qbittorrent.getTorrentFiles(req.qbTorrentHash);
               } catch (err) {
-                this.logger?.error(err, `Failed to get files for torrent ${req.qbTorrentHash}`);
+                this.logger?.error(`Failed to get files for torrent ${req.qbTorrentHash}`, err);
               }
             }
 

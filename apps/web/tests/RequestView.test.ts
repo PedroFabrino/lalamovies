@@ -8,6 +8,10 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({
     push: vi.fn(),
   }),
+  useRoute: () => ({
+    query: {},
+    params: {},
+  }),
 }));
 
 vi.mock('../src/components/Navbar.vue', () => ({

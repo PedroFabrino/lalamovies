@@ -1501,7 +1501,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import Navbar from '../components/Navbar.vue';
 import { api, ApiError } from '../lib/api';
 import { useRequestsStore, MediaType, DownloadRequest } from '../stores/requests';
@@ -1540,6 +1540,7 @@ export interface BatchItem {
 }
 
 const router = useRouter();
+const route = useRoute();
 const requestsStore = useRequestsStore();
 
 const currentStep = ref<1 | 2 | 3>(1);
@@ -1594,26 +1595,7 @@ function switchToManualUpload() {
   manualFallbackMode.value = 'magnet';
 }
 
-onMounted(async () => {
-  try {
-    const status = await api.get<{ isConfigured: boolean; isReachable: boolean }>('/requests/prowlarr-status');
-    isProwlarrConfigured.value = status.isConfigured;
-    isProwlarrReachable.value = status.isReachable;
-    if (!status.isConfigured || !status.isReachable) {
-      inputMode.value = 'magnet';
-    }
-  } catch (err) {
-    if (err instanceof ApiError && err.data && typeof err.data === 'object') {
-      const d = err.data as { isConfigured?: boolean; isReachable?: boolean };
-      isProwlarrConfigured.value = d.isConfigured ?? false;
-      isProwlarrReachable.value = d.isReachable ?? false;
-    } else {
-      isProwlarrConfigured.value = false;
-      isProwlarrReachable.value = false;
-    }
-    inputMode.value = 'magnet';
-  }
-});
+
 const selectedFile = ref<File | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const customQueryInputRef = ref<HTMLInputElement | null>(null);
@@ -1697,6 +1679,125 @@ async function setAnimeTitle(title: string) {
     await fetchReleasesForCandidate(selectedCandidate.value);
   }
 }
+
+function initFastTrackFromRoute(): boolean {
+  const query = route.query;
+  const state = (typeof window !== 'undefined' ? (window.history?.state || {}) : {}) as Record<string, any>;
+
+  const rawTitle = (query.title || state.title) as string | undefined;
+  const rawMetadataId = (query.metadataId || state.metadataId) as string | undefined;
+  const rawDownloadUrl = (query.downloadUrl || state.downloadUrl) as string | undefined;
+  const rawMediaType = (query.mediaType || state.mediaType) as string | undefined;
+
+  // If incomplete fast-track parameters are supplied, inform user and remain on Step 1
+  if (!rawTitle || !rawMetadataId || !rawDownloadUrl || !rawMediaType) {
+    if (query.fastTrack === 'true' || query.downloadUrl || query.releaseTitle || query.metadataId) {
+      step1Error.value = 'Incomplete fast-track parameters. Please search or upload manually.';
+    }
+    return false;
+  }
+
+  const validMediaTypes: MediaType[] = ['movie', 'tv_show', 'anime'];
+  if (!validMediaTypes.includes(rawMediaType as MediaType)) {
+    step1Error.value = 'Invalid media type for fast-track request.';
+    return false;
+  }
+
+  const mediaTypeValue = rawMediaType as MediaType;
+  mediaType.value = mediaTypeValue;
+
+  const rawYear = query.year || state.year;
+  const yearNum = rawYear ? parseInt(String(rawYear), 10) : null;
+
+  selectedCandidate.value = {
+    id: String(rawMetadataId),
+    source: (query.metadataSource === 'anilist' || state.metadataSource === 'anilist') ? 'anilist' : 'tmdb',
+    title: String(rawTitle),
+    year: yearNum !== null && !isNaN(yearNum) ? yearNum : null,
+    posterUrl: (query.posterUrl as string) || state.posterUrl || null,
+    overview: (query.overview as string) || state.overview || null,
+    romajiTitle: (query.romajiTitle as string) || state.romajiTitle || null,
+    englishTitle: (query.englishTitle as string) || state.englishTitle || null,
+  };
+
+  if (query.seasonNumber !== undefined || state.seasonNumber !== undefined) {
+    const s = parseInt(String(query.seasonNumber ?? state.seasonNumber), 10);
+    if (!isNaN(s)) seasonNumber.value = s;
+  } else if (mediaTypeValue !== 'movie') {
+    seasonNumber.value = 1;
+  }
+
+  if (query.episodeNumber !== undefined || state.episodeNumber !== undefined) {
+    const e = parseInt(String(query.episodeNumber ?? state.episodeNumber), 10);
+    if (!isNaN(e)) {
+      episodeNumber.value = e;
+      downloadGranularity.value = 'episode';
+    } else {
+      downloadGranularity.value = 'season';
+    }
+  } else {
+    downloadGranularity.value = 'season';
+  }
+
+  const rawSeeders = query.seeders ? parseInt(String(query.seeders), 10) : (state.seeders ?? 10);
+  const rawLeechers = query.leechers ? parseInt(String(query.leechers), 10) : (state.leechers ?? 0);
+  const rawSizeBytes = query.sizeBytes ? parseInt(String(query.sizeBytes), 10) : (state.sizeBytes ?? 0);
+  const rawScore = query.score ? parseInt(String(query.score), 10) : (state.score ?? 100);
+
+  const candidate: ReleaseCandidate = {
+    guid: String(query.guid || state.guid || `fast-track-${Date.now()}`),
+    title: String(query.releaseTitle || state.releaseTitle || rawTitle),
+    downloadUrl: String(rawDownloadUrl),
+    indexer: String(query.indexer || state.indexer || 'Indexer'),
+    sizeBytes: isNaN(rawSizeBytes) ? 0 : rawSizeBytes,
+    formattedSize: String(
+      query.formattedSize ||
+        state.formattedSize ||
+        (rawSizeBytes > 0 ? formatBytes(rawSizeBytes) : 'Unknown')
+    ),
+    seeders: isNaN(rawSeeders) ? 10 : rawSeeders,
+    leechers: isNaN(rawLeechers) ? 0 : rawLeechers,
+    resolution: String(query.resolution || state.resolution || '1080p'),
+    codec: String(query.codec || state.codec || 'unknown'),
+    source: String(query.source || state.source || 'unknown'),
+    score: isNaN(rawScore) ? 100 : rawScore,
+    isLowHealth: !isNaN(rawSeeders) && rawSeeders < 5,
+  };
+
+  recommendedRelease.value = candidate;
+  selectedRelease.value = candidate;
+  releaseCandidates.value = [candidate];
+  magnetLink.value = candidate.downloadUrl;
+  inputMode.value = 'search';
+  currentStep.value = 3;
+
+  return true;
+}
+
+onMounted(async () => {
+  const isFastTrack = initFastTrackFromRoute();
+
+  try {
+    const status = await api.get<{ isConfigured: boolean; isReachable: boolean }>('/requests/prowlarr-status');
+    isProwlarrConfigured.value = status.isConfigured;
+    isProwlarrReachable.value = status.isReachable;
+    if (!isFastTrack && (!status.isConfigured || !status.isReachable)) {
+      inputMode.value = 'magnet';
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.data && typeof err.data === 'object') {
+      const d = err.data as { isConfigured?: boolean; isReachable?: boolean };
+      isProwlarrConfigured.value = d.isConfigured ?? false;
+      isProwlarrReachable.value = d.isReachable ?? false;
+    } else {
+      isProwlarrConfigured.value = false;
+      isProwlarrReachable.value = false;
+    }
+    if (!isFastTrack) {
+      inputMode.value = 'magnet';
+    }
+  }
+});
 
 watch(magnetLink, async (newVal) => {
   if (inputMode.value !== 'magnet') return;
