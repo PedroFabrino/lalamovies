@@ -206,11 +206,30 @@ export class QBittorrentService implements IQBittorrentService {
       });
 
       if (!res.ok) {
+        if (res.status === 409) {
+          if (hash) {
+            return hash;
+          }
+          try {
+            const torrents = await this.getAllTorrents();
+            if (torrents.length > 0) {
+              return torrents[0]?.hash || '';
+            }
+          } catch {
+            // ignore
+          }
+        }
         throw new QBittorrentError(`Failed to add torrent: HTTP ${res.status}`);
       }
 
       const text = await res.text();
       if (text.trim() === 'Fails.') {
+        if (hash) {
+          try {
+            const existing = await this.getTorrentStatus(hash);
+            if (existing) return hash;
+          } catch {}
+        }
         throw new QBittorrentError('qBittorrent rejected the torrent magnet link');
       }
 
@@ -248,11 +267,20 @@ export class QBittorrentService implements IQBittorrentService {
       });
 
       if (!res.ok) {
+        if (res.status === 409 && infoHash) {
+          return infoHash;
+        }
         throw new QBittorrentError(`Failed to add torrent file: HTTP ${res.status}`);
       }
 
       const text = await res.text();
       if (text.trim() === 'Fails.') {
+        if (infoHash) {
+          try {
+            const existing = await this.getTorrentStatus(infoHash);
+            if (existing) return infoHash;
+          } catch {}
+        }
         throw new QBittorrentError('qBittorrent rejected the torrent file');
       }
 

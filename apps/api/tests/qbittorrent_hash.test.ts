@@ -57,6 +57,16 @@ describe('QBittorrentService - URL download and Hash Resolution', () => {
     expect(hash).toHaveLength(40);
     expect(hash).toMatch(/^[a-f0-9]{40}$/);
   });
+
+  it('returns existing hash when qBittorrent returns HTTP 409 Conflict for duplicate torrent', async () => {
+    const service = new QBittorrentService('http://localhost:8080', 'admin', 'adminadmin');
+    const hashExpected = 'd9e5fabedab7e1e1b941ffac541f8201dbc781b0';
+    const magnet = `magnet:?xt=urn:btih:${hashExpected}&dn=Mushoku+Tensei`;
+    vi.spyOn(service as any, 'fetchWithAuth').mockResolvedValue(new Response('', { status: 409 }));
+
+    const hash = await service.addTorrent(magnet);
+    expect(hash).toBe(hashExpected);
+  });
 });
 
 describe('DownloadPoller - Orphan Torrent Self-Healing', () => {
