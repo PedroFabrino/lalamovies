@@ -42,6 +42,22 @@ _Avoid_: torrent match, search hit, result
 The automated ranking applied to Release Candidates based on resolution, file size, and seeders to determine the default recommendation.
 _Avoid_: sorting, filtering, ranking
 
+**Discovery Feed**:
+A curated, auto-refreshed dashboard showcase presenting newly released, healthy Release Candidates across Movies, TV Shows, and Anime paired with enriched Metadata Matches for 1-click submission.
+_Avoid_: recommendations widget, trending list, suggestions
+
+**Discovery Item**:
+An individual entry within the Discovery Feed representing a high-health Release Candidate and its verified Metadata Match, eligible for fast-track submission directly to Step 3.
+_Avoid_: recommendation card, trending item, suggestion
+
+**Up Next Shelf**:
+A personalized, top-priority dashboard section (labeled "Up Next" in the UI) that monitors episodic series (TV Shows and Anime) requested by the user within the last 90 days and surfaces the immediate next sequential episode or season pack once indexed on trackers.
+_Avoid_: continue watching, episode tracker, watchlist
+
+**Up Next Item**:
+An entry within the Up Next Shelf representing a confirmed release for the immediate next un-downloaded episode (`E(max + 1)`) or next season of an active series in the user's history, configured for 1-click download.
+_Avoid_: next episode card, upcoming episode
+
 
 ### File System
 
