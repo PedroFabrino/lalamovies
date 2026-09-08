@@ -1032,45 +1032,224 @@
               <p class="text-xs text-zinc-500 mt-1">Ranking 1080p releases, health, and file sizes via Prowlarr</p>
             </div>
 
-            <!-- Recommended release card -->
-            <div v-else-if="recommendedRelease" class="p-5 border border-indigo-500/50 bg-indigo-950/20 rounded-xl space-y-3">
-              <div class="flex items-center justify-between">
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-950/80 border border-emerald-700/80 text-emerald-300 text-xs font-semibold">
-                  <span>★</span>
-                  <span>Recommended Release</span>
-                </span>
-                <span class="text-xs font-mono text-zinc-400">
-                  via {{ recommendedRelease.indexer }}
-                </span>
+            <!-- Active Selected Release Card -->
+            <div
+              v-else-if="activeRelease"
+              class="p-5 border rounded-xl space-y-3 transition"
+              :class="activeRelease.guid === recommendedRelease?.guid
+                ? 'border-indigo-500/50 bg-indigo-950/20'
+                : 'border-emerald-500/60 bg-emerald-950/20'"
+            >
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span
+                    v-if="activeRelease.guid === recommendedRelease?.guid"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-950/80 border border-emerald-700/80 text-emerald-300 text-xs font-semibold"
+                  >
+                    <span>★</span>
+                    <span>Recommended Release</span>
+                  </span>
+                  <span
+                    v-else
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-950/80 border border-indigo-700/80 text-indigo-300 text-xs font-semibold"
+                  >
+                    <span>✓</span>
+                    <span>Custom Selected Release</span>
+                  </span>
+                </div>
+
+                <div class="flex items-center gap-3">
+                  <button
+                    v-if="recommendedRelease && activeRelease.guid !== recommendedRelease.guid"
+                    type="button"
+                    @click="resetToRecommendedRelease"
+                    class="text-[11px] text-indigo-400 hover:text-indigo-300 underline cursor-pointer"
+                  >
+                    Reset to recommended
+                  </button>
+                  <span class="text-xs font-mono text-zinc-400">
+                    via {{ activeRelease.indexer }}
+                  </span>
+                </div>
               </div>
 
               <div>
                 <h4 class="font-mono text-sm text-white font-medium break-all">
-                  {{ recommendedRelease.title }}
+                  {{ activeRelease.title }}
                 </h4>
               </div>
 
               <div class="flex flex-wrap items-center gap-2 text-xs">
                 <span class="px-2 py-0.5 rounded bg-emerald-900/60 text-emerald-300 border border-emerald-700/60 font-medium">
-                  {{ recommendedRelease.resolution }}
+                  {{ activeRelease.resolution }}
                 </span>
-                <span v-if="recommendedRelease.codec !== 'unknown'" class="px-2 py-0.5 rounded bg-indigo-900/60 text-indigo-300 border border-indigo-700/60 font-medium">
-                  {{ recommendedRelease.codec }}
+                <span v-if="activeRelease.codec !== 'unknown'" class="px-2 py-0.5 rounded bg-indigo-900/60 text-indigo-300 border border-indigo-700/60 font-medium">
+                  {{ activeRelease.codec }}
                 </span>
-                <span v-if="recommendedRelease.source !== 'unknown'" class="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 font-medium uppercase text-[11px]">
-                  {{ recommendedRelease.source }}
+                <span v-if="activeRelease.source !== 'unknown'" class="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 font-medium uppercase text-[11px]">
+                  {{ activeRelease.source }}
                 </span>
                 <span class="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 font-mono">
-                  {{ recommendedRelease.formattedSize }}
+                  {{ activeRelease.formattedSize }}
                 </span>
-                <span class="px-2 py-0.5 rounded border font-medium flex items-center gap-1"
-                  :class="recommendedRelease.isLowHealth
+                <span
+                  class="px-2 py-0.5 rounded border font-medium flex items-center gap-1"
+                  :class="activeRelease.isLowHealth
                     ? 'bg-amber-950/60 border-amber-800/80 text-amber-300'
                     : 'bg-emerald-950/60 border-emerald-800/60 text-emerald-300'"
                 >
-                  <span>{{ recommendedRelease.isLowHealth ? '⚠️' : '✓' }}</span>
-                  <span>{{ recommendedRelease.seeders }} seeders</span>
+                  <span>{{ activeRelease.isLowHealth ? '⚠️' : '✓' }}</span>
+                  <span>{{ activeRelease.seeders }} seeders</span>
                 </span>
+              </div>
+            </div>
+
+            <!-- Release Candidate Explorer (Expandable Drawer) -->
+            <div
+              v-if="releaseCandidates.length > 0"
+              class="border border-zinc-800 bg-zinc-950/50 rounded-xl overflow-hidden"
+            >
+              <!-- Expand / Collapse Toggle Header -->
+              <button
+                type="button"
+                data-testid="toggle-explorer"
+                @click="isExplorerExpanded = !isExplorerExpanded"
+                class="w-full px-4 py-3 bg-zinc-900/40 hover:bg-zinc-900/80 transition flex items-center justify-between cursor-pointer text-left"
+              >
+                <div class="flex items-center gap-2.5">
+                  <span class="text-sm">🔎</span>
+                  <div>
+                    <span class="text-xs font-semibold text-white">
+                      Explore All Releases
+                    </span>
+                    <span class="ml-2 px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 text-[11px] font-mono">
+                      {{ releaseCandidates.length }} found
+                    </span>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2 text-xs text-zinc-400">
+                  <span>{{ isExplorerExpanded ? 'Hide alternatives' : 'Browse & choose alternative' }}</span>
+                  <svg
+                    class="w-4 h-4 transition-transform duration-200"
+                    :class="{ 'rotate-180': isExplorerExpanded }"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </button>
+
+              <!-- Expanded Explorer Content -->
+              <div v-if="isExplorerExpanded" data-testid="explorer-drawer" class="p-4 border-t border-zinc-800 space-y-4">
+                <!-- Toolbar: Sorting & Count -->
+                <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-zinc-800/80 text-xs">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-zinc-400 font-medium">Sort By:</span>
+                    <div class="flex flex-wrap items-center gap-1.5">
+                      <button
+                        v-for="opt in sortOptions"
+                        :key="opt.value"
+                        type="button"
+                        :data-testid="'sort-' + opt.value"
+                        @click="candidateSortBy = opt.value"
+                        class="px-2.5 py-1 rounded-md text-[11px] font-medium border transition cursor-pointer"
+                        :class="candidateSortBy === opt.value
+                          ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'"
+                      >
+                        {{ opt.label }}
+                      </button>
+                    </div>
+                  </div>
+
+                  <span class="text-zinc-500 text-[11px]">
+                    Click any release to select it
+                  </span>
+                </div>
+
+                <!-- Scrollable Candidate List -->
+                <div class="space-y-2.5 max-h-96 overflow-y-auto pr-1">
+                  <div
+                    v-for="candidate in sortedReleaseCandidates"
+                    :key="candidate.guid"
+                    :data-testid="'candidate-item-' + candidate.guid"
+                    @click="selectRelease(candidate)"
+                    class="p-3.5 rounded-lg border transition cursor-pointer flex flex-col gap-2 group"
+                    :class="selectedRelease?.guid === candidate.guid
+                      ? 'border-indigo-500 bg-indigo-950/30 ring-1 ring-indigo-500/50'
+                      : 'border-zinc-800/80 bg-zinc-900/40 hover:border-zinc-700 hover:bg-zinc-900/80'"
+                  >
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="flex-1 min-w-0">
+                        <div class="flex flex-wrap items-center gap-2 mb-1">
+                          <span
+                            v-if="candidate.guid === recommendedRelease?.guid"
+                            class="px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-700/80 text-emerald-300 text-[10px] font-bold uppercase tracking-wider"
+                          >
+                            ★ Recommended
+                          </span>
+                          <span
+                            v-if="selectedRelease?.guid === candidate.guid"
+                            class="px-2 py-0.5 rounded bg-indigo-950/80 border border-indigo-700/80 text-indigo-300 text-[10px] font-bold uppercase tracking-wider"
+                          >
+                            ✓ Selected
+                          </span>
+                          <span class="text-[11px] font-mono text-zinc-400">
+                            {{ candidate.indexer }}
+                          </span>
+                        </div>
+                        <h5
+                          class="text-xs font-mono text-zinc-200 group-hover:text-white transition break-all leading-snug"
+                          :title="candidate.title"
+                        >
+                          {{ candidate.title }}
+                        </h5>
+                      </div>
+
+                      <button
+                        type="button"
+                        class="shrink-0 px-3 py-1 rounded text-xs font-medium border transition cursor-pointer"
+                        :class="selectedRelease?.guid === candidate.guid
+                          ? 'bg-indigo-600 border-indigo-500 text-white'
+                          : 'bg-zinc-800 border-zinc-700 text-zinc-300 group-hover:bg-zinc-700 group-hover:text-white'"
+                      >
+                        {{ selectedRelease?.guid === candidate.guid ? 'Selected' : 'Choose' }}
+                      </button>
+                    </div>
+
+                    <!-- Metadata Badges -->
+                    <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
+                      <span class="px-2 py-0.5 rounded bg-zinc-800 text-emerald-300 border border-zinc-700 font-medium">
+                        {{ candidate.resolution }}
+                      </span>
+                      <span v-if="candidate.codec !== 'unknown'" class="px-2 py-0.5 rounded bg-zinc-800 text-indigo-300 border border-zinc-700 font-medium">
+                        {{ candidate.codec }}
+                      </span>
+                      <span v-if="candidate.source !== 'unknown'" class="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 uppercase">
+                        {{ candidate.source }}
+                      </span>
+                      <span class="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 font-mono">
+                        {{ candidate.formattedSize }}
+                      </span>
+                      <span
+                        class="px-2 py-0.5 rounded border font-medium flex items-center gap-1"
+                        :class="candidate.isLowHealth
+                          ? 'bg-amber-950/50 border-amber-800/60 text-amber-300'
+                          : 'bg-zinc-800 border-zinc-700 text-emerald-400'"
+                      >
+                        <span>{{ candidate.seeders }} seeders</span>
+                        <span class="text-zinc-500">•</span>
+                        <span>{{ candidate.leechers }} leechers</span>
+                      </span>
+                      <span class="px-1.5 py-0.5 rounded bg-zinc-900 text-zinc-500 font-mono text-[10px] ml-auto">
+                        Score: {{ candidate.score }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1156,6 +1335,12 @@ import { useRequestsStore, MediaType, DownloadRequest } from '../stores/requests
 import { formatMediaType, formatBytes } from '../lib/formatters';
 import { parseTorrentFile, fileToBase64, ParsedTorrentClient } from '../lib/torrentParser';
 import { cleanTorrentTitle, extractEpisodeInfo } from '../lib/torrentTitleCleaner';
+import {
+  type ReleaseCandidate,
+  type CandidateSortOption,
+  SORT_OPTIONS,
+  sortReleaseCandidates,
+} from '../lib/releaseExplorer';
 
 interface MetadataCandidate {
   id: string;
@@ -1168,21 +1353,7 @@ interface MetadataCandidate {
   englishTitle?: string | null;
 }
 
-export interface ReleaseCandidate {
-  guid: string;
-  title: string;
-  sizeBytes: number;
-  formattedSize: string;
-  seeders: number;
-  leechers: number;
-  downloadUrl: string;
-  indexer: string;
-  resolution: string;
-  codec: string;
-  source: string;
-  score: number;
-  isLowHealth: boolean;
-}
+export type { ReleaseCandidate };
 
 export interface BatchItem {
   id: string;
@@ -1205,7 +1376,29 @@ const inputMode = ref<'search' | 'magnet' | 'file'>('search');
 const magnetLink = ref('');
 const isSearchingReleases = ref(false);
 const recommendedRelease = ref<ReleaseCandidate | null>(null);
+const selectedRelease = ref<ReleaseCandidate | null>(null);
 const releaseCandidates = ref<ReleaseCandidate[]>([]);
+const isExplorerExpanded = ref(false);
+const candidateSortBy = ref<CandidateSortOption>('score');
+const sortOptions = SORT_OPTIONS;
+
+const activeRelease = computed(() => selectedRelease.value || recommendedRelease.value);
+const sortedReleaseCandidates = computed(() =>
+  sortReleaseCandidates(releaseCandidates.value, candidateSortBy.value)
+);
+
+function selectRelease(candidate: ReleaseCandidate) {
+  selectedRelease.value = candidate;
+  magnetLink.value = candidate.downloadUrl;
+}
+
+function resetToRecommendedRelease() {
+  if (recommendedRelease.value) {
+    selectedRelease.value = recommendedRelease.value;
+    magnetLink.value = recommendedRelease.value.downloadUrl;
+  }
+}
+
 const releaseSearchError = ref<string | null>(null);
 const isProwlarrConfigured = ref(true);
 const selectedFile = ref<File | null>(null);
@@ -1555,9 +1748,10 @@ async function fetchReleasesForCandidate(candidate: MetadataCandidate) {
     isProwlarrConfigured.value = data.isConfigured;
     recommendedRelease.value = data.recommended;
     releaseCandidates.value = data.candidates || [];
+    selectedRelease.value = data.recommended || (data.candidates && data.candidates[0]) || null;
 
-    if (data.recommended) {
-      magnetLink.value = data.recommended.downloadUrl;
+    if (selectedRelease.value) {
+      magnetLink.value = selectedRelease.value.downloadUrl;
     }
   } catch (err) {
     releaseSearchError.value =
@@ -1657,7 +1851,7 @@ async function handleConfirmRequest() {
         payload.torrentFileName = fileToUpload.name;
         payload.magnetLink = singleItem?.parsed?.magnetUri || magnetLink.value || undefined;
       } else if (inputMode.value === 'search') {
-        const link = recommendedRelease.value?.downloadUrl || magnetLink.value.trim();
+        const link = selectedRelease.value?.downloadUrl || recommendedRelease.value?.downloadUrl || magnetLink.value.trim();
         if (!link) throw new Error('No torrent release selected');
         payload.magnetLink = link;
       } else {
