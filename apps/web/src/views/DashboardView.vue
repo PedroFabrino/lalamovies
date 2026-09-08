@@ -52,6 +52,9 @@
         </button>
       </div>
 
+      <!-- Discovery Feed Shelf (Curated Quality Releases) -->
+      <DiscoveryFeed />
+
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 class="text-2xl font-bold tracking-tight text-white">
@@ -527,6 +530,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import Navbar from '../components/Navbar.vue';
+import DiscoveryFeed from '../components/DiscoveryFeed.vue';
 import { useAuthStore } from '../stores/auth';
 import { useRequestsStore, DownloadRequest } from '../stores/requests';
 import { api } from '../lib/api';

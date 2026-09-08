@@ -9,6 +9,7 @@ export interface MetadataCandidate {
   overview: string | null;
   romajiTitle?: string | null;
   englishTitle?: string | null;
+  rating?: number | null;
 }
 
 export class MetadataApiError extends Error {
@@ -80,6 +81,7 @@ export class MetadataService implements IMetadataService {
         first_air_date?: string;
         poster_path?: string;
         overview?: string;
+        vote_average?: number;
       }>;
     };
 
@@ -97,6 +99,10 @@ export class MetadataService implements IMetadataService {
       }
 
       const posterUrl = item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null;
+      const rating =
+        typeof item.vote_average === 'number' && item.vote_average > 0
+          ? Math.round(item.vote_average * 10) / 10
+          : null;
 
       return {
         id: String(item.id),
@@ -107,6 +113,7 @@ export class MetadataService implements IMetadataService {
         overview: item.overview || null,
         romajiTitle: item.original_name || item.original_title || null,
         englishTitle: item.name || item.title || null,
+        rating,
       };
     });
   }
@@ -130,6 +137,7 @@ export class MetadataService implements IMetadataService {
               medium
             }
             description
+            averageScore
           }
         }
       }
@@ -174,6 +182,7 @@ export class MetadataService implements IMetadataService {
               medium?: string;
             };
             description?: string;
+            averageScore?: number;
           }>;
         };
       };
@@ -196,6 +205,10 @@ export class MetadataService implements IMetadataService {
         // Strip HTML tags commonly returned by AniList
         overview = overview.replace(/<[^>]*>/g, '').trim();
       }
+      const rating =
+        typeof item.averageScore === 'number' && item.averageScore > 0
+          ? Math.round((item.averageScore / 10) * 10) / 10
+          : null;
 
       return {
         id: String(item.id),
@@ -206,6 +219,7 @@ export class MetadataService implements IMetadataService {
         overview,
         romajiTitle: item.title?.romaji || null,
         englishTitle: item.title?.english || null,
+        rating,
       };
     });
   }

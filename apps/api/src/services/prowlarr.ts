@@ -53,6 +53,10 @@ export interface IProwlarrService {
   ): { score: number; isLowHealth: boolean };
   searchMovieReleases(title: string, year?: number | null): Promise<SearchReleasesResult>;
   searchReleases(options: SearchReleasesOptions): Promise<SearchReleasesResult>;
+  searchLatestByCategory(
+    categories: number[],
+    scoreOptions?: ScoreOptions
+  ): Promise<{ candidates: ReleaseCandidate[]; isReachable: boolean; error?: string }>;
 }
 
 export function formatBytes(bytes: number): string {
@@ -226,9 +230,10 @@ export class ProwlarrService implements IProwlarrService {
     categories: number[],
     scoreOptions: ScoreOptions
   ): Promise<{ candidates: ReleaseCandidate[]; isReachable: boolean; error?: string }> {
+    const catParams = categories.map((c) => `categories=${encodeURIComponent(c)}`).join('&');
     const endpointUrl = `${this.prowlarrUrl}/api/v1/search?query=${encodeURIComponent(
       query
-    )}&type=search&categories=${categories.join(',')}`;
+    )}&type=search&${catParams}`;
 
     let response: Response;
     try {
@@ -436,5 +441,15 @@ export class ProwlarrService implements IProwlarrService {
       hasHealthyReleases,
       error: searchError,
     };
+  }
+
+  async searchLatestByCategory(
+    categories: number[],
+    scoreOptions?: ScoreOptions
+  ): Promise<{ candidates: ReleaseCandidate[]; isReachable: boolean; error?: string }> {
+    if (!this.isConfigured()) {
+      return { candidates: [], isReachable: false, error: 'Prowlarr is not configured with an API key' };
+    }
+    return this.executeSearch('', categories, scoreOptions || {});
   }
 }

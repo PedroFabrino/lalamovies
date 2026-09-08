@@ -368,7 +368,7 @@ describe('Prowlarr Service - Unit Tests', () => {
         episodeNumber: 1,
       });
 
-      expect(capturedUrl).toContain('categories=5070,2070');
+      expect(capturedUrl).toContain('categories=5070&categories=2070');
       expect(capturedUrl).toContain(encodeURIComponent('Sousou no Frieren - 01'));
       expect(result.totalFound).toBe(3);
       expect(result.recommended?.title).toBe('[SubsPlease] Sousou no Frieren - 01 (1080p)');

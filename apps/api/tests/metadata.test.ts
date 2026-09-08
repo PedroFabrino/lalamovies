@@ -196,6 +196,7 @@ describe('Metadata Service - Unit Tests', () => {
         overview: 'Several hundred years ago, humans were nearly exterminated by Titans.Now...',
         romajiTitle: 'Shingeki no Kyojin',
         englishTitle: 'Attack on Titan',
+        rating: null,
       });
     });
   });

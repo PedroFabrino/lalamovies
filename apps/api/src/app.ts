@@ -13,12 +13,14 @@ import { ICleanupService, CleanupService } from './services/cleanup';
 import { INotificationService, NotificationService } from './services/notifications';
 import { IFileSystemService, FileSystemService } from './services/fileSystem';
 import { IProwlarrService, ProwlarrService } from './services/prowlarr';
+import { IDiscoveryService, DiscoveryService } from './services/discovery';
 import { DownloadPoller } from './jobs/downloadPoller';
 import { CleanupCron } from './jobs/cleanupCron';
 import { authRoutes } from './routes/auth';
 import { inviteRoutes } from './routes/invites';
 import { requestRoutes } from './routes/requests';
 import { adminRoutes } from './routes/admin';
+import { discoveryRoutes } from './routes/discovery';
 import { wsRoutes, BroadcastFunction } from './routes/ws';
 
 export interface AppOptions {
@@ -31,6 +33,7 @@ export interface AppOptions {
   notificationService?: INotificationService;
   fileSystemService?: IFileSystemService;
   prowlarrService?: IProwlarrService;
+  discoveryService?: IDiscoveryService;
   downloadPoller?: DownloadPoller;
   cleanupCron?: CleanupCron;
   startPoller?: boolean;
@@ -50,6 +53,7 @@ declare module 'fastify' {
     cleanupCron: CleanupCron;
     fileSystem: IFileSystemService;
     prowlarr: IProwlarrService;
+    discovery: IDiscoveryService;
     poller: DownloadPoller;
     broadcast: BroadcastFunction;
   }
@@ -88,6 +92,20 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     );
   const metadata = options.metadataService ?? new MetadataService();
   const prowlarr = options.prowlarrService ?? new ProwlarrService();
+  const discovery =
+    options.discoveryService ??
+    new DiscoveryService({
+      prowlarr,
+      metadata,
+      getTmdbApiKey: () => {
+        const row = db
+          .select()
+          .from(systemConfig)
+          .where(eq(systemConfig.key, 'tmdb_api_key'))
+          .get();
+        return row?.value || process.env.TMDB_API_KEY || undefined;
+      },
+    });
 
   const poller =
     options.downloadPoller ??
@@ -136,6 +154,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.decorate('cleanupCron', cleanupCron);
   app.decorate('fileSystem', fileSystem);
   app.decorate('prowlarr', prowlarr);
+  app.decorate('discovery', discovery);
   app.decorate('poller', poller);
 
   app.addHook('onClose', async () => {
@@ -171,6 +190,8 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.register(requestRoutes, { prefix: '/requests' });
   app.register(requestRoutes, { prefix: '/api/requests' });
   app.register(adminRoutes, { prefix: '/admin' });
+  app.register(discoveryRoutes, { prefix: '/discovery' });
+  app.register(discoveryRoutes, { prefix: '/api/discovery' });
   app.register(wsRoutes);
 
   return app;
