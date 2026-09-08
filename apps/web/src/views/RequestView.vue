@@ -1777,6 +1777,28 @@ function initFastTrackFromRoute(): boolean {
 onMounted(async () => {
   const isFastTrack = initFastTrackFromRoute();
 
+  if (isFastTrack && selectedCandidate.value && (!selectedCandidate.value.posterUrl || !selectedCandidate.value.overview)) {
+    api.post<{ candidates: MetadataCandidate[] }>('/requests/search-metadata', {
+      mediaType: mediaType.value,
+      query: selectedCandidate.value.title,
+    }).then((res) => {
+      if (res.candidates && res.candidates.length > 0) {
+        const match = res.candidates.find((c) => String(c.id) === String(selectedCandidate.value?.id)) || res.candidates[0];
+        if (match && selectedCandidate.value) {
+          if (!selectedCandidate.value.posterUrl && match.posterUrl) {
+            selectedCandidate.value.posterUrl = match.posterUrl;
+          }
+          if (!selectedCandidate.value.overview && match.overview) {
+            selectedCandidate.value.overview = match.overview;
+          }
+          if (!selectedCandidate.value.year && match.year) {
+            selectedCandidate.value.year = match.year;
+          }
+        }
+      }
+    }).catch(() => {});
+  }
+
   try {
     const status = await api.get<{ isConfigured: boolean; isReachable: boolean }>('/requests/prowlarr-status');
     isProwlarrConfigured.value = status.isConfigured;

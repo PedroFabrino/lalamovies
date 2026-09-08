@@ -168,4 +168,76 @@ describe('RequestView - Fast-Track Deep-Linking to Step 3', () => {
     expect(wrapper.text()).toContain('Find Matches & Continue');
     expect(wrapper.text()).not.toContain('Confirm Download Request');
   });
+
+  it('displays poster and overview passed via query parameters', async () => {
+    mockRoute.query = {
+      title: 'Dune: Part Two',
+      metadataId: '693134',
+      metadataSource: 'tmdb',
+      mediaType: 'movie',
+      year: '2024',
+      downloadUrl: 'magnet:?xt=urn:btih:mockdunehash',
+      releaseTitle: 'Dune.Part.Two.2024.1080p.WEB-DL',
+      resolution: '1080p',
+      seeders: '50',
+      indexer: 'TorrentGalaxy',
+      sizeBytes: '4000000000',
+      posterUrl: 'https://image.tmdb.org/t/p/w500/dune2.jpg',
+      overview: 'Paul Atreides unites with Chani and the Fremen while seeking revenge.',
+    };
+
+    const wrapper = mount(RequestView);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Confirm Download Request');
+    expect(wrapper.text()).toContain('Dune: Part Two');
+    expect(wrapper.text()).toContain('Paul Atreides unites with Chani and the Fremen while seeking revenge.');
+    const img = wrapper.find('img');
+    expect(img.exists()).toBe(true);
+    expect(img.attributes('src')).toBe('https://image.tmdb.org/t/p/w500/dune2.jpg');
+  });
+
+  it('enriches missing poster and overview via search-metadata when missing from route', async () => {
+    mockRoute.query = {
+      title: 'Compression',
+      metadataId: '73529',
+      metadataSource: 'tmdb',
+      mediaType: 'movie',
+      year: '2024',
+      downloadUrl: 'magnet:?xt=urn:btih:mockcompressionhash',
+      releaseTitle: 'Compression (2024) 1080p WEBRip x264 -YTS',
+      resolution: '1080p',
+      seeders: '98',
+      indexer: 'YTS',
+      sizeBytes: '2100000000',
+      // posterUrl and overview omitted!
+    };
+
+    vi.mocked(api.post).mockImplementation(async (endpoint: string) => {
+      if (endpoint === '/requests/search-metadata') {
+        return {
+          candidates: [
+            {
+              id: '73529',
+              source: 'tmdb',
+              title: 'Compression',
+              year: 2024,
+              posterUrl: 'https://image.tmdb.org/t/p/w500/compression_poster.jpg',
+              overview: 'A high-intensity thriller about time and pressure.',
+            },
+          ],
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const wrapper = mount(RequestView);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Confirm Download Request');
+    expect(wrapper.text()).toContain('A high-intensity thriller about time and pressure.');
+    const img = wrapper.find('img');
+    expect(img.exists()).toBe(true);
+    expect(img.attributes('src')).toBe('https://image.tmdb.org/t/p/w500/compression_poster.jpg');
+  });
 });
