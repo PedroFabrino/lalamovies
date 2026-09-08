@@ -95,6 +95,32 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
   // All /requests routes require authentication
   app.addHook('preHandler', authMiddleware);
 
+  // GET /requests/prowlarr-status
+  app.get('/prowlarr-status', async (request, reply) => {
+    const isConfigured = app.prowlarr.isConfigured();
+    if (!isConfigured) {
+      return reply.status(503).send({
+        isConfigured: false,
+        isReachable: false,
+        message: 'Prowlarr is not configured with an API key',
+      });
+    }
+
+    const isReachable = await app.prowlarr.checkHealth();
+    if (!isReachable) {
+      return reply.status(503).send({
+        isConfigured: true,
+        isReachable: false,
+        message: 'Prowlarr service is unreachable',
+      });
+    }
+
+    return reply.send({
+      isConfigured: true,
+      isReachable: true,
+    });
+  });
+
   // POST /requests/search-releases
   app.post('/search-releases', async (request, reply) => {
     const parseResult = searchReleasesSchema.safeParse(request.body);
@@ -117,6 +143,11 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         romajiTitle,
         englishTitle,
       });
+
+      if (!result.isConfigured || !result.isReachable) {
+        return reply.status(503).send(result);
+      }
+
       return reply.send(result);
     } catch (err) {
       request.log.error(err, 'Failed to search torrent releases via Prowlarr');

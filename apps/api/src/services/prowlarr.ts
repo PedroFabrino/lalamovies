@@ -23,6 +23,9 @@ export interface SearchReleasesResult {
   candidates: ReleaseCandidate[];
   totalFound: number;
   isConfigured: boolean;
+  isReachable: boolean;
+  hasHealthyReleases: boolean;
+  error?: string;
 }
 
 export interface SearchReleasesOptions {
@@ -42,6 +45,7 @@ export interface ScoreOptions {
 
 export interface IProwlarrService {
   isConfigured(): boolean;
+  checkHealth(): Promise<boolean>;
   parseReleaseTitle(title: string): { resolution: Resolution; codec: VideoCodec; source: ReleaseSource };
   scoreRelease(
     candidate: Omit<ReleaseCandidate, 'score' | 'isLowHealth'>,
@@ -70,6 +74,21 @@ export class ProwlarrService implements IProwlarrService {
 
   isConfigured(): boolean {
     return Boolean(this.apiKey && this.apiKey.trim().length > 0);
+  }
+
+  async checkHealth(): Promise<boolean> {
+    if (!this.isConfigured()) return false;
+    try {
+      const res = await fetch(`${this.prowlarrUrl}/api/v1/health`, {
+        headers: {
+          'X-Api-Key': this.apiKey,
+          Accept: 'application/json',
+        },
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
   }
 
   parseReleaseTitle(title: string): { resolution: Resolution; codec: VideoCodec; source: ReleaseSource } {
@@ -202,7 +221,11 @@ export class ProwlarrService implements IProwlarrService {
     return { score, isLowHealth };
   }
 
-  private async executeSearch(query: string, categories: number[], scoreOptions: ScoreOptions): Promise<ReleaseCandidate[]> {
+  private async executeSearch(
+    query: string,
+    categories: number[],
+    scoreOptions: ScoreOptions
+  ): Promise<{ candidates: ReleaseCandidate[]; isReachable: boolean; error?: string }> {
     const endpointUrl = `${this.prowlarrUrl}/api/v1/search?query=${encodeURIComponent(
       query
     )}&type=search&categories=${categories.join(',')}`;
@@ -216,11 +239,18 @@ export class ProwlarrService implements IProwlarrService {
         },
       });
     } catch {
-      return [];
+      return { candidates: [], isReachable: false, error: `Unable to connect to Prowlarr at ${this.prowlarrUrl}` };
     }
 
     if (!response.ok) {
-      return [];
+      const isAuthError = response.status === 401 || response.status === 403;
+      return {
+        candidates: [],
+        isReachable: !isAuthError,
+        error: isAuthError
+          ? 'Prowlarr authentication failed (invalid API key)'
+          : `Prowlarr returned HTTP ${response.status}`,
+      };
     }
 
     const rawData = (await response.json()) as Array<{
@@ -286,7 +316,7 @@ export class ProwlarrService implements IProwlarrService {
       });
     }
 
-    return candidates;
+    return { candidates, isReachable: true };
   }
 
   async searchMovieReleases(title: string, year?: number | null): Promise<SearchReleasesResult> {
@@ -304,6 +334,9 @@ export class ProwlarrService implements IProwlarrService {
         candidates: [],
         totalFound: 0,
         isConfigured: false,
+        isReachable: false,
+        hasHealthyReleases: false,
+        error: 'Prowlarr is not configured with an API key',
       };
     }
 
@@ -312,6 +345,8 @@ export class ProwlarrService implements IProwlarrService {
     const scoreOptions: ScoreOptions = { mediaType, isSingleEpisode };
 
     let candidates: ReleaseCandidate[] = [];
+    let isReachable = true;
+    let searchError: string | undefined;
 
     if (mediaType === 'movie') {
       const queryParts = [title.trim()];
@@ -319,7 +354,10 @@ export class ProwlarrService implements IProwlarrService {
         queryParts.push(String(year));
       }
       const query = queryParts.join(' ');
-      candidates = await this.executeSearch(query, [2000], scoreOptions);
+      const searchRes = await this.executeSearch(query, [2000], scoreOptions);
+      candidates = searchRes.candidates;
+      isReachable = searchRes.isReachable;
+      searchError = searchRes.error;
     } else if (mediaType === 'tv_show') {
       const sNum = seasonNumber && seasonNumber > 0 ? seasonNumber : 1;
       const sPad = String(sNum).padStart(2, '0');
@@ -332,7 +370,10 @@ export class ProwlarrService implements IProwlarrService {
         query = `${title.trim()} S${sPad}`;
       }
 
-      candidates = await this.executeSearch(query, [5000], scoreOptions);
+      const searchRes = await this.executeSearch(query, [5000], scoreOptions);
+      candidates = searchRes.candidates;
+      isReachable = searchRes.isReachable;
+      searchError = searchRes.error;
     } else if (mediaType === 'anime') {
       const animeCategories = [5070, 2070];
       const primaryTitle = (romajiTitle && romajiTitle.trim().length > 0 ? romajiTitle.trim() : title.trim());
@@ -348,7 +389,10 @@ export class ProwlarrService implements IProwlarrService {
         primaryQuery = primaryTitle;
       }
 
-      candidates = await this.executeSearch(primaryQuery, animeCategories, scoreOptions);
+      const searchRes = await this.executeSearch(primaryQuery, animeCategories, scoreOptions);
+      candidates = searchRes.candidates;
+      isReachable = searchRes.isReachable;
+      searchError = searchRes.error;
 
       // Fallback to English title if fewer than 3 candidates found and English title is different
       const altTitle = englishTitle && englishTitle.trim();
@@ -364,9 +408,9 @@ export class ProwlarrService implements IProwlarrService {
           altQuery = altTitle;
         }
 
-        const fallbackCandidates = await this.executeSearch(altQuery, animeCategories, scoreOptions);
+        const fallbackRes = await this.executeSearch(altQuery, animeCategories, scoreOptions);
         const existingGuids = new Set(candidates.map((c) => c.guid || c.downloadUrl));
-        for (const fb of fallbackCandidates) {
+        for (const fb of fallbackRes.candidates) {
           const key = fb.guid || fb.downloadUrl;
           if (!existingGuids.has(key)) {
             candidates.push(fb);
@@ -381,12 +425,16 @@ export class ProwlarrService implements IProwlarrService {
 
     // Recommended release must be healthy (seeders >= 5) and score > 0
     const recommended = candidates.find((c) => !c.isLowHealth && c.score > 0) || null;
+    const hasHealthyReleases = candidates.some((c) => !c.isLowHealth && c.score > 0);
 
     return {
       recommended,
       candidates,
       totalFound: candidates.length,
       isConfigured: true,
+      isReachable,
+      hasHealthyReleases,
+      error: searchError,
     };
   }
 }

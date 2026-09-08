@@ -27,6 +27,37 @@ describe('Prowlarr Service - Unit Tests', () => {
     });
   });
 
+  describe('checkHealth', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('returns false immediately when apiKey is not configured', async () => {
+      const service = new ProwlarrService('http://localhost:9696', '');
+      const isHealthy = await service.checkHealth();
+      expect(isHealthy).toBe(false);
+    });
+
+    it('returns true when ping endpoint returns 200 ok', async () => {
+      const service = new ProwlarrService('http://localhost:9696', 'valid-key');
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+      } as Response);
+
+      const isHealthy = await service.checkHealth();
+      expect(isHealthy).toBe(true);
+    });
+
+    it('returns false when ping endpoint returns non-200 or throws', async () => {
+      const service = new ProwlarrService('http://localhost:9696', 'valid-key');
+      vi.spyOn(global, 'fetch').mockRejectedValueOnce(new Error('Network error'));
+
+      const isHealthy = await service.checkHealth();
+      expect(isHealthy).toBe(false);
+    });
+  });
+
   describe('parseReleaseTitle', () => {
     const service = new ProwlarrService('http://localhost:9696', 'test-key');
 
@@ -513,10 +544,13 @@ describe('POST /requests/search-releases - Route Tests', () => {
       candidates: [],
       totalFound: 1,
       isConfigured: true,
+      isReachable: true,
+      hasHealthyReleases: true,
     };
 
     const mockProwlarr: IProwlarrService = {
       isConfigured: () => true,
+      checkHealth: vi.fn().mockResolvedValue(true),
       parseReleaseTitle: vi.fn(),
       scoreRelease: vi.fn(),
       searchMovieReleases: vi.fn().mockResolvedValue(mockResult),
@@ -564,6 +598,7 @@ describe('POST /requests/search-releases - Route Tests', () => {
   it('handles TV show and Anime search-releases requests', async () => {
     const mockProwlarr: IProwlarrService = {
       isConfigured: () => true,
+      checkHealth: vi.fn().mockResolvedValue(true),
       parseReleaseTitle: vi.fn(),
       scoreRelease: vi.fn(),
       searchMovieReleases: vi.fn(),
@@ -586,6 +621,8 @@ describe('POST /requests/search-releases - Route Tests', () => {
         candidates: [],
         totalFound: 1,
         isConfigured: true,
+        isReachable: true,
+        hasHealthyReleases: true,
       }),
     };
 
@@ -629,5 +666,251 @@ describe('POST /requests/search-releases - Route Tests', () => {
     );
 
     await testApp.close();
+  });
+
+  describe('GET /requests/prowlarr-status', () => {
+    it('returns 200 when Prowlarr is configured and reachable', async () => {
+      const mockProwlarr: IProwlarrService = {
+        isConfigured: () => true,
+        checkHealth: vi.fn().mockResolvedValue(true),
+        parseReleaseTitle: vi.fn(),
+        scoreRelease: vi.fn(),
+        searchMovieReleases: vi.fn(),
+        searchReleases: vi.fn(),
+      };
+
+      const testApp = buildApp({
+        dbPath: ':memory:',
+        jellyfinService: new DummyJellyfinService(),
+        prowlarrService: mockProwlarr,
+        jwtSecret: 'test-jwt-secret-key-32-characters-minimum',
+      });
+      await testApp.ready();
+
+      const loginRes = await testApp.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { username: 'testuser', password: 'password123' },
+      });
+      const cookie = loginRes.cookies[0].value;
+
+      const res = await testApp.inject({
+        method: 'GET',
+        url: '/requests/prowlarr-status',
+        cookies: { token: cookie },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.isConfigured).toBe(true);
+      expect(body.isReachable).toBe(true);
+
+      await testApp.close();
+    });
+
+    it('returns 503 when Prowlarr is not configured', async () => {
+      const mockProwlarr: IProwlarrService = {
+        isConfigured: () => false,
+        checkHealth: vi.fn().mockResolvedValue(false),
+        parseReleaseTitle: vi.fn(),
+        scoreRelease: vi.fn(),
+        searchMovieReleases: vi.fn(),
+        searchReleases: vi.fn(),
+      };
+
+      const testApp = buildApp({
+        dbPath: ':memory:',
+        jellyfinService: new DummyJellyfinService(),
+        prowlarrService: mockProwlarr,
+        jwtSecret: 'test-jwt-secret-key-32-characters-minimum',
+      });
+      await testApp.ready();
+
+      const loginRes = await testApp.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { username: 'testuser', password: 'password123' },
+      });
+      const cookie = loginRes.cookies[0].value;
+
+      const res = await testApp.inject({
+        method: 'GET',
+        url: '/requests/prowlarr-status',
+        cookies: { token: cookie },
+      });
+
+      expect(res.statusCode).toBe(503);
+      const body = JSON.parse(res.body);
+      expect(body.isConfigured).toBe(false);
+      expect(body.isReachable).toBe(false);
+
+      await testApp.close();
+    });
+
+    it('returns 503 when Prowlarr is unreachable', async () => {
+      const mockProwlarr: IProwlarrService = {
+        isConfigured: () => true,
+        checkHealth: vi.fn().mockResolvedValue(false),
+        parseReleaseTitle: vi.fn(),
+        scoreRelease: vi.fn(),
+        searchMovieReleases: vi.fn(),
+        searchReleases: vi.fn(),
+      };
+
+      const testApp = buildApp({
+        dbPath: ':memory:',
+        jellyfinService: new DummyJellyfinService(),
+        prowlarrService: mockProwlarr,
+        jwtSecret: 'test-jwt-secret-key-32-characters-minimum',
+      });
+      await testApp.ready();
+
+      const loginRes = await testApp.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { username: 'testuser', password: 'password123' },
+      });
+      const cookie = loginRes.cookies[0].value;
+
+      const res = await testApp.inject({
+        method: 'GET',
+        url: '/requests/prowlarr-status',
+        cookies: { token: cookie },
+      });
+
+      expect(res.statusCode).toBe(503);
+      const body = JSON.parse(res.body);
+      expect(body.isConfigured).toBe(true);
+      expect(body.isReachable).toBe(false);
+
+      await testApp.close();
+    });
+  });
+
+  describe('Graceful degradation in POST /requests/search-releases', () => {
+    it('returns 503 structured response when Prowlarr is unreachable', async () => {
+      const mockProwlarr: IProwlarrService = {
+        isConfigured: () => true,
+        checkHealth: vi.fn().mockResolvedValue(false),
+        parseReleaseTitle: vi.fn(),
+        scoreRelease: vi.fn(),
+        searchMovieReleases: vi.fn(),
+        searchReleases: vi.fn().mockResolvedValue({
+          recommended: null,
+          candidates: [],
+          totalFound: 0,
+          isConfigured: true,
+          isReachable: false,
+          hasHealthyReleases: false,
+          error: 'Unable to connect to Prowlarr at http://localhost:9696',
+        }),
+      };
+
+      const testApp = buildApp({
+        dbPath: ':memory:',
+        jellyfinService: new DummyJellyfinService(),
+        prowlarrService: mockProwlarr,
+        jwtSecret: 'test-jwt-secret-key-32-characters-minimum',
+      });
+      await testApp.ready();
+
+      const loginRes = await testApp.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { username: 'testuser', password: 'password123' },
+      });
+      const cookie = loginRes.cookies[0].value;
+
+      const res = await testApp.inject({
+        method: 'POST',
+        url: '/requests/search-releases',
+        cookies: { token: cookie },
+        payload: {
+          metadataId: '27205',
+          metadataSource: 'tmdb',
+          mediaType: 'movie',
+          title: 'Inception',
+        },
+      });
+
+      expect(res.statusCode).toBe(503);
+      const body = JSON.parse(res.body);
+      expect(body.isReachable).toBe(false);
+      expect(body.isConfigured).toBe(true);
+      expect(body.hasHealthyReleases).toBe(false);
+
+      await testApp.close();
+    });
+
+    it('returns 200 with recommended: null and hasHealthyReleases: false when all releases are low health', async () => {
+      const mockProwlarr: IProwlarrService = {
+        isConfigured: () => true,
+        checkHealth: vi.fn().mockResolvedValue(true),
+        parseReleaseTitle: vi.fn(),
+        scoreRelease: vi.fn(),
+        searchMovieReleases: vi.fn(),
+        searchReleases: vi.fn().mockResolvedValue({
+          recommended: null,
+          candidates: [
+            {
+              guid: 'c-low',
+              title: 'Rare.Movie.1080p',
+              sizeBytes: 1024 * 1024 * 1024,
+              formattedSize: '1.0 GB',
+              seeders: 2,
+              leechers: 0,
+              downloadUrl: 'magnet:?xt=urn:btih:rare',
+              indexer: '1337x',
+              resolution: '1080p',
+              codec: 'x264',
+              source: 'web',
+              score: 50,
+              isLowHealth: true,
+            },
+          ],
+          totalFound: 1,
+          isConfigured: true,
+          isReachable: true,
+          hasHealthyReleases: false,
+        }),
+      };
+
+      const testApp = buildApp({
+        dbPath: ':memory:',
+        jellyfinService: new DummyJellyfinService(),
+        prowlarrService: mockProwlarr,
+        jwtSecret: 'test-jwt-secret-key-32-characters-minimum',
+      });
+      await testApp.ready();
+
+      const loginRes = await testApp.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { username: 'testuser', password: 'password123' },
+      });
+      const cookie = loginRes.cookies[0].value;
+
+      const res = await testApp.inject({
+        method: 'POST',
+        url: '/requests/search-releases',
+        cookies: { token: cookie },
+        payload: {
+          metadataId: '999',
+          metadataSource: 'tmdb',
+          mediaType: 'movie',
+          title: 'Rare Movie',
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.isConfigured).toBe(true);
+      expect(body.isReachable).toBe(true);
+      expect(body.recommended).toBeNull();
+      expect(body.hasHealthyReleases).toBe(false);
+      expect(body.candidates[0].isLowHealth).toBe(true);
+
+      await testApp.close();
+    });
   });
 });

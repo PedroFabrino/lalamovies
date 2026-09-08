@@ -135,6 +135,24 @@
           <span>{{ step1Error }}</span>
         </div>
 
+        <!-- Prowlarr Offline / Not Configured Warning Banner -->
+        <div
+          v-if="!isProwlarrConfigured || !isProwlarrReachable"
+          class="mb-6 p-4 bg-amber-950/40 border border-amber-800/60 rounded-xl text-amber-200 text-xs flex items-start gap-3"
+        >
+          <span class="text-base shrink-0">⚠️</span>
+          <div>
+            <div class="font-semibold text-amber-300">
+              {{ !isProwlarrConfigured ? 'Automatic Torrent Search Not Configured' : 'Automatic Torrent Search Service Offline' }}
+            </div>
+            <div class="mt-0.5 text-amber-300/80 leading-relaxed">
+              {{ !isProwlarrConfigured
+                ? 'Prowlarr API key is not configured. Defaulted to manual Magnet Link / Torrent File upload.'
+                : 'Prowlarr indexer proxy is currently unreachable. Defaulted to manual Magnet Link / Torrent File upload.' }}
+            </div>
+          </div>
+        </div>
+
         <!-- Input Mode Switcher Tabs -->
         <div class="flex items-center gap-1.5 p-1 bg-zinc-950 border border-zinc-800 rounded-lg max-w-sm mb-6">
           <button
@@ -1032,9 +1050,125 @@
               <p class="text-xs text-zinc-500 mt-1">Ranking 1080p releases, health, and file sizes via Prowlarr</p>
             </div>
 
+            <!-- In-Place Manual Fallback Card (when isManualFallbackInStep3 is true) -->
+            <div
+              v-if="isManualFallbackInStep3"
+              data-testid="step3-manual-fallback"
+              class="p-5 border border-indigo-500/40 rounded-xl bg-zinc-950/80 space-y-4"
+            >
+              <div class="flex items-center justify-between">
+                <div>
+                  <h4 class="text-sm font-semibold text-white flex items-center gap-2">
+                    <span>⚡ Manual Upload Fallback</span>
+                    <span class="text-[11px] font-normal text-emerald-400 bg-emerald-950/80 border border-emerald-800/80 px-2 py-0.5 rounded">
+                      Metadata Preserved
+                    </span>
+                  </h4>
+                  <p class="text-xs text-zinc-400 mt-0.5">
+                    Attach a magnet link or .torrent file for <strong>{{ selectedCandidate?.title }}</strong>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  data-testid="cancel-manual-fallback"
+                  @click="isManualFallbackInStep3 = false"
+                  class="text-xs text-zinc-400 hover:text-white underline cursor-pointer"
+                >
+                  Back to Releases
+                </button>
+              </div>
+
+              <!-- Fallback mode tabs: magnet or file -->
+              <div class="flex gap-2 border-b border-zinc-800 pb-2">
+                <button
+                  type="button"
+                  data-testid="fallback-tab-magnet"
+                  @click="manualFallbackMode = 'magnet'"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer"
+                  :class="manualFallbackMode === 'magnet' ? 'bg-indigo-600 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200'"
+                >
+                  🧲 Magnet Link
+                </button>
+                <button
+                  type="button"
+                  data-testid="fallback-tab-file"
+                  @click="manualFallbackMode = 'file'"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer"
+                  :class="manualFallbackMode === 'file' ? 'bg-indigo-600 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200'"
+                >
+                  📁 Torrent File
+                </button>
+              </div>
+
+              <!-- Magnet Input -->
+              <div v-if="manualFallbackMode === 'magnet'" class="space-y-2">
+                <label class="block text-xs font-medium text-zinc-300">Paste Magnet Link</label>
+                <input
+                  v-model="fallbackMagnetLink"
+                  data-testid="step3-fallback-magnet-input"
+                  type="text"
+                  placeholder="magnet:?xt=urn:btih:..."
+                  class="w-full px-3.5 py-2.5 rounded-lg bg-zinc-900/80 border border-zinc-700 text-white placeholder-zinc-500 font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+
+              <!-- File Input -->
+              <div v-else class="space-y-2">
+                <label class="block text-xs font-medium text-zinc-300">Upload .torrent File</label>
+                <input
+                  type="file"
+                  data-testid="step3-fallback-file-input"
+                  accept=".torrent"
+                  @change="handleFallbackFileChange"
+                  class="block w-full text-xs text-zinc-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer"
+                />
+                <p v-if="fallbackFile" class="text-xs text-emerald-400 font-mono mt-1">
+                  ✓ Selected: {{ fallbackFile.name }} ({{ formatBytes(fallbackFile.size) }})
+                </p>
+              </div>
+            </div>
+
+            <!-- Low-Health Warning Alert (When releases exist, but none reach threshold and no release selected yet) -->
+            <div
+              v-else-if="!hasHealthyReleases && releaseCandidates.length > 0 && !selectedRelease"
+              data-testid="low-health-warning"
+              class="p-5 border border-amber-800/80 bg-amber-950/30 rounded-xl space-y-3"
+            >
+              <div class="flex items-start gap-3">
+                <span class="text-xl">⚠️</span>
+                <div class="flex-1 min-w-0">
+                  <h4 class="text-sm font-semibold text-amber-200">
+                    No Healthy Releases Found (All &lt; 5 seeders)
+                  </h4>
+                  <p class="text-xs text-amber-300/80 mt-1">
+                    Found {{ releaseCandidates.length }} release(s), but none have sufficient seeders. Downloading sub-threshold torrents may stall or take days.
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  data-testid="switch-to-manual-upload-lowhealth"
+                  @click="switchToManualUpload"
+                  class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  <span>⚡ Switch to Manual Upload</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="toggle-low-health-anyway"
+                  @click="showLowHealthAnyway = !showLowHealthAnyway"
+                  class="px-3 py-1.5 bg-zinc-900/80 hover:bg-zinc-800 border border-amber-700/60 text-amber-200 rounded-lg text-xs font-medium transition cursor-pointer"
+                >
+                  {{ showLowHealthAnyway ? 'Hide low-health releases' : 'Show low-health releases anyway' }}
+                </button>
+              </div>
+            </div>
+
             <!-- Active Selected Release Card -->
             <div
-              v-else-if="activeRelease"
+              v-if="!isManualFallbackInStep3 && activeRelease"
               class="p-5 border rounded-xl space-y-3 transition"
               :class="activeRelease.guid === recommendedRelease?.guid
                 ? 'border-indigo-500/50 bg-indigo-950/20'
@@ -1106,7 +1240,7 @@
 
             <!-- Release Candidate Explorer (Expandable Drawer) -->
             <div
-              v-if="releaseCandidates.length > 0"
+              v-if="!isManualFallbackInStep3 && releaseCandidates.length > 0 && (hasHealthyReleases || showLowHealthAnyway || selectedRelease)"
               class="border border-zinc-800 bg-zinc-950/50 rounded-xl overflow-hidden"
             >
               <!-- Expand / Collapse Toggle Header -->
@@ -1253,16 +1387,55 @@
               </div>
             </div>
 
-            <!-- Prowlarr not configured -->
-            <div v-else-if="!isProwlarrConfigured" class="p-4 border border-amber-800/60 bg-amber-950/30 rounded-xl text-amber-200 text-sm">
-              <p class="font-medium">Prowlarr is not configured.</p>
-              <p class="text-xs text-amber-300/80 mt-1">Please set PROWLARR_API_KEY or switch to the Magnet Link tab to enter a link manually.</p>
+            <!-- Prowlarr not configured or unreachable -->
+            <div
+              v-else-if="!isManualFallbackInStep3 && (!isProwlarrConfigured || !isProwlarrReachable)"
+              data-testid="prowlarr-offline-alert"
+              class="p-5 border border-amber-800/60 bg-amber-950/30 rounded-xl space-y-3"
+            >
+              <div class="flex items-start gap-3">
+                <span class="text-xl">⚠️</span>
+                <div>
+                  <h4 class="text-sm font-semibold text-amber-200">
+                    {{ !isProwlarrConfigured ? 'Prowlarr is not configured' : 'Prowlarr is unreachable' }}
+                  </h4>
+                  <p class="text-xs text-amber-300/80 mt-1">
+                    {{ !isProwlarrConfigured
+                      ? 'Please set PROWLARR_API_KEY on the server to enable automated release search.'
+                      : 'Unable to connect to the Prowlarr indexer server. You can still supply a magnet link or .torrent file manually.' }}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                data-testid="switch-to-manual-upload-offline"
+                @click="switchToManualUpload"
+                class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <span>⚡ Switch to Manual Upload</span>
+              </button>
             </div>
 
             <!-- No releases found -->
-            <div v-else class="p-4 border border-zinc-800 bg-zinc-950/60 rounded-xl text-zinc-400 text-sm">
-              <p class="font-medium text-zinc-200">No healthy release found automatically.</p>
-              <p class="text-xs text-zinc-400 mt-1">Try switching to the Magnet Link tab to paste a link directly.</p>
+            <div
+              v-else-if="!isManualFallbackInStep3 && releaseCandidates.length === 0"
+              data-testid="no-releases-alert"
+              class="p-5 border border-zinc-800 bg-zinc-950/60 rounded-xl space-y-3"
+            >
+              <div>
+                <h4 class="text-sm font-semibold text-zinc-200">No releases found automatically</h4>
+                <p class="text-xs text-zinc-400 mt-1">
+                  Prowlarr returned no matching torrents for this title. You can supply a magnet link or .torrent file manually while keeping the confirmed metadata.
+                </p>
+              </div>
+              <button
+                type="button"
+                data-testid="switch-to-manual-upload-noreleases"
+                @click="switchToManualUpload"
+                class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <span>⚡ Switch to Manual Upload</span>
+              </button>
             </div>
           </div>
 
@@ -1284,7 +1457,7 @@
           </button>
           <button
             type="button"
-            :disabled="isSubmitting || (inputMode === 'file' && validBatchItems.length === 0) || (inputMode === 'search' && (isSearchingReleases || !recommendedRelease))"
+            :disabled="isSubmitting || (inputMode === 'file' && validBatchItems.length === 0) || (inputMode === 'magnet' && !magnetLink.trim()) || (inputMode === 'search' && (isSearchingReleases || (isManualFallbackInStep3 ? (manualFallbackMode === 'magnet' ? !fallbackMagnetLink.trim() : !fallbackFile) : (!selectedRelease && !recommendedRelease))))"
             class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg shadow transition flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             @click="handleConfirmRequest"
           >
@@ -1327,7 +1500,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch } from 'vue';
+import { ref, computed, nextTick, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import Navbar from '../components/Navbar.vue';
 import { api, ApiError } from '../lib/api';
@@ -1401,6 +1574,46 @@ function resetToRecommendedRelease() {
 
 const releaseSearchError = ref<string | null>(null);
 const isProwlarrConfigured = ref(true);
+const isProwlarrReachable = ref(true);
+const hasHealthyReleases = ref(true);
+const showLowHealthAnyway = ref(false);
+const isManualFallbackInStep3 = ref(false);
+const manualFallbackMode = ref<'magnet' | 'file'>('magnet');
+const fallbackMagnetLink = ref('');
+const fallbackFile = ref<File | null>(null);
+
+function handleFallbackFileChange(e: Event) {
+  const target = e.target as HTMLInputElement;
+  if (target.files && target.files.length > 0) {
+    fallbackFile.value = target.files[0];
+  }
+}
+
+function switchToManualUpload() {
+  isManualFallbackInStep3.value = true;
+  manualFallbackMode.value = 'magnet';
+}
+
+onMounted(async () => {
+  try {
+    const status = await api.get<{ isConfigured: boolean; isReachable: boolean }>('/requests/prowlarr-status');
+    isProwlarrConfigured.value = status.isConfigured;
+    isProwlarrReachable.value = status.isReachable;
+    if (!status.isConfigured || !status.isReachable) {
+      inputMode.value = 'magnet';
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.data && typeof err.data === 'object') {
+      const d = err.data as { isConfigured?: boolean; isReachable?: boolean };
+      isProwlarrConfigured.value = d.isConfigured ?? false;
+      isProwlarrReachable.value = d.isReachable ?? false;
+    } else {
+      isProwlarrConfigured.value = false;
+      isProwlarrReachable.value = false;
+    }
+    inputMode.value = 'magnet';
+  }
+});
 const selectedFile = ref<File | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const customQueryInputRef = ref<HTMLInputElement | null>(null);
@@ -1714,7 +1927,12 @@ async function fetchReleasesForCandidate(candidate: MetadataCandidate) {
   isSearchingReleases.value = true;
   releaseSearchError.value = null;
   recommendedRelease.value = null;
+  selectedRelease.value = null;
   releaseCandidates.value = [];
+  showLowHealthAnyway.value = false;
+  isManualFallbackInStep3.value = false;
+  fallbackMagnetLink.value = '';
+  fallbackFile.value = null;
 
   const effectiveEpisode = downloadGranularity.value === 'episode' ? (episodeNumber.value ?? 1) : null;
   const effectiveSeason = mediaType.value !== 'movie' ? (seasonNumber.value ?? 1) : null;
@@ -1733,6 +1951,8 @@ async function fetchReleasesForCandidate(candidate: MetadataCandidate) {
       candidates: ReleaseCandidate[];
       totalFound: number;
       isConfigured: boolean;
+      isReachable?: boolean;
+      hasHealthyReleases?: boolean;
     }>('/requests/search-releases', {
       metadataId: candidate.id,
       metadataSource: candidate.source,
@@ -1746,16 +1966,26 @@ async function fetchReleasesForCandidate(candidate: MetadataCandidate) {
     });
 
     isProwlarrConfigured.value = data.isConfigured;
+    isProwlarrReachable.value = data.isReachable ?? true;
+    hasHealthyReleases.value = data.hasHealthyReleases ?? (data.candidates && data.candidates.some((c) => !c.isLowHealth));
     recommendedRelease.value = data.recommended;
     releaseCandidates.value = data.candidates || [];
-    selectedRelease.value = data.recommended || (data.candidates && data.candidates[0]) || null;
+    selectedRelease.value = data.recommended;
 
     if (selectedRelease.value) {
       magnetLink.value = selectedRelease.value.downloadUrl;
     }
   } catch (err) {
-    releaseSearchError.value =
-      err instanceof ApiError ? err.message : 'Failed to search releases for this title.';
+    if (err instanceof ApiError && err.data && typeof err.data === 'object') {
+      const d = err.data as { isConfigured?: boolean; isReachable?: boolean; message?: string };
+      isProwlarrConfigured.value = d.isConfigured ?? false;
+      isProwlarrReachable.value = d.isReachable ?? false;
+      hasHealthyReleases.value = false;
+      releaseSearchError.value = d.message || err.message;
+    } else {
+      releaseSearchError.value =
+        err instanceof ApiError ? err.message : 'Failed to search releases for this title.';
+    }
   } finally {
     isSearchingReleases.value = false;
   }
@@ -1851,9 +2081,22 @@ async function handleConfirmRequest() {
         payload.torrentFileName = fileToUpload.name;
         payload.magnetLink = singleItem?.parsed?.magnetUri || magnetLink.value || undefined;
       } else if (inputMode.value === 'search') {
-        const link = selectedRelease.value?.downloadUrl || recommendedRelease.value?.downloadUrl || magnetLink.value.trim();
-        if (!link) throw new Error('No torrent release selected');
-        payload.magnetLink = link;
+        if (isManualFallbackInStep3.value) {
+          if (manualFallbackMode.value === 'file') {
+            if (!fallbackFile.value) throw new Error('No torrent file selected');
+            const base64 = await fileToBase64(fallbackFile.value);
+            payload.torrentFileBase64 = base64;
+            payload.torrentFileName = fallbackFile.value.name;
+          } else {
+            const link = fallbackMagnetLink.value.trim();
+            if (!link) throw new Error('No magnet link provided');
+            payload.magnetLink = link;
+          }
+        } else {
+          const link = selectedRelease.value?.downloadUrl || recommendedRelease.value?.downloadUrl || magnetLink.value.trim();
+          if (!link) throw new Error('No torrent release selected');
+          payload.magnetLink = link;
+        }
       } else {
         payload.magnetLink = magnetLink.value.trim();
       }
