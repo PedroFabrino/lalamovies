@@ -4,9 +4,11 @@ import RequestView from '../src/views/RequestView.vue';
 import { api } from '../src/lib/api';
 import { createPinia, setActivePinia } from 'pinia';
 
+const mockRouterPush = vi.fn();
+
 vi.mock('vue-router', () => ({
   useRouter: () => ({
-    push: vi.fn(),
+    push: mockRouterPush,
   }),
   useRoute: () => ({
     query: {},
@@ -362,5 +364,162 @@ describe('RequestView - Candidate Explorer UI', () => {
     expect(submittedPayload!.metadataSource).toBe('tmdb');
     expect(submittedPayload!.year).toBe(2014);
     expect(submittedPayload!.magnetLink).toBe('magnet:?xt=urn:btih:manualhash12345');
+  });
+
+  it('renders next season waitlist checkbox for TV season packs and includes waitlistNextSeason in payload', async () => {
+    let submittedPayload: Record<string, any> | null = null;
+
+    vi.mocked(api.post).mockImplementation(async (endpoint: string, body?: any) => {
+      if (endpoint === '/requests/search-metadata') {
+        return {
+          candidates: [
+            {
+              id: '404',
+              source: 'tmdb',
+              title: 'Succession',
+              year: 2018,
+              overview: 'The Roy family is known for controlling the biggest media and entertainment company...',
+              posterUrl: null,
+            },
+          ],
+        } as any;
+      }
+      if (endpoint === '/requests/search-releases') {
+        return {
+          recommended: {
+            guid: 'rel-season-1',
+            title: 'Succession.S01.1080p.BluRay.x264',
+            sizeBytes: 15 * 1024 * 1024 * 1024,
+            formattedSize: '15.0 GB',
+            seeders: 45,
+            leechers: 2,
+            downloadUrl: 'magnet:?xt=urn:btih:succession-s1',
+            indexer: '1337x',
+            resolution: '1080p',
+            codec: 'x264',
+            source: 'bluray',
+            score: 160,
+            isLowHealth: false,
+          },
+          candidates: [],
+          isConfigured: true,
+          isReachable: true,
+          hasHealthyReleases: true,
+        } as any;
+      }
+      if (endpoint === '/requests') {
+        submittedPayload = body;
+        return {
+          request: {
+            id: 'req-404',
+            status: 'downloading',
+            title: 'Succession',
+          },
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const wrapper = mount(RequestView);
+
+    // Switch media type to TV Show
+    const tvRadio = wrapper.find('input[type="radio"][value="tv_show"]');
+    await tvRadio.setValue();
+
+    // Enter query and submit
+    const queryInput = wrapper.find('#customQuery');
+    await queryInput.setValue('Succession');
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+
+    // Select candidate
+    const candidateCard = wrapper.find('.group');
+    await candidateCard.trigger('click');
+    await flushPromises();
+
+    // Verify next season waitlist checkbox exists and is visible
+    const nextSeasonCheckbox = wrapper.find('[data-testid="waitlist-next-season-checkbox"]');
+    expect(nextSeasonCheckbox.exists()).toBe(true);
+
+    // Check the box
+    await nextSeasonCheckbox.setValue(true);
+
+    // Submit request
+    const confirmButtons = wrapper.findAll('button');
+    const confirmBtn = confirmButtons.find((b) => b.text().includes('Confirm & Download'));
+    expect(confirmBtn).toBeDefined();
+    await confirmBtn!.trigger('click');
+    await flushPromises();
+
+    expect(submittedPayload).not.toBeNull();
+    expect(submittedPayload!.title).toBe('Succession');
+    expect(submittedPayload!.waitlistNextSeason).toBe(true);
+  });
+
+  it('renders "Add to Waitlist instead" banner when no releases found and navigates to /waitlist with prefill', async () => {
+    vi.mocked(api.post).mockImplementation(async (endpoint: string) => {
+      if (endpoint === '/requests/search-metadata') {
+        return {
+          candidates: [
+            {
+              id: '505',
+              source: 'tmdb',
+              title: 'Dune: Part Three',
+              year: 2027,
+              overview: 'Future sequel to Dune Messiah...',
+              posterUrl: 'https://image.tmdb.org/t/p/w500/dune3.jpg',
+            },
+          ],
+        } as any;
+      }
+      if (endpoint === '/requests/search-releases') {
+        return {
+          recommended: null,
+          candidates: [],
+          isConfigured: true,
+          isReachable: true,
+          hasHealthyReleases: false,
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const wrapper = mount(RequestView);
+
+    // Search Dune: Part Three
+    const queryInput = wrapper.find('#customQuery');
+    await queryInput.setValue('Dune: Part Three');
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+
+    // Select candidate
+    const candidateCard = wrapper.find('.group');
+    await candidateCard.trigger('click');
+    await flushPromises();
+
+    // Verify "No releases found automatically" alert is present
+    expect(wrapper.find('[data-testid="no-releases-alert"]').exists()).toBe(true);
+
+    // Verify "Add to Waitlist instead" banner button exists
+    const waitlistBannerBtn = wrapper.find('[data-testid="add-to-waitlist-banner-btn"]');
+    expect(waitlistBannerBtn.exists()).toBe(true);
+
+    // Click banner button
+    await waitlistBannerBtn.trigger('click');
+
+    // Verify router.push called with prefilled query
+    expect(mockRouterPush).toHaveBeenCalledWith({
+      path: '/waitlist',
+      query: {
+        add: 'true',
+        title: 'Dune: Part Three',
+        year: '2027',
+        metadataId: '505',
+        metadataSource: 'tmdb',
+        mediaType: 'movie',
+        seasonNumber: undefined,
+        posterUrl: 'https://image.tmdb.org/t/p/w500/dune3.jpg',
+      },
+    });
   });
 });

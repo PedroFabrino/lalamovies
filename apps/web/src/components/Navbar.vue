@@ -28,6 +28,13 @@
           New Request
         </router-link>
         <router-link
+          to="/waitlist"
+          class="px-3 py-1.5 text-sm font-medium rounded-lg transition"
+          :class="isRouteActive('/waitlist') ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'"
+        >
+          Waitlist
+        </router-link>
+        <router-link
           v-if="authStore.isAdmin"
           to="/admin"
           class="px-3 py-1.5 text-sm font-medium rounded-lg transition"

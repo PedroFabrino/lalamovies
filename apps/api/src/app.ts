@@ -23,6 +23,7 @@ import { requestRoutes } from './routes/requests';
 import { adminRoutes } from './routes/admin';
 import { discoveryRoutes } from './routes/discovery';
 import { wsRoutes, BroadcastFunction } from './routes/ws';
+import { waitlistRoutes } from './routes/waitlist';
 
 export interface AppOptions {
   dbPath?: string;
@@ -41,6 +42,8 @@ export interface AppOptions {
   startPoller?: boolean;
   startCleanupCron?: boolean;
   jwtSecret?: string;
+  serviceApiKey?: string;
+  watcherUrl?: string;
 }
 
 declare module 'fastify' {
@@ -59,6 +62,8 @@ declare module 'fastify' {
     upNext: IUpNextService;
     poller: DownloadPoller;
     broadcast: BroadcastFunction;
+    serviceApiKey?: string;
+    watcherUrl?: string;
   }
 }
 
@@ -110,6 +115,13 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       },
     });
 
+  const serviceApiKey = options.serviceApiKey ?? process.env.SERVICE_API_KEY;
+  if (!serviceApiKey) {
+    app.log.warn('SERVICE_API_KEY is not set. Waitlist routes will reject all requests.');
+  }
+
+  const watcherUrl = options.watcherUrl ?? process.env.WATCHER_URL;
+
   const upNext =
     options.upNextService ??
     new UpNextService({
@@ -123,6 +135,11 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
           .where(eq(systemConfig.key, 'tmdb_api_key'))
           .get();
         return row?.value || process.env.TMDB_API_KEY || undefined;
+      },
+      watcherUrl,
+      serviceApiKey,
+      logger: {
+        warn: (msg: string) => app.log.warn(msg),
       },
     });
 
@@ -177,6 +194,9 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.decorate('upNext', upNext);
   app.decorate('poller', poller);
 
+  app.decorate('serviceApiKey', serviceApiKey);
+  app.decorate('watcherUrl', watcherUrl);
+
   app.addHook('onClose', async () => {
     poller.stop();
     cleanupCron.stop();
@@ -212,6 +232,8 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.register(adminRoutes, { prefix: '/admin' });
   app.register(discoveryRoutes, { prefix: '/discovery' });
   app.register(discoveryRoutes, { prefix: '/api/discovery' });
+  app.register(waitlistRoutes, { prefix: '/waitlist' });
+  app.register(waitlistRoutes, { prefix: '/api/waitlist' });
   app.register(wsRoutes);
 
   return app;

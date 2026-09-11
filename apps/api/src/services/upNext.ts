@@ -43,6 +43,11 @@ export interface UpNextServiceOptions {
   metadata: IMetadataService;
   ttlMs?: number;
   getTmdbApiKey?: () => string | undefined;
+  watcherUrl?: string;
+  serviceApiKey?: string;
+  logger?: {
+    warn: (msg: string) => void;
+  };
 }
 
 const CAM_REGEX = /\b(CAM|CAMRip|TS|TELESYNC|TeleSync|HDCAM|HDTS|WORKPRINT|WP)\b/i;
@@ -160,6 +165,9 @@ export class UpNextService implements IUpNextService {
   private metadata: IMetadataService;
   private ttlMs: number;
   private getTmdbApiKey?: () => string | undefined;
+  private watcherUrl?: string;
+  private serviceApiKey?: string;
+  private logger?: { warn: (msg: string) => void };
 
   private cache = new Map<string, { timestamp: number; data: UpNextItem[] }>();
   private inflight = new Map<string, Promise<UpNextResult>>();
@@ -170,6 +178,9 @@ export class UpNextService implements IUpNextService {
     this.metadata = options.metadata;
     this.ttlMs = options.ttlMs ?? 15 * 60 * 1000;
     this.getTmdbApiKey = options.getTmdbApiKey;
+    this.watcherUrl = options.watcherUrl;
+    this.serviceApiKey = options.serviceApiKey;
+    this.logger = options.logger;
   }
 
   clearCache(): void {
@@ -264,10 +275,57 @@ export class UpNextService implements IUpNextService {
     // Group requests by series (unified by normalized title + mediaType or metadataId)
     const groups = groupShowRequests(recentRequests);
 
+    // Query watcher for active episodic waitlist entries to suppress matching series
+    const activeWaitlistTitles = new Set<string>();
+    const activeWaitlistMetaIds = new Set<string>();
+
+    if (this.watcherUrl && this.serviceApiKey) {
+      try {
+        const cleanWatcherUrl = this.watcherUrl.replace(/\/$/, '');
+        const targetUrl = `${cleanWatcherUrl}/waitlist/active-episodic?userId=${encodeURIComponent(userId)}`;
+        const res = await fetch(targetUrl, {
+          headers: {
+            'X-Service-Key': this.serviceApiKey,
+          },
+        });
+        if (res.ok) {
+          const body = (await res.json()) as { entries?: Array<{ metadataId?: string; title?: string; mediaType?: string }> };
+          const entries = Array.isArray(body) ? body : (body.entries || []);
+          for (const entry of entries) {
+            if (entry.metadataId) {
+              activeWaitlistMetaIds.add(entry.metadataId);
+            }
+            if (entry.title) {
+              activeWaitlistTitles.add(`${normalizeShowTitle(entry.title)}:${entry.mediaType || 'tv_show'}`);
+              activeWaitlistTitles.add(normalizeShowTitle(entry.title));
+            }
+          }
+        } else {
+          this.logger?.warn?.(`UpNextService: failed to fetch active episodic waitlist: HTTP ${res.status}`);
+        }
+      } catch (err) {
+        this.logger?.warn?.(`UpNextService: failed to reach watcher: ${(err as Error).message}`);
+      }
+    }
+
     const upNextItems: UpNextItem[] = [];
     const tmdbApiKey = this.getTmdbApiKey ? this.getTmdbApiKey() : undefined;
 
     for (const group of groups) {
+      // Check if series is on active episodic waitlist for this user
+      const isWaitlisted = group.some((req) => {
+        if (req.metadataId && activeWaitlistMetaIds.has(req.metadataId)) return true;
+        const normTitle = normalizeShowTitle(req.title);
+        if (activeWaitlistTitles.has(`${normTitle}:${req.mediaType}`) || activeWaitlistTitles.has(normTitle)) {
+          return true;
+        }
+        return false;
+      });
+
+      if (isWaitlisted) {
+        continue;
+      }
+
       // Sort newest request first
       group.sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
       const rep = group[0];

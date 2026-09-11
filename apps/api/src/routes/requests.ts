@@ -41,6 +41,7 @@ const createRequestSchema = z
     year: z.number().int().optional(),
     seasonNumber: z.number().int().optional(),
     episodeNumber: z.number().int().optional(),
+    waitlistNextSeason: z.boolean().optional(),
   })
   .refine(
     (data) => Boolean((data.magnetLink && data.magnetLink.trim().length > 0) || data.torrentFileBase64),
@@ -425,6 +426,47 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
     };
 
     app.db.insert(downloadRequests).values(newRequest).run();
+
+    // If waitlistNextSeason requested for a season pack, create next season waitlist entry on watcher
+    if (
+      parseResult.data.waitlistNextSeason &&
+      ['tv_show', 'anime'].includes(mediaType) &&
+      seasonNumber !== undefined &&
+      seasonNumber !== null &&
+      (episodeNumber === undefined || episodeNumber === null)
+    ) {
+      const watcherUrl = app.watcherUrl || process.env.WATCHER_URL;
+      const serviceApiKey = app.serviceApiKey || process.env.SERVICE_API_KEY;
+      if (watcherUrl) {
+        const cleanWatcherUrl = watcherUrl.replace(/\/+$/, '');
+        const targetSeason = seasonNumber + 1;
+        try {
+          const res = await fetch(`${cleanWatcherUrl}/waitlist`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(serviceApiKey ? { 'x-service-key': serviceApiKey } : {}),
+              'x-user-id': request.currentUser!.id,
+            },
+            body: JSON.stringify({
+              userId: request.currentUser!.id,
+              mediaType,
+              metadataId,
+              metadataSource,
+              title,
+              year,
+              seasonNumber: targetSeason,
+              isNextSeason: true,
+            }),
+          });
+          if (!res.ok) {
+            request.log.warn(`Failed to create next-season waitlist entry: HTTP ${res.status}`);
+          }
+        } catch (err) {
+          request.log.warn(err, 'Failed to reach Watcher service for next-season waitlist creation');
+        }
+      }
+    }
 
     return reply.status(201).send({ request: newRequest });
   });

@@ -65,7 +65,7 @@ CLOUDFLARE_TUNNEL_TOKEN=your_cloudflare_tunnel_token
 
 ### 2. Launch Local Docker Stack
 
-Start the backend API, qBittorrent, and Jellyfin services:
+Start the backend API (`mdm-api`), waitlist background worker (`mdm-watcher`), qBittorrent, and Jellyfin services:
 
 ```bash
 docker compose --env-file .env -f docker/docker-compose.yml up -d
@@ -285,6 +285,12 @@ The application includes an invite system that provisionally links new users dir
 | `TMDB_API_KEY` | **Yes** | — | Developer API Key from The Movie Database (v3 auth) |
 | `DISCORD_WEBHOOK_URL`| No | — | Discord Webhook URL for download and cleanup alerts |
 | `RESEND_API_KEY` | No | — | Resend API key (stubbed for future email notifications) |
+| `SERVICE_API_KEY` | **Yes** | — | Shared cryptographic secret between Main API and Watcher |
+| `WATCHER_DB_PATH` | No | `/data/watcher.db` | File path to Watcher SQLite database file |
+| `WATCHER_PORT` | No | `3001` | Port for the Watcher HTTP microservice |
+| `WATCHER_URL` | No | `http://mdm-watcher:3001` | Internal HTTP address of the Watcher service |
+| `WAITLIST_DISCORD_WEBHOOK_URL` | No | — | Dedicated Discord webhook for Waitlist release and cancellation alerts (falls back to `DISCORD_WEBHOOK_URL`) |
+| `MAGIC_LINK_SECRET` | **Yes** | — | Cryptographic HMAC secret for signing 1-click rejection tokens |
 | `CLOUDFLARE_TUNNEL_TOKEN` | No | — | Connector token from Cloudflare Zero Trust dashboard (API only — do not proxy Jellyfin through this) |
 | `JELLYFIN_DOMAIN` | No | — | Public domain for Jellyfin HTTPS streaming via Caddy (e.g. `watch.yourdomain.com`). Must use DNS-only Cloudflare routing |
 | `JELLYFIN_PublishedServerUrl` | No | `http://localhost:8096` | Public URL Jellyfin advertises to clients. Set to `https://watch.yourdomain.com` when Caddy is enabled |

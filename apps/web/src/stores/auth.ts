@@ -12,7 +12,11 @@ export interface User {
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
-  const token = ref<string | null>(localStorage.getItem('token'));
+  const token = ref<string | null>(
+    typeof localStorage !== 'undefined' && typeof localStorage.getItem === 'function'
+      ? localStorage.getItem('token')
+      : null
+  );
   const loading = ref(false);
   const initialCheckDone = ref(false);
   const error = ref<string | null>(null);

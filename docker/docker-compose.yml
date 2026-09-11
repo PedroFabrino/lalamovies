@@ -28,12 +28,44 @@ services:
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
       - JWT_SECRET=${JWT_SECRET}
       - FRONTEND_URL=${FRONTEND_URL:-https://lalamovies.stream}
+      - SERVICE_API_KEY=${SERVICE_API_KEY}
+      - WATCHER_URL=${WATCHER_URL:-http://mdm-watcher:3001}
+      - MAGIC_LINK_SECRET=${MAGIC_LINK_SECRET}
+      - WAITLIST_DISCORD_WEBHOOK_URL=${WAITLIST_DISCORD_WEBHOOK_URL}
     volumes:
       - app_db:/data
       - ${MEDIA_DATA_PATH:-D:/MediaServer/media_data}:/media_data
     depends_on:
       - qbittorrent
       - jellyfin
+      - prowlarr
+      - watcher
+
+  watcher:
+    build:
+      context: ..
+      dockerfile: apps/watcher/Dockerfile
+      network: host
+    container_name: mdm-watcher
+    restart: unless-stopped
+    environment:
+      - PORT=${WATCHER_PORT:-3001}
+      - HOST=0.0.0.0
+      - NODE_ENV=production
+      - WATCHER_DB_PATH=${WATCHER_DB_PATH:-/data/watcher.db}
+      - SERVICE_API_KEY=${SERVICE_API_KEY}
+      - PROWLARR_URL=${PROWLARR_URL:-http://prowlarr:9696}
+      - PROWLARR_API_KEY=${PROWLARR_API_KEY}
+      - TMDB_API_KEY=${TMDB_API_KEY}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - WAITLIST_DISCORD_WEBHOOK_URL=${WAITLIST_DISCORD_WEBHOOK_URL}
+      - MAGIC_LINK_SECRET=${MAGIC_LINK_SECRET}
+      - MAIN_API_URL=http://api:3000
+      - FRONTEND_URL=${FRONTEND_URL:-https://lalamovies.stream}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+    volumes:
+      - watcher_db:/data
+    depends_on:
       - prowlarr
 
   qbittorrent:
@@ -139,3 +171,6 @@ volumes:
     # Must be a named volume (not a bind mount) so certificate data survives container recreations.
   caddy_config:
     # Stores Caddy's runtime configuration cache.
+  watcher_db:
+    # Dedicated Docker named volume for Watcher SQLite database (watcher.db) on SSD storage.
+    # Kept independent from app_db for isolated backups and schema maintenance.

@@ -36,7 +36,45 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
     }
 
     request.currentUser = user;
+    return;
   } catch {
+    // Check X-Service-Key for internal service-to-service communication
+    const serviceKey = request.server.serviceApiKey;
+    const headerKey = request.headers['x-service-key'];
+    const providedKey = Array.isArray(headerKey) ? headerKey[0] : headerKey;
+
+    if (serviceKey && providedKey && providedKey === serviceKey) {
+      const headerUserId = request.headers['x-user-id'];
+      const userId = Array.isArray(headerUserId) ? headerUserId[0] : headerUserId;
+      if (userId) {
+        const user = request.server.db
+          .select()
+          .from(users)
+          .where(eq(users.id, userId))
+          .get();
+        if (user) {
+          request.currentUser = user;
+          return;
+        }
+      }
+
+      const adminUser = request.server.db
+        .select()
+        .from(users)
+        .where(eq(users.role, 'admin'))
+        .get();
+      if (adminUser) {
+        request.currentUser = adminUser;
+        return;
+      }
+
+      const anyUser = request.server.db.select().from(users).get();
+      if (anyUser) {
+        request.currentUser = anyUser;
+        return;
+      }
+    }
+
     return reply.status(401).send({ error: 'Unauthorized', message: 'Authentication required' });
   }
 }

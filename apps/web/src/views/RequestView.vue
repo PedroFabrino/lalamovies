@@ -1036,6 +1036,29 @@
                 ? 'Targeting entire season for library naming (e.g. Season 01).'
                 : 'Targeting specific episode for library naming (e.g. S01E01).' }}
             </p>
+
+            <!-- Auto-download next season checkbox (Ticket 08) -->
+            <div
+              v-if="['tv_show', 'anime'].includes(mediaType) && downloadGranularity === 'season'"
+              class="pt-3 border-t border-zinc-800/80"
+            >
+              <label
+                for="waitlistNextSeasonCheckbox"
+                class="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-zinc-300 select-none hover:text-white transition"
+              >
+                <input
+                  id="waitlistNextSeasonCheckbox"
+                  v-model="waitlistNextSeason"
+                  type="checkbox"
+                  data-testid="waitlist-next-season-checkbox"
+                  class="w-4 h-4 rounded bg-zinc-950 border-zinc-700 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-zinc-900 cursor-pointer"
+                />
+                <span>Auto-download next season when available</span>
+              </label>
+              <p class="text-[11px] text-zinc-400 ml-6.5 mt-0.5">
+                Automatically monitors trackers and downloads Season {{ (seasonNumber || 1) + 1 }} when released.
+              </p>
+            </div>
           </div>
 
           <!-- Source summary / Release Recommendation -->
@@ -1428,14 +1451,24 @@
                   Prowlarr returned no matching torrents for this title. You can supply a magnet link or .torrent file manually while keeping the confirmed metadata.
                 </p>
               </div>
-              <button
-                type="button"
-                data-testid="switch-to-manual-upload-noreleases"
-                @click="switchToManualUpload"
-                class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
-              >
-                <span>⚡ Switch to Manual Upload</span>
-              </button>
+              <div class="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  data-testid="switch-to-manual-upload-noreleases"
+                  @click="switchToManualUpload"
+                  class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  <span>⚡ Switch to Manual Upload</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="add-to-waitlist-banner-btn"
+                  @click="navigateToWaitlistWithMetadata"
+                  class="px-3.5 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-medium transition inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  <span>⏳ No releases found yet — Add to Waitlist instead</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1544,6 +1577,7 @@ const route = useRoute();
 const requestsStore = useRequestsStore();
 
 const currentStep = ref<1 | 2 | 3>(1);
+const waitlistNextSeason = ref(false);
 
 // Step 1 State
 const inputMode = ref<'search' | 'magnet' | 'file'>('search');
@@ -1593,6 +1627,23 @@ function handleFallbackFileChange(e: Event) {
 function switchToManualUpload() {
   isManualFallbackInStep3.value = true;
   manualFallbackMode.value = 'magnet';
+}
+
+function navigateToWaitlistWithMetadata() {
+  if (!selectedCandidate.value) return;
+  router.push({
+    path: '/waitlist',
+    query: {
+      add: 'true',
+      title: selectedCandidate.value.title,
+      year: selectedCandidate.value.year ? String(selectedCandidate.value.year) : undefined,
+      metadataId: selectedCandidate.value.id,
+      metadataSource: selectedCandidate.value.source || 'tmdb',
+      mediaType: mediaType.value,
+      seasonNumber: seasonNumber.value ? String(seasonNumber.value) : undefined,
+      posterUrl: selectedCandidate.value.posterUrl || undefined,
+    },
+  });
 }
 
 
@@ -2117,6 +2168,7 @@ async function fetchReleasesForCandidate(candidate: MetadataCandidate) {
 async function selectCandidate(candidate: MetadataCandidate) {
   selectedCandidate.value = candidate;
   activeAnimeTitle.value = candidate.romajiTitle || candidate.title;
+  waitlistNextSeason.value = false;
   currentStep.value = 3;
   if (inputMode.value === 'search') {
     await fetchReleasesForCandidate(candidate);
@@ -2195,6 +2247,14 @@ async function handleConfirmRequest() {
         seasonNumber: effectiveSeason ?? undefined,
         episodeNumber: effectiveEpisode ?? undefined,
       };
+
+      if (
+        waitlistNextSeason.value &&
+        ['tv_show', 'anime'].includes(mediaType.value) &&
+        downloadGranularity.value === 'season'
+      ) {
+        payload.waitlistNextSeason = true;
+      }
 
       if (inputMode.value === 'file') {
         const fileToUpload = singleItem?.file || selectedFile.value;
