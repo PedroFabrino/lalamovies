@@ -141,3 +141,25 @@ _Avoid_: test container, local docker, staging container
 A dedicated containerised background service (`apps/watcher/`) responsible for polling Prowlarr on behalf of active Waitlist Entries, evaluating release quality, dispatching auto-download requests to the main API, and sending grace-period notifications. Runs independently of the main API and persists its own state in a separate SQLite database. The main API proxies all Waitlist CRUD routes to the Watcher Service; the frontend is unaware of its existence.
 _Avoid_: cron job, background worker, scheduler
 
+### Ephemeral Streaming & Debrid
+
+**Ephemeral Stream**:
+A user-requested, zero-disk media item resolved via a Debrid Provider and mounted instantly to Jellyfin. Automatically evicted after 24 hours unless explicitly converted via Stream Promotion.
+_Avoid_: instant watch, temporary download, stream item
+
+**Stream Library**:
+The dedicated Jellyfin library backed by the virtual WebDAV mount (`/media/stream`), separate from Movies, TV Shows, Anime, and Private. Houses only active Ephemeral Streams.
+_Avoid_: ephemeral folder, zurg library, instant shelf
+
+**Stream Promotion**:
+The action of converting an active Ephemeral Stream into a standard Download Request, causing the media to be downloaded to local physical storage and hardlinked into a permanent Library.
+_Avoid_: keep stream, save to disk, convert to download
+
+**Debrid Provider**:
+The external unrestricted multi-hoster/caching service (Real-Debrid) queried for instant torrent availability and WebDAV media streaming.
+_Avoid_: stream host, multihoster, RD service
+
+**Private Tracker Airgap**:
+The security boundary enforcing that Release Candidates from private indexers configured in Prowlarr are strictly excluded from Debrid Provider ingestion and can only be downloaded via local qBittorrent, preventing passkey leakage and tracker account bans.
+_Avoid_: tracker exclusion, private filter, debrid blocker
+
