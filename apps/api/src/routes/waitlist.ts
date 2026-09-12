@@ -135,6 +135,74 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
         request.log.warn(err, 'Failed to auto-detect target episode from download_requests');
       }
     }
+
+    // Guard 1: Already In Library check
+    if (subpath === '') {
+      if (outgoingBody.mediaType === 'movie') {
+        const existingMovies = request.server.db
+          .select()
+          .from(downloadRequests)
+          .where(
+            and(
+              ne(downloadRequests.status, 'deleted'),
+              eq(downloadRequests.mediaType, 'movie')
+            )
+          )
+          .all();
+
+        const normTitle = outgoingBody.title ? normalizeShowTitle(outgoingBody.title) : '';
+        const matched = existingMovies.find((r) => {
+          if (outgoingBody.metadataId && r.metadataId && String(r.metadataId) === String(outgoingBody.metadataId)) {
+            return true;
+          }
+          if (normTitle && r.title && normalizeShowTitle(r.title) === normTitle) {
+            return true;
+          }
+          return false;
+        });
+
+        if (matched && ['downloading', 'hardlinking', 'seeding', 'completed', 'queued'].includes(matched.status)) {
+          return reply.status(409).send({
+            error: 'Already In Library',
+            message: `"${outgoingBody.title || matched.title}" is already in your library or download queue.`,
+          });
+        }
+      } else if (['tv_show', 'anime'].includes(outgoingBody.mediaType)) {
+        const season = outgoingBody.seasonNumber ?? 1;
+        const episode = outgoingBody.targetEpisode ?? 1;
+
+        const existingShows = request.server.db
+          .select()
+          .from(downloadRequests)
+          .where(
+            and(
+              ne(downloadRequests.status, 'deleted'),
+              inArray(downloadRequests.mediaType, ['tv_show', 'anime']),
+              eq(downloadRequests.seasonNumber, season),
+              eq(downloadRequests.episodeNumber, episode)
+            )
+          )
+          .all();
+
+        const normTitle = outgoingBody.title ? normalizeShowTitle(outgoingBody.title) : '';
+        const matched = existingShows.find((r) => {
+          if (outgoingBody.metadataId && r.metadataId && String(r.metadataId) === String(outgoingBody.metadataId)) {
+            return true;
+          }
+          if (normTitle && r.title && normalizeShowTitle(r.title) === normTitle) {
+            return true;
+          }
+          return false;
+        });
+
+        if (matched && ['downloading', 'hardlinking', 'seeding', 'completed', 'queued'].includes(matched.status)) {
+          return reply.status(409).send({
+            error: 'Already In Library',
+            message: `"${outgoingBody.title || matched.title}" S${season}E${episode} is already in your library or download queue.`,
+          });
+        }
+      }
+    }
   }
 
   try {

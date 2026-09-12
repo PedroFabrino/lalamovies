@@ -614,5 +614,90 @@ describe('WaitlistView - Dedicated Waitlist Page', () => {
     expect(card.find('[data-testid="entry-status-badge"]').text()).toContain('Release Found (Queued)');
     expect(card.text()).toContain('Grace period ended • Queued for auto-download');
   });
+
+  it('displays already-in-library-alert and disables submit button when candidate is in library', async () => {
+    vi.mocked(api.get).mockImplementation(async (url: string) => {
+      if (url.startsWith('/waitlist')) return { entries: [] };
+      if (url.startsWith('/requests/series-progress')) {
+        return { hasExisting: true, inLibrary: true, status: 'seeding' };
+      }
+      return {};
+    });
+    vi.mocked(api.post).mockResolvedValue({ candidates: [], releases: [] } as any);
+
+    const wrapper = mount(WaitlistView);
+    await flushPromises();
+
+    // Open Add to Waitlist modal
+    await wrapper.find('[data-testid="open-add-waitlist-modal"]').trigger('click');
+    await flushPromises();
+
+    // Mock search candidate selection
+    const vm = wrapper.vm as any;
+    vm.searchMediaType = 'movie';
+    await vm.selectCandidate({
+      id: 'movie-spider-123',
+      title: 'Spider-Man: Brand New Day',
+      year: 2026,
+      source: 'tmdb',
+    });
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="already-in-library-alert"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="already-in-library-alert"]').text()).toContain('Already in your library');
+
+    const submitBtn = wrapper.find('[data-testid="confirm-add-waitlist-btn"]');
+    expect(submitBtn.attributes('disabled')).toBeDefined();
+    expect(submitBtn.text()).toContain('Already in Library');
+  });
+
+  it('displays releases-available-alert and redirects to /requests on direct download click', async () => {
+    vi.mocked(api.get).mockImplementation(async (url: string) => {
+      if (url.startsWith('/waitlist')) return { entries: [] };
+      if (url.startsWith('/requests/series-progress')) {
+        return { hasExisting: false, inLibrary: false };
+      }
+      return {};
+    });
+    vi.mocked(api.post).mockImplementation(async (url: string) => {
+      if (url === '/requests/search-releases') {
+        return { releases: [{ title: 'Spider-Man.1080p', infoHash: 'abc123' }] };
+      }
+      return { candidates: [] };
+    });
+
+    const wrapper = mount(WaitlistView);
+    await flushPromises();
+
+    // Open modal and select candidate
+    await wrapper.find('[data-testid="open-add-waitlist-modal"]').trigger('click');
+    await flushPromises();
+
+    const vm = wrapper.vm as any;
+    await vm.selectCandidate({
+      id: 'movie-spider-available',
+      title: 'Spider-Man: Brand New Day',
+      year: 2026,
+      source: 'tmdb',
+    });
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="releases-available-alert"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="releases-available-alert"]').text()).toContain('Releases Available on Trackers');
+
+    const downloadBtn = wrapper.find('[data-testid="download-directly-btn"]');
+    expect(downloadBtn.exists()).toBe(true);
+    await downloadBtn.trigger('click');
+
+    expect(mockRouterPush).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: '/requests',
+        query: expect.objectContaining({
+          title: 'Spider-Man: Brand New Day',
+          mediaType: 'movie',
+        }),
+      })
+    );
+  });
 });
 

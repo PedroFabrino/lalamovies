@@ -139,6 +139,47 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(401).send({ error: 'Unauthorized' });
     }
 
+    if (query.mediaType === 'movie') {
+      const movieConditions = [
+        ne(downloadRequests.status, 'deleted'),
+        eq(downloadRequests.mediaType, 'movie'),
+      ];
+
+      const allMovieRequests = app.db
+        .select()
+        .from(downloadRequests)
+        .where(and(...movieConditions))
+        .all();
+
+      const normTitle = query.title ? normalizeShowTitle(query.title) : '';
+      const matched = allMovieRequests.find((r) => {
+        if (query.metadataId && r.metadataId && String(r.metadataId) === String(query.metadataId)) {
+          return true;
+        }
+        if (normTitle && r.title && normalizeShowTitle(r.title) === normTitle) {
+          return true;
+        }
+        return false;
+      });
+
+      const inLibrary = Boolean(
+        matched && ['downloading', 'hardlinking', 'seeding', 'completed', 'queued'].includes(matched.status)
+      );
+
+      return reply.send({
+        highestSeason: null,
+        highestEpisode: null,
+        existingEpisodes: [],
+        suggestedSeason: 1,
+        suggestedEpisode: 1,
+        airDate: null,
+        existingTitle: matched?.title || null,
+        hasExisting: Boolean(matched),
+        inLibrary,
+        status: matched?.status || null,
+      });
+    }
+
     const conditions = [
       eq(downloadRequests.userId, effectiveUserId),
       ne(downloadRequests.status, 'deleted'),
@@ -164,6 +205,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
 
     const requestedSeason = query.seasonNumber ? parseInt(query.seasonNumber, 10) : undefined;
     const requestedEp = query.episodeNumber ? parseInt(query.episodeNumber, 10) : undefined;
+
 
     if (matching.length === 0) {
       const targetSeason = (requestedSeason && !isNaN(requestedSeason)) ? requestedSeason : 1;
@@ -196,6 +238,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         suggestedEpisode: targetEp,
         existingTitle: null,
         hasExisting: false,
+        inLibrary: false,
         airDate,
       });
     }
@@ -250,6 +293,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       airDate,
       existingTitle,
       hasExisting: true,
+      inLibrary: seasonEpisodes.includes(lookupEp),
     });
   });
 

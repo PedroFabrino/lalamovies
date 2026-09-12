@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { buildApp } from '../src/app';
 import { buildWatcherApp } from '../../watcher/src/app';
 import { generateMagicLinkToken } from '../../watcher/src/services/notifications';
-import { users } from '../src/db/schema';
+import { users, downloadRequests } from '../src/db/schema';
 import { FastifyInstance } from 'fastify';
 
 describe('Waitlist Proxy & UpNext Suppression Integration', () => {
@@ -487,5 +487,143 @@ describe('Waitlist Proxy & UpNext Suppression Integration', () => {
     const body = approveRes.json();
     expect(body.ok).toBe(true);
     expect(body.entry.status).toBe('triggered');
+  });
+
+  it('rejects POST /waitlist with 409 Conflict when movie is already downloaded/active in library', async () => {
+    const aliceToken = signToken('user-alice', 'user');
+
+    // Seed existing downloaded movie
+    mainApp.db.insert(downloadRequests).values({
+      id: 'req-spiderman-active',
+      userId: 'user-alice',
+      magnetLink: 'magnet:?xt=urn:btih:spider123',
+      mediaType: 'movie',
+      metadataId: 'movie-spiderman-100',
+      metadataSource: 'tmdb',
+      title: 'Spider-Man: Brand New Day',
+      year: 2026,
+      status: 'seeding',
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    const res = await mainApp.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: { authorization: `Bearer ${aliceToken}` },
+      payload: {
+        mediaType: 'movie',
+        metadataId: 'movie-spiderman-100',
+        metadataSource: 'tmdb',
+        title: 'Spider-Man: Brand New Day',
+        year: 2026,
+      },
+    });
+
+    expect(res.statusCode).toBe(409);
+    const body = res.json();
+    expect(body.error).toBe('Already In Library');
+    expect(body.message).toContain('already in your library');
+  });
+
+  it('allows POST /waitlist when previous movie request has status deleted', async () => {
+    const aliceToken = signToken('user-alice', 'user');
+
+    // Seed deleted movie
+    mainApp.db.insert(downloadRequests).values({
+      id: 'req-movie-deleted',
+      userId: 'user-alice',
+      magnetLink: 'magnet:?xt=urn:btih:deleted123',
+      mediaType: 'movie',
+      metadataId: 'movie-deleted-200',
+      metadataSource: 'tmdb',
+      title: 'Deleted Movie Test',
+      year: 2025,
+      status: 'deleted',
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    const res = await mainApp.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: { authorization: `Bearer ${aliceToken}` },
+      payload: {
+        mediaType: 'movie',
+        metadataId: 'movie-deleted-200',
+        metadataSource: 'tmdb',
+        title: 'Deleted Movie Test',
+        year: 2025,
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+  });
+
+  it('rejects POST /waitlist with 409 Conflict when TV show episode is already in library', async () => {
+    const aliceToken = signToken('user-alice', 'user');
+
+    // Seed existing S03E07
+    mainApp.db.insert(downloadRequests).values({
+      id: 'req-lioness-s3e7',
+      userId: 'user-alice',
+      magnetLink: 'magnet:?xt=urn:btih:lioness123',
+      mediaType: 'tv_show',
+      metadataId: 'show-lioness-300',
+      metadataSource: 'tmdb',
+      title: 'Lioness',
+      year: 2023,
+      seasonNumber: 3,
+      episodeNumber: 7,
+      status: 'completed',
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    const res = await mainApp.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: { authorization: `Bearer ${aliceToken}` },
+      payload: {
+        mediaType: 'tv_show',
+        metadataId: 'show-lioness-300',
+        metadataSource: 'tmdb',
+        title: 'Lioness',
+        year: 2023,
+        seasonNumber: 3,
+        targetEpisode: 7,
+      },
+    });
+
+    expect(res.statusCode).toBe(409);
+    const body = res.json();
+    expect(body.error).toBe('Already In Library');
+    expect(body.message).toContain('S3E7 is already in your library');
+  });
+
+  it('returns inLibrary: true in GET /requests/series-progress for movies already in library', async () => {
+    const aliceToken = signToken('user-alice', 'user');
+
+    mainApp.db.insert(downloadRequests).values({
+      id: 'req-movie-progress-test',
+      userId: 'user-alice',
+      magnetLink: 'magnet:?xt=urn:btih:movieprogress123',
+      mediaType: 'movie',
+      metadataId: 'movie-progress-400',
+      metadataSource: 'tmdb',
+      title: 'Dune Part Three',
+      year: 2026,
+      status: 'seeding',
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    const res = await mainApp.inject({
+      method: 'GET',
+      url: '/requests/series-progress?mediaType=movie&metadataId=movie-progress-400&title=Dune%20Part%20Three',
+      headers: { authorization: `Bearer ${aliceToken}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.hasExisting).toBe(true);
+    expect(body.inLibrary).toBe(true);
+    expect(body.status).toBe('seeding');
   });
 });

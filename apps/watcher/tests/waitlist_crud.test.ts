@@ -163,4 +163,105 @@ describe('Watcher Waitlist CRUD & Authorization', () => {
 
     await app.close();
   });
+
+  it('rejects duplicate active waitlist entries with 409 Conflict', async () => {
+    const app = buildWatcherApp({ dbPath: ':memory:', serviceApiKey: 'test-secret' });
+
+    // 1. Create initial movie entry
+    const res1 = await app.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: {
+        'x-service-key': 'test-secret',
+        'x-user-id': 'user-1',
+      },
+      payload: {
+        mediaType: 'movie',
+        metadataId: 'm-dup-1',
+        metadataSource: 'tmdb',
+        title: 'Duplicate Movie Test',
+        year: 2026,
+      },
+    });
+    expect(res1.statusCode).toBe(201);
+
+    // 2. Try to add same movie again while active -> 409
+    const resDupMovie = await app.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: {
+        'x-service-key': 'test-secret',
+        'x-user-id': 'user-1',
+      },
+      payload: {
+        mediaType: 'movie',
+        metadataId: 'm-dup-1',
+        metadataSource: 'tmdb',
+        title: 'Duplicate Movie Test',
+        year: 2026,
+      },
+    });
+    expect(resDupMovie.statusCode).toBe(409);
+    expect(resDupMovie.json().error).toBe('Duplicate Entry');
+
+    // 3. Create TV show S01E01
+    const resTv1 = await app.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: {
+        'x-service-key': 'test-secret',
+        'x-user-id': 'user-1',
+      },
+      payload: {
+        mediaType: 'tv_show',
+        metadataId: 'tv-dup-1',
+        metadataSource: 'tmdb',
+        title: 'Duplicate Show Test',
+        seasonNumber: 1,
+        targetEpisode: 1,
+      },
+    });
+    expect(resTv1.statusCode).toBe(201);
+
+    // 4. Try to add same S01E01 again -> 409
+    const resDupTv = await app.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: {
+        'x-service-key': 'test-secret',
+        'x-user-id': 'user-1',
+      },
+      payload: {
+        mediaType: 'tv_show',
+        metadataId: 'tv-dup-1',
+        metadataSource: 'tmdb',
+        title: 'Duplicate Show Test',
+        seasonNumber: 1,
+        targetEpisode: 1,
+      },
+    });
+    expect(resDupTv.statusCode).toBe(409);
+    expect(resDupTv.json().error).toBe('Duplicate Entry');
+
+    // 5. Adding S01E02 should succeed
+    const resTvEp2 = await app.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: {
+        'x-service-key': 'test-secret',
+        'x-user-id': 'user-1',
+      },
+      payload: {
+        mediaType: 'tv_show',
+        metadataId: 'tv-dup-1',
+        metadataSource: 'tmdb',
+        title: 'Duplicate Show Test',
+        seasonNumber: 1,
+        targetEpisode: 2,
+      },
+    });
+    expect(resTvEp2.statusCode).toBe(201);
+
+    await app.close();
+  });
 });

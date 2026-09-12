@@ -102,6 +102,41 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
+    // Guard 3: Duplicate active waitlist check
+    const existingActive = app.db
+      .select()
+      .from(watchRequests)
+      .where(
+        and(
+          eq(watchRequests.userId, userId),
+          eq(watchRequests.mediaType, body.mediaType),
+          eq(watchRequests.metadataId, body.metadataId),
+          inArray(watchRequests.status, ['pending_release', 'checking', 'notified'])
+        )
+      )
+      .all();
+
+    if (body.mediaType === 'movie') {
+      if (existingActive.length > 0) {
+        return reply.status(409).send({
+          error: 'Duplicate Entry',
+          message: `"${body.title}" is already on your active waitlist.`,
+        });
+      }
+    } else {
+      const targetSeason = body.seasonNumber ?? 1;
+      const targetEp = body.targetEpisode ?? 1;
+      const duplicateEp = existingActive.find(
+        (e) => (e.seasonNumber ?? 1) === targetSeason && (e.targetEpisode ?? 1) === targetEp
+      );
+      if (duplicateEp) {
+        return reply.status(409).send({
+          error: 'Duplicate Entry',
+          message: `"${body.title}" S${targetSeason}E${targetEp} is already on your active waitlist.`,
+        });
+      }
+    }
+
     const now = new Date().toISOString();
     let initialStatus: WatchRequest['status'] = body.status || 'checking';
     let tmdbReleaseDate: string | null = null;

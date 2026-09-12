@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { eq, and, isNull, isNotNull, lte, asc } from 'drizzle-orm';
 import { AppDatabase, systemConfig, downloadRequests, DownloadRequest, users } from '../db';
 import { IQBittorrentService } from './qbittorrent';
@@ -337,18 +338,44 @@ export class CleanupService implements ICleanupService {
     if (!request) return;
 
     // 1. Remove torrent from qBittorrent and delete staging files
-    if (request.qbTorrentHash) {
+    let torrentHashToRemove = request.qbTorrentHash;
+    if (!torrentHashToRemove && this.qbittorrent.getAllTorrents && request.title) {
       try {
-        await this.qbittorrent.removeTorrent(request.qbTorrentHash, true);
+        const allTorrents = await this.qbittorrent.getAllTorrents();
+        const reqCleanTitle = request.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const matched = allTorrents.find((t) => {
+          const tCleanName = t.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return tCleanName.includes(reqCleanTitle) || reqCleanTitle.includes(tCleanName);
+        });
+        if (matched) {
+          torrentHashToRemove = matched.hash;
+        }
+      } catch {
+        // Silently continue
+      }
+    }
+
+    if (torrentHashToRemove) {
+      try {
+        await this.qbittorrent.removeTorrent(torrentHashToRemove, true);
       } catch {
         // Silently log or continue
       }
     }
 
     // 2. Remove library files if path exists
-    if (request.jellyfinPath && fs.existsSync(request.jellyfinPath)) {
+    let libraryPath = request.jellyfinPath;
+    if (!libraryPath && this.mediaPath && request.title) {
+      const yearSuffix = request.year ? ` (${request.year})` : '';
+      const candidateDir = path.join(this.mediaPath, request.mediaType === 'movie' ? 'movies' : 'shows', `${request.title}${yearSuffix}`);
+      if (fs.existsSync(candidateDir)) {
+        libraryPath = candidateDir;
+      }
+    }
+
+    if (libraryPath && fs.existsSync(libraryPath)) {
       try {
-        fs.rmSync(request.jellyfinPath, { recursive: true, force: true });
+        fs.rmSync(libraryPath, { recursive: true, force: true });
       } catch {
         // Continue
       }

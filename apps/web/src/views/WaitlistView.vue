@@ -539,6 +539,52 @@
             </div>
           </div>
 
+          <!-- Guard 1: Already In Library Alert -->
+          <div
+            v-if="libraryStatus?.inLibrary"
+            class="p-4 bg-amber-950/40 border border-amber-800/80 rounded-xl text-xs text-amber-300 flex items-start gap-3"
+            data-testid="already-in-library-alert"
+          >
+            <span class="text-lg leading-none">⚠️</span>
+            <div class="space-y-1">
+              <div class="font-semibold text-amber-200">
+                Already in your library!
+              </div>
+              <p class="text-zinc-300">
+                This {{ selectedMediaType === 'movie' ? 'movie' : 'episode' }} is already downloaded or active in your download queue{{ libraryStatus.status ? ` (${libraryStatus.status})` : '' }}. You cannot add it to the waitlist.
+              </p>
+            </div>
+          </div>
+
+          <!-- Guard 2: Tracker Releases Available Alert -->
+          <div
+            v-if="availableReleasesCount > 0 && !libraryStatus?.inLibrary"
+            class="p-4 bg-emerald-950/40 border border-emerald-800/80 rounded-xl text-xs text-emerald-300 flex items-start gap-3"
+            data-testid="releases-available-alert"
+          >
+            <span class="text-lg leading-none">⚡</span>
+            <div class="space-y-2 flex-1 min-w-0">
+              <div>
+                <span class="font-semibold text-emerald-200">
+                  Releases Available on Trackers!
+                </span>
+                <p class="text-zinc-300 mt-0.5">
+                  We found <span class="font-bold text-white">{{ availableReleasesCount }}</span> matching release{{ availableReleasesCount > 1 ? 's' : '' }} on trackers right now. You can download directly instead of waiting on the waitlist.
+                </p>
+              </div>
+              <div class="pt-1">
+                <button
+                  type="button"
+                  @click="downloadDirectly"
+                  data-testid="download-directly-btn"
+                  class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-sm transition inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>📥 Download Directly Now</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- Season & Episode Selectors for TV Show / Anime -->
           <div
             v-if="['tv_show', 'anime'].includes(selectedMediaType)"
@@ -581,7 +627,7 @@
                   type="number"
                   min="1"
                   data-testid="waitlist-season-input"
-                  @change="fetchSeriesProgress"
+                  @change="checkCandidateGuards"
                   class="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
@@ -596,7 +642,7 @@
                   type="number"
                   min="1"
                   data-testid="waitlist-episode-input"
-                  @change="fetchSeriesProgress"
+                  @change="checkCandidateGuards"
                   class="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
@@ -649,8 +695,9 @@
             <button
               type="button"
               data-testid="confirm-add-waitlist-btn"
-              :disabled="isSubmitting"
-              class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg shadow transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              :disabled="isSubmitting || libraryStatus?.inLibrary"
+              class="px-5 py-2 text-white text-xs font-semibold rounded-lg shadow transition flex items-center gap-2"
+              :class="libraryStatus?.inLibrary ? 'opacity-50 cursor-not-allowed bg-zinc-700 hover:bg-zinc-700' : 'bg-indigo-600 hover:bg-indigo-500 cursor-pointer disabled:opacity-50'"
               @click="submitWaitlistEntry"
             >
               <svg
@@ -662,7 +709,7 @@
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
-              <span>Confirm & Add to Waitlist</span>
+              <span>{{ isSubmitting ? 'Adding...' : (libraryStatus?.inLibrary ? 'Already in Library' : 'Confirm & Add to Waitlist') }}</span>
             </button>
           </div>
         </div>
@@ -750,7 +797,14 @@ const seriesProgress = ref<{
   existingTitle: string | null;
   hasExisting: boolean;
   airDate?: string | null;
+  inLibrary?: boolean;
+  status?: string | null;
 } | null>(null);
+
+const libraryStatus = ref<{ inLibrary: boolean; hasExisting: boolean; status?: string | null } | null>(null);
+const isCheckingLibrary = ref(false);
+const availableReleasesCount = ref(0);
+const isCheckingReleases = ref(false);
 
 const mediaTypeOptions = [
   { value: 'movie' as const, label: 'Movie', icon: '🎬' },
@@ -758,29 +812,87 @@ const mediaTypeOptions = [
   { value: 'anime' as const, label: 'Anime', icon: '⛩️' },
 ];
 
-async function fetchSeriesProgress() {
-  if (!selectedCandidate.value || !['tv_show', 'anime'].includes(selectedMediaType.value)) {
-    seriesProgress.value = null;
-    return;
-  }
+async function checkCandidateGuards() {
+  if (!selectedCandidate.value) return;
+  libraryStatus.value = null;
+  availableReleasesCount.value = 0;
+
+  // 1. Library check
+  isCheckingLibrary.value = true;
   try {
     const params = new URLSearchParams();
     if (selectedCandidate.value.id) params.append('metadataId', String(selectedCandidate.value.id));
     if (selectedCandidate.value.title) params.append('title', selectedCandidate.value.title);
-    if (selectedSeasonNumber.value) params.append('seasonNumber', String(selectedSeasonNumber.value));
-    if (selectedEpisodeNumber.value) params.append('episodeNumber', String(selectedEpisodeNumber.value));
+    params.append('mediaType', selectedMediaType.value);
+    if (['tv_show', 'anime'].includes(selectedMediaType.value)) {
+      if (selectedSeasonNumber.value) params.append('seasonNumber', String(selectedSeasonNumber.value));
+      if (selectedEpisodeNumber.value) params.append('episodeNumber', String(selectedEpisodeNumber.value));
+    }
 
     const data = await api.get<any>(`/requests/series-progress?${params.toString()}`);
-    seriesProgress.value = data;
-    if (selectedEpisodeNumber.value === null) {
-      selectedEpisodeNumber.value = data?.hasExisting ? (data.suggestedEpisode || 1) : 1;
-    }
-    if (data?.airDate) {
-      targetAirDate.value = data.airDate;
+    libraryStatus.value = {
+      inLibrary: Boolean(data?.inLibrary),
+      hasExisting: Boolean(data?.hasExisting),
+      status: data?.status || null,
+    };
+
+    if (['tv_show', 'anime'].includes(selectedMediaType.value)) {
+      seriesProgress.value = data;
+      if (selectedEpisodeNumber.value === null) {
+        selectedEpisodeNumber.value = data?.hasExisting ? (data.suggestedEpisode || 1) : 1;
+      }
+      if (data?.airDate) {
+        targetAirDate.value = data.airDate;
+      }
     }
   } catch {
-    seriesProgress.value = null;
+    libraryStatus.value = null;
+  } finally {
+    isCheckingLibrary.value = false;
   }
+
+  // 2. Trackers release check
+  isCheckingReleases.value = true;
+  try {
+    const relData = await api.post<any>('/requests/search-releases', {
+      metadataId: String(selectedCandidate.value.id),
+      metadataSource: selectedCandidate.value.source || 'tmdb',
+      mediaType: selectedMediaType.value,
+      title: selectedCandidate.value.title,
+      year: selectedCandidate.value.year,
+      seasonNumber: ['tv_show', 'anime'].includes(selectedMediaType.value) ? (selectedSeasonNumber.value || 1) : undefined,
+      episodeNumber: ['tv_show', 'anime'].includes(selectedMediaType.value) ? (selectedEpisodeNumber.value || 1) : undefined,
+    });
+    if (Array.isArray(relData?.releases)) {
+      availableReleasesCount.value = relData.releases.length;
+    }
+  } catch {
+    availableReleasesCount.value = 0;
+  } finally {
+    isCheckingReleases.value = false;
+  }
+}
+
+function downloadDirectly() {
+  if (!selectedCandidate.value) return;
+  const candidate = selectedCandidate.value;
+  const mType = selectedMediaType.value;
+  const sNum = selectedSeasonNumber.value;
+  const epNum = selectedEpisodeNumber.value;
+  closeModal();
+  router.push({
+    path: '/requests',
+    query: {
+      search: candidate.title,
+      title: candidate.title,
+      year: candidate.year ? String(candidate.year) : undefined,
+      mediaType: mType,
+      metadataId: String(candidate.id),
+      metadataSource: candidate.source || 'tmdb',
+      seasonNumber: ['tv_show', 'anime'].includes(mType) ? String(sNum || 1) : undefined,
+      episodeNumber: ['tv_show', 'anime'].includes(mType) && epNum ? String(epNum) : undefined,
+    },
+  });
 }
 
 function openSearchModal() {
@@ -791,6 +903,8 @@ function openSearchModal() {
   hasSearched.value = false;
   selectedCandidate.value = null;
   seriesProgress.value = null;
+  libraryStatus.value = null;
+  availableReleasesCount.value = 0;
   targetAirDate.value = null;
   isModalOpen.value = true;
 }
@@ -798,6 +912,8 @@ function openSearchModal() {
 function closeModal() {
   isModalOpen.value = false;
   seriesProgress.value = null;
+  libraryStatus.value = null;
+  availableReleasesCount.value = 0;
   targetAirDate.value = null;
   if (route.query.add) {
     router.replace({ path: '/waitlist', query: {} });
@@ -823,9 +939,7 @@ async function initPrefilledModal() {
     posterUrl: query.posterUrl ? String(query.posterUrl) : null,
   };
   isModalOpen.value = true;
-  if (['tv_show', 'anime'].includes(selectedMediaType.value)) {
-    await fetchSeriesProgress();
-  }
+  await checkCandidateGuards();
 }
 
 async function handleSearch() {
@@ -853,10 +967,10 @@ async function selectCandidate(candidate: any) {
   selectedEpisodeNumber.value = null;
   targetAirDate.value = candidate.releaseDate || null;
   seriesProgress.value = null;
+  libraryStatus.value = null;
+  availableReleasesCount.value = 0;
   modalStep.value = 'confirm';
-  if (['tv_show', 'anime'].includes(selectedMediaType.value)) {
-    await fetchSeriesProgress();
-  }
+  await checkCandidateGuards();
 }
 
 async function submitWaitlistEntry() {
