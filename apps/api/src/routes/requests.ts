@@ -10,6 +10,12 @@ import { normalizeShowTitle } from '../services/upNext';
 import { MetadataApiError, MetadataCandidate } from '../services/metadata';
 import { parseTorrentBuffer } from '../services/torrentParser';
 import { cleanTorrentTitle } from '../utils/torrentTitleCleaner';
+import {
+  findMatchingCanonicalRequest,
+  addCoRequester,
+  globalRequestMutex,
+  getDedupLockKey,
+} from '../services/requestDedup';
 
 const searchMetadataSchema = z
   .object({
@@ -454,18 +460,6 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    // 1. Host disk safety check (< 10 GB free on host disk or below reject threshold)
-    const hostDiskSafe = app.cleanup.isHostDiskSafe ? app.cleanup.isHostDiskSafe() : true;
-    const space = app.cleanup.isSpaceSufficient ? app.cleanup.isSpaceSufficient() : { sufficient: true, percentFree: 100, threshold: 15 };
-    if (!hostDiskSafe || !space.sufficient) {
-      return reply.status(422).send({
-        error: 'Unprocessable Entity',
-        message: !hostDiskSafe
-          ? 'Insufficient host disk space (< 10 GB free)'
-          : `Insufficient disk space (${space.percentFree}% free, minimum required is ${space.threshold}%)`,
-      });
-    }
-
     const {
       magnetLink,
       torrentFileBase64,
@@ -477,173 +471,219 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       year,
       seasonNumber,
       episodeNumber,
+      waitlistNextSeason,
     } = parseResult.data;
 
-    let torrentBuffer: Buffer | null = null;
-    let effectiveMagnetLink = magnetLink || '';
-    let torrentSizeBytes: number | null = null;
-
-    if (torrentFileBase64) {
-      try {
-        torrentBuffer = Buffer.from(torrentFileBase64, 'base64');
-        const parsed = parseTorrentBuffer(torrentBuffer);
-        if (!effectiveMagnetLink) {
-          effectiveMagnetLink = parsed.magnetUri;
+    const triggerNextSeasonWaitlist = async () => {
+      if (
+        waitlistNextSeason &&
+        ['tv_show', 'anime'].includes(mediaType) &&
+        seasonNumber !== undefined &&
+        seasonNumber !== null &&
+        (episodeNumber === undefined || episodeNumber === null)
+      ) {
+        const watcherUrl = app.watcherUrl || process.env.WATCHER_URL;
+        const serviceApiKey = app.serviceApiKey || process.env.SERVICE_API_KEY;
+        if (watcherUrl) {
+          const cleanWatcherUrl = watcherUrl.replace(/\/+$/, '');
+          const targetSeason = seasonNumber + 1;
+          try {
+            const res = await fetch(`${cleanWatcherUrl}/waitlist`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(serviceApiKey ? { 'x-service-key': serviceApiKey } : {}),
+                'x-user-id': request.currentUser!.id,
+              },
+              body: JSON.stringify({
+                userId: request.currentUser!.id,
+                mediaType,
+                metadataId,
+                metadataSource,
+                title,
+                year,
+                seasonNumber: targetSeason,
+                isNextSeason: true,
+              }),
+            });
+            if (!res.ok) {
+              request.log.warn(`Failed to create next-season waitlist entry: HTTP ${res.status}`);
+            }
+          } catch (err) {
+            request.log.warn(err, 'Failed to reach Watcher service for next-season waitlist creation');
+          }
         }
-        torrentSizeBytes = parsed.totalSize || null;
-      } catch (err) {
-        return reply.status(400).send({
-          error: 'Bad Request',
-          message: 'Invalid or corrupt .torrent file',
+      }
+    };
+
+    const lockKey = getDedupLockKey({
+      mediaType,
+      metadataId,
+      metadataSource,
+      seasonNumber,
+      episodeNumber,
+    });
+
+    return globalRequestMutex.runExclusive(lockKey, async () => {
+      // 1. Check for existing canonical request
+      const existing = findMatchingCanonicalRequest(app.db, {
+        mediaType,
+        metadataId,
+        metadataSource,
+        seasonNumber,
+        episodeNumber,
+      });
+
+      if (existing) {
+        await triggerNextSeasonWaitlist();
+
+        if (existing.userId === request.currentUser!.id) {
+          return reply.status(200).send({ request: existing });
+        }
+
+        addCoRequester(app.db, existing.id, request.currentUser!.id);
+        return reply.status(200).send({ request: existing });
+      }
+
+      // 2. Host disk safety check (< 10 GB free on host disk or below reject threshold)
+      const hostDiskSafe = app.cleanup.isHostDiskSafe ? app.cleanup.isHostDiskSafe() : true;
+      const space = app.cleanup.isSpaceSufficient ? app.cleanup.isSpaceSufficient() : { sufficient: true, percentFree: 100, threshold: 15 };
+      if (!hostDiskSafe || !space.sufficient) {
+        return reply.status(422).send({
+          error: 'Unprocessable Entity',
+          message: !hostDiskSafe
+            ? 'Insufficient host disk space (< 10 GB free)'
+            : `Insufficient disk space (${space.percentFree}% free, minimum required is ${space.threshold}%)`,
         });
       }
-    }
 
-    if (!effectiveMagnetLink) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'Could not resolve magnet link or torrent file',
-      });
-    }
+      let torrentBuffer: Buffer | null = null;
+      let effectiveMagnetLink = magnetLink || '';
+      let torrentSizeBytes: number | null = null;
 
-    // 2. Check storage quota usage (85% threshold for deferral)
-    const quotaRow = app.db
-      .select()
-      .from(systemConfig)
-      .where(eq(systemConfig.key, 'storage_quota_gb'))
-      .get();
+      if (torrentFileBase64) {
+        try {
+          torrentBuffer = Buffer.from(torrentFileBase64, 'base64');
+          const parsed = parseTorrentBuffer(torrentBuffer);
+          if (!effectiveMagnetLink) {
+            effectiveMagnetLink = parsed.magnetUri;
+          }
+          torrentSizeBytes = parsed.totalSize || null;
+        } catch (err) {
+          return reply.status(400).send({
+            error: 'Bad Request',
+            message: 'Invalid or corrupt .torrent file',
+          });
+        }
+      }
 
-    const storageQuotaGb = quotaRow ? parseInt(quotaRow.value, 10) : parseInt(process.env.STORAGE_QUOTA_GB || '150', 10);
-    const storageQuotaBytes = storageQuotaGb * 1024 * 1024 * 1024;
-    const currentFootprintBytes = app.fileSystem.getStorageFootprintBytes ? app.fileSystem.getStorageFootprintBytes() : 0;
-    const isQuotaExceeded = storageQuotaBytes > 0 && (currentFootprintBytes / storageQuotaBytes) >= 0.85;
+      if (!effectiveMagnetLink) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'Could not resolve magnet link or torrent file',
+        });
+      }
 
-    let status: 'queued' | 'downloading' = 'queued';
-    let deferredReason: 'waiting_for_space' | 'waiting_for_slot' | null = null;
-    let qbTorrentHash: string | null = null;
-    let torrentFilePath: string | null = null;
-    const stagingPath = process.env.STAGING_PATH || '/media_data/downloads/staging';
-    const requestId = randomUUID();
-
-    if (isQuotaExceeded) {
-      // Defer request into queued waiting for space
-      status = 'queued';
-      deferredReason = 'waiting_for_space';
-    } else {
-      // Storage quota has headroom: check concurrent limit
-      const configRow = app.db
+      // 3. Check storage quota usage (85% threshold for deferral)
+      const quotaRow = app.db
         .select()
         .from(systemConfig)
-        .where(eq(systemConfig.key, 'concurrent_limit'))
+        .where(eq(systemConfig.key, 'storage_quota_gb'))
         .get();
 
-      const concurrentLimit = configRow ? parseInt(configRow.value, 10) : 2;
-      const activeCount = await app.qbittorrent.getActiveTorrentCount();
+      const storageQuotaGb = quotaRow ? parseInt(quotaRow.value, 10) : parseInt(process.env.STORAGE_QUOTA_GB || '150', 10);
+      const storageQuotaBytes = storageQuotaGb * 1024 * 1024 * 1024;
+      const currentFootprintBytes = app.fileSystem.getStorageFootprintBytes ? app.fileSystem.getStorageFootprintBytes() : 0;
+      const isQuotaExceeded = storageQuotaBytes > 0 && (currentFootprintBytes / storageQuotaBytes) >= 0.85;
 
-      if (activeCount < concurrentLimit) {
-        try {
-          if (torrentBuffer) {
-            qbTorrentHash = await app.qbittorrent.addTorrentFile(
-              torrentBuffer,
-              stagingPath,
-              torrentFileName || `${title}.torrent`
-            );
-          } else {
-            qbTorrentHash = await app.qbittorrent.addTorrent(effectiveMagnetLink, stagingPath);
+      let status: 'queued' | 'downloading' = 'queued';
+      let deferredReason: 'waiting_for_space' | 'waiting_for_slot' | null = null;
+      let qbTorrentHash: string | null = null;
+      let torrentFilePath: string | null = null;
+      const stagingPath = process.env.STAGING_PATH || '/media_data/downloads/staging';
+      const requestId = randomUUID();
+
+      if (isQuotaExceeded) {
+        // Defer request into queued waiting for space
+        status = 'queued';
+        deferredReason = 'waiting_for_space';
+      } else {
+        // Storage quota has headroom: check concurrent limit
+        const configRow = app.db
+          .select()
+          .from(systemConfig)
+          .where(eq(systemConfig.key, 'concurrent_limit'))
+          .get();
+
+        const concurrentLimit = configRow ? parseInt(configRow.value, 10) : 2;
+        const activeCount = await app.qbittorrent.getActiveTorrentCount();
+
+        if (activeCount < concurrentLimit) {
+          try {
+            if (torrentBuffer) {
+              qbTorrentHash = await app.qbittorrent.addTorrentFile(
+                torrentBuffer,
+                stagingPath,
+                torrentFileName || `${title}.torrent`
+              );
+            } else {
+              qbTorrentHash = await app.qbittorrent.addTorrent(effectiveMagnetLink, stagingPath);
+            }
+            status = 'downloading';
+            deferredReason = null;
+          } catch (err) {
+            request.log.error(err, 'Could not add torrent to qBittorrent immediately, falling back to queued');
+            status = 'queued';
+            deferredReason = 'waiting_for_slot';
           }
-          status = 'downloading';
-          deferredReason = null;
-        } catch (err) {
-          request.log.error(err, 'Could not add torrent to qBittorrent immediately, falling back to queued');
+        } else {
           status = 'queued';
           deferredReason = 'waiting_for_slot';
         }
-      } else {
-        status = 'queued';
-        deferredReason = 'waiting_for_slot';
       }
-    }
 
-    // If queued and we have a torrent file, save it temporarily on disk for resumption
-    if (status === 'queued' && torrentBuffer) {
-      const torrentsDir = path.resolve(path.dirname(stagingPath), 'torrents');
-      if (!fs.existsSync(torrentsDir)) {
-        fs.mkdirSync(torrentsDir, { recursive: true });
-      }
-      torrentFilePath = path.join(torrentsDir, `${requestId}.torrent`);
-      fs.writeFileSync(torrentFilePath, torrentBuffer);
-    }
-
-    // 3. Insert record in download_requests table
-    const newRequest: DownloadRequest = {
-      id: requestId,
-      userId: request.currentUser!.id,
-      magnetLink: effectiveMagnetLink,
-      mediaType,
-      status,
-      metadataId,
-      metadataSource,
-      title,
-      year: year ?? null,
-      seasonNumber: seasonNumber ?? null,
-      episodeNumber: episodeNumber ?? null,
-      jellyfinPath: null,
-      keepFlag: false,
-      qbTorrentHash,
-      errorMessage: null,
-      requestedAt: new Date().toISOString(),
-      downloadedAt: null,
-      lastPlayedAt: null,
-      scheduledDeleteAt: null,
-      sizeBytes: torrentSizeBytes,
-      torrentFilePath,
-      deferredReason,
-    };
-
-    app.db.insert(downloadRequests).values(newRequest).run();
-
-    // If waitlistNextSeason requested for a season pack, create next season waitlist entry on watcher
-    if (
-      parseResult.data.waitlistNextSeason &&
-      ['tv_show', 'anime'].includes(mediaType) &&
-      seasonNumber !== undefined &&
-      seasonNumber !== null &&
-      (episodeNumber === undefined || episodeNumber === null)
-    ) {
-      const watcherUrl = app.watcherUrl || process.env.WATCHER_URL;
-      const serviceApiKey = app.serviceApiKey || process.env.SERVICE_API_KEY;
-      if (watcherUrl) {
-        const cleanWatcherUrl = watcherUrl.replace(/\/+$/, '');
-        const targetSeason = seasonNumber + 1;
-        try {
-          const res = await fetch(`${cleanWatcherUrl}/waitlist`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(serviceApiKey ? { 'x-service-key': serviceApiKey } : {}),
-              'x-user-id': request.currentUser!.id,
-            },
-            body: JSON.stringify({
-              userId: request.currentUser!.id,
-              mediaType,
-              metadataId,
-              metadataSource,
-              title,
-              year,
-              seasonNumber: targetSeason,
-              isNextSeason: true,
-            }),
-          });
-          if (!res.ok) {
-            request.log.warn(`Failed to create next-season waitlist entry: HTTP ${res.status}`);
-          }
-        } catch (err) {
-          request.log.warn(err, 'Failed to reach Watcher service for next-season waitlist creation');
+      // If queued and we have a torrent file, save it temporarily on disk for resumption
+      if (status === 'queued' && torrentBuffer) {
+        const torrentsDir = path.resolve(path.dirname(stagingPath), 'torrents');
+        if (!fs.existsSync(torrentsDir)) {
+          fs.mkdirSync(torrentsDir, { recursive: true });
         }
+        torrentFilePath = path.join(torrentsDir, `${requestId}.torrent`);
+        fs.writeFileSync(torrentFilePath, torrentBuffer);
       }
-    }
 
-    return reply.status(201).send({ request: newRequest });
+      // 4. Insert record in download_requests table
+      const newRequest: DownloadRequest = {
+        id: requestId,
+        userId: request.currentUser!.id,
+        magnetLink: effectiveMagnetLink,
+        mediaType,
+        status,
+        metadataId,
+        metadataSource,
+        title,
+        year: year ?? null,
+        seasonNumber: seasonNumber ?? null,
+        episodeNumber: episodeNumber ?? null,
+        jellyfinPath: null,
+        keepFlag: false,
+        qbTorrentHash,
+        errorMessage: null,
+        requestedAt: new Date().toISOString(),
+        downloadedAt: null,
+        lastPlayedAt: null,
+        scheduledDeleteAt: null,
+        sizeBytes: torrentSizeBytes,
+        torrentFilePath,
+        deferredReason,
+      };
+
+      app.db.insert(downloadRequests).values(newRequest).run();
+
+      await triggerNextSeasonWaitlist();
+
+      return reply.status(201).send({ request: newRequest });
+    });
   });
 
   // POST /requests/batch — create batch download requests atomically

@@ -1,4 +1,5 @@
-import { sqliteTable, text, integer, primaryKey } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, primaryKey, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
 
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
@@ -19,34 +20,48 @@ export const invites = sqliteTable('invites', {
   usedAt: text('used_at'),
 });
 
-export const downloadRequests = sqliteTable('download_requests', {
-  id: text('id').primaryKey(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  magnetLink: text('magnet_link').notNull(),
-  mediaType: text('media_type', { enum: ['movie', 'tv_show', 'anime'] }).notNull(),
-  status: text('status', {
-    enum: ['queued', 'downloading', 'hardlinking', 'seeding', 'done', 'error', 'deleted'],
-  }).notNull().default('queued'),
-  metadataId: text('metadata_id').notNull(),
-  metadataSource: text('metadata_source', { enum: ['tmdb', 'anilist'] }).notNull(),
-  title: text('title').notNull(),
-  year: integer('year'),
-  seasonNumber: integer('season_number'),
-  episodeNumber: integer('episode_number'),
-  jellyfinPath: text('jellyfin_path'),
-  keepFlag: integer('keep_flag', { mode: 'boolean' }).notNull().default(false),
-  qbTorrentHash: text('qb_torrent_hash'),
-  errorMessage: text('error_message'),
-  requestedAt: text('requested_at').notNull(),
-  downloadedAt: text('downloaded_at'),
-  lastPlayedAt: text('last_played_at'),
-  scheduledDeleteAt: text('scheduled_delete_at'),
-  sizeBytes: integer('size_bytes'),
-  torrentFilePath: text('torrent_file_path'),
-  deferredReason: text('deferred_reason'),
-});
+export const downloadRequests = sqliteTable(
+  'download_requests',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    magnetLink: text('magnet_link').notNull(),
+    mediaType: text('media_type', { enum: ['movie', 'tv_show', 'anime'] }).notNull(),
+    status: text('status', {
+      enum: ['queued', 'downloading', 'hardlinking', 'seeding', 'done', 'error', 'deleted'],
+    }).notNull().default('queued'),
+    metadataId: text('metadata_id').notNull(),
+    metadataSource: text('metadata_source', { enum: ['tmdb', 'anilist'] }).notNull(),
+    title: text('title').notNull(),
+    year: integer('year'),
+    seasonNumber: integer('season_number'),
+    episodeNumber: integer('episode_number'),
+    jellyfinPath: text('jellyfin_path'),
+    keepFlag: integer('keep_flag', { mode: 'boolean' }).notNull().default(false),
+    qbTorrentHash: text('qb_torrent_hash'),
+    errorMessage: text('error_message'),
+    requestedAt: text('requested_at').notNull(),
+    downloadedAt: text('downloaded_at'),
+    lastPlayedAt: text('last_played_at'),
+    scheduledDeleteAt: text('scheduled_delete_at'),
+    sizeBytes: integer('size_bytes'),
+    torrentFilePath: text('torrent_file_path'),
+    deferredReason: text('deferred_reason'),
+  },
+  (table) => [
+    uniqueIndex('download_requests_movie_unique')
+      .on(table.metadataId, table.metadataSource)
+      .where(sql`status != 'deleted' AND media_type = 'movie'`),
+    uniqueIndex('download_requests_season_pack_unique')
+      .on(table.metadataId, table.metadataSource, table.seasonNumber)
+      .where(sql`status != 'deleted' AND season_number IS NOT NULL AND episode_number IS NULL`),
+    uniqueIndex('download_requests_episode_unique')
+      .on(table.metadataId, table.metadataSource, table.seasonNumber, table.episodeNumber)
+      .where(sql`status != 'deleted' AND season_number IS NOT NULL AND episode_number IS NOT NULL`),
+  ]
+);
 
 export const requestCoRequesters = sqliteTable(
   'request_co_requesters',

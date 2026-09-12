@@ -1,0 +1,3 @@
+CREATE UNIQUE INDEX `download_requests_movie_unique` ON `download_requests` (`metadata_id`,`metadata_source`) WHERE status != 'deleted' AND media_type = 'movie';--> statement-breakpoint
+CREATE UNIQUE INDEX `download_requests_season_pack_unique` ON `download_requests` (`metadata_id`,`metadata_source`,`season_number`) WHERE status != 'deleted' AND season_number IS NOT NULL AND episode_number IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX `download_requests_episode_unique` ON `download_requests` (`metadata_id`,`metadata_source`,`season_number`,`episode_number`) WHERE status != 'deleted' AND season_number IS NOT NULL AND episode_number IS NOT NULL;

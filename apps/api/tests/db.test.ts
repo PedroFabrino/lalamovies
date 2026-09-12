@@ -214,6 +214,140 @@ describe('Database Schema & Migrations', () => {
     expect(afterReqDelete).toBeUndefined();
   });
 
+  it('enforces partial unique indexes on active download requests (race condition guard)', () => {
+    const now = new Date().toISOString();
+
+    dbInstance.db.insert(users).values({
+      id: 'usr_idx',
+      jellyfinUserId: 'jf_idx',
+      username: 'idx_tester',
+      createdAt: now,
+    }).run();
+
+    // 1. Active movie insert
+    dbInstance.db.insert(downloadRequests).values({
+      id: 'req_mov_1',
+      userId: 'usr_idx',
+      magnetLink: 'mag1',
+      mediaType: 'movie',
+      metadataId: '550',
+      metadataSource: 'tmdb',
+      title: 'Fight Club',
+      status: 'downloading',
+      requestedAt: now,
+    }).run();
+
+    // Duplicate active movie throws unique constraint
+    expect(() => {
+      dbInstance.db.insert(downloadRequests).values({
+        id: 'req_mov_2',
+        userId: 'usr_idx',
+        magnetLink: 'mag2',
+        mediaType: 'movie',
+        metadataId: '550',
+        metadataSource: 'tmdb',
+        title: 'Fight Club',
+        status: 'queued',
+        requestedAt: now,
+      }).run();
+    }).toThrow();
+
+    // Deleting the first allows inserting another
+    dbInstance.db.update(downloadRequests).set({ status: 'deleted' }).where(eq(downloadRequests.id, 'req_mov_1')).run();
+    expect(() => {
+      dbInstance.db.insert(downloadRequests).values({
+        id: 'req_mov_3',
+        userId: 'usr_idx',
+        magnetLink: 'mag3',
+        mediaType: 'movie',
+        metadataId: '550',
+        metadataSource: 'tmdb',
+        title: 'Fight Club',
+        status: 'queued',
+        requestedAt: now,
+      }).run();
+    }).not.toThrow();
+
+    // 2. Duplicate active season pack throws
+    dbInstance.db.insert(downloadRequests).values({
+      id: 'req_sp_1',
+      userId: 'usr_idx',
+      magnetLink: 'mag_sp1',
+      mediaType: 'tv_show',
+      metadataId: '1396',
+      metadataSource: 'tmdb',
+      title: 'Breaking Bad',
+      seasonNumber: 1,
+      episodeNumber: null,
+      status: 'downloading',
+      requestedAt: now,
+    }).run();
+
+    expect(() => {
+      dbInstance.db.insert(downloadRequests).values({
+        id: 'req_sp_2',
+        userId: 'usr_idx',
+        magnetLink: 'mag_sp2',
+        mediaType: 'tv_show',
+        metadataId: '1396',
+        metadataSource: 'tmdb',
+        title: 'Breaking Bad',
+        seasonNumber: 1,
+        episodeNumber: null,
+        status: 'queued',
+        requestedAt: now,
+      }).run();
+    }).toThrow();
+
+    // 3. Duplicate active episode throws, but different episode succeeds
+    dbInstance.db.insert(downloadRequests).values({
+      id: 'req_ep_1',
+      userId: 'usr_idx',
+      magnetLink: 'mag_ep1',
+      mediaType: 'tv_show',
+      metadataId: '1396',
+      metadataSource: 'tmdb',
+      title: 'Breaking Bad',
+      seasonNumber: 2,
+      episodeNumber: 1,
+      status: 'downloading',
+      requestedAt: now,
+    }).run();
+
+    expect(() => {
+      dbInstance.db.insert(downloadRequests).values({
+        id: 'req_ep_1_dup',
+        userId: 'usr_idx',
+        magnetLink: 'mag_ep1_dup',
+        mediaType: 'tv_show',
+        metadataId: '1396',
+        metadataSource: 'tmdb',
+        title: 'Breaking Bad',
+        seasonNumber: 2,
+        episodeNumber: 1,
+        status: 'queued',
+        requestedAt: now,
+      }).run();
+    }).toThrow();
+
+    // Different episode (S2E2) succeeds
+    expect(() => {
+      dbInstance.db.insert(downloadRequests).values({
+        id: 'req_ep_2',
+        userId: 'usr_idx',
+        magnetLink: 'mag_ep2',
+        mediaType: 'tv_show',
+        metadataId: '1396',
+        metadataSource: 'tmdb',
+        title: 'Breaking Bad',
+        seasonNumber: 2,
+        episodeNumber: 2,
+        status: 'queued',
+        requestedAt: now,
+      }).run();
+    }).not.toThrow();
+  });
+
   it('decorates fastify app with db and sqlite instances', async () => {
     const app = buildApp({ dbPath: ':memory:' });
     expect(app.db).toBeDefined();
