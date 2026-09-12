@@ -164,6 +164,10 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
       responseData = await res.text();
     }
 
+    if (res.ok && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
+      request.server.upNext?.clearCache();
+    }
+
     return reply.status(res.status).send(responseData);
   } catch (err) {
     request.server.log.error(err, 'Failed to proxy request to Watcher service');

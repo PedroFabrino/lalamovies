@@ -4,6 +4,7 @@ import { WatcherDatabase } from '../db';
 import { watchRequests, WatchRequest } from '../db/schema';
 import { WatcherProwlarrService, CAM_REGEX } from '../services/prowlarr';
 import { sendWaitlistNotification } from '../services/notifications';
+import { matchesTarget } from '../utils/torrentTitleCleaner';
 
 export interface WatcherPollerLogger {
   info: (msg: string) => void;
@@ -82,12 +83,19 @@ export class WatcherPoller {
             targetEpisode: entry.targetEpisode,
           });
 
-          // Quality gate: score >= 100 AND seeders >= 10 AND source != cam AND !CAM_REGEX
+          // Quality gate: score >= 100 AND seeders >= 10 AND source != cam AND !CAM_REGEX AND matches target episode
           const qualifying = candidates.filter((c) => {
             if (c.score < 100) return false;
             if (c.seeders < 10) return false;
             if (c.source === 'cam') return false;
             if (CAM_REGEX.test(c.title)) return false;
+            if (entry.mediaType === 'tv_show' || entry.mediaType === 'anime') {
+              const sNum = entry.seasonNumber ?? 1;
+              const targetEp = entry.targetEpisode ?? null;
+              if (!matchesTarget(c.title, sNum, targetEp)) {
+                return false;
+              }
+            }
             return true;
           });
 
@@ -163,6 +171,11 @@ export class WatcherPoller {
       }
     });
     this.logger?.info(`Watcher poller started with schedule: ${this.schedule}`);
+
+    // Trigger initial check asynchronously on startup
+    this.pollOnce().catch((err) => {
+      this.logger?.error('Watcher poller: initial startup poll failed:', err);
+    });
   }
 
   stop(): void {

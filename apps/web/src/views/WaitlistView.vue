@@ -97,13 +97,14 @@
           <button
             type="button"
             class="p-2 text-zinc-400 hover:text-zinc-200 bg-zinc-900 border border-zinc-800 rounded-lg hover:bg-zinc-800 transition cursor-pointer disabled:opacity-50"
-            :disabled="waitlistStore.loading"
-            title="Refresh List"
-            @click="loadEntries"
+            :disabled="waitlistStore.loading || isCheckingAll"
+            title="Check Trackers & Refresh"
+            data-testid="refresh-waitlist-btn"
+            @click="handleCheckAll"
           >
             <svg
               class="w-4 h-4"
-              :class="{ 'animate-spin': waitlistStore.loading }"
+              :class="{ 'animate-spin': waitlistStore.loading || isCheckingAll }"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -316,18 +317,40 @@
               Added {{ formatDateOnly(entry.createdAt) }}
             </span>
 
-            <button
-              v-if="entry.status !== 'cancelled' && entry.status !== 'completed'"
-              type="button"
-              data-testid="cancel-waitlist-btn"
-              class="px-2.5 py-1 text-zinc-400 hover:text-red-400 hover:bg-red-950/30 rounded border border-transparent hover:border-red-900/50 transition cursor-pointer flex items-center gap-1"
-              @click="handleCancel(entry)"
-            >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              <span>Cancel</span>
-            </button>
+            <div class="flex items-center gap-1.5">
+              <button
+                v-if="entry.status === 'pending_release' || entry.status === 'checking'"
+                type="button"
+                data-testid="check-now-btn"
+                :disabled="checkingEntryId === entry.id"
+                class="px-2.5 py-1 text-zinc-400 hover:text-indigo-300 hover:bg-indigo-950/30 rounded border border-transparent hover:border-indigo-900/50 transition cursor-pointer flex items-center gap-1 text-xs disabled:opacity-50"
+                @click="handleCheckEntry(entry)"
+              >
+                <svg
+                  class="w-3.5 h-3.5"
+                  :class="{ 'animate-spin': checkingEntryId === entry.id }"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <span>{{ checkingEntryId === entry.id ? 'Checking...' : 'Check Now' }}</span>
+              </button>
+
+              <button
+                v-if="entry.status !== 'cancelled' && entry.status !== 'completed'"
+                type="button"
+                data-testid="cancel-waitlist-btn"
+                class="px-2.5 py-1 text-zinc-400 hover:text-red-400 hover:bg-red-950/30 rounded border border-transparent hover:border-red-900/50 transition cursor-pointer flex items-center gap-1"
+                @click="handleCancel(entry)"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span>Cancel</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -834,6 +857,39 @@ async function submitWaitlistEntry() {
   }
 }
 
+const checkingEntryId = ref<string | null>(null);
+const isCheckingAll = ref(false);
+
+async function handleCheckEntry(entry: WaitlistEntry) {
+  checkingEntryId.value = entry.id;
+  try {
+    const res = await api.post<any>(`/waitlist/${entry.id}/check`);
+    await loadEntries();
+    if (res?.entry?.status === 'notified') {
+      waitlistStore.showToast(`Found release for "${entry.title}"! Auto-downloading soon.`, 'success');
+    } else {
+      waitlistStore.showToast(`Checked trackers for "${entry.title}". Still waiting for quality release.`, 'info');
+    }
+  } catch (err: any) {
+    waitlistStore.showToast(err.message || 'Failed to check trackers', 'error');
+  } finally {
+    checkingEntryId.value = null;
+  }
+}
+
+async function handleCheckAll() {
+  isCheckingAll.value = true;
+  try {
+    await api.post<any>('/waitlist/poll-now');
+    await loadEntries();
+    waitlistStore.showToast('Checked trackers for all active entries.', 'success');
+  } catch (err: any) {
+    waitlistStore.showToast(err.message || 'Failed to poll trackers', 'error');
+  } finally {
+    isCheckingAll.value = false;
+  }
+}
+
 async function handleCancel(entry: WaitlistEntry) {
   try {
     await waitlistStore.cancelEntry(entry.id);
@@ -943,6 +999,15 @@ function formatStatusText(entry: WaitlistEntry): string {
 function formatDateOnly(isoString?: string | null): string {
   if (!isoString) return '—';
   try {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(isoString)) {
+      const [y, m, d] = isoString.split('-').map(Number);
+      const date = new Date(y, m - 1, d);
+      return date.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    }
     const d = new Date(isoString);
     return d.toLocaleDateString(undefined, {
       month: 'short',

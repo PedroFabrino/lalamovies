@@ -260,6 +260,11 @@ export class ReleaseGatingService {
         this.logger?.error('Error running pollUnconfirmedFutureSeasons cron:', err);
       }
     });
+
+    // Run promotion check on startup
+    this.promoteDueEntries().catch((err) => {
+      this.logger?.error('Error running startup promoteDueEntries:', err);
+    });
   }
 
   stopCrons(): void {

@@ -59,7 +59,7 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
         and(
           eq(watchRequests.userId, effectiveUserId),
           inArray(watchRequests.mediaType, ['tv_show', 'anime']),
-          inArray(watchRequests.status, ['checking', 'notified', 'triggered'])
+          inArray(watchRequests.status, ['pending_release', 'checking', 'notified', 'triggered'])
         )
       )
       .orderBy(desc(watchRequests.createdAt))
@@ -364,5 +364,68 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       entry: updated,
       ...updated,
     });
+  });
+
+  // POST /waitlist/poll-now - trigger immediate release check and promotion
+  app.post('/poll-now', async (request, reply) => {
+    try {
+      const promoted = await app.releaseGating?.promoteDueEntries();
+      const pollResult = await app.poller?.pollOnce();
+      return reply.send({
+        ok: true,
+        promoted: promoted || 0,
+        polled: pollResult?.polled || 0,
+        notified: pollResult?.notified || 0,
+      });
+    } catch (err: any) {
+      app.log.error(err, 'Failed running poll-now');
+      return reply.status(500).send({
+        error: 'Internal Server Error',
+        message: err.message,
+      });
+    }
+  });
+
+  // POST /waitlist/:id/check - force immediate check of a specific waitlist entry
+  app.post('/:id/check', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const entry = app.db
+      .select()
+      .from(watchRequests)
+      .where(eq(watchRequests.id, id))
+      .get();
+
+    if (!entry) {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: 'Waitlist entry not found',
+      });
+    }
+
+    const now = new Date().toISOString();
+    if (entry.status === 'pending_release') {
+      app.db
+        .update(watchRequests)
+        .set({
+          status: 'checking',
+          updatedAt: now,
+        })
+        .where(eq(watchRequests.id, id))
+        .run();
+    }
+
+    try {
+      await app.poller?.pollOnce();
+    } catch (err: any) {
+      app.log.warn(err, 'Manual poller tick failed');
+    }
+
+    const updated = app.db
+      .select()
+      .from(watchRequests)
+      .where(eq(watchRequests.id, id))
+      .get();
+
+    return reply.send({ ok: true, entry: updated });
   });
 };

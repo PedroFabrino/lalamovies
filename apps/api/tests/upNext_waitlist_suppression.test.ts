@@ -116,6 +116,65 @@ describe('UpNextService active-episodic suppression', () => {
     sqlite.close();
   });
 
+  it('suppresses series from Up Next when waitlist entry is pending_release', async () => {
+    const { db, sqlite } = initDatabase(':memory:');
+
+    db.insert(users).values({
+      id: 'user-456',
+      username: 'testuser2',
+      jellyfinUserId: 'jf-456',
+      createdAt: new Date().toISOString(),
+    }).run();
+
+    db.insert(downloadRequests).values({
+      id: 'req-lioness-6',
+      userId: 'user-456',
+      magnetLink: 'magnet:?xt=urn:btih:lioness6',
+      mediaType: 'tv_show',
+      status: 'seeding',
+      metadataId: '113962',
+      metadataSource: 'tmdb',
+      title: 'Lioness',
+      seasonNumber: 3,
+      episodeNumber: 6,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    // Add entry with status: 'pending_release'
+    await watcherApp.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: {
+        'x-service-key': SERVICE_KEY,
+        'x-user-id': 'user-456',
+        'x-user-role': 'user',
+      },
+      payload: {
+        mediaType: 'tv_show',
+        metadataId: '113962',
+        metadataSource: 'tmdb',
+        title: 'Lioness',
+        seasonNumber: 3,
+        targetEpisode: 7,
+        status: 'pending_release',
+        tmdbReleaseDate: '2026-09-13',
+      },
+    });
+
+    const upNext = new UpNextService({
+      db,
+      prowlarr: mockProwlarr,
+      metadata: mockMetadata,
+      watcherUrl,
+      serviceApiKey: SERVICE_KEY,
+    });
+
+    const res = await upNext.getUpNext('user-456');
+    expect(res.items.length).toBe(0);
+
+    sqlite.close();
+  });
+
   it('degrades gracefully when watcher is unreachable', async () => {
     const { db, sqlite } = initDatabase(':memory:');
 
