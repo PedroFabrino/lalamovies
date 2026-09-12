@@ -75,6 +75,10 @@ class MockCleanupService implements ICleanupService {
       .set({ status: 'deleted' })
       .where(eq(downloadRequests.id, requestId))
       .run();
+    this.appInstance.db
+      .delete(requestCoRequesters)
+      .where(eq(requestCoRequesters.requestId, requestId))
+      .run();
   }
 }
 
@@ -525,5 +529,75 @@ describe('Download Request Submission & Management', () => {
 
     expect(coReqs).toHaveLength(2);
     expect(coReqs.map((r) => r.userId).sort()).toEqual(['other-user-1', 'other-user-2']);
+  });
+
+  it('DELETE /requests/:id removes co-requester rows and hides from both dashboards', async () => {
+    app.db.insert(users).values({
+      id: 'co-req-user-1',
+      username: 'coreq1',
+      role: 'user',
+      jellyfinUserId: 'jf_coreq1',
+      createdAt: new Date().toISOString(),
+    }).run();
+
+    const otherToken = app.jwt.sign({ id: 'co-req-user-1', username: 'coreq1', role: 'user' });
+
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/requests',
+      cookies: { token: userCookie },
+      payload: {
+        magnetLink: 'magnet:?xt=urn:btih:delete_coreq_test',
+        mediaType: 'movie',
+        metadataId: 'tmdb-delete-coreq',
+        metadataSource: 'tmdb',
+        title: 'Delete CoReq Movie',
+        coRequesterUserIds: ['co-req-user-1'],
+      },
+    });
+    expect(createRes.statusCode).toBe(201);
+    const id = createRes.json().request.id;
+
+    const listPrimaryBefore = await app.inject({
+      method: 'GET',
+      url: '/requests',
+      cookies: { token: userCookie },
+    });
+    expect(listPrimaryBefore.json().requests.some((r: any) => r.id === id)).toBe(true);
+
+    const listCoReqBefore = await app.inject({
+      method: 'GET',
+      url: '/requests',
+      cookies: { token: otherToken },
+    });
+    expect(listCoReqBefore.json().requests.some((r: any) => r.id === id)).toBe(true);
+
+    const deleteRes = await app.inject({
+      method: 'DELETE',
+      url: `/requests/${id}`,
+      cookies: { token: userCookie },
+    });
+    expect(deleteRes.statusCode).toBe(200);
+
+    const coReqs = app.db
+      .select()
+      .from(requestCoRequesters)
+      .where(eq(requestCoRequesters.requestId, id))
+      .all();
+    expect(coReqs).toHaveLength(0);
+
+    const listPrimaryAfter = await app.inject({
+      method: 'GET',
+      url: '/requests',
+      cookies: { token: userCookie },
+    });
+    expect(listPrimaryAfter.json().requests.some((r: any) => r.id === id)).toBe(false);
+
+    const listCoReqAfter = await app.inject({
+      method: 'GET',
+      url: '/requests',
+      cookies: { token: otherToken },
+    });
+    expect(listCoReqAfter.json().requests.some((r: any) => r.id === id)).toBe(false);
   });
 });

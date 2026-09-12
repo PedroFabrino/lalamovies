@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { eq, and, isNull, isNotNull, lte, asc } from 'drizzle-orm';
-import { AppDatabase, systemConfig, downloadRequests, DownloadRequest, users } from '../db';
+import { AppDatabase, systemConfig, downloadRequests, DownloadRequest, users, requestCoRequesters } from '../db';
 import { IQBittorrentService } from './qbittorrent';
 import { IJellyfinService } from './jellyfin';
 import { INotificationService } from './notifications';
@@ -296,6 +296,11 @@ export class CleanupService implements ICleanupService {
         .where(eq(downloadRequests.id, item.id))
         .run();
 
+      this.db
+        .delete(requestCoRequesters)
+        .where(eq(requestCoRequesters.requestId, item.id))
+        .run();
+
       item.status = 'deleted';
       item.scheduledDeleteAt = null;
       deleted.push(item);
@@ -398,6 +403,11 @@ export class CleanupService implements ICleanupService {
         scheduledDeleteAt: null,
       })
       .where(eq(downloadRequests.id, requestId))
+      .run();
+
+    this.db
+      .delete(requestCoRequesters)
+      .where(eq(requestCoRequesters.requestId, requestId))
       .run();
 
     let requestedBy: string | undefined;

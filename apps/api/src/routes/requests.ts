@@ -959,6 +959,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         .select(selectFields)
         .from(downloadRequests)
         .leftJoin(users, eq(downloadRequests.userId, users.id))
+        .where(ne(downloadRequests.status, 'deleted'))
         .orderBy(desc(downloadRequests.requestedAt))
         .all();
 
@@ -994,7 +995,12 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         .select(selectFields)
         .from(downloadRequests)
         .leftJoin(users, eq(downloadRequests.userId, users.id))
-        .where(eq(downloadRequests.userId, currentUserId))
+        .where(
+          and(
+            eq(downloadRequests.userId, currentUserId),
+            ne(downloadRequests.status, 'deleted')
+          )
+        )
         .all();
 
       const coRequestRows = app.db
@@ -1002,7 +1008,12 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         .from(requestCoRequesters)
         .innerJoin(downloadRequests, eq(requestCoRequesters.requestId, downloadRequests.id))
         .leftJoin(users, eq(downloadRequests.userId, users.id))
-        .where(eq(requestCoRequesters.userId, currentUserId))
+        .where(
+          and(
+            eq(requestCoRequesters.userId, currentUserId),
+            ne(downloadRequests.status, 'deleted')
+          )
+        )
         .all();
 
       const primaryMapped = primaryRows.map((r) => ({
