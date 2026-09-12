@@ -35,6 +35,8 @@ export interface DownloadRequest {
   sizeBytes: number | null;
   deferredReason?: 'waiting_for_space' | 'waiting_for_slot' | string | null;
   requesterUsername?: string | null;
+  isPrimaryRequester?: boolean;
+  coRequesters?: string[];
 }
 
 export interface ProgressData {

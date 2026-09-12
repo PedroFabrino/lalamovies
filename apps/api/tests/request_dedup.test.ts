@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { eq, and } from 'drizzle-orm';
 import { buildApp } from '../src/app';
@@ -34,35 +34,57 @@ class MockQBittorrentService implements IQBittorrentService {
 }
 
 class MockCleanupService implements ICleanupService {
+  constructor(public appInstance: { db?: any } = {}) {}
   isSpaceSufficient(): SpaceCheckResult {
     return { sufficient: true, percentFree: 50, threshold: 15 };
   }
   isHostDiskSafe(): boolean {
     return true;
   }
+  async cleanItem(requestId: string): Promise<void> {
+    if (this.appInstance.db) {
+      this.appInstance.db
+        .update(downloadRequests)
+        .set({ status: 'deleted' })
+        .where(eq(downloadRequests.id, requestId))
+        .run();
+    }
+  }
 }
 
 describe('Request Deduplication & Co-Requesters (Ticket 02)', () => {
   let app: FastifyInstance;
   let mockQb: MockQBittorrentService;
+  let mockCleanup: MockCleanupService;
+  let adminCookie: string;
   let aliceCookie: string;
   let bobCookie: string;
   let charlieCookie: string;
 
   beforeEach(async () => {
     mockQb = new MockQBittorrentService();
+    mockCleanup = new MockCleanupService();
 
     app = buildApp({
       dbPath: ':memory:',
       jellyfinService: new MockJellyfinService(),
       qbittorrentService: mockQb,
-      cleanupService: new MockCleanupService(),
+      cleanupService: mockCleanup,
       jwtSecret: 'test-jwt-secret-key-32-characters-minimum',
     });
+    mockCleanup.appInstance.db = app.db;
 
     await app.ready();
 
-    // Alice -> user
+    // 1. First user -> Admin
+    const adminRes = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { username: 'admin_sys', password: 'password123' },
+    });
+    adminCookie = adminRes.cookies[0].value;
+
+    // 2. Alice -> regular user
     const aliceRes = await app.inject({
       method: 'POST',
       url: '/auth/login',
@@ -70,7 +92,7 @@ describe('Request Deduplication & Co-Requesters (Ticket 02)', () => {
     });
     aliceCookie = aliceRes.cookies[0].value;
 
-    // Bob -> user
+    // 3. Bob -> regular user
     const bobRes = await app.inject({
       method: 'POST',
       url: '/auth/login',
@@ -78,7 +100,7 @@ describe('Request Deduplication & Co-Requesters (Ticket 02)', () => {
     });
     bobCookie = bobRes.cookies[0].value;
 
-    // Charlie -> user
+    // 4. Charlie -> regular user
     const charlieRes = await app.inject({
       method: 'POST',
       url: '/auth/login',
@@ -443,5 +465,148 @@ describe('Request Deduplication & Co-Requesters (Ticket 02)', () => {
     // One co-requester row in DB
     const coRows = app.db.select().from(requestCoRequesters).where(eq(requestCoRequesters.requestId, rows[0].id)).all();
     expect(coRows).toHaveLength(1);
+  });
+
+  describe('Co-Requester Visibility & Access Gating (Ticket 03)', () => {
+    let canonicalReqId: string;
+
+    beforeEach(async () => {
+      // Alice (primary) creates request
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/requests',
+        cookies: { token: aliceCookie },
+        payload: {
+          magnetLink: 'magnet:?xt=urn:btih:shared_movie',
+          mediaType: 'movie',
+          metadataId: '888',
+          metadataSource: 'tmdb',
+          title: 'Shared Movie',
+        },
+      });
+      canonicalReqId = createRes.json().request.id;
+
+      // Bob co-requests the same movie
+      await app.inject({
+        method: 'POST',
+        url: '/requests',
+        cookies: { token: bobCookie },
+        payload: {
+          magnetLink: 'magnet:?xt=urn:btih:shared_movie_bob',
+          mediaType: 'movie',
+          metadataId: '888',
+          metadataSource: 'tmdb',
+          title: 'Shared Movie',
+        },
+      });
+    });
+
+    it('GET /requests returns primary and co-requested requests with isPrimaryRequester flag', async () => {
+      // Alice list -> isPrimaryRequester = true
+      const aliceListRes = await app.inject({
+        method: 'GET',
+        url: '/requests',
+        cookies: { token: aliceCookie },
+      });
+      expect(aliceListRes.statusCode).toBe(200);
+      const aliceItem = aliceListRes.json().requests.find((r: any) => r.id === canonicalReqId);
+      expect(aliceItem).toBeDefined();
+      expect(aliceItem.isPrimaryRequester).toBe(true);
+
+      // Bob list -> isPrimaryRequester = false
+      const bobListRes = await app.inject({
+        method: 'GET',
+        url: '/requests',
+        cookies: { token: bobCookie },
+      });
+      expect(bobListRes.statusCode).toBe(200);
+      const bobItem = bobListRes.json().requests.find((r: any) => r.id === canonicalReqId);
+      expect(bobItem).toBeDefined();
+      expect(bobItem.isPrimaryRequester).toBe(false);
+
+      // Charlie (unrelated) list -> does not see the request
+      const charlieListRes = await app.inject({
+        method: 'GET',
+        url: '/requests',
+        cookies: { token: charlieCookie },
+      });
+      expect(charlieListRes.statusCode).toBe(200);
+      const charlieItem = charlieListRes.json().requests.find((r: any) => r.id === canonicalReqId);
+      expect(charlieItem).toBeUndefined();
+    });
+
+    it('admin GET /requests includes coRequesters usernames array', async () => {
+      const adminListRes = await app.inject({
+        method: 'GET',
+        url: '/requests',
+        cookies: { token: adminCookie },
+      });
+      expect(adminListRes.statusCode).toBe(200);
+      const item = adminListRes.json().requests.find((r: any) => r.id === canonicalReqId);
+      expect(item).toBeDefined();
+      expect(item.coRequesters).toContain('bob');
+    });
+
+    it('GET /requests/:id grants read access to primary requester, co-requester, and admin, but 404 for others', async () => {
+      // Alice (primary) -> 200
+      const aliceRes = await app.inject({
+        method: 'GET',
+        url: `/requests/${canonicalReqId}`,
+        cookies: { token: aliceCookie },
+      });
+      expect(aliceRes.statusCode).toBe(200);
+      expect(aliceRes.json().request.isPrimaryRequester).toBe(true);
+
+      // Bob (co-requester) -> 200
+      const bobRes = await app.inject({
+        method: 'GET',
+        url: `/requests/${canonicalReqId}`,
+        cookies: { token: bobCookie },
+      });
+      expect(bobRes.statusCode).toBe(200);
+      expect(bobRes.json().request.isPrimaryRequester).toBe(false);
+
+      // Admin -> 200
+      const adminRes = await app.inject({
+        method: 'GET',
+        url: `/requests/${canonicalReqId}`,
+        cookies: { token: adminCookie },
+      });
+      expect(adminRes.statusCode).toBe(200);
+
+      // Charlie (not primary, not co-requester) -> 404
+      const charlieRes = await app.inject({
+        method: 'GET',
+        url: `/requests/${canonicalReqId}`,
+        cookies: { token: charlieCookie },
+      });
+      expect(charlieRes.statusCode).toBe(404);
+    });
+
+    it('DELETE /requests/:id is blocked for co-requester (404) but allowed for primary requester and admin', async () => {
+      // Bob (co-requester) tries to delete -> 404
+      const bobDelRes = await app.inject({
+        method: 'DELETE',
+        url: `/requests/${canonicalReqId}`,
+        cookies: { token: bobCookie },
+      });
+      expect(bobDelRes.statusCode).toBe(404);
+
+      // Charlie (third party) tries to delete -> 404
+      const charlieDelRes = await app.inject({
+        method: 'DELETE',
+        url: `/requests/${canonicalReqId}`,
+        cookies: { token: charlieCookie },
+      });
+      expect(charlieDelRes.statusCode).toBe(404);
+
+      // Alice (primary) can delete -> 200
+      const aliceDelRes = await app.inject({
+        method: 'DELETE',
+        url: `/requests/${canonicalReqId}`,
+        cookies: { token: aliceCookie },
+      });
+      expect(aliceDelRes.statusCode).toBe(200);
+    });
   });
 });

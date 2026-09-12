@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { eq, desc, and, ne, inArray } from 'drizzle-orm';
 import { authMiddleware, adminGuard } from '../middleware/auth';
-import { systemConfig, downloadRequests, users, DownloadRequest } from '../db/schema';
+import { systemConfig, downloadRequests, users, DownloadRequest, requestCoRequesters } from '../db/schema';
 import { normalizeShowTitle } from '../services/upNext';
 import { MetadataApiError, MetadataCandidate } from '../services/metadata';
 import { parseTorrentBuffer } from '../services/torrentParser';
@@ -900,6 +900,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
   // GET /requests — list requests
   app.get('/', async (request, reply) => {
     const isAdmin = request.currentUser!.role === 'admin';
+    const currentUserId = request.currentUser!.id;
 
     const selectFields = {
       id: downloadRequests.id,
@@ -926,25 +927,83 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       requesterUsername: users.username,
     };
 
-    let list;
     if (isAdmin) {
-      list = app.db
+      const rawList = app.db
         .select(selectFields)
         .from(downloadRequests)
         .leftJoin(users, eq(downloadRequests.userId, users.id))
         .orderBy(desc(downloadRequests.requestedAt))
         .all();
-    } else {
-      list = app.db
-        .select(selectFields)
-        .from(downloadRequests)
-        .leftJoin(users, eq(downloadRequests.userId, users.id))
-        .where(eq(downloadRequests.userId, request.currentUser!.id))
-        .orderBy(desc(downloadRequests.requestedAt))
-        .all();
-    }
 
-    return reply.send({ requests: list });
+      const coReqMap = new Map<string, string[]>();
+      const allCoRequesters = app.db
+        .select({
+          requestId: requestCoRequesters.requestId,
+          username: users.username,
+        })
+        .from(requestCoRequesters)
+        .leftJoin(users, eq(requestCoRequesters.userId, users.id))
+        .all();
+
+      for (const cr of allCoRequesters) {
+        if (!coReqMap.has(cr.requestId)) {
+          coReqMap.set(cr.requestId, []);
+        }
+        if (cr.username) {
+          coReqMap.get(cr.requestId)!.push(cr.username);
+        }
+      }
+
+      const list = rawList.map((item) => ({
+        ...item,
+        isPrimaryRequester: item.userId === currentUserId,
+        coRequesters: coReqMap.get(item.id) || [],
+      }));
+
+      return reply.send({ requests: list });
+    } else {
+      // Non-admin: primary requests + co-requested requests
+      const primaryRows = app.db
+        .select(selectFields)
+        .from(downloadRequests)
+        .leftJoin(users, eq(downloadRequests.userId, users.id))
+        .where(eq(downloadRequests.userId, currentUserId))
+        .all();
+
+      const coRequestRows = app.db
+        .select(selectFields)
+        .from(requestCoRequesters)
+        .innerJoin(downloadRequests, eq(requestCoRequesters.requestId, downloadRequests.id))
+        .leftJoin(users, eq(downloadRequests.userId, users.id))
+        .where(eq(requestCoRequesters.userId, currentUserId))
+        .all();
+
+      const primaryMapped = primaryRows.map((r) => ({
+        ...r,
+        isPrimaryRequester: true,
+        coRequesters: [],
+      }));
+
+      const coMapped = coRequestRows.map((r) => ({
+        ...r,
+        isPrimaryRequester: false,
+        coRequesters: [],
+      }));
+
+      const seen = new Set<string>();
+      const combined: typeof primaryMapped = [];
+      for (const item of [...primaryMapped, ...coMapped]) {
+        if (!seen.has(item.id)) {
+          seen.add(item.id);
+          combined.push(item);
+        }
+      }
+      combined.sort(
+        (a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime()
+      );
+
+      return reply.send({ requests: combined });
+    }
   });
 
   // GET /requests/:id — get single request
@@ -965,14 +1024,36 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const isAdmin = request.currentUser!.role === 'admin';
-    if (!isAdmin && item.userId !== request.currentUser!.id) {
+    const isPrimary = item.userId === request.currentUser!.id;
+    let isCoRequester = false;
+
+    if (!isAdmin && !isPrimary) {
+      const coReq = app.db
+        .select()
+        .from(requestCoRequesters)
+        .where(
+          and(
+            eq(requestCoRequesters.requestId, item.id),
+            eq(requestCoRequesters.userId, request.currentUser!.id)
+          )
+        )
+        .get();
+      isCoRequester = Boolean(coReq);
+    }
+
+    if (!isAdmin && !isPrimary && !isCoRequester) {
       return reply.status(404).send({
         error: 'Not Found',
         message: 'Download request not found',
       });
     }
 
-    return reply.send({ request: item });
+    return reply.send({
+      request: {
+        ...item,
+        isPrimaryRequester: isPrimary,
+      },
+    });
   });
 
   // PATCH /requests/:id/keep — admin toggle keepFlag
