@@ -134,7 +134,8 @@ describe('WaitlistView - Dedicated Waitlist Page', () => {
     expect(cards[0].text()).toContain('2026');
     expect(cards[0].find('[data-testid="entry-media-type"]').text()).toContain('Movie');
     expect(cards[0].find('[data-testid="entry-status-badge"]').text()).toContain('Pending Release');
-    expect(cards[0].text()).toContain('Premiere:');
+    expect(cards[0].find('[data-testid="entry-release-date-badge"]').exists()).toBe(true);
+    expect(cards[0].text()).toContain('Starts searching trackers on');
 
     // Second card: Severance S02E01
     expect(cards[1].text()).toContain('Severance');
@@ -276,6 +277,7 @@ describe('WaitlistView - Dedicated Waitlist Page', () => {
       title: 'The Boys',
       year: 2026,
       seasonNumber: 5,
+      targetEpisode: 1,
       posterUrl: 'https://image.tmdb.org/t/p/w500/theboys.jpg',
     });
 
@@ -419,4 +421,103 @@ describe('WaitlistView - Dedicated Waitlist Page', () => {
     expect(api.delete).toHaveBeenCalledWith('/waitlist/entry-bob');
     expect(wrapper.findAll('[data-testid="waitlist-card"]').length).toBe(0);
   });
+
+  it('auto-detects next episode from series-progress, displays air date, and passes tmdbReleaseDate to API', async () => {
+    vi.mocked(api.get).mockImplementation(async (endpoint: string) => {
+      if (endpoint === '/waitlist') {
+        return { entries: [] } as any;
+      }
+      if (endpoint.startsWith('/requests/series-progress')) {
+        return {
+          highestSeason: 3,
+          highestEpisode: 6,
+          existingEpisodes: [1, 2, 3, 4, 5, 6],
+          suggestedSeason: 3,
+          suggestedEpisode: 7,
+          existingTitle: 'Lioness',
+          hasExisting: true,
+          airDate: '2026-09-13',
+        } as any;
+      }
+      return {} as any;
+    });
+
+    vi.mocked(api.post).mockImplementation(async (endpoint: string, body?: any) => {
+      if (endpoint === '/requests/search-metadata') {
+        return {
+          candidates: [
+            {
+              id: '113962',
+              source: 'tmdb',
+              title: 'Lioness',
+              year: 2023,
+              overview: 'CIA operative Joe...',
+              posterUrl: 'https://image.tmdb.org/t/p/w500/lioness.jpg',
+            },
+          ],
+        } as any;
+      }
+      if (endpoint === '/waitlist') {
+        return {
+          entry: {
+            id: 'lioness-entry',
+            userId: 'user-1',
+            ...body,
+            status: 'pending_release',
+            createdAt: new Date().toISOString(),
+          },
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const wrapper = mount(WaitlistView);
+    await flushPromises();
+
+    // Open modal
+    await wrapper.find('[data-testid="open-add-waitlist-modal"]').trigger('click');
+    await flushPromises();
+
+    // Search Lioness as tv_show
+    const tvShowRadio = wrapper.find('input[name="modalMediaType"][value="tv_show"]');
+    await tvShowRadio.setValue();
+
+    const searchInput = wrapper.find('[data-testid="search-waitlist-input"]');
+    await searchInput.setValue('Lioness');
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+
+    // Select candidate
+    await wrapper.find('[data-testid="search-candidate-item"]').trigger('click');
+    await flushPromises();
+
+    // Verify series progress badge auto-targets episode 7
+    expect(wrapper.find('[data-testid="series-progress-badge"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="series-progress-badge"]').text()).toContain('Auto-targeting next episode 7');
+
+    const epInput = wrapper.find('[data-testid="waitlist-episode-input"]');
+    expect((epInput.element as HTMLInputElement).value).toBe('7');
+
+    // Verify air date info is displayed
+    const airDateInfo = wrapper.find('[data-testid="confirm-air-date-info"]');
+    expect(airDateInfo.exists()).toBe(true);
+    expect(airDateInfo.text()).toContain('Episode Air Date:');
+
+    // Confirm submission
+    await wrapper.find('[data-testid="confirm-add-waitlist-btn"]').trigger('click');
+    await flushPromises();
+
+    expect(api.post).toHaveBeenCalledWith('/waitlist', {
+      mediaType: 'tv_show',
+      metadataId: '113962',
+      metadataSource: 'tmdb',
+      title: 'Lioness',
+      year: 2023,
+      seasonNumber: 1,
+      targetEpisode: 7,
+      tmdbReleaseDate: '2026-09-13',
+      posterUrl: 'https://image.tmdb.org/t/p/w500/lioness.jpg',
+    });
+  });
 });
+

@@ -106,11 +106,17 @@ export class EpisodicTrackingService {
       if (nextEpisodeToAir !== null && newTriggeredCount < episodeCount) {
         // Next episode exists and more episodes remain in the season
         const nextTargetEpisode = (entry.targetEpisode ?? 1) + 1;
+        const nextEp = seasonData.episodes?.find((e: any) => e.episode_number === nextTargetEpisode);
+        const nextEpAirDate = nextEp?.air_date ? nextEp.air_date.slice(0, 10) : null;
+        const today = new Date().toISOString().slice(0, 10);
+        const nextStatus = nextEpAirDate && nextEpAirDate > today ? 'pending_release' : 'checking';
+
         this.db
           .update(watchRequests)
           .set({
-            status: 'checking',
+            status: nextStatus,
             targetEpisode: nextTargetEpisode,
+            tmdbReleaseDate: nextEpAirDate || entry.tmdbReleaseDate,
             triggeredCount: newTriggeredCount,
             failureCount: 0,
             notifyAt: null,

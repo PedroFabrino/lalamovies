@@ -64,7 +64,8 @@ export class ReleaseGatingService {
   async fetchReleaseDate(
     mediaType: 'movie' | 'tv_show' | 'anime',
     metadataId: string,
-    seasonNumber?: number | null
+    seasonNumber?: number | null,
+    targetEpisode?: number | null
   ): Promise<string | null> {
     if (!this.tmdbApiKey) {
       this.logger?.warn('TMDB_API_KEY is not configured; skipping release date lookup');
@@ -115,6 +116,15 @@ export class ReleaseGatingService {
           return null;
         }
         const data = (await res.json()) as any;
+
+        // If targetEpisode is provided, look up that specific episode's air date first
+        if (targetEpisode && Array.isArray(data.episodes)) {
+          const ep = data.episodes.find((e: any) => e.episode_number === targetEpisode);
+          if (ep && ep.air_date) {
+            return ep.air_date.slice(0, 10);
+          }
+        }
+
         if (data.air_date) {
           return data.air_date.slice(0, 10);
         }
@@ -185,7 +195,13 @@ export class ReleaseGatingService {
         const seasonRes = await fetch(seasonUrl);
         if (seasonRes.ok) {
           const seasonData = (await seasonRes.json()) as any;
-          if (seasonData.air_date) {
+          if (entry.targetEpisode && Array.isArray(seasonData.episodes)) {
+            const ep = seasonData.episodes.find((e: any) => e.episode_number === entry.targetEpisode);
+            if (ep && ep.air_date) {
+              foundAirDate = ep.air_date.slice(0, 10);
+            }
+          }
+          if (!foundAirDate && seasonData.air_date) {
             foundAirDate = seasonData.air_date.slice(0, 10);
           }
         }

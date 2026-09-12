@@ -243,6 +243,15 @@
                   data-testid="entry-season-badge"
                 >S{{ entry.seasonNumber < 10 ? `0${entry.seasonNumber}` : entry.seasonNumber }}<template v-if="entry.targetEpisode">E{{ entry.targetEpisode < 10 ? `0${entry.targetEpisode}` : entry.targetEpisode }}</template></span>
                 <span
+                  v-if="entry.tmdbReleaseDate"
+                  class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-900 text-amber-300 border border-amber-800/50 flex items-center gap-1"
+                  data-testid="entry-release-date-badge"
+                  :title="entry.status === 'pending_release' ? `Starts looking for torrents on ${formatDateOnly(entry.tmdbReleaseDate)}` : `Released on ${formatDateOnly(entry.tmdbReleaseDate)}`"
+                >
+                  <span>📅</span>
+                  <span>{{ formatDateOnly(entry.tmdbReleaseDate) }}</span>
+                </span>
+                <span
                   v-if="entry.requesterUsername"
                   class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-300 border border-zinc-700 flex items-center gap-1"
                   data-testid="entry-requester"
@@ -270,11 +279,14 @@
               <!-- Extra Context Info -->
               <p class="text-[11px] text-zinc-400 mt-2 line-clamp-2">
                 <template v-if="entry.status === 'pending_release'">
-                  <span v-if="entry.tmdbReleaseDate">Premiere: {{ formatDateOnly(entry.tmdbReleaseDate) }}</span>
+                  <span v-if="entry.tmdbReleaseDate" class="text-amber-300/90 font-medium">
+                    ⏳ Unreleased • Starts searching trackers on {{ formatDateOnly(entry.tmdbReleaseDate) }}
+                  </span>
                   <span v-else>Awaiting confirmed release date from TMDB</span>
                 </template>
                 <template v-else-if="entry.status === 'checking'">
-                  <span>Checking trackers for quality release</span>
+                  <span v-if="entry.tmdbReleaseDate">Released {{ formatDateOnly(entry.tmdbReleaseDate) }} • Actively checking trackers</span>
+                  <span v-else>Checking trackers for quality release</span>
                 </template>
                 <template v-else-if="entry.status === 'notified'">
                   <span v-if="entry.prowlarrReleaseTitle" class="text-indigo-300 font-mono text-[10px] block truncate">
@@ -479,25 +491,92 @@
             </div>
           </div>
 
-          <!-- Season Selector for TV Show / Anime -->
+          <!-- Season & Episode Selectors for TV Show / Anime -->
           <div
             v-if="['tv_show', 'anime'].includes(selectedMediaType)"
-            class="p-4 bg-zinc-950/60 rounded-xl border border-zinc-800/80 space-y-2"
+            class="p-4 bg-zinc-950/60 rounded-xl border border-zinc-800/80 space-y-4"
           >
-            <label for="waitlistSeasonInput" class="block text-xs font-medium text-zinc-300">
-              Target Season Number
-            </label>
-            <input
-              id="waitlistSeasonInput"
-              v-model.number="selectedSeasonNumber"
-              type="number"
-              min="1"
-              data-testid="waitlist-season-input"
-              class="w-24 px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
+            <!-- Progress badge if series has existing downloads -->
+            <div
+              v-if="seriesProgress?.hasExisting"
+              class="p-3 bg-indigo-950/40 border border-indigo-800/60 rounded-lg text-xs text-indigo-300 flex items-start gap-2.5"
+              data-testid="series-progress-badge"
+            >
+              <span class="text-base leading-none">💡</span>
+              <div class="space-y-1">
+                <div class="font-medium">
+                  In Library:
+                  <span class="text-white">
+                    Season {{ selectedSeasonNumber }}
+                    <template v-if="seriesProgress.existingEpisodes.length > 0">
+                      (Episode{{ seriesProgress.existingEpisodes.length > 1 ? 's ' : ' ' }}{{ seriesProgress.existingEpisodes.join(', ') }})
+                    </template>
+                    <template v-else>
+                      (No episodes in this season yet)
+                    </template>
+                  </span>
+                </div>
+                <div class="text-[11px] text-zinc-400">
+                  Auto-targeting next episode {{ selectedEpisodeNumber || 1 }}. You can adjust below if needed.
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label for="waitlistSeasonInput" class="block text-xs font-medium text-zinc-300 mb-1.5">
+                  Target Season
+                </label>
+                <input
+                  id="waitlistSeasonInput"
+                  v-model.number="selectedSeasonNumber"
+                  type="number"
+                  min="1"
+                  data-testid="waitlist-season-input"
+                  @change="fetchSeriesProgress"
+                  class="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label for="waitlistEpisodeInput" class="block text-xs font-medium text-zinc-300 mb-1.5">
+                  Target Episode
+                </label>
+                <input
+                  id="waitlistEpisodeInput"
+                  v-model.number="selectedEpisodeNumber"
+                  type="number"
+                  min="1"
+                  data-testid="waitlist-episode-input"
+                  @change="fetchSeriesProgress"
+                  class="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
             <p class="text-[11px] text-zinc-400">
-              Monitors Season {{ selectedSeasonNumber || 1 }} releases once the air date is confirmed by TMDB.
+              Monitors S{{ (selectedSeasonNumber || 1) < 10 ? '0' + (selectedSeasonNumber || 1) : selectedSeasonNumber }}E{{ (selectedEpisodeNumber || 1) < 10 ? '0' + (selectedEpisodeNumber || 1) : selectedEpisodeNumber }} releases once available on trackers.
             </p>
+          </div>
+
+          <!-- TMDB Air Date / Release Date Display -->
+          <div
+            v-if="targetAirDate"
+            class="p-3 bg-zinc-950/60 rounded-xl border border-zinc-800/80 text-xs flex items-center justify-between"
+            data-testid="confirm-air-date-info"
+          >
+            <span class="text-zinc-400">
+              <template v-if="['tv_show', 'anime'].includes(selectedMediaType)">
+                Episode Air Date:
+              </template>
+              <template v-else>
+                TMDB Release Date:
+              </template>
+            </span>
+            <span class="text-white font-medium flex items-center gap-1.5" data-testid="confirm-air-date-value">
+              <span>📅</span>
+              <span>{{ formatDateOnly(targetAirDate) }}</span>
+            </span>
           </div>
 
           <!-- Action Buttons -->
@@ -612,12 +691,49 @@ const candidates = ref<any[]>([]);
 const selectedCandidate = ref<any | null>(null);
 const selectedMediaType = ref<'movie' | 'tv_show' | 'anime'>('movie');
 const selectedSeasonNumber = ref<number>(1);
+const selectedEpisodeNumber = ref<number | null>(1);
+const targetAirDate = ref<string | null>(null);
+const seriesProgress = ref<{
+  highestSeason: number | null;
+  highestEpisode: number | null;
+  existingEpisodes: number[];
+  suggestedSeason: number;
+  suggestedEpisode: number;
+  existingTitle: string | null;
+  hasExisting: boolean;
+  airDate?: string | null;
+} | null>(null);
 
 const mediaTypeOptions = [
   { value: 'movie' as const, label: 'Movie', icon: '🎬' },
   { value: 'tv_show' as const, label: 'TV Show', icon: '📺' },
   { value: 'anime' as const, label: 'Anime', icon: '⛩️' },
 ];
+
+async function fetchSeriesProgress() {
+  if (!selectedCandidate.value || !['tv_show', 'anime'].includes(selectedMediaType.value)) {
+    seriesProgress.value = null;
+    return;
+  }
+  try {
+    const params = new URLSearchParams();
+    if (selectedCandidate.value.id) params.append('metadataId', String(selectedCandidate.value.id));
+    if (selectedCandidate.value.title) params.append('title', selectedCandidate.value.title);
+    if (selectedSeasonNumber.value) params.append('seasonNumber', String(selectedSeasonNumber.value));
+    if (selectedEpisodeNumber.value) params.append('episodeNumber', String(selectedEpisodeNumber.value));
+
+    const data = await api.get<any>(`/requests/series-progress?${params.toString()}`);
+    seriesProgress.value = data;
+    if (selectedEpisodeNumber.value === null) {
+      selectedEpisodeNumber.value = data?.hasExisting ? (data.suggestedEpisode || 1) : 1;
+    }
+    if (data?.airDate) {
+      targetAirDate.value = data.airDate;
+    }
+  } catch {
+    seriesProgress.value = null;
+  }
+}
 
 function openSearchModal() {
   isPrefilled.value = false;
@@ -626,23 +742,31 @@ function openSearchModal() {
   candidates.value = [];
   hasSearched.value = false;
   selectedCandidate.value = null;
+  seriesProgress.value = null;
+  targetAirDate.value = null;
   isModalOpen.value = true;
 }
 
 function closeModal() {
   isModalOpen.value = false;
+  seriesProgress.value = null;
+  targetAirDate.value = null;
   if (route.query.add) {
     router.replace({ path: '/waitlist', query: {} });
   }
 }
 
-function initPrefilledModal() {
+async function initPrefilledModal() {
   isPrefilled.value = true;
   modalStep.value = 'confirm';
   const query = route.query;
   const mType = (query.mediaType as any) || 'movie';
   selectedMediaType.value = ['movie', 'tv_show', 'anime'].includes(mType) ? mType : 'movie';
   selectedSeasonNumber.value = query.seasonNumber ? Number(query.seasonNumber) : 1;
+  selectedEpisodeNumber.value = query.targetEpisode || query.episodeNumber ? Number(query.targetEpisode || query.episodeNumber) : 1;
+  if (query.releaseDate) {
+    targetAirDate.value = String(query.releaseDate);
+  }
   selectedCandidate.value = {
     id: String(query.metadataId || ''),
     source: String(query.metadataSource || 'tmdb'),
@@ -651,6 +775,9 @@ function initPrefilledModal() {
     posterUrl: query.posterUrl ? String(query.posterUrl) : null,
   };
   isModalOpen.value = true;
+  if (['tv_show', 'anime'].includes(selectedMediaType.value)) {
+    await fetchSeriesProgress();
+  }
 }
 
 async function handleSearch() {
@@ -671,11 +798,17 @@ async function handleSearch() {
   }
 }
 
-function selectCandidate(candidate: any) {
+async function selectCandidate(candidate: any) {
   selectedCandidate.value = candidate;
   selectedMediaType.value = searchMediaType.value;
   selectedSeasonNumber.value = 1;
+  selectedEpisodeNumber.value = null;
+  targetAirDate.value = candidate.releaseDate || null;
+  seriesProgress.value = null;
   modalStep.value = 'confirm';
+  if (['tv_show', 'anime'].includes(selectedMediaType.value)) {
+    await fetchSeriesProgress();
+  }
 }
 
 async function submitWaitlistEntry() {
@@ -689,6 +822,8 @@ async function submitWaitlistEntry() {
       title: selectedCandidate.value.title,
       year: selectedCandidate.value.year || undefined,
       seasonNumber: ['tv_show', 'anime'].includes(selectedMediaType.value) ? (selectedSeasonNumber.value || 1) : undefined,
+      targetEpisode: ['tv_show', 'anime'].includes(selectedMediaType.value) ? (selectedEpisodeNumber.value || 1) : undefined,
+      tmdbReleaseDate: targetAirDate.value || undefined,
       posterUrl: selectedCandidate.value.posterUrl || undefined,
     });
     closeModal();

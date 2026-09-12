@@ -10,6 +10,7 @@ export interface BuildLibraryPathParams {
   ext?: string;
   isSeasonPack?: boolean;
   mediaBasePath?: string;
+  existingShowFolder?: string;
 }
 
 export interface IFileSystemService {
@@ -70,7 +71,9 @@ export class FileSystemService implements IFileSystemService {
     const subDir = params.mediaType === 'anime' ? 'anime' : 'shows';
     const seasonNum = params.seasonNumber ?? 1;
     const seasonFolder = `Season ${this.padNumber(seasonNum, 2)}`;
-    const showFolderName = params.year ? `${cleanTitle} (${params.year})` : cleanTitle;
+    const baseCleanTitle = cleanTitle.replace(/\s*-\s*\d+$/, '').trim() || cleanTitle;
+    const defaultShowFolder = params.year ? `${baseCleanTitle} (${params.year})` : baseCleanTitle;
+    const showFolderName = params.existingShowFolder || defaultShowFolder;
 
     if (params.isSeasonPack) {
       return path.join(root, subDir, showFolderName, seasonFolder);

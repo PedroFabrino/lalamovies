@@ -51,6 +51,7 @@ export interface CreateWaitlistPayload {
   posterUrl?: string | null;
   requesterUsername?: string | null;
   requesterEmail?: string | null;
+  tmdbReleaseDate?: string | null;
 }
 
 export const useWaitlistStore = defineStore('waitlist', () => {

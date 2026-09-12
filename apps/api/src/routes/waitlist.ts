@@ -1,7 +1,8 @@
 import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
-import { eq } from 'drizzle-orm';
-import { users } from '../db/schema';
+import { eq, and, ne, inArray } from 'drizzle-orm';
+import { users, downloadRequests } from '../db/schema';
 import { JwtPayload } from '../middleware/auth';
+import { normalizeShowTitle } from '../services/upNext';
 
 async function waitlistAuth(request: FastifyRequest, reply: FastifyReply) {
   // Allow public access to reject endpoint with magic-link token
@@ -81,6 +82,58 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
         requesterUsername: outgoingBody.requesterUsername || request.currentUser.username,
         requesterEmail: outgoingBody.requesterEmail || request.currentUser.email,
       };
+    }
+
+    // Auto-detect targetEpisode from download_requests if omitted for tv_show / anime
+    if (
+      ['tv_show', 'anime'].includes(outgoingBody.mediaType) &&
+      (outgoingBody.targetEpisode === undefined || outgoingBody.targetEpisode === null)
+    ) {
+      const season = outgoingBody.seasonNumber ?? 1;
+      const effectiveUserId = request.currentUser?.id || (request.headers['x-user-id'] as string | undefined);
+
+      try {
+        const conditions = [
+          ne(downloadRequests.status, 'deleted'),
+          inArray(downloadRequests.mediaType, ['tv_show', 'anime']),
+          eq(downloadRequests.seasonNumber, season),
+        ];
+
+        if (effectiveUserId) {
+          conditions.push(eq(downloadRequests.userId, effectiveUserId));
+        }
+
+        const existingReqs = request.server.db
+          .select()
+          .from(downloadRequests)
+          .where(and(...conditions))
+          .all();
+
+        const normBodyTitle = outgoingBody.title ? normalizeShowTitle(outgoingBody.title) : '';
+        const matching = existingReqs.filter((r) => {
+          if (outgoingBody.metadataId && r.metadataId && String(r.metadataId) === String(outgoingBody.metadataId)) {
+            return true;
+          }
+          if (normBodyTitle && r.title && normalizeShowTitle(r.title) === normBodyTitle) {
+            return true;
+          }
+          return false;
+        });
+
+        if (matching.length > 0) {
+          let maxEp = 0;
+          for (const r of matching) {
+            if (typeof r.episodeNumber === 'number' && r.episodeNumber > maxEp) {
+              maxEp = r.episodeNumber;
+            }
+          }
+          if (maxEp > 0) {
+            outgoingBody.targetEpisode = maxEp + 1;
+          }
+        }
+      } catch (err) {
+        request.log.warn(err, 'Failed to auto-detect target episode from download_requests');
+      }
     }
   }
 

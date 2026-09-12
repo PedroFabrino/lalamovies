@@ -1641,6 +1641,7 @@ function navigateToWaitlistWithMetadata() {
       metadataSource: selectedCandidate.value.source || 'tmdb',
       mediaType: mediaType.value,
       seasonNumber: seasonNumber.value ? String(seasonNumber.value) : undefined,
+      targetEpisode: downloadGranularity.value === 'episode' && episodeNumber.value ? String(episodeNumber.value) : undefined,
       posterUrl: selectedCandidate.value.posterUrl || undefined,
     },
   });

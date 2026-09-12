@@ -1,6 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import { eq, asc, and, ne } from 'drizzle-orm';
+import { eq, asc, and, ne, isNotNull, inArray } from 'drizzle-orm';
 import { AppDatabase, downloadRequests, systemConfig, users } from '../db';
 import { IQBittorrentService } from '../services/qbittorrent';
 import { IFileSystemService } from '../services/fileSystem';
@@ -176,6 +176,39 @@ export class DownloadPoller {
               throw new Error(`Source file does not exist for hardlink: ${sourceItem}`);
             }
 
+            // Check if existing requests for this series already established a show directory
+            let existingShowFolder: string | undefined;
+            if (['tv_show', 'anime'].includes(req.mediaType)) {
+              try {
+                const conditions = [
+                  ne(downloadRequests.id, req.id),
+                  ne(downloadRequests.status, 'deleted'),
+                  inArray(downloadRequests.mediaType, ['tv_show', 'anime']),
+                  isNotNull(downloadRequests.jellyfinPath),
+                ];
+                if (req.metadataId) {
+                  conditions.push(eq(downloadRequests.metadataId, req.metadataId));
+                }
+
+                const existingSeries = this.db
+                  .select({ jellyfinPath: downloadRequests.jellyfinPath })
+                  .from(downloadRequests)
+                  .where(and(...conditions))
+                  .get();
+
+                if (existingSeries?.jellyfinPath) {
+                  const subDir = req.mediaType === 'anime' ? 'anime' : 'shows';
+                  const parts = existingSeries.jellyfinPath.split(/[\\/]/);
+                  const subDirIdx = parts.indexOf(subDir);
+                  if (subDirIdx !== -1 && parts[subDirIdx + 1]) {
+                    existingShowFolder = parts[subDirIdx + 1];
+                  }
+                }
+              } catch {
+                // Non-fatal
+              }
+            }
+
             const destPath = this.fileSystem.buildLibraryPath({
               mediaType: req.mediaType,
               title: req.title,
@@ -184,6 +217,7 @@ export class DownloadPoller {
               episodeNumber: req.episodeNumber,
               isSeasonPack: isDirectory || (req.mediaType !== 'movie' && !ext),
               ext,
+              existingShowFolder,
             });
 
             // Perform Hardlink Move

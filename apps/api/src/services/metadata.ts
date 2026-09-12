@@ -5,6 +5,7 @@ export interface MetadataCandidate {
   source: 'tmdb' | 'anilist';
   title: string;
   year: number | null;
+  releaseDate?: string | null;
   posterUrl: string | null;
   overview: string | null;
   romajiTitle?: string | null;
@@ -198,6 +199,7 @@ export class MetadataService implements IMetadataService {
         source: 'tmdb',
         title,
         year: parsedYear,
+        releaseDate: dateStr ? dateStr.slice(0, 10) : null,
         posterUrl,
         overview: item.overview || null,
         romajiTitle: item.original_name || item.original_title || null,
@@ -222,6 +224,8 @@ export class MetadataService implements IMetadataService {
             }
             startDate {
               year
+              month
+              day
             }
             coverImage {
               large
@@ -267,6 +271,8 @@ export class MetadataService implements IMetadataService {
             };
             startDate?: {
               year?: number;
+              month?: number;
+              day?: number;
             };
             coverImage?: {
               large?: string;
@@ -301,11 +307,20 @@ export class MetadataService implements IMetadataService {
           ? Math.round((item.averageScore / 10) * 10) / 10
           : null;
 
+      let releaseDate: string | null = null;
+      if (item.startDate?.year) {
+        const y = String(item.startDate.year);
+        const m = item.startDate.month ? String(item.startDate.month).padStart(2, '0') : '01';
+        const d = item.startDate.day ? String(item.startDate.day).padStart(2, '0') : '01';
+        releaseDate = `${y}-${m}-${d}`;
+      }
+
       return {
         id: String(item.id),
         source: 'anilist',
         title,
         year: parsedYear,
+        releaseDate,
         posterUrl,
         overview,
         romajiTitle: item.title?.romaji || null,

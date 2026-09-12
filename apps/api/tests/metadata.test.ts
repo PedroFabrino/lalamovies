@@ -307,6 +307,7 @@ describe('Metadata Service - Unit Tests', () => {
         source: 'anilist',
         title: 'Attack on Titan',
         year: 2013,
+        releaseDate: '2013-01-01',
         posterUrl: 'https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx16498.jpg',
         overview: 'Several hundred years ago, humans were nearly exterminated by Titans.Now...',
         romajiTitle: 'Shingeki no Kyojin',

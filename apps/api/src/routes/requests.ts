@@ -3,9 +3,10 @@ import path from 'node:path';
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and, ne, inArray } from 'drizzle-orm';
 import { authMiddleware, adminGuard } from '../middleware/auth';
 import { systemConfig, downloadRequests, users, DownloadRequest } from '../db/schema';
+import { normalizeShowTitle } from '../services/upNext';
 import { MetadataApiError, MetadataCandidate } from '../services/metadata';
 import { parseTorrentBuffer } from '../services/torrentParser';
 import { cleanTorrentTitle } from '../utils/torrentTitleCleaner';
@@ -119,6 +120,136 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({
       isConfigured: true,
       isReachable: true,
+    });
+  });
+
+  // GET /requests/series-progress
+  app.get('/series-progress', async (request, reply) => {
+    const query = request.query as {
+      metadataId?: string;
+      metadataSource?: string;
+      seasonNumber?: string;
+      episodeNumber?: string;
+      title?: string;
+      mediaType?: string;
+    };
+
+    const effectiveUserId = request.currentUser?.id;
+    if (!effectiveUserId) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    const conditions = [
+      eq(downloadRequests.userId, effectiveUserId),
+      ne(downloadRequests.status, 'deleted'),
+      inArray(downloadRequests.mediaType, ['tv_show', 'anime']),
+    ];
+
+    const userRequests = app.db
+      .select()
+      .from(downloadRequests)
+      .where(and(...conditions))
+      .all();
+
+    const normTitle = query.title ? normalizeShowTitle(query.title) : '';
+    const matching = userRequests.filter((r) => {
+      if (query.metadataId && r.metadataId && String(r.metadataId) === String(query.metadataId)) {
+        return true;
+      }
+      if (normTitle && r.title && normalizeShowTitle(r.title) === normTitle) {
+        return true;
+      }
+      return false;
+    });
+
+    const requestedSeason = query.seasonNumber ? parseInt(query.seasonNumber, 10) : undefined;
+    const requestedEp = query.episodeNumber ? parseInt(query.episodeNumber, 10) : undefined;
+
+    if (matching.length === 0) {
+      const targetSeason = (requestedSeason && !isNaN(requestedSeason)) ? requestedSeason : 1;
+      const targetEp = (requestedEp && !isNaN(requestedEp)) ? requestedEp : 1;
+      let airDate: string | null = null;
+      const tmdbApiKey = process.env.TMDB_API_KEY;
+      if (tmdbApiKey && query.metadataId && (!query.metadataSource || query.metadataSource === 'tmdb')) {
+        try {
+          const url = `https://api.themoviedb.org/3/tv/${encodeURIComponent(query.metadataId)}/season/${targetSeason}?api_key=${encodeURIComponent(tmdbApiKey)}`;
+          const tmdbRes = await fetch(url);
+          if (tmdbRes.ok) {
+            const sData = (await tmdbRes.json()) as any;
+            const ep = sData.episodes?.find((e: any) => e.episode_number === targetEp);
+            if (ep?.air_date) {
+              airDate = ep.air_date.slice(0, 10);
+            } else if (sData.air_date) {
+              airDate = sData.air_date.slice(0, 10);
+            }
+          }
+        } catch {
+          // Non-blocking
+        }
+      }
+
+      return reply.send({
+        highestSeason: null,
+        highestEpisode: null,
+        existingEpisodes: [],
+        suggestedSeason: targetSeason,
+        suggestedEpisode: targetEp,
+        existingTitle: null,
+        hasExisting: false,
+        airDate,
+      });
+    }
+
+    // Determine highest season
+    let highestSeason = 1;
+    for (const r of matching) {
+      if (typeof r.seasonNumber === 'number' && r.seasonNumber > highestSeason) {
+        highestSeason = r.seasonNumber;
+      }
+    }
+
+    const targetSeason = (requestedSeason && !isNaN(requestedSeason)) ? requestedSeason : highestSeason;
+
+    const seasonEpisodes = matching
+      .filter((r) => (r.seasonNumber ?? 1) === targetSeason && typeof r.episodeNumber === 'number')
+      .map((r) => r.episodeNumber as number)
+      .sort((a, b) => a - b);
+
+    const highestEp = seasonEpisodes.length > 0 ? seasonEpisodes[seasonEpisodes.length - 1] : 0;
+    const suggestedEp = highestEp > 0 ? highestEp + 1 : 1;
+    const lookupEp = (requestedEp && !isNaN(requestedEp)) ? requestedEp : suggestedEp;
+
+    let airDate: string | null = null;
+    const tmdbApiKey = process.env.TMDB_API_KEY;
+    if (tmdbApiKey && query.metadataId && (!query.metadataSource || query.metadataSource === 'tmdb')) {
+      try {
+        const url = `https://api.themoviedb.org/3/tv/${encodeURIComponent(query.metadataId)}/season/${targetSeason}?api_key=${encodeURIComponent(tmdbApiKey)}`;
+        const tmdbRes = await fetch(url);
+        if (tmdbRes.ok) {
+          const sData = (await tmdbRes.json()) as any;
+          const ep = sData.episodes?.find((e: any) => e.episode_number === lookupEp);
+          if (ep?.air_date) {
+            airDate = ep.air_date.slice(0, 10);
+          } else if (sData.air_date) {
+            airDate = sData.air_date.slice(0, 10);
+          }
+        }
+      } catch {
+        // Non-blocking
+      }
+    }
+
+    const existingTitle = matching[0]?.title || null;
+
+    return reply.send({
+      highestSeason,
+      highestEpisode: highestEp || null,
+      existingEpisodes: seasonEpisodes,
+      suggestedSeason: targetSeason,
+      suggestedEpisode: suggestedEp,
+      airDate,
+      existingTitle,
+      hasExisting: true,
     });
   });
 

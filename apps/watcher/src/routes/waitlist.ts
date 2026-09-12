@@ -19,6 +19,7 @@ interface CreateWaitlistBody {
   posterUrl?: string | null;
   requesterUsername?: string | null;
   requesterEmail?: string | null;
+  tmdbReleaseDate?: string | null;
 }
 
 export const waitlistRoutes: FastifyPluginAsync = async (app) => {
@@ -107,10 +108,11 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
 
     if (!body.status && app.releaseGating) {
       try {
-        const fetchedDate = await app.releaseGating.fetchReleaseDate(
+        const fetchedDate = body.tmdbReleaseDate || await app.releaseGating.fetchReleaseDate(
           body.mediaType,
           body.metadataId,
-          body.seasonNumber
+          body.seasonNumber,
+          body.targetEpisode
         );
         const evaluated = evaluateInitialStatus(fetchedDate, undefined, Boolean(body.isNextSeason));
         initialStatus = evaluated.status;
