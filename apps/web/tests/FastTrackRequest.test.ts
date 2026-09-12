@@ -240,4 +240,44 @@ describe('RequestView - Fast-Track Deep-Linking to Step 3', () => {
     expect(img.exists()).toBe(true);
     expect(img.attributes('src')).toBe('https://image.tmdb.org/t/p/w500/compression_poster.jpg');
   });
+
+  it('shows duplicate banner on mount if fast-track item already exists in library', async () => {
+    mockRoute.query = {
+      title: 'Inception',
+      metadataId: '27205',
+      metadataSource: 'tmdb',
+      mediaType: 'movie',
+      year: '2010',
+      downloadUrl: 'magnet:?xt=urn:btih:mockinceptionhash',
+      releaseTitle: 'Inception.2010.1080p.BluRay.x264',
+      resolution: '1080p',
+      seeders: '42',
+      indexer: '1337x',
+      sizeBytes: '2147483648',
+    };
+
+    vi.mocked(api.get).mockImplementation(async (endpoint: string) => {
+      if (endpoint === '/requests/exists') {
+        return {
+          exists: true,
+          request: {
+            id: 'req-inception-existing',
+            title: 'Inception',
+            status: 'completed',
+            mediaType: 'movie',
+            year: 2010,
+          },
+        } as any;
+      }
+      return { isConfigured: true, isReachable: true } as any;
+    });
+
+    const wrapper = mount(RequestView);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="duplicate-already-exists-banner"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Already in your library — check your dashboard');
+    const btn = wrapper.findAll('button').find((b) => b.text().includes('Add to My Dashboard'));
+    expect(btn).toBeDefined();
+  });
 });

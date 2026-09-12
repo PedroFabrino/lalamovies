@@ -522,4 +522,148 @@ describe('RequestView - Candidate Explorer UI', () => {
       },
     });
   });
+
+  describe('Duplicate Detection & Co-Requester Confirmation (Ticket 04)', () => {
+    it('detects existing request on candidate selection, shows duplicate banner, and confirms co-request', async () => {
+      let searchReleasesCalled = false;
+      let submittedPayload: Record<string, any> | null = null;
+
+      vi.mocked(api.get).mockImplementation(async (endpoint: string) => {
+        if (endpoint === '/requests/exists') {
+          return {
+            exists: true,
+            request: {
+              id: 'req-dup-123',
+              title: 'The Matrix',
+              status: 'downloading',
+              mediaType: 'movie',
+              year: 1999,
+            },
+          } as any;
+        }
+        return { isConfigured: true, isReachable: true } as any;
+      });
+
+      vi.mocked(api.post).mockImplementation(async (endpoint: string, body?: any) => {
+        if (endpoint === '/requests/search-metadata') {
+          return {
+            candidates: [
+              {
+                id: '603',
+                source: 'tmdb',
+                title: 'The Matrix',
+                year: 1999,
+                overview: 'A computer hacker learns...',
+                posterUrl: null,
+              },
+            ],
+          } as any;
+        }
+        if (endpoint === '/requests/search-releases') {
+          searchReleasesCalled = true;
+          return {} as any;
+        }
+        if (endpoint === '/requests') {
+          submittedPayload = body;
+          return {
+            request: {
+              id: 'req-dup-123',
+              title: 'The Matrix',
+              status: 'downloading',
+            },
+          } as any;
+        }
+        return {} as any;
+      });
+
+      const wrapper = mount(RequestView);
+
+      // Step 1: Search
+      const queryInput = wrapper.find('#customQuery');
+      await queryInput.setValue('The Matrix');
+      await wrapper.find('form').trigger('submit.prevent');
+      await flushPromises();
+
+      // Step 2: Select candidate
+      const candidateCard = wrapper.find('.group');
+      await candidateCard.trigger('click');
+      await flushPromises();
+
+      // Step 3: Duplicate banner should be visible
+      expect(wrapper.find('[data-testid="duplicate-already-exists-banner"]').exists()).toBe(true);
+      expect(wrapper.text()).toContain('Already in your library — check your dashboard');
+      expect(searchReleasesCalled).toBe(false);
+
+      // Confirm button text should be "Add to My Dashboard"
+      const confirmButton = wrapper.findAll('button').find((b) => b.text().includes('Add to My Dashboard'));
+      expect(confirmButton).toBeDefined();
+      expect(confirmButton?.attributes('disabled')).toBeUndefined();
+
+      // Click "Add to My Dashboard"
+      await confirmButton?.trigger('click');
+      await flushPromises();
+
+      expect(submittedPayload).toMatchObject({
+        mediaType: 'movie',
+        metadataId: '603',
+        metadataSource: 'tmdb',
+        title: 'The Matrix',
+      });
+      expect(mockRouterPush).toHaveBeenCalledWith('/dashboard');
+    });
+
+    it('proceeds normally to release searching if content does not already exist', async () => {
+      let searchReleasesCalled = false;
+
+      vi.mocked(api.get).mockImplementation(async (endpoint: string) => {
+        if (endpoint === '/requests/exists') {
+          return { exists: false } as any;
+        }
+        return { isConfigured: true, isReachable: true } as any;
+      });
+
+      vi.mocked(api.post).mockImplementation(async (endpoint: string) => {
+        if (endpoint === '/requests/search-metadata') {
+          return {
+            candidates: [
+              {
+                id: '999',
+                source: 'tmdb',
+                title: 'Unique Film',
+                year: 2025,
+                overview: 'Something unique...',
+                posterUrl: null,
+              },
+            ],
+          } as any;
+        }
+        if (endpoint === '/requests/search-releases') {
+          searchReleasesCalled = true;
+          return {
+            recommended: null,
+            candidates: [],
+            isConfigured: true,
+            isReachable: true,
+            hasHealthyReleases: false,
+          } as any;
+        }
+        return {} as any;
+      });
+
+      const wrapper = mount(RequestView);
+
+      // Step 1: Search
+      await wrapper.find('#customQuery').setValue('Unique Film');
+      await wrapper.find('form').trigger('submit.prevent');
+      await flushPromises();
+
+      // Step 2: Select candidate
+      await wrapper.find('.group').trigger('click');
+      await flushPromises();
+
+      // Step 3: Duplicate banner should NOT be visible
+      expect(wrapper.find('[data-testid="duplicate-already-exists-banner"]').exists()).toBe(false);
+      expect(searchReleasesCalled).toBe(true);
+    });
+  });
 });

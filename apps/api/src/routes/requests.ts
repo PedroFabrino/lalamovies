@@ -49,13 +49,15 @@ const createRequestSchema = z
     seasonNumber: z.number().int().optional(),
     episodeNumber: z.number().int().optional(),
     waitlistNextSeason: z.boolean().optional(),
-  })
-  .refine(
-    (data) => Boolean((data.magnetLink && data.magnetLink.trim().length > 0) || data.torrentFileBase64),
-    {
-      message: 'Either magnetLink or torrentFileBase64 is required',
-    }
-  );
+  });
+
+const existsRequestSchema = z.object({
+  metadataId: z.string().min(1, 'Metadata ID is required'),
+  metadataSource: z.enum(['tmdb', 'anilist']),
+  mediaType: z.enum(['movie', 'tv_show', 'anime']).optional(),
+  seasonNumber: z.coerce.number().int().optional(),
+  episodeNumber: z.coerce.number().int().optional(),
+});
 
 const batchItemSchema = z
   .object({
@@ -1004,6 +1006,72 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
 
       return reply.send({ requests: combined });
     }
+  });
+ 
+  // GET /requests/exists — check whether a canonical request already exists
+  app.get('/exists', async (request, reply) => {
+    const parseResult = existsRequestSchema.safeParse(request.query);
+    if (!parseResult.success) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: parseResult.error.errors[0]?.message || 'Invalid query parameters',
+        details: parseResult.error.flatten(),
+      });
+    }
+
+    const { metadataId, metadataSource, mediaType, seasonNumber, episodeNumber } = parseResult.data;
+
+    let match = null;
+    if (mediaType) {
+      match = findMatchingCanonicalRequest(app.db, {
+        mediaType,
+        metadataId,
+        metadataSource,
+        seasonNumber,
+        episodeNumber,
+      });
+    } else {
+      if (seasonNumber !== undefined) {
+        match = findMatchingCanonicalRequest(app.db, {
+          mediaType: 'tv_show',
+          metadataId,
+          metadataSource,
+          seasonNumber,
+          episodeNumber,
+        });
+      } else {
+        match =
+          findMatchingCanonicalRequest(app.db, {
+            mediaType: 'movie',
+            metadataId,
+            metadataSource,
+          }) ||
+          findMatchingCanonicalRequest(app.db, {
+            mediaType: 'tv_show',
+            metadataId,
+            metadataSource,
+            seasonNumber,
+            episodeNumber,
+          });
+      }
+    }
+
+    if (!match) {
+      return reply.send({ exists: false });
+    }
+
+    return reply.send({
+      exists: true,
+      request: {
+        id: match.id,
+        title: match.title,
+        status: match.status,
+        mediaType: match.mediaType,
+        year: match.year,
+        seasonNumber: match.seasonNumber,
+        episodeNumber: match.episodeNumber,
+      },
+    });
   });
 
   // GET /requests/:id — get single request

@@ -732,7 +732,7 @@
             type="button"
             :disabled="!selectedCandidate"
             class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg shadow transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-            @click="currentStep = 3"
+            @click="confirmStep2Selection"
           >
             Continue to Confirmation
           </button>
@@ -1061,8 +1061,42 @@
             </div>
           </div>
 
-          <!-- Source summary / Release Recommendation -->
-          <div v-if="inputMode === 'search'" class="space-y-4">
+          <!-- Duplicate Request Confirmation Banner (Ticket 04) -->
+          <div
+            v-if="existingRequest"
+            data-testid="duplicate-already-exists-banner"
+            class="p-5 sm:p-6 bg-emerald-950/40 border border-emerald-500/40 rounded-xl space-y-4"
+          >
+            <div class="flex items-start gap-4">
+              <div class="p-2.5 rounded-full bg-emerald-500/20 text-emerald-400 shrink-0">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div class="flex-1">
+                <h3 class="text-base font-semibold text-white">
+                  Already in your library — check your dashboard
+                </h3>
+                <p class="text-sm text-zinc-300 mt-1">
+                  This content is already {{ existingRequest.status === 'completed' ? 'downloaded' : 'in progress' }} in the system.
+                  Confirming will add it directly to your dashboard to track without downloading a duplicate copy.
+                </p>
+                <div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-emerald-400 font-medium">
+                  <span class="px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 uppercase tracking-wider">
+                    Status: {{ existingRequest.status }}
+                  </span>
+                  <span v-if="existingRequest.seasonNumber != null" class="text-zinc-400">
+                    Season {{ existingRequest.seasonNumber }}
+                    <span v-if="existingRequest.episodeNumber != null"> • Episode {{ existingRequest.episodeNumber }}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <template v-else>
+            <!-- Source summary / Release Recommendation -->
+            <div v-if="inputMode === 'search'" class="space-y-4">
             <!-- Loading state -->
             <div v-if="isSearchingReleases" class="p-8 border border-zinc-800 rounded-xl bg-zinc-950/60 text-center">
               <svg class="animate-spin h-6 w-6 text-indigo-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
@@ -1478,55 +1512,58 @@
             {{ inputMode === 'file' ? (validBatchItems[0]?.fileName || selectedFile?.name) : (magnetLink.length > 80 ? magnetLink.slice(0, 80) + '...' : magnetLink) }}
           </div>
         </template>
+      </template>
 
-        <div class="flex items-center justify-between pt-4 border-t border-zinc-800">
-          <button
-            type="button"
-            :disabled="isSubmitting"
-            class="px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800 rounded-lg transition cursor-pointer disabled:opacity-50"
-            @click="currentStep = 2"
+      <div class="flex items-center justify-between pt-4 border-t border-zinc-800">
+        <button
+          type="button"
+          :disabled="isSubmitting"
+          class="px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800 rounded-lg transition cursor-pointer disabled:opacity-50"
+          @click="currentStep = 2; existingRequest = null"
+        >
+          Back
+        </button>
+        <button
+          type="button"
+          :disabled="isSubmitting || isCheckingExists || (!existingRequest && ((inputMode === 'file' && validBatchItems.length === 0) || (inputMode === 'magnet' && !magnetLink.trim()) || (inputMode === 'search' && (isSearchingReleases || (isManualFallbackInStep3 ? (manualFallbackMode === 'magnet' ? !fallbackMagnetLink.trim() : !fallbackFile) : (!selectedRelease && !recommendedRelease))))))"
+          class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg shadow transition flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          @click="handleConfirmRequest"
+        >
+          <svg
+            v-if="isSubmitting"
+            class="animate-spin h-4 w-4 text-white"
+            fill="none"
+            viewBox="0 0 24 24"
           >
-            Back
-          </button>
-          <button
-            type="button"
-            :disabled="isSubmitting || (inputMode === 'file' && validBatchItems.length === 0) || (inputMode === 'magnet' && !magnetLink.trim()) || (inputMode === 'search' && (isSearchingReleases || (isManualFallbackInStep3 ? (manualFallbackMode === 'magnet' ? !fallbackMagnetLink.trim() : !fallbackFile) : (!selectedRelease && !recommendedRelease))))"
-            class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg shadow transition flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            @click="handleConfirmRequest"
-          >
-            <svg
-              v-if="isSubmitting"
-              class="animate-spin h-4 w-4 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                class="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                stroke-width="4"
-              />
-              <path
-                class="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8v8H4z"
-              />
-            </svg>
-            <span>
-              {{
-                isSubmitting
-                  ? (submitProgress.total > 1
-                    ? `Submitting (${submitProgress.current}/${submitProgress.total})...`
-                    : 'Submitting...')
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            />
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8v8H4z"
+            />
+          </svg>
+          <span>
+            {{
+              isSubmitting
+                ? (submitProgress.total > 1
+                  ? `Submitting (${submitProgress.current}/${submitProgress.total})...`
+                  : 'Submitting...')
+                : existingRequest
+                  ? 'Add to My Dashboard'
                   : validBatchItems.length > 1
                     ? `Confirm & Submit Batch (${validBatchItems.length} torrents)`
                     : 'Confirm & Download'
-              }}
-            </span>
-          </button>
-        </div>
+            }}
+          </span>
+        </button>
+      </div>
       </div>
     </main>
   </div>
@@ -1682,6 +1719,19 @@ const step2Error = ref<string | null>(null);
 const step2QueryInputRef = ref<HTMLInputElement | null>(null);
 
 // Step 3 State
+export interface CanonicalRequestSummary {
+  id: string;
+  title: string;
+  status: string;
+  mediaType: string;
+  year?: number | null;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
+}
+
+const existingRequest = ref<CanonicalRequestSummary | null>(null);
+const isCheckingExists = ref(false);
+
 const seasonNumber = ref<number | null>(null);
 const downloadGranularity = ref<'season' | 'episode'>('season');
 const episodeNumber = ref<number | null>(1);
@@ -1689,6 +1739,36 @@ const activeAnimeTitle = ref<string | null>(null);
 const isSubmitting = ref(false);
 const submitProgress = ref({ current: 0, total: 0 });
 const step3Error = ref<string | null>(null);
+
+async function checkDuplicateExists(candidate: MetadataCandidate): Promise<CanonicalRequestSummary | null> {
+  try {
+    isCheckingExists.value = true;
+    const effectiveSeason = mediaType.value !== 'movie' ? (seasonNumber.value ?? 1) : undefined;
+    const effectiveEpisode = (mediaType.value !== 'movie' && downloadGranularity.value === 'episode') ? (episodeNumber.value ?? 1) : undefined;
+
+    const params: Record<string, any> = {
+      metadataId: candidate.id,
+      metadataSource: candidate.source,
+      mediaType: mediaType.value,
+    };
+    if (effectiveSeason !== undefined) params.seasonNumber = effectiveSeason;
+    if (effectiveEpisode !== undefined) params.episodeNumber = effectiveEpisode;
+
+    const res = await api.get<{ exists: boolean; request?: CanonicalRequestSummary }>('/requests/exists', params);
+    if (res.exists && res.request) {
+      existingRequest.value = res.request;
+      return res.request;
+    }
+    existingRequest.value = null;
+    return null;
+  } catch (err) {
+    console.error('Failed to check duplicate request:', err);
+    existingRequest.value = null;
+    return null;
+  } finally {
+    isCheckingExists.value = false;
+  }
+}
 
 watch(mediaType, (newType) => {
   if (newType === 'movie') {
@@ -1713,14 +1793,20 @@ async function onGranularityChange(val: 'season' | 'episode') {
   if (!seasonNumber.value) {
     seasonNumber.value = 1;
   }
-  if (currentStep.value === 3 && inputMode.value === 'search' && selectedCandidate.value) {
-    await fetchReleasesForCandidate(selectedCandidate.value);
+  if (currentStep.value === 3 && selectedCandidate.value && validBatchItems.value.length <= 1) {
+    const exists = await checkDuplicateExists(selectedCandidate.value);
+    if (!exists && inputMode.value === 'search') {
+      await fetchReleasesForCandidate(selectedCandidate.value);
+    }
   }
 }
 
 async function onSeasonOrEpisodeChange() {
-  if (currentStep.value === 3 && inputMode.value === 'search' && selectedCandidate.value) {
-    await fetchReleasesForCandidate(selectedCandidate.value);
+  if (currentStep.value === 3 && selectedCandidate.value && validBatchItems.value.length <= 1) {
+    const exists = await checkDuplicateExists(selectedCandidate.value);
+    if (!exists && inputMode.value === 'search') {
+      await fetchReleasesForCandidate(selectedCandidate.value);
+    }
   }
 }
 
@@ -1829,9 +1915,11 @@ function initFastTrackFromRoute(): boolean {
 onMounted(async () => {
   const isFastTrack = initFastTrackFromRoute();
 
-  if (isFastTrack && selectedCandidate.value && (!selectedCandidate.value.posterUrl || !selectedCandidate.value.overview)) {
-    api.post<{ candidates: MetadataCandidate[] }>('/requests/search-metadata', {
-      mediaType: mediaType.value,
+  if (isFastTrack && selectedCandidate.value) {
+    await checkDuplicateExists(selectedCandidate.value);
+    if (!selectedCandidate.value.posterUrl || !selectedCandidate.value.overview) {
+      api.post<{ candidates: MetadataCandidate[] }>('/requests/search-metadata', {
+        mediaType: mediaType.value,
       query: selectedCandidate.value.title,
     }).then((res) => {
       if (res.candidates && res.candidates.length > 0) {
@@ -1849,6 +1937,7 @@ onMounted(async () => {
         }
       }
     }).catch(() => {});
+    }
   }
 
   try {
@@ -2171,9 +2260,20 @@ async function selectCandidate(candidate: MetadataCandidate) {
   activeAnimeTitle.value = candidate.romajiTitle || candidate.title;
   waitlistNextSeason.value = false;
   currentStep.value = 3;
+  if (validBatchItems.value.length <= 1) {
+    const exists = await checkDuplicateExists(candidate);
+    if (exists) {
+      return;
+    }
+  }
   if (inputMode.value === 'search') {
     await fetchReleasesForCandidate(candidate);
   }
+}
+
+async function confirmStep2Selection() {
+  if (!selectedCandidate.value) return;
+  await selectCandidate(selectedCandidate.value);
 }
 
 async function handleConfirmRequest() {
@@ -2257,7 +2357,11 @@ async function handleConfirmRequest() {
         payload.waitlistNextSeason = true;
       }
 
-      if (inputMode.value === 'file') {
+      if (existingRequest.value) {
+        if (magnetLink.value && magnetLink.value.trim()) {
+          payload.magnetLink = magnetLink.value.trim();
+        }
+      } else if (inputMode.value === 'file') {
         const fileToUpload = singleItem?.file || selectedFile.value;
         if (!fileToUpload) throw new Error('No torrent file selected');
         const base64 = await fileToBase64(fileToUpload);
@@ -2287,7 +2391,12 @@ async function handleConfirmRequest() {
 
       const res = await api.post<{ request: DownloadRequest }>('/requests', payload);
 
-      if (res.request.status === 'queued') {
+      if (existingRequest.value) {
+        requestsStore.showToast(
+          `Added to your dashboard: ${res.request.title}`,
+          'success'
+        );
+      } else if (res.request.status === 'queued') {
         if (res.request.deferredReason === 'waiting_for_space') {
           requestsStore.showToast(
             'Your request has been queued and will start automatically once storage space is available',

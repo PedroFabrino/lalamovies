@@ -609,4 +609,137 @@ describe('Request Deduplication & Co-Requesters (Ticket 02)', () => {
       expect(aliceDelRes.statusCode).toBe(200);
     });
   });
+
+  describe('Frontend Duplicate Detection & GET /requests/exists (Ticket 04)', () => {
+    let movieId: string;
+    let seasonPackId: string;
+
+    beforeEach(async () => {
+      // Alice creates a movie request
+      const mRes = await app.inject({
+        method: 'POST',
+        url: '/requests',
+        cookies: { token: aliceCookie },
+        payload: {
+          magnetLink: 'magnet:?xt=urn:btih:exists_movie_test',
+          mediaType: 'movie',
+          metadataId: '9901',
+          metadataSource: 'tmdb',
+          title: 'Exists Movie',
+          year: 2024,
+        },
+      });
+      movieId = mRes.json().request.id;
+
+      // Alice creates a TV season pack request (season 2)
+      const sRes = await app.inject({
+        method: 'POST',
+        url: '/requests',
+        cookies: { token: aliceCookie },
+        payload: {
+          magnetLink: 'magnet:?xt=urn:btih:exists_tv_test',
+          mediaType: 'tv_show',
+          metadataId: '9902',
+          metadataSource: 'tmdb',
+          title: 'Exists Show',
+          seasonNumber: 2,
+        },
+      });
+      seasonPackId = sRes.json().request.id;
+    });
+
+    it('returns exists: true with request details when movie matches', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/requests/exists?metadataId=9901&metadataSource=tmdb&mediaType=movie',
+        cookies: { token: bobCookie },
+      });
+      expect(res.statusCode).toBe(200);
+      const data = res.json();
+      expect(data.exists).toBe(true);
+      expect(data.request).toBeDefined();
+      expect(data.request.id).toBe(movieId);
+      expect(data.request.title).toBe('Exists Movie');
+      expect(data.request.year).toBe(2024);
+    });
+
+    it('returns exists: false for unknown mediaId', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/requests/exists?metadataId=999999&metadataSource=tmdb&mediaType=movie',
+        cookies: { token: bobCookie },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().exists).toBe(false);
+      expect(res.json().request).toBeUndefined();
+    });
+
+    it('returns exists: true for single episode when season pack already exists (asymmetric absorption)', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/requests/exists?metadataId=9902&metadataSource=tmdb&mediaType=tv_show&seasonNumber=2&episodeNumber=5',
+        cookies: { token: bobCookie },
+      });
+      expect(res.statusCode).toBe(200);
+      const data = res.json();
+      expect(data.exists).toBe(true);
+      expect(data.request.id).toBe(seasonPackId);
+    });
+
+    it('returns exists: false for a different season of the same show', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/requests/exists?metadataId=9902&metadataSource=tmdb&mediaType=tv_show&seasonNumber=3',
+        cookies: { token: bobCookie },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().exists).toBe(false);
+    });
+
+    it('ignores deleted requests and returns exists: false', async () => {
+      // Soft-delete movie
+      await mockCleanup.cleanItem(movieId);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/requests/exists?metadataId=9901&metadataSource=tmdb&mediaType=movie',
+        cookies: { token: bobCookie },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().exists).toBe(false);
+    });
+
+    it('returns 400 when missing required query parameters', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/requests/exists?metadataSource=tmdb',
+        cookies: { token: bobCookie },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('allows co-requester to POST /requests without magnetLink or torrent file when existing request exists', async () => {
+      const coReqRes = await app.inject({
+        method: 'POST',
+        url: '/requests',
+        cookies: { token: bobCookie },
+        payload: {
+          mediaType: 'movie',
+          metadataId: '9901',
+          metadataSource: 'tmdb',
+          title: 'Exists Movie',
+        },
+      });
+      expect(coReqRes.statusCode).toBe(200);
+      expect(coReqRes.json().request.id).toBe(movieId);
+
+      // Verify Bob is recorded in requestCoRequesters
+      const coRows = app.db
+        .select()
+        .from(requestCoRequesters)
+        .where(eq(requestCoRequesters.requestId, movieId))
+        .all();
+      expect(coRows).toHaveLength(1);
+    });
+  });
 });
