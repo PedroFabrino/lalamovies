@@ -5,7 +5,7 @@ import { UpNextService, matchesTarget, groupShowRequests, normalizeShowTitle } f
 import { IProwlarrService, ReleaseCandidate, SearchReleasesOptions, SearchReleasesResult } from '../src/services/prowlarr';
 import { IMetadataService, MetadataCandidate } from '../src/services/metadata';
 import { IJellyfinService } from '../src/services/jellyfin';
-import { downloadRequests, users } from '../src/db/schema';
+import { downloadRequests, users, requestCoRequesters } from '../src/db/schema';
 import { initDatabase, AppDatabase } from '../src/db';
 
 class DummyJellyfinService implements IJellyfinService {
@@ -743,6 +743,485 @@ describe('UpNext Semantic Matching & Grouping Helpers', () => {
   });
 });
 
+describe('UpNext Cross-User Suppression & Co-Requester Tests', () => {
+  let db: AppDatabase;
+  let prowlarr: MockProwlarrService;
+  let metadata: MockMetadataService;
+  let service: UpNextService;
+  const aliceId = 'user-alice';
+  const bobId = 'user-bob';
+
+  beforeEach(() => {
+    const dbInit = initDatabase(':memory:', true);
+    db = dbInit.db;
+
+    db.insert(users).values([
+      {
+        id: aliceId,
+        username: 'alice',
+        role: 'user',
+        jellyfinUserId: 'jf_alice',
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: bobId,
+        username: 'bob',
+        role: 'user',
+        jellyfinUserId: 'jf_bob',
+        createdAt: new Date().toISOString(),
+      },
+    ]).run();
+
+    prowlarr = new MockProwlarrService();
+    metadata = new MockMetadataService();
+    service = new UpNextService({
+      db,
+      prowlarr,
+      metadata,
+      ttlMs: 60 * 1000,
+    });
+  });
+
+  it('cross-user season pack suppression: Bob requests S2 -> Alice does not get S2 in Up Next', async () => {
+    // Alice requested S1 season pack
+    db.insert(downloadRequests).values({
+      id: 'req-alice-s1',
+      userId: aliceId,
+      magnetLink: 'magnet:?xt=urn:btih:alice1',
+      mediaType: 'tv_show',
+      status: 'done',
+      metadataId: 'show-100',
+      metadataSource: 'tmdb',
+      title: 'Severance',
+      seasonNumber: 1,
+      episodeNumber: null,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    // Bob requested S2 season pack
+    db.insert(downloadRequests).values({
+      id: 'req-bob-s2',
+      userId: bobId,
+      magnetLink: 'magnet:?xt=urn:btih:bob2',
+      mediaType: 'tv_show',
+      status: 'downloading',
+      metadataId: 'show-100',
+      metadataSource: 'tmdb',
+      title: 'Severance',
+      seasonNumber: 2,
+      episodeNumber: null,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    prowlarr.candidatesToReturn = [
+      {
+        guid: 'sev-s02',
+        title: 'Severance.S02.1080p.WEB-DL',
+        sizeBytes: 8000000000,
+        formattedSize: '8 GB',
+        seeders: 50,
+        leechers: 5,
+        downloadUrl: 'magnet:?xt=urn:btih:sev2',
+        indexer: 'TorrentGalaxy',
+        resolution: '1080p',
+        codec: 'x264',
+        source: 'web',
+        score: 150,
+        isLowHealth: false,
+      },
+    ];
+
+    const result = await service.getUpNext(aliceId);
+    expect(result.available).toBe(true);
+    // S2 is already requested by Bob -> suppressed from Alice's Up Next
+    expect(result.items).toHaveLength(0);
+  });
+
+  it('cross-user single episode suppression: Bob requests S1E2 -> Alice does not get S1E2', async () => {
+    // Alice requested S1E1
+    db.insert(downloadRequests).values({
+      id: 'req-alice-e1',
+      userId: aliceId,
+      magnetLink: 'magnet:?xt=urn:btih:alice-e1',
+      mediaType: 'tv_show',
+      status: 'done',
+      metadataId: 'show-200',
+      metadataSource: 'tmdb',
+      title: 'Succession',
+      seasonNumber: 1,
+      episodeNumber: 1,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    // Bob requested S1E2
+    db.insert(downloadRequests).values({
+      id: 'req-bob-e2',
+      userId: bobId,
+      magnetLink: 'magnet:?xt=urn:btih:bob-e2',
+      mediaType: 'tv_show',
+      status: 'downloading',
+      metadataId: 'show-200',
+      metadataSource: 'tmdb',
+      title: 'Succession',
+      seasonNumber: 1,
+      episodeNumber: 2,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    prowlarr.candidatesToReturn = [
+      {
+        guid: 'succ-s01e02',
+        title: 'Succession.S01E02.1080p.WEB',
+        sizeBytes: 2000000000,
+        formattedSize: '2 GB',
+        seeders: 40,
+        leechers: 2,
+        downloadUrl: 'magnet:?xt=urn:btih:succ2',
+        indexer: 'TorrentGalaxy',
+        resolution: '1080p',
+        codec: 'x264',
+        source: 'web',
+        score: 130,
+        isLowHealth: false,
+      },
+    ];
+
+    const result = await service.getUpNext(aliceId);
+    expect(result.available).toBe(true);
+    // S1E2 was requested by Bob -> suppressed for Alice
+    expect(result.items).toHaveLength(0);
+  });
+
+  it('season pack asymmetry: Bob requests S2 season pack -> suppresses Alice candidate S2E1', async () => {
+    // Alice requested S1 pack. S2 pack candidate not found, fallback to S2E1 candidate.
+    db.insert(downloadRequests).values({
+      id: 'req-alice-s1',
+      userId: aliceId,
+      magnetLink: 'magnet:?xt=urn:btih:alice-s1',
+      mediaType: 'tv_show',
+      status: 'done',
+      metadataId: 'show-300',
+      metadataSource: 'tmdb',
+      title: 'The Bear',
+      seasonNumber: 1,
+      episodeNumber: null,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    // Bob requested S2 season pack!
+    db.insert(downloadRequests).values({
+      id: 'req-bob-s2',
+      userId: bobId,
+      magnetLink: 'magnet:?xt=urn:btih:bob-s2',
+      mediaType: 'tv_show',
+      status: 'downloading',
+      metadataId: 'show-300',
+      metadataSource: 'tmdb',
+      title: 'The Bear',
+      seasonNumber: 2,
+      episodeNumber: null,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    // Prowlarr custom handler: returns nothing for S2 pack, but returns S2E1 for episode search
+    prowlarr.customSearchHandler = (options) => {
+      if (options.episodeNumber === 1) {
+        return [
+          {
+            guid: 'bear-s02e01',
+            title: 'The Bear S02E01 1080p',
+            sizeBytes: 1500000000,
+            formattedSize: '1.5 GB',
+            seeders: 35,
+            leechers: 1,
+            downloadUrl: 'magnet:?xt=urn:btih:bear21',
+            indexer: 'Tracker',
+            resolution: '1080p',
+            codec: 'x264',
+            source: 'web',
+            score: 120,
+            isLowHealth: false,
+          },
+        ];
+      }
+      return [];
+    };
+
+    const result = await service.getUpNext(aliceId);
+    expect(result.available).toBe(true);
+    // Bob's S2 season pack covers S2E1 -> suppressed!
+    expect(result.items).toHaveLength(0);
+  });
+
+  it('season pack asymmetry: Bob requests S2E1 -> does NOT suppress Alice S2 season pack candidate', async () => {
+    // Alice requested S1 pack. Target is S2 pack.
+    db.insert(downloadRequests).values({
+      id: 'req-alice-s1',
+      userId: aliceId,
+      magnetLink: 'magnet:?xt=urn:btih:alice-s1',
+      mediaType: 'tv_show',
+      status: 'done',
+      metadataId: 'show-400',
+      metadataSource: 'tmdb',
+      title: 'Fargo',
+      seasonNumber: 1,
+      episodeNumber: null,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    // Bob only requested S2E1 (single episode)
+    db.insert(downloadRequests).values({
+      id: 'req-bob-s2e1',
+      userId: bobId,
+      magnetLink: 'magnet:?xt=urn:btih:bob-s2e1',
+      mediaType: 'tv_show',
+      status: 'downloading',
+      metadataId: 'show-400',
+      metadataSource: 'tmdb',
+      title: 'Fargo',
+      seasonNumber: 2,
+      episodeNumber: 1,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    // Prowlarr has S2 season pack
+    prowlarr.candidatesToReturn = [
+      {
+        guid: 'fargo-s02-pack',
+        title: 'Fargo.S02.1080p.Complete',
+        sizeBytes: 12000000000,
+        formattedSize: '12 GB',
+        seeders: 60,
+        leechers: 3,
+        downloadUrl: 'magnet:?xt=urn:btih:fargo2',
+        indexer: 'Tracker',
+        resolution: '1080p',
+        codec: 'x264',
+        source: 'web',
+        score: 150,
+        isLowHealth: false,
+      },
+    ];
+
+    const result = await service.getUpNext(aliceId);
+    expect(result.available).toBe(true);
+    // Single episode does NOT suppress season pack -> surfaces!
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].showTitle).toBe('Fargo');
+    expect(result.items[0].seasonNumber).toBe(2);
+    expect(result.items[0].episodeNumber).toBeNull();
+  });
+
+  it('co-requester suppression: Alice is co-requester on S2 -> S2 suppressed from Alice Up Next', async () => {
+    // Bob requested S1 and Alice was co-requester
+    db.insert(downloadRequests).values({
+      id: 'req-bob-s1',
+      userId: bobId,
+      magnetLink: 'magnet:?xt=urn:btih:bobs1',
+      mediaType: 'tv_show',
+      status: 'done',
+      metadataId: 'show-500',
+      metadataSource: 'tmdb',
+      title: 'Slow Horses',
+      seasonNumber: 1,
+      episodeNumber: null,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    db.insert(requestCoRequesters).values({
+      requestId: 'req-bob-s1',
+      userId: aliceId,
+      addedAt: new Date().toISOString(),
+    }).run();
+
+    // Bob requested S2, and Alice is also co-requester on S2
+    db.insert(downloadRequests).values({
+      id: 'req-bob-s2',
+      userId: bobId,
+      magnetLink: 'magnet:?xt=urn:btih:bobs2',
+      mediaType: 'tv_show',
+      status: 'done',
+      metadataId: 'show-500',
+      metadataSource: 'tmdb',
+      title: 'Slow Horses',
+      seasonNumber: 2,
+      episodeNumber: null,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    db.insert(requestCoRequesters).values({
+      requestId: 'req-bob-s2',
+      userId: aliceId,
+      addedAt: new Date().toISOString(),
+    }).run();
+
+    prowlarr.candidatesToReturn = [
+      {
+        guid: 'slow-horses-s02',
+        title: 'Slow Horses Season 2 Complete 1080p',
+        sizeBytes: 8000000000,
+        formattedSize: '8 GB',
+        seeders: 50,
+        leechers: 4,
+        downloadUrl: 'magnet:?xt=urn:btih:sh2',
+        indexer: 'Tracker',
+        resolution: '1080p',
+        codec: 'x264',
+        source: 'web',
+        score: 130,
+        isLowHealth: false,
+      },
+    ];
+
+    const result = await service.getUpNext(aliceId);
+    expect(result.available).toBe(true);
+    // S2 already exists/covered -> suppressed for Alice
+    expect(result.items).toHaveLength(0);
+  });
+
+  it('deleted requests ignored: Bob request for S2 is marked status = deleted -> S2 is surfaced for Alice', async () => {
+    // Alice requested S1
+    db.insert(downloadRequests).values({
+      id: 'req-alice-s1',
+      userId: aliceId,
+      magnetLink: 'magnet:?xt=urn:btih:alices1',
+      mediaType: 'tv_show',
+      status: 'done',
+      metadataId: 'show-600',
+      metadataSource: 'tmdb',
+      title: 'Fallout',
+      seasonNumber: 1,
+      episodeNumber: null,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    // Bob requested S2 but it was deleted
+    db.insert(downloadRequests).values({
+      id: 'req-bob-s2',
+      userId: bobId,
+      magnetLink: 'magnet:?xt=urn:btih:bobs2',
+      mediaType: 'tv_show',
+      status: 'deleted',
+      metadataId: 'show-600',
+      metadataSource: 'tmdb',
+      title: 'Fallout',
+      seasonNumber: 2,
+      episodeNumber: null,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    prowlarr.candidatesToReturn = [
+      {
+        guid: 'fallout-s02',
+        title: 'Fallout S02 1080p WEB-DL',
+        sizeBytes: 10000000000,
+        formattedSize: '10 GB',
+        seeders: 80,
+        leechers: 5,
+        downloadUrl: 'magnet:?xt=urn:btih:fo2',
+        indexer: 'Tracker',
+        resolution: '1080p',
+        codec: 'x264',
+        source: 'web',
+        score: 150,
+        isLowHealth: false,
+      },
+    ];
+
+    const result = await service.getUpNext(aliceId);
+    expect(result.available).toBe(true);
+    // Deleted request should NOT suppress -> surfaces S2!
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].showTitle).toBe('Fallout');
+    expect(result.items[0].seasonNumber).toBe(2);
+  });
+
+  it('co-requester followed show inclusion: Alice only co-requested S1 -> Alice gets S2 suggestion', async () => {
+    // Bob requested S1
+    db.insert(downloadRequests).values({
+      id: 'req-bob-s1',
+      userId: bobId,
+      magnetLink: 'magnet:?xt=urn:btih:bobs1',
+      mediaType: 'tv_show',
+      status: 'done',
+      metadataId: 'show-700',
+      metadataSource: 'tmdb',
+      title: 'Silo',
+      seasonNumber: 1,
+      episodeNumber: null,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    // Alice is co-requester on S1
+    db.insert(requestCoRequesters).values({
+      requestId: 'req-bob-s1',
+      userId: aliceId,
+      addedAt: new Date().toISOString(),
+    }).run();
+
+    prowlarr.candidatesToReturn = [
+      {
+        guid: 'silo-s02',
+        title: 'Silo Season 2 Complete 1080p',
+        sizeBytes: 9000000000,
+        formattedSize: '9 GB',
+        seeders: 70,
+        leechers: 3,
+        downloadUrl: 'magnet:?xt=urn:btih:silo2',
+        indexer: 'Tracker',
+        resolution: '1080p',
+        codec: 'x264',
+        source: 'web',
+        score: 140,
+        isLowHealth: false,
+      },
+    ];
+
+    // Alice has no direct downloadRequests, but is co-requester on Silo S1.
+    // Up Next should track Silo for Alice and recommend S2!
+    const result = await service.getUpNext(aliceId);
+    expect(result.available).toBe(true);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].showTitle).toBe('Silo');
+    expect(result.items[0].seasonNumber).toBe(2);
+  });
+
+  it('suppresses movie candidate if another user requested it', async () => {
+    // Up Next service is primarily for episodic/shows, but isCandidateAlreadyRequested supports movies.
+    // We can verify isCandidateAlreadyRequested directly for movie:
+    const { isCandidateAlreadyRequested } = await import('../src/services/upNext');
+    db.insert(downloadRequests).values({
+      id: 'req-bob-movie',
+      userId: bobId,
+      magnetLink: 'magnet:?xt=urn:btih:bobmovie',
+      mediaType: 'movie',
+      status: 'done',
+      metadataId: 'movie-1',
+      metadataSource: 'tmdb',
+      title: 'Dune: Part Two',
+      seasonNumber: null,
+      episodeNumber: null,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    const isRequested = isCandidateAlreadyRequested(db, {
+      mediaType: 'movie',
+      metadataId: 'movie-1',
+      metadataSource: 'tmdb',
+      showTitle: 'Dune: Part Two',
+    });
+    expect(isRequested).toBe(true);
+
+    const isUnrequested = isCandidateAlreadyRequested(db, {
+      mediaType: 'movie',
+      metadataId: 'movie-999',
+      metadataSource: 'tmdb',
+      showTitle: 'Nonexistent Movie',
+    });
+    expect(isUnrequested).toBe(false);
+  });
+});
+
 describe('GET /discovery/up-next - HTTP Integration', () => {
   let app: FastifyInstance;
   let prowlarr: MockProwlarrService;
@@ -840,5 +1319,75 @@ describe('GET /discovery/up-next - HTTP Integration', () => {
     expect(body.items[0].showTitle).toBe('Succession');
     expect(body.items[0].seasonNumber).toBe(1);
     expect(body.items[0].episodeNumber).toBe(6);
+  });
+
+  it('suppresses items already requested by another user via HTTP endpoint', async () => {
+    // Insert another user
+    app.db.insert(users).values({
+      id: 'other-user',
+      username: 'otheruser',
+      role: 'user',
+      jellyfinUserId: 'jf_other',
+      createdAt: new Date().toISOString(),
+    }).run();
+
+    // Logged-in user has Succession S1E5
+    app.db.insert(downloadRequests).values({
+      id: 'req-user-e5',
+      userId: loggedInUserId,
+      magnetLink: 'magnet:?xt=urn:btih:e5',
+      mediaType: 'tv_show',
+      status: 'done',
+      metadataId: '500',
+      metadataSource: 'tmdb',
+      title: 'Succession',
+      seasonNumber: 1,
+      episodeNumber: 5,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    // Other user already requested Succession S1E6!
+    app.db.insert(downloadRequests).values({
+      id: 'req-other-e6',
+      userId: 'other-user',
+      magnetLink: 'magnet:?xt=urn:btih:other-e6',
+      mediaType: 'tv_show',
+      status: 'downloading',
+      metadataId: '500',
+      metadataSource: 'tmdb',
+      title: 'Succession',
+      seasonNumber: 1,
+      episodeNumber: 6,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    prowlarr.candidatesToReturn = [
+      {
+        guid: 'succ-s01e06',
+        title: 'Succession.S01E06.1080p.WEB',
+        sizeBytes: 2000000000,
+        formattedSize: '2 GB',
+        seeders: 30,
+        leechers: 2,
+        downloadUrl: 'magnet:?xt=urn:btih:succ6',
+        indexer: 'TorrentGalaxy',
+        resolution: '1080p',
+        codec: 'x264',
+        source: 'web',
+        score: 120,
+        isLowHealth: false,
+      },
+    ];
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/discovery/up-next',
+      cookies: { token },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.available).toBe(true);
+    expect(body.items).toHaveLength(0);
   });
 });

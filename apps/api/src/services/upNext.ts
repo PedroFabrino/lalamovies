@@ -1,8 +1,9 @@
-import { and, eq, gte, inArray, ne } from 'drizzle-orm';
-import { AppDatabase, downloadRequests } from '../db';
+import { and, eq, gte, inArray, ne, or } from 'drizzle-orm';
+import { AppDatabase, downloadRequests, requestCoRequesters } from '../db';
 import { IProwlarrService, ReleaseCandidate, Resolution, ScoreOptions } from './prowlarr';
 import { IMetadataService } from './metadata';
 import { cleanTorrentTitle, extractEpisodeInfo } from '../utils/torrentTitleCleaner';
+import { findMatchingCanonicalRequest } from './requestDedup';
 
 export interface UpNextItem {
   id: string;
@@ -159,6 +160,77 @@ export function matchesTarget(
   return targetSeason === 1;
 }
 
+export function isCandidateAlreadyRequested(
+  db: AppDatabase,
+  params: {
+    mediaType: 'movie' | 'tv_show' | 'anime';
+    metadataId?: string | null;
+    metadataSource?: 'tmdb' | 'anilist' | null;
+    showTitle?: string | null;
+    seasonNumber?: number | null;
+    episodeNumber?: number | null;
+  }
+): boolean {
+  if (params.metadataId && params.metadataSource) {
+    const match = findMatchingCanonicalRequest(db, {
+      mediaType: params.mediaType,
+      metadataId: params.metadataId,
+      metadataSource: params.metadataSource,
+      seasonNumber: params.seasonNumber,
+      episodeNumber: params.episodeNumber,
+    });
+    if (match) return true;
+  }
+
+  // Fallback: title-based matching across all non-deleted requests
+  if (params.showTitle) {
+    const normTargetTitle = normalizeShowTitle(params.showTitle);
+    if (normTargetTitle) {
+      const allActive = db
+        .select()
+        .from(downloadRequests)
+        .where(ne(downloadRequests.status, 'deleted'))
+        .all();
+
+      const matchingTitleReqs = allActive.filter((r) => {
+        return (
+          normalizeShowTitle(r.title) === normTargetTitle &&
+          (params.mediaType === 'movie' ? r.mediaType === 'movie' : r.mediaType !== 'movie')
+        );
+      });
+
+      if (params.mediaType === 'movie') {
+        if (matchingTitleReqs.length > 0) return true;
+      } else {
+        const isSingleEpisode = params.seasonNumber != null && params.episodeNumber != null;
+        const isSeasonPack = params.seasonNumber != null && params.episodeNumber == null;
+
+        if (isSingleEpisode) {
+          // 1. Season pack covers episode (asymmetry)
+          const pack = matchingTitleReqs.find(
+            (r) => r.seasonNumber === params.seasonNumber && (r.episodeNumber === null || r.episodeNumber === undefined)
+          );
+          if (pack) return true;
+
+          // 2. Exact episode
+          const exact = matchingTitleReqs.find(
+            (r) => r.seasonNumber === params.seasonNumber && r.episodeNumber === params.episodeNumber
+          );
+          if (exact) return true;
+        } else if (isSeasonPack) {
+          // Exact season pack only (asymmetry: single episode does not cover pack)
+          const pack = matchingTitleReqs.find(
+            (r) => r.seasonNumber === params.seasonNumber && (r.episodeNumber === null || r.episodeNumber === undefined)
+          );
+          if (pack) return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
 export class UpNextService implements IUpNextService {
   private db: AppDatabase;
   private prowlarr: IProwlarrService;
@@ -252,12 +324,24 @@ export class UpNextService implements IUpNextService {
 
     let recentRequests: (typeof downloadRequests.$inferSelect)[];
     try {
+      const coReqRows = this.db
+        .select({ requestId: requestCoRequesters.requestId })
+        .from(requestCoRequesters)
+        .where(eq(requestCoRequesters.userId, userId))
+        .all();
+      const coReqIds = coReqRows.map((r) => r.requestId);
+
+      const userFilters = [eq(downloadRequests.userId, userId)];
+      if (coReqIds.length > 0) {
+        userFilters.push(inArray(downloadRequests.id, coReqIds));
+      }
+
       recentRequests = this.db
         .select()
         .from(downloadRequests)
         .where(
           and(
-            eq(downloadRequests.userId, userId),
+            or(...userFilters),
             ne(downloadRequests.status, 'deleted'),
             inArray(downloadRequests.mediaType, ['tv_show', 'anime']),
             gte(downloadRequests.requestedAt, cutoffDate)
@@ -359,11 +443,37 @@ export class UpNextService implements IUpNextService {
         if (hasSeasonPack) {
           targetSeason = maxSeason + 1;
           targetEpisode = null;
+
+          if (
+            isCandidateAlreadyRequested(this.db, {
+              mediaType,
+              metadataId,
+              metadataSource,
+              showTitle,
+              seasonNumber: targetSeason,
+              episodeNumber: targetEpisode,
+            })
+          ) {
+            continue;
+          }
+
           bestCandidate = await this.findBestCandidate(mediaType, showTitle, targetSeason, targetEpisode);
 
           // If full season pack not found for targetSeason, fallback to Episode 1
           if (!bestCandidate) {
             targetEpisode = 1;
+            if (
+              isCandidateAlreadyRequested(this.db, {
+                mediaType,
+                metadataId,
+                metadataSource,
+                showTitle,
+                seasonNumber: targetSeason,
+                episodeNumber: targetEpisode,
+              })
+            ) {
+              continue;
+            }
             bestCandidate = await this.findBestCandidate(mediaType, showTitle, targetSeason, targetEpisode);
           }
         } else {
@@ -375,6 +485,20 @@ export class UpNextService implements IUpNextService {
           }
           targetSeason = maxSeason;
           targetEpisode = maxEpisode + 1;
+
+          if (
+            isCandidateAlreadyRequested(this.db, {
+              mediaType,
+              metadataId,
+              metadataSource,
+              showTitle,
+              seasonNumber: targetSeason,
+              episodeNumber: targetEpisode,
+            })
+          ) {
+            continue;
+          }
+
           bestCandidate = await this.findBestCandidate(mediaType, showTitle, targetSeason, targetEpisode);
         }
 
@@ -416,6 +540,19 @@ export class UpNextService implements IUpNextService {
           }
         } catch {
           // Non-critical, fallback to nulls
+        }
+
+        if (
+          isCandidateAlreadyRequested(this.db, {
+            mediaType,
+            metadataId,
+            metadataSource,
+            showTitle,
+            seasonNumber: targetSeason,
+            episodeNumber: targetEpisode,
+          })
+        ) {
+          continue;
         }
 
         upNextItems.push({
