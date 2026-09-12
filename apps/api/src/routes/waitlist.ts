@@ -5,8 +5,8 @@ import { JwtPayload } from '../middleware/auth';
 import { normalizeShowTitle } from '../services/upNext';
 
 async function waitlistAuth(request: FastifyRequest, reply: FastifyReply) {
-  // Allow public access to reject endpoint with magic-link token
-  if (/\/reject(\?|$)/.test(request.url)) {
+  // Allow public access to reject and approve endpoints with magic-link token
+  if (request.method === 'GET' && /\/(reject|approve)(\?|$)/.test(request.url)) {
     return;
   }
 
@@ -192,6 +192,16 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
   app.get('/:id/reject', async (request, reply) => {
     const { id } = request.params as { id: string };
     return forwardToWatcher(request, reply, `/${id}/reject`);
+  });
+
+  app.get('/:id/approve', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    return forwardToWatcher(request, reply, `/${id}/approve`);
+  });
+
+  app.post('/:id/approve', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    return forwardToWatcher(request, reply, `/${id}/approve`);
   });
 
   app.get('/:id', async (request, reply) => {

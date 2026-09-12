@@ -20,6 +20,9 @@ export interface WatcherAppOptions {
   startSubmitter?: boolean;
   mainApiUrl?: string;
   notifyGraceHours?: number;
+  magicLinkSecret?: string;
+  webhookUrl?: string;
+  frontendUrl?: string;
   submitSchedule?: string;
   releaseGatingService?: ReleaseGatingService;
   prowlarrService?: WatcherProwlarrService;
@@ -74,12 +77,20 @@ export function buildWatcherApp(options: WatcherAppOptions = {}): FastifyInstanc
       apiKey: options.prowlarrApiKey,
     });
 
+  const webhookUrl = options.webhookUrl || process.env.WAITLIST_DISCORD_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL;
+  const magicLinkSecret = options.magicLinkSecret || process.env.MAGIC_LINK_SECRET;
+  const frontendUrl = options.frontendUrl || process.env.FRONTEND_URL;
+
   const poller =
     options.watcherPoller ??
     new WatcherPoller({
       db,
       prowlarrService: prowlarr,
       pollIntervalHours: options.pollIntervalHours,
+      webhookUrl,
+      magicLinkSecret,
+      frontendUrl,
+      graceHours: options.notifyGraceHours,
       logger: {
         info: (msg) => app.log.info(msg),
         warn: (msg) => app.log.warn(msg),
@@ -110,6 +121,7 @@ export function buildWatcherApp(options: WatcherAppOptions = {}): FastifyInstanc
       mainApiUrl: options.mainApiUrl,
       serviceApiKey,
       tmdbApiKey,
+      webhookUrl,
       graceHours: options.notifyGraceHours,
       schedule: options.submitSchedule,
       episodicService: episodic,

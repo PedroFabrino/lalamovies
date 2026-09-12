@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { WatcherDatabase } from '../db';
 import { watchRequests, WatchRequest } from '../db/schema';
 import { WatcherProwlarrService, CAM_REGEX } from '../services/prowlarr';
-import { sendWaitlistNotification } from '../services/notifications';
+import { sendWaitlistNotification, deleteDiscordMessage } from '../services/notifications';
 import { matchesTarget } from '../utils/torrentTitleCleaner';
 
 export interface WatcherPollerLogger {
@@ -115,6 +115,14 @@ export class WatcherPoller {
           const secret = this.magicLinkSecret || process.env.MAGIC_LINK_SECRET || 'magic-link-secret-default-change-me';
           if (secret) {
             try {
+              if (entry.discordMessageId) {
+                await deleteDiscordMessage(
+                  entry.discordMessageId,
+                  this.webhookUrl,
+                  this.logger
+                );
+              }
+
               discordMessageId = await sendWaitlistNotification({
                 id: entry.id,
                 title: entry.title,

@@ -126,6 +126,7 @@ export async function sendWaitlistNotification(
   ).replace(/\/+$/, '');
 
   const token = generateMagicLinkToken(id, notifyAt, secret);
+  const approveUrl = `${frontendUrl}/waitlist/${id}/approve?token=${encodeURIComponent(token)}`;
   const rejectUrl = `${frontendUrl}/waitlist/${id}/reject?token=${encodeURIComponent(token)}`;
 
   const titleText = year ? `${title} (${year})` : title;
@@ -141,7 +142,7 @@ export async function sendWaitlistNotification(
 
   const embed = {
     title: `Waitlist Release Found: ${titleText}`,
-    description: `A qualifying 1080p+ release was discovered on trackers.\n**Auto-downloading in ${graceHours} hours** unless rejected.`,
+    description: `A qualifying 1080p+ release was discovered on trackers.\n**Auto-downloading in ${graceHours} hours** unless approved early or rejected.`,
     color: 0xeab308, // Warning yellow
     fields: [
       {
@@ -160,8 +161,8 @@ export async function sendWaitlistNotification(
         inline: true,
       },
       {
-        name: 'Reject Download',
-        value: `[Click here to Reject Release](${rejectUrl})`,
+        name: 'Actions',
+        value: `✅ [**Approve & Download Now**](${approveUrl})\n❌ [**Reject Release**](${rejectUrl})`,
         inline: false,
       },
     ],

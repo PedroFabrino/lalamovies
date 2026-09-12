@@ -1,7 +1,7 @@
 import cron, { ScheduledTask } from 'node-cron';
 import { eq } from 'drizzle-orm';
 import { WatcherDatabase } from '../db';
-import { watchRequests } from '../db/schema';
+import { watchRequests, WatchRequest } from '../db/schema';
 import { deleteDiscordMessage, sendWaitlistErrorNotification } from '../services/notifications';
 import { EpisodicTrackingService } from '../services/episodicTracking';
 
@@ -98,156 +98,10 @@ export class AutoDownloadSubmitter {
       let failedCount = 0;
 
       for (const entry of dueEntries) {
-        if (!entry.prowlarrReleaseMagnet) {
-          this.logger?.warn(`AutoDownloadSubmitter: Entry "${entry.title}" (${entry.id}) has no prowlarr release magnet.`);
-          failedCount++;
-          continue;
-        }
-
-        const targetUrl = `${this.mainApiUrl}/requests`;
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-        };
-        if (this.serviceApiKey) {
-          headers['x-service-key'] = this.serviceApiKey;
-        }
-        if (entry.userId) {
-          headers['x-user-id'] = entry.userId;
-        }
-
-        const requestBody = {
-          magnetLink: entry.prowlarrReleaseMagnet,
-          mediaType: entry.mediaType,
-          metadataId: entry.metadataId,
-          metadataSource: entry.metadataSource,
-          title: entry.title,
-          year: entry.year ?? undefined,
-          seasonNumber: entry.seasonNumber ?? undefined,
-          episodeNumber: entry.targetEpisode ?? undefined,
-        };
-
-        try {
-          const res = await fetch(targetUrl, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(requestBody),
-          });
-
-          if (res.status === 201) {
-            // Delete Discord message if it exists
-            if (entry.discordMessageId) {
-              await deleteDiscordMessage(
-                entry.discordMessageId,
-                this.webhookUrl || process.env.WAITLIST_DISCORD_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL,
-                this.logger
-              );
-            }
-
-            const newTriggeredCount = (entry.triggeredCount || 0) + 1;
-
-            if (entry.mediaType === 'tv_show' || entry.mediaType === 'anime') {
-              await this.episodicService.advanceEntry(entry.id, newTriggeredCount);
-            } else {
-              const nowIso = new Date().toISOString();
-              this.db
-                .update(watchRequests)
-                .set({
-                  status: 'triggered',
-                  triggeredCount: newTriggeredCount,
-                  failureCount: 0,
-                  discordMessageId: null,
-                  updatedAt: nowIso,
-                })
-                .where(eq(watchRequests.id, entry.id))
-                .run();
-            }
-
-            triggeredCount++;
-            this.logger?.info(`AutoDownloadSubmitter: Successfully triggered auto-download for "${entry.title}" (HTTP 201).`);
-          } else {
-            // Main API returned 4xx or 5xx error
-            const errorText = await res.text();
-            this.logger?.error(`AutoDownloadSubmitter: POST /requests failed for "${entry.title}" (${entry.id}) with status ${res.status}: ${errorText}`);
-
-            const newFailureCount = (entry.failureCount || 0) + 1;
-            const nowIso = new Date().toISOString();
-
-            if (newFailureCount >= 3) {
-              // 3 consecutive failures: transition to error status and send admin notification
-              await sendWaitlistErrorNotification({
-                id: entry.id,
-                title: entry.title,
-                year: entry.year,
-                mediaType: entry.mediaType,
-                errorMessage: `HTTP ${res.status}: ${errorText}`,
-                webhookUrl: this.webhookUrl,
-                adminRoleMention: this.adminRoleMention,
-                logger: this.logger,
-              });
-
-              this.db
-                .update(watchRequests)
-                .set({
-                  status: 'error',
-                  failureCount: newFailureCount,
-                  updatedAt: nowIso,
-                })
-                .where(eq(watchRequests.id, entry.id))
-                .run();
-
-              this.logger?.error(`AutoDownloadSubmitter: Entry "${entry.title}" reached 3 failures -> transitioned to 'error' status.`);
-            } else {
-              // Less than 3 failures: stay notified, increment failureCount, retry on next cycle
-              this.db
-                .update(watchRequests)
-                .set({
-                  failureCount: newFailureCount,
-                  updatedAt: nowIso,
-                })
-                .where(eq(watchRequests.id, entry.id))
-                .run();
-            }
-
-            failedCount++;
-          }
-        } catch (fetchErr) {
-          // Network or unexpected error
-          this.logger?.error(`AutoDownloadSubmitter: Network exception calling Main API for "${entry.title}":`, fetchErr);
-          const newFailureCount = (entry.failureCount || 0) + 1;
-          const nowIso = new Date().toISOString();
-
-          if (newFailureCount >= 3) {
-            await sendWaitlistErrorNotification({
-              id: entry.id,
-              title: entry.title,
-              year: entry.year,
-              mediaType: entry.mediaType,
-              errorMessage: (fetchErr as Error).message || 'Network exception',
-              webhookUrl: this.webhookUrl,
-              adminRoleMention: this.adminRoleMention,
-              logger: this.logger,
-            });
-
-            this.db
-              .update(watchRequests)
-              .set({
-                status: 'error',
-                failureCount: newFailureCount,
-                updatedAt: nowIso,
-              })
-              .where(eq(watchRequests.id, entry.id))
-              .run();
-          } else {
-            this.db
-              .update(watchRequests)
-              .set({
-                failureCount: newFailureCount,
-                updatedAt: nowIso,
-              })
-              .where(eq(watchRequests.id, entry.id))
-              .run();
-          }
-
+        const res = await this.submitEntry(entry);
+        if (res.success) {
+          triggeredCount++;
+        } else {
           failedCount++;
         }
       }
@@ -255,6 +109,160 @@ export class AutoDownloadSubmitter {
       return { checked: notifiedEntries.length, triggered: triggeredCount, failed: failedCount };
     } finally {
       this.isSubmitting = false;
+    }
+  }
+
+  async submitEntry(entry: WatchRequest): Promise<{ success: boolean; error?: string }> {
+    if (!entry.prowlarrReleaseMagnet) {
+      this.logger?.warn(`AutoDownloadSubmitter: Entry "${entry.title}" (${entry.id}) has no prowlarr release magnet.`);
+      return { success: false, error: 'No release magnet available' };
+    }
+
+    const targetUrl = `${this.mainApiUrl}/requests`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (this.serviceApiKey) {
+      headers['x-service-key'] = this.serviceApiKey;
+    }
+    if (entry.userId) {
+      headers['x-user-id'] = entry.userId;
+    }
+
+    const requestBody = {
+      magnetLink: entry.prowlarrReleaseMagnet,
+      mediaType: entry.mediaType,
+      metadataId: entry.metadataId,
+      metadataSource: entry.metadataSource,
+      title: entry.title,
+      year: entry.year ?? undefined,
+      seasonNumber: entry.seasonNumber ?? undefined,
+      episodeNumber: entry.targetEpisode ?? undefined,
+    };
+
+    try {
+      const res = await fetch(targetUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+      });
+
+      if (res.status === 201) {
+        // Delete Discord message if it exists
+        if (entry.discordMessageId) {
+          await deleteDiscordMessage(
+            entry.discordMessageId,
+            this.webhookUrl || process.env.WAITLIST_DISCORD_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL,
+            this.logger
+          );
+        }
+
+        const newTriggeredCount = (entry.triggeredCount || 0) + 1;
+
+        if (entry.mediaType === 'tv_show' || entry.mediaType === 'anime') {
+          await this.episodicService.advanceEntry(entry.id, newTriggeredCount);
+        } else {
+          const nowIso = new Date().toISOString();
+          this.db
+            .update(watchRequests)
+            .set({
+              status: 'triggered',
+              triggeredCount: newTriggeredCount,
+              failureCount: 0,
+              discordMessageId: null,
+              updatedAt: nowIso,
+            })
+            .where(eq(watchRequests.id, entry.id))
+            .run();
+        }
+
+        this.logger?.info(`AutoDownloadSubmitter: Successfully triggered auto-download for "${entry.title}" (HTTP 201).`);
+        return { success: true };
+      } else {
+        // Main API returned 4xx or 5xx error
+        const errorText = await res.text();
+        this.logger?.error(`AutoDownloadSubmitter: POST /requests failed for "${entry.title}" (${entry.id}) with status ${res.status}: ${errorText}`);
+
+        const newFailureCount = (entry.failureCount || 0) + 1;
+        const nowIso = new Date().toISOString();
+
+        if (newFailureCount >= 3) {
+          // 3 consecutive failures: transition to error status and send admin notification
+          await sendWaitlistErrorNotification({
+            id: entry.id,
+            title: entry.title,
+            year: entry.year,
+            mediaType: entry.mediaType,
+            errorMessage: `HTTP ${res.status}: ${errorText}`,
+            webhookUrl: this.webhookUrl,
+            adminRoleMention: this.adminRoleMention,
+            logger: this.logger,
+          });
+
+          this.db
+            .update(watchRequests)
+            .set({
+              status: 'error',
+              failureCount: newFailureCount,
+              updatedAt: nowIso,
+            })
+            .where(eq(watchRequests.id, entry.id))
+            .run();
+
+          this.logger?.error(`AutoDownloadSubmitter: Entry "${entry.title}" reached 3 failures -> transitioned to 'error' status.`);
+        } else {
+          // Less than 3 failures: stay notified, increment failureCount, retry on next cycle
+          this.db
+            .update(watchRequests)
+            .set({
+              failureCount: newFailureCount,
+              updatedAt: nowIso,
+            })
+            .where(eq(watchRequests.id, entry.id))
+            .run();
+        }
+
+        return { success: false, error: `HTTP ${res.status}: ${errorText}` };
+      }
+    } catch (fetchErr) {
+      // Network or unexpected error
+      this.logger?.error(`AutoDownloadSubmitter: Network exception calling Main API for "${entry.title}":`, fetchErr);
+      const newFailureCount = (entry.failureCount || 0) + 1;
+      const nowIso = new Date().toISOString();
+
+      if (newFailureCount >= 3) {
+        await sendWaitlistErrorNotification({
+          id: entry.id,
+          title: entry.title,
+          year: entry.year,
+          mediaType: entry.mediaType,
+          errorMessage: (fetchErr as Error).message || 'Network exception',
+          webhookUrl: this.webhookUrl,
+          adminRoleMention: this.adminRoleMention,
+          logger: this.logger,
+        });
+
+        this.db
+          .update(watchRequests)
+          .set({
+            status: 'error',
+            failureCount: newFailureCount,
+            updatedAt: nowIso,
+          })
+          .where(eq(watchRequests.id, entry.id))
+          .run();
+      } else {
+        this.db
+          .update(watchRequests)
+          .set({
+            failureCount: newFailureCount,
+            updatedAt: nowIso,
+          })
+          .where(eq(watchRequests.id, entry.id))
+          .run();
+      }
+
+      return { success: false, error: (fetchErr as Error).message || 'Network exception' };
     }
   }
 

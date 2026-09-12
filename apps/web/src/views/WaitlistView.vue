@@ -319,6 +319,26 @@
 
             <div class="flex items-center gap-1.5">
               <button
+                v-if="entry.status === 'notified'"
+                type="button"
+                data-testid="approve-waitlist-btn"
+                :disabled="approvingEntryId === entry.id"
+                class="px-2.5 py-1 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/40 rounded border border-emerald-800/60 hover:border-emerald-700 transition cursor-pointer flex items-center gap-1.5 text-xs font-medium disabled:opacity-50"
+                @click="handleApprove(entry)"
+              >
+                <svg
+                  class="w-3.5 h-3.5"
+                  :class="{ 'animate-spin': approvingEntryId === entry.id }"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                <span>{{ approvingEntryId === entry.id ? 'Approving...' : 'Approve Now' }}</span>
+              </button>
+
+              <button
                 v-if="entry.status === 'pending_release' || entry.status === 'checking'"
                 type="button"
                 data-testid="check-now-btn"
@@ -895,6 +915,19 @@ async function handleCancel(entry: WaitlistEntry) {
     await waitlistStore.cancelEntry(entry.id);
   } catch {
     // Error is handled in store
+  }
+}
+
+const approvingEntryId = ref<string | null>(null);
+
+async function handleApprove(entry: WaitlistEntry) {
+  approvingEntryId.value = entry.id;
+  try {
+    await waitlistStore.approveEntry(entry.id);
+  } catch {
+    // Error is handled in store
+  } finally {
+    approvingEntryId.value = null;
   }
 }
 

@@ -519,5 +519,40 @@ describe('WaitlistView - Dedicated Waitlist Page', () => {
       posterUrl: 'https://image.tmdb.org/t/p/w500/lioness.jpg',
     });
   });
+
+  it('renders Approve Now button for notified releases and triggers immediate download approval', async () => {
+    const mockEntries = [
+      {
+        id: 'entry-notified-lioness',
+        userId: 'user-1',
+        mediaType: 'tv_show',
+        metadataId: '113962',
+        metadataSource: 'tmdb',
+        title: 'Lioness',
+        year: 2023,
+        seasonNumber: 3,
+        targetEpisode: 7,
+        status: 'notified',
+        notifyAt: new Date().toISOString(),
+        prowlarrReleaseTitle: 'Lioness 2023 S03E07 1080p HD',
+        createdAt: '2026-09-12T00:00:00.000Z',
+      },
+    ];
+
+    vi.mocked(api.get).mockResolvedValue({ entries: mockEntries } as any);
+    vi.mocked(api.post).mockResolvedValue({ ok: true } as any);
+
+    const wrapper = mount(WaitlistView);
+    await flushPromises();
+
+    const approveBtn = wrapper.find('[data-testid="approve-waitlist-btn"]');
+    expect(approveBtn.exists()).toBe(true);
+    expect(approveBtn.text()).toContain('Approve Now');
+
+    await approveBtn.trigger('click');
+    await flushPromises();
+
+    expect(api.post).toHaveBeenCalledWith('/waitlist/entry-notified-lioness/approve');
+  });
 });
 

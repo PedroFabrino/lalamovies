@@ -23,9 +23,9 @@ interface CreateWaitlistBody {
 }
 
 export const waitlistRoutes: FastifyPluginAsync = async (app) => {
-  // Service-key verification hook for watcher (bypassed for magic-link rejection)
+  // Service-key verification hook for watcher (bypassed for magic-link rejection & approval)
   app.addHook('preHandler', async (request, reply) => {
-    if (/\/reject(\?|$)/.test(request.url)) {
+    if (request.method === 'GET' && /\/(reject|approve)(\?|$)/.test(request.url)) {
       return;
     }
     if (app.serviceApiKey) {
@@ -287,7 +287,20 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
     const query = request.query as { token?: string };
     const token = query.token;
 
+    const wantsHtml = Boolean(
+      typeof request.headers.accept === 'string' &&
+        request.headers.accept.includes('text/html') &&
+        !request.headers.accept.includes('application/json')
+    );
+
     if (!token) {
+      if (wantsHtml) {
+        return reply.status(401).type('text/html').send(renderStatusHtml({
+          icon: '⚠️',
+          title: 'Missing Rejection Token',
+          subtitle: 'This rejection link is incomplete or invalid.',
+        }));
+      }
       return reply.status(401).send({
         error: 'Unauthorized',
         message: 'Missing rejection token',
@@ -299,6 +312,13 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
     const verification = verifyMagicLinkToken(token, id, secret, graceHours);
 
     if (!verification.valid) {
+      if (wantsHtml) {
+        return reply.status(401).type('text/html').send(renderStatusHtml({
+          icon: '🚫',
+          title: 'Invalid Rejection Link',
+          subtitle: 'The signature on this rejection token is invalid or tampered.',
+        }));
+      }
       return reply.status(401).send({
         error: 'Unauthorized',
         message: 'Invalid or tampered rejection token',
@@ -306,6 +326,13 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
     }
 
     if (verification.expired) {
+      if (wantsHtml) {
+        return reply.status(410).type('text/html').send(renderStatusHtml({
+          icon: '⏳',
+          title: 'Rejection Period Expired',
+          subtitle: `The ${graceHours}-hour rejection grace period has expired. Auto-download may have already triggered.`,
+        }));
+      }
       return reply.status(410).send({
         error: 'Gone',
         message: 'Rejection grace period has expired',
@@ -358,9 +385,201 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       .where(eq(watchRequests.id, id))
       .get();
 
+    if (wantsHtml) {
+      return reply.type('text/html').send(renderStatusHtml({
+        icon: '🗑️',
+        title: 'Release Rejected',
+        subtitle: `"${entry.title}" has been reset to checking trackers for a different release.`,
+      }));
+    }
+
     return reply.status(200).send({
       ok: true,
       message: 'Waitlist release rejected successfully. Entry reset to checking.',
+      entry: updated,
+      ...updated,
+    });
+  });
+
+  // GET /waitlist/:id/approve?token=
+  app.get('/:id/approve', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const query = request.query as { token?: string };
+    const token = query.token;
+    const wantsHtml = Boolean(
+      typeof request.headers.accept === 'string' &&
+        request.headers.accept.includes('text/html') &&
+        !request.headers.accept.includes('application/json')
+    );
+
+    if (!token) {
+      if (wantsHtml) {
+        return reply.status(401).type('text/html').send(renderStatusHtml({
+          icon: '⚠️',
+          title: 'Missing Approval Token',
+          subtitle: 'This approval link is incomplete or invalid.',
+        }));
+      }
+      return reply.status(401).send({
+        error: 'Unauthorized',
+        message: 'Missing approval token',
+      });
+    }
+
+    const secret = process.env.MAGIC_LINK_SECRET || 'magic-link-secret-default-change-me';
+    const graceHours = Number(process.env.NOTIFY_GRACE_HOURS) || 6;
+    const verification = verifyMagicLinkToken(token, id, secret, graceHours);
+
+    if (!verification.valid) {
+      if (wantsHtml) {
+        return reply.status(401).type('text/html').send(renderStatusHtml({
+          icon: '🚫',
+          title: 'Invalid Approval Link',
+          subtitle: 'The signature on this approval token is invalid or tampered.',
+        }));
+      }
+      return reply.status(401).send({
+        error: 'Unauthorized',
+        message: 'Invalid or tampered approval token',
+      });
+    }
+
+    if (verification.expired) {
+      if (wantsHtml) {
+        return reply.status(410).type('text/html').send(renderStatusHtml({
+          icon: '⏳',
+          title: 'Approval Period Expired',
+          subtitle: `The ${graceHours}-hour approval window for this release has passed. Auto-download may have already triggered.`,
+        }));
+      }
+      return reply.status(410).send({
+        error: 'Gone',
+        message: 'Approval grace period has expired',
+      });
+    }
+
+    const entry = app.db
+      .select()
+      .from(watchRequests)
+      .where(eq(watchRequests.id, id))
+      .get();
+
+    if (!entry) {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: 'Waitlist entry not found',
+      });
+    }
+
+    if (entry.status === 'triggered' || entry.status === 'completed') {
+      if (wantsHtml) {
+        return reply.type('text/html').send(renderStatusHtml({
+          icon: '⚡',
+          title: 'Already Downloading',
+          subtitle: `"${entry.title}" is already being downloaded.`,
+          releaseTitle: entry.prowlarrReleaseTitle,
+        }));
+      }
+      return reply.send({
+        ok: true,
+        message: 'Release is already being downloaded',
+        entry,
+        ...entry,
+      });
+    }
+
+    if (!entry.prowlarrReleaseMagnet) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Entry has no release magnet available to download',
+      });
+    }
+
+    const submitResult = await app.submitter.submitEntry(entry);
+    if (!submitResult.success) {
+      if (wantsHtml) {
+        return reply.status(500).type('text/html').send(renderStatusHtml({
+          icon: '❌',
+          title: 'Submission Failed',
+          subtitle: submitResult.error || 'Failed to trigger download queue.',
+        }));
+      }
+      return reply.status(500).send({
+        error: 'Download Submission Failed',
+        message: submitResult.error || 'Failed to submit download request to Main API',
+      });
+    }
+
+    const updated = app.db
+      .select()
+      .from(watchRequests)
+      .where(eq(watchRequests.id, id))
+      .get();
+
+    if (wantsHtml) {
+      return reply.type('text/html').send(renderStatusHtml({
+        icon: '✅',
+        title: 'Download Approved!',
+        subtitle: `Auto-download grace period bypassed. We have started downloading "${entry.title}".`,
+        releaseTitle: entry.prowlarrReleaseTitle,
+      }));
+    }
+
+    return reply.status(200).send({
+      ok: true,
+      message: 'Waitlist release approved successfully and sent to download queue.',
+      entry: updated,
+      ...updated,
+    });
+  });
+
+  // POST /waitlist/:id/approve
+  app.post('/:id/approve', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const entry = app.db
+      .select()
+      .from(watchRequests)
+      .where(eq(watchRequests.id, id))
+      .get();
+
+    if (!entry) {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: 'Waitlist entry not found',
+      });
+    }
+
+    if (entry.status !== 'notified') {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: `Cannot approve entry in '${entry.status}' status (must be 'notified')`,
+      });
+    }
+
+    if (!entry.prowlarrReleaseMagnet) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Entry has no release magnet available to download',
+      });
+    }
+
+    const submitResult = await app.submitter.submitEntry(entry);
+    if (!submitResult.success) {
+      return reply.status(500).send({
+        error: 'Download Submission Failed',
+        message: submitResult.error || 'Failed to submit download request to Main API',
+      });
+    }
+
+    const updated = app.db
+      .select()
+      .from(watchRequests)
+      .where(eq(watchRequests.id, id))
+      .get();
+
+    return reply.status(200).send({
+      ok: true,
+      message: 'Waitlist release approved successfully and sent to download queue.',
       entry: updated,
       ...updated,
     });
@@ -429,3 +648,90 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ ok: true, entry: updated });
   });
 };
+
+function renderStatusHtml(options: {
+  icon: string;
+  title: string;
+  subtitle: string;
+  releaseTitle?: string | null;
+  frontendUrl?: string;
+}): string {
+  const frontend = (options.frontendUrl || process.env.FRONTEND_URL || 'https://lalamovies.stream').replace(/\/+$/, '');
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${options.title} — Media Download Manager</title>
+  <style>
+    body {
+      background-color: #09090b;
+      color: #f4f4f5;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 1rem;
+    }
+    .card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 1rem;
+      padding: 2.5rem;
+      max-width: 460px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+    .icon {
+      width: 56px;
+      height: 56px;
+      background: #27272a;
+      border: 1px solid #3f3f46;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.25rem;
+      font-size: 1.75rem;
+    }
+    h1 { font-size: 1.25rem; font-weight: 700; margin: 0 0 0.5rem; }
+    p { color: #a1a1aa; font-size: 0.875rem; line-height: 1.5; margin: 0 0 1.5rem; }
+    .release {
+      background: #09090b;
+      border: 1px solid #27272a;
+      border-radius: 0.5rem;
+      padding: 0.75rem;
+      font-family: monospace;
+      font-size: 0.75rem;
+      color: #38bdf8;
+      word-break: break-all;
+      margin-bottom: 1.5rem;
+    }
+    .btn {
+      display: inline-block;
+      background: #4f46e5;
+      color: #ffffff;
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.875rem;
+      padding: 0.625rem 1.25rem;
+      border-radius: 0.5rem;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: #4338ca; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">${options.icon}</div>
+    <h1>${options.title}</h1>
+    <p>${options.subtitle}</p>
+    ${options.releaseTitle ? `<div class="release">${options.releaseTitle}</div>` : ''}
+    <a href="${frontend}/waitlist" class="btn">Return to Waitlist</a>
+  </div>
+</body>
+</html>`;
+}

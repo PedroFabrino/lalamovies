@@ -13,22 +13,12 @@ describe('Waitlist Proxy & UpNext Suppression Integration', () => {
   const SERVICE_KEY = 'test-service-key-12345';
 
   beforeEach(async () => {
-    // 1. Start real watcher on ephemeral port
-    watcherApp = buildWatcherApp({
-      dbPath: ':memory:',
-      serviceApiKey: SERVICE_KEY,
-    });
-    await watcherApp.listen({ port: 0, host: '127.0.0.1' });
-    const port = (watcherApp.server.address() as any).port;
-    watcherUrl = `http://127.0.0.1:${port}`;
-
-    // 2. Start main API with watcherUrl configured
+    // 1. Start main API with ephemeral port
     mainApp = buildApp({
       dbPath: ':memory:',
       startPoller: false,
       startCleanupCron: false,
       serviceApiKey: SERVICE_KEY,
-      watcherUrl,
       jwtSecret: 'test-jwt-secret-key-32charslong!!',
       cleanupService: {
         isHostDiskSafe: () => true,
@@ -40,7 +30,20 @@ describe('Waitlist Proxy & UpNext Suppression Integration', () => {
         getActiveTorrentCount: async () => 0,
       } as any,
     });
-    await mainApp.ready();
+    await mainApp.listen({ port: 0, host: '127.0.0.1' });
+    const mainPort = (mainApp.server.address() as any).port;
+    const mainApiUrl = `http://127.0.0.1:${mainPort}`;
+
+    // 2. Start watcher with mainApiUrl configured
+    watcherApp = buildWatcherApp({
+      dbPath: ':memory:',
+      serviceApiKey: SERVICE_KEY,
+      mainApiUrl,
+    });
+    await watcherApp.listen({ port: 0, host: '127.0.0.1' });
+    const watcherPort = (watcherApp.server.address() as any).port;
+    watcherUrl = `http://127.0.0.1:${watcherPort}`;
+    (mainApp as any).watcherUrl = watcherUrl;
 
     // 3. Seed users
     mainApp.db.insert(users).values([
@@ -391,5 +394,98 @@ describe('Waitlist Proxy & UpNext Suppression Integration', () => {
     const waitlist = body.entries;
     const entry = waitlist.find((w: any) => w.metadataId === 'tmdb-tv-103');
     expect(entry).toBeUndefined();
+  });
+
+  it('allows public magic-link GET /waitlist/:id/approve with valid token', async () => {
+    const aliceToken = signToken('user-alice', 'user');
+
+    // 1. Create a waitlist entry
+    const createRes = await mainApp.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: { authorization: `Bearer ${aliceToken}` },
+      payload: {
+        mediaType: 'movie',
+        metadataId: 'movie-approve-magic',
+        metadataSource: 'tmdb',
+        title: 'Furiosa',
+      },
+    });
+    const entryId = createRes.json().id;
+
+    // 2. Mark it as notified in watcher
+    const notifyAt = new Date().toISOString();
+    const { watchRequests } = await import('../../watcher/src/db/schema');
+    const { eq } = await import('drizzle-orm');
+    watcherApp.db
+      .update(watchRequests)
+      .set({
+        status: 'notified',
+        prowlarrReleaseTitle: 'Furiosa.2024.1080p',
+        prowlarrReleaseMagnet: 'magnet:?xt=urn:btih:furiosa1234567890abcdef1234567890abcdef',
+        notifyAt,
+      })
+      .where(eq(watchRequests.id, entryId))
+      .run();
+
+    // 3. Generate magic link token
+    const secret = process.env.MAGIC_LINK_SECRET || 'magic-link-secret-default-change-me';
+    const token = generateMagicLinkToken(entryId, notifyAt, secret);
+
+    // 4. Approve via Main API WITHOUT auth headers (public magic link)
+    const approveRes = await mainApp.inject({
+      method: 'GET',
+      url: `/waitlist/${entryId}/approve?token=${encodeURIComponent(token)}`,
+    });
+
+    expect(approveRes.statusCode).toBe(200);
+    const body = approveRes.json();
+    expect(body.ok).toBe(true);
+    expect(body.entry.status).toBe('triggered');
+  });
+
+  it('proxies authenticated POST /waitlist/:id/approve from Web UI', async () => {
+    const aliceToken = signToken('user-alice', 'user');
+
+    // 1. Create a waitlist entry
+    const createRes = await mainApp.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: { authorization: `Bearer ${aliceToken}` },
+      payload: {
+        mediaType: 'movie',
+        metadataId: 'movie-approve-post',
+        metadataSource: 'tmdb',
+        title: 'Kingdom of the Planet of the Apes',
+      },
+    });
+    const entryId = createRes.json().id;
+
+    // 2. Mark it as notified in watcher
+    const notifyAt = new Date().toISOString();
+    const { watchRequests } = await import('../../watcher/src/db/schema');
+    const { eq } = await import('drizzle-orm');
+    watcherApp.db
+      .update(watchRequests)
+      .set({
+        status: 'notified',
+        prowlarrReleaseTitle: 'Kingdom.Apes.2024.1080p',
+        prowlarrReleaseMagnet: 'magnet:?xt=urn:btih:kingdomapes1234567890abcdef1234567890',
+        notifyAt,
+      })
+      .where(eq(watchRequests.id, entryId))
+      .run();
+
+    // 3. Approve via Main API with user JWT
+    const approveRes = await mainApp.inject({
+      method: 'POST',
+      url: `/waitlist/${entryId}/approve`,
+      headers: { authorization: `Bearer ${aliceToken}` },
+    });
+
+    expect(approveRes.statusCode).toBe(200);
+    const body = approveRes.json();
+    expect(body.ok).toBe(true);
+    expect(body.entry.status).toBe('triggered');
   });
 });

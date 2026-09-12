@@ -120,6 +120,18 @@ export const useWaitlistStore = defineStore('waitlist', () => {
     }
   }
 
+  async function approveEntry(id: string): Promise<void> {
+    try {
+      await api.post(`/waitlist/${id}/approve`);
+      await fetchAll();
+      showToast('Release approved! Download initiated.', 'success');
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Failed to approve release';
+      showToast(msg, 'error');
+      throw err;
+    }
+  }
+
   return {
     entries,
     loading,
@@ -130,5 +142,6 @@ export const useWaitlistStore = defineStore('waitlist', () => {
     fetchAll,
     addEntry,
     cancelEntry,
+    approveEntry,
   };
 });
