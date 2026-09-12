@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, primaryKey } from 'drizzle-orm/sqlite-core';
 
 export const watchRequests = sqliteTable('watch_requests', {
   id: text('id').primaryKey(),
@@ -41,3 +41,20 @@ export const watchRequests = sqliteTable('watch_requests', {
 
 export type WatchRequest = typeof watchRequests.$inferSelect;
 export type NewWatchRequest = typeof watchRequests.$inferInsert;
+
+export const waitlistCoRequesters = sqliteTable(
+  'waitlist_co_requesters',
+  {
+    waitlistId: text('waitlist_id')
+      .notNull()
+      .references(() => watchRequests.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    addedAt: text('added_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.waitlistId, table.userId] }),
+  ]
+);
+
+export type WaitlistCoRequester = typeof waitlistCoRequesters.$inferSelect;
+export type NewWaitlistCoRequester = typeof waitlistCoRequesters.$inferInsert;

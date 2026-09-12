@@ -260,6 +260,15 @@
                   <span>👤</span>
                   <span>{{ entry.requesterUsername }}</span>
                 </span>
+                <span
+                  v-if="entry.coRequesterCount && entry.coRequesterCount > 0"
+                  class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-950/80 text-blue-300 border border-blue-800/60 flex items-center gap-1"
+                  data-testid="entry-co-requester-count"
+                  :title="`${entry.coRequesterCount} co-requester${entry.coRequesterCount > 1 ? 's' : ''}`"
+                >
+                  <span>👥</span>
+                  <span>+{{ entry.coRequesterCount }}</span>
+                </span>
               </div>
 
               <!-- Status badge -->

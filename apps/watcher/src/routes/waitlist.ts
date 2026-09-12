@@ -1,7 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
-import { eq, and, desc, inArray } from 'drizzle-orm';
+import { eq, and, desc, inArray, or } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import { watchRequests, WatchRequest } from '../db/schema';
+import { watchRequests, WatchRequest, waitlistCoRequesters } from '../db/schema';
 import { evaluateInitialStatus } from '../services/releaseGating';
 import { verifyMagicLinkToken, deleteDiscordMessage, sendWaitlistCancelNotification } from '../services/notifications';
 
@@ -102,39 +102,93 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    // Guard 3: Duplicate active waitlist check
-    const existingActive = app.db
+    const effectiveSeason = body.seasonNumber ?? (body.mediaType === 'movie' ? null : 1);
+    const effectiveTargetEpisode = body.mediaType === 'movie'
+      ? null
+      : (body.targetEpisode !== undefined ? body.targetEpisode : (body.isNextSeason ? null : 1));
+
+    // Guard 3: Cross-user duplicate active waitlist check with asymmetry
+    const activeEntries = app.db
       .select()
       .from(watchRequests)
       .where(
         and(
-          eq(watchRequests.userId, userId),
           eq(watchRequests.mediaType, body.mediaType),
           eq(watchRequests.metadataId, body.metadataId),
-          inArray(watchRequests.status, ['pending_release', 'checking', 'notified'])
+          eq(watchRequests.metadataSource, body.metadataSource),
+          inArray(watchRequests.status, ['pending_release', 'checking', 'notified', 'triggered'])
         )
       )
       .all();
 
+    let matchingEntry: WatchRequest | undefined;
+
     if (body.mediaType === 'movie') {
-      if (existingActive.length > 0) {
-        return reply.status(409).send({
-          error: 'Duplicate Entry',
-          message: `"${body.title}" is already on your active waitlist.`,
-        });
-      }
+      matchingEntry = activeEntries[0];
     } else {
-      const targetSeason = body.seasonNumber ?? 1;
-      const targetEp = body.targetEpisode ?? 1;
-      const duplicateEp = existingActive.find(
-        (e) => (e.seasonNumber ?? 1) === targetSeason && (e.targetEpisode ?? 1) === targetEp
-      );
-      if (duplicateEp) {
-        return reply.status(409).send({
-          error: 'Duplicate Entry',
-          message: `"${body.title}" S${targetSeason}E${targetEp} is already on your active waitlist.`,
-        });
+      const isSeasonPack = effectiveTargetEpisode === null || effectiveTargetEpisode === undefined;
+      const isSingleEpisode = !isSeasonPack;
+
+      if (isSingleEpisode) {
+        // 1. Season pack covers episode (asymmetry)
+        const pack = activeEntries.find(
+          (e) => (e.seasonNumber ?? 1) === effectiveSeason && (e.targetEpisode === null || e.targetEpisode === undefined)
+        );
+        if (pack) {
+          matchingEntry = pack;
+        } else {
+          // 2. Exact episode match
+          matchingEntry = activeEntries.find(
+            (e) => (e.seasonNumber ?? 1) === effectiveSeason && e.targetEpisode === effectiveTargetEpisode
+          );
+        }
+      } else {
+        // Exact season pack match only (single episode does not cover pack)
+        matchingEntry = activeEntries.find(
+          (e) => (e.seasonNumber ?? 1) === effectiveSeason && (e.targetEpisode === null || e.targetEpisode === undefined)
+        );
       }
+    }
+
+    if (matchingEntry) {
+      const now = new Date().toISOString();
+      if (matchingEntry.userId !== userId) {
+        // Add submitting user to waitlist_co_requesters if not already present
+        const existingCoReq = app.db
+          .select()
+          .from(waitlistCoRequesters)
+          .where(
+            and(
+              eq(waitlistCoRequesters.waitlistId, matchingEntry.id),
+              eq(waitlistCoRequesters.userId, userId)
+            )
+          )
+          .get();
+
+        if (!existingCoReq) {
+          app.db
+            .insert(waitlistCoRequesters)
+            .values({
+              waitlistId: matchingEntry.id,
+              userId,
+              addedAt: now,
+            })
+            .run();
+        }
+      }
+
+      const coReqs = app.db
+        .select({ userId: waitlistCoRequesters.userId })
+        .from(waitlistCoRequesters)
+        .where(eq(waitlistCoRequesters.waitlistId, matchingEntry.id))
+        .all();
+      const coRequesterCount = coReqs.length;
+
+      return reply.status(200).send({
+        entry: { ...matchingEntry, coRequesterCount },
+        ...matchingEntry,
+        coRequesterCount,
+      });
     }
 
     const now = new Date().toISOString();
@@ -147,7 +201,7 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
           body.mediaType,
           body.metadataId,
           body.seasonNumber,
-          body.targetEpisode
+          effectiveTargetEpisode
         );
         const evaluated = evaluateInitialStatus(fetchedDate, undefined, Boolean(body.isNextSeason));
         initialStatus = evaluated.status;
@@ -166,8 +220,8 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       metadataSource: body.metadataSource,
       title: body.title,
       year: body.year ?? null,
-      seasonNumber: body.seasonNumber ?? null,
-      targetEpisode: body.targetEpisode ?? (body.mediaType === 'movie' ? null : 1),
+      seasonNumber: effectiveSeason,
+      targetEpisode: effectiveTargetEpisode,
       triggeredCount: 0,
       failureCount: 0,
       status: initialStatus,
@@ -188,7 +242,11 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
 
     app.db.insert(watchRequests).values(newEntry).run();
 
-    return reply.status(201).send({ entry: newEntry, ...newEntry });
+    return reply.status(201).send({
+      entry: { ...newEntry, coRequesterCount: 0 },
+      ...newEntry,
+      coRequesterCount: 0,
+    });
   });
 
   // GET /waitlist?userId=&status=
@@ -206,7 +264,23 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
 
     const conditions = [];
     if (targetUserId) {
-      conditions.push(eq(watchRequests.userId, targetUserId));
+      const coReqRows = app.db
+        .select({ waitlistId: waitlistCoRequesters.waitlistId })
+        .from(waitlistCoRequesters)
+        .where(eq(waitlistCoRequesters.userId, targetUserId))
+        .all();
+      const coReqWaitlistIds = coReqRows.map((r) => r.waitlistId);
+
+      if (coReqWaitlistIds.length > 0) {
+        conditions.push(
+          or(
+            eq(watchRequests.userId, targetUserId),
+            inArray(watchRequests.id, coReqWaitlistIds)
+          )
+        );
+      } else {
+        conditions.push(eq(watchRequests.userId, targetUserId));
+      }
     }
     if (query.status) {
       conditions.push(eq(watchRequests.status, query.status as WatchRequest['status']));
@@ -219,9 +293,19 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       .orderBy(desc(watchRequests.createdAt))
       .all();
 
+    const allCoReqs = app.db
+      .select({ waitlistId: waitlistCoRequesters.waitlistId })
+      .from(waitlistCoRequesters)
+      .all();
+    const countMap = new Map<string, number>();
+    for (const cr of allCoReqs) {
+      countMap.set(cr.waitlistId, (countMap.get(cr.waitlistId) || 0) + 1);
+    }
+
     const graceHours = Number(process.env.NOTIFY_GRACE_HOURS) || 6;
     const entriesWithGrace = list.map((entry) => ({
       ...entry,
+      coRequesterCount: countMap.get(entry.id) || 0,
       graceHours,
     }));
 
@@ -247,15 +331,39 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    if (callerId && callerRole !== 'admin' && entry.userId !== callerId) {
+    const isCoRequester = callerId
+      ? app.db
+          .select()
+          .from(waitlistCoRequesters)
+          .where(
+            and(
+              eq(waitlistCoRequesters.waitlistId, id),
+              eq(waitlistCoRequesters.userId, callerId)
+            )
+          )
+          .get() !== undefined
+      : false;
+
+    if (callerId && callerRole !== 'admin' && entry.userId !== callerId && !isCoRequester) {
       return reply.status(403).send({
         error: 'Forbidden',
         message: 'Cannot access another user entry',
       });
     }
 
+    const coReqCount = app.db
+      .select({ waitlistId: waitlistCoRequesters.waitlistId })
+      .from(waitlistCoRequesters)
+      .where(eq(waitlistCoRequesters.waitlistId, id))
+      .all().length;
+
     const graceHours = Number(process.env.NOTIFY_GRACE_HOURS) || 6;
-    return reply.send({ entry: { ...entry, graceHours }, ...entry, graceHours });
+    return reply.send({
+      entry: { ...entry, coRequesterCount: coReqCount, graceHours },
+      ...entry,
+      coRequesterCount: coReqCount,
+      graceHours,
+    });
   });
 
   // DELETE /waitlist/:id
@@ -279,6 +387,30 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
     }
 
     if (callerId && callerRole !== 'admin' && entry.userId !== callerId) {
+      const isCoRequester = app.db
+        .select()
+        .from(waitlistCoRequesters)
+        .where(
+          and(
+            eq(waitlistCoRequesters.waitlistId, id),
+            eq(waitlistCoRequesters.userId, callerId)
+          )
+        )
+        .get() !== undefined;
+
+      if (isCoRequester) {
+        app.db
+          .delete(waitlistCoRequesters)
+          .where(
+            and(
+              eq(waitlistCoRequesters.waitlistId, id),
+              eq(waitlistCoRequesters.userId, callerId)
+            )
+          )
+          .run();
+        return reply.send({ ok: true, message: 'Removed from co-requesters' });
+      }
+
       return reply.status(403).send({
         error: 'Forbidden',
         message: 'Cannot cancel another user entry',

@@ -55,6 +55,13 @@ export function initWatcherDatabase(dbPath?: string): { db: WatcherDatabase; sql
       cancelled_at TEXT,
       cancelled_by TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS waitlist_co_requesters (
+      waitlist_id TEXT NOT NULL REFERENCES watch_requests(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL,
+      added_at TEXT NOT NULL,
+      PRIMARY KEY (waitlist_id, user_id)
+    );
   `);
 
   try {

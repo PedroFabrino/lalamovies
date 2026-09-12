@@ -1,7 +1,7 @@
 import cron, { ScheduledTask } from 'node-cron';
 import { eq } from 'drizzle-orm';
 import { WatcherDatabase } from '../db';
-import { watchRequests, WatchRequest } from '../db/schema';
+import { watchRequests, WatchRequest, waitlistCoRequesters } from '../db/schema';
 import { deleteDiscordMessage, sendWaitlistErrorNotification } from '../services/notifications';
 import { EpisodicTrackingService } from '../services/episodicTracking';
 
@@ -129,6 +129,13 @@ export class AutoDownloadSubmitter {
       headers['x-user-id'] = entry.userId;
     }
 
+    const coReqRows = this.db
+      .select({ userId: waitlistCoRequesters.userId })
+      .from(waitlistCoRequesters)
+      .where(eq(waitlistCoRequesters.waitlistId, entry.id))
+      .all();
+    const coRequesterUserIds = coReqRows.map((r) => r.userId);
+
     const requestBody = {
       magnetLink: entry.prowlarrReleaseMagnet,
       mediaType: entry.mediaType,
@@ -138,6 +145,7 @@ export class AutoDownloadSubmitter {
       year: entry.year ?? undefined,
       seasonNumber: entry.seasonNumber ?? undefined,
       episodeNumber: entry.targetEpisode ?? undefined,
+      coRequesterUserIds: coRequesterUserIds.length > 0 ? coRequesterUserIds : undefined,
     };
 
     try {

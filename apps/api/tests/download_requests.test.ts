@@ -7,7 +7,7 @@ import { IJellyfinService } from '../src/services/jellyfin';
 import { IMetadataService } from '../src/services/metadata';
 import { IQBittorrentService, TorrentInfo } from '../src/services/qbittorrent';
 import { ICleanupService, SpaceCheckResult } from '../src/services/cleanup';
-import { downloadRequests } from '../src/db/schema';
+import { downloadRequests, requestCoRequesters, users } from '../src/db/schema';
 
 class MockJellyfinService implements IJellyfinService {
   async authenticateUser(username: string) {
@@ -481,5 +481,49 @@ describe('Download Request Submission & Management', () => {
       .where(eq(downloadRequests.id, id))
       .get();
     expect(updated?.status).toBe('deleted');
+  });
+
+  it('POST /requests creates request with coRequesterUserIds atomically', async () => {
+    app.db.insert(users).values([
+      {
+        id: 'other-user-1',
+        username: 'other1',
+        role: 'user',
+        jellyfinUserId: 'jf_other1',
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 'other-user-2',
+        username: 'other2',
+        role: 'user',
+        jellyfinUserId: 'jf_other2',
+        createdAt: new Date().toISOString(),
+      },
+    ]).run();
+
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/requests',
+      cookies: { token: userCookie },
+      payload: {
+        magnetLink: 'magnet:?xt=urn:btih:coreq_test',
+        mediaType: 'movie',
+        metadataId: 'tmdb-coreq-123',
+        metadataSource: 'tmdb',
+        title: 'CoReq Movie',
+        coRequesterUserIds: ['other-user-1', 'other-user-2'],
+      },
+    });
+    expect(createRes.statusCode).toBe(201);
+    const requestId = createRes.json().request.id;
+
+    const coReqs = app.db
+      .select()
+      .from(requestCoRequesters)
+      .where(eq(requestCoRequesters.requestId, requestId))
+      .all();
+
+    expect(coReqs).toHaveLength(2);
+    expect(coReqs.map((r) => r.userId).sort()).toEqual(['other-user-1', 'other-user-2']);
   });
 });

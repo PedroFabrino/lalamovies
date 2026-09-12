@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { buildWatcherApp } from '../src/app';
-import { watchRequests } from '../src/db/schema';
+import { watchRequests, waitlistCoRequesters } from '../src/db/schema';
 import { AutoDownloadSubmitter } from '../src/jobs/autoDownloadSubmitter';
 import { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
@@ -301,5 +301,60 @@ describe('Auto-Download Submission After Grace Window (Ticket 06)', () => {
     });
     const result1 = await run1;
     expect(result1.triggered).toBe(1);
+  });
+
+  it('passes coRequesterUserIds to Main API POST /requests', async () => {
+    const expiredNotifyAt = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
+
+    app.db.insert(watchRequests).values({
+      id: 'entry-with-coreqs',
+      userId: 'user-primary',
+      mediaType: 'movie',
+      metadataId: 'tmdb-coreq-1',
+      metadataSource: 'tmdb',
+      title: 'CoReq Movie',
+      year: 2025,
+      status: 'notified',
+      notifyAt: expiredNotifyAt,
+      prowlarrReleaseMagnet: 'magnet:?xt=urn:btih:coreq123',
+      discordMessageId: null,
+      triggeredCount: 0,
+      failureCount: 0,
+      createdAt: expiredNotifyAt,
+      updatedAt: expiredNotifyAt,
+    }).run();
+
+    app.db.insert(waitlistCoRequesters).values([
+      {
+        waitlistId: 'entry-with-coreqs',
+        userId: 'user-secondary-1',
+        addedAt: expiredNotifyAt,
+      },
+      {
+        waitlistId: 'entry-with-coreqs',
+        userId: 'user-secondary-2',
+        addedAt: expiredNotifyAt,
+      },
+    ]).run();
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      json: async () => ({ id: 'req-coreq' }),
+    });
+
+    const submitter = new AutoDownloadSubmitter({
+      db: app.db,
+      mainApiUrl: 'http://localhost:3000',
+      serviceApiKey: SERVICE_KEY,
+      graceHours: 6,
+    });
+
+    await submitter.submitOnce();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, options] = fetchMock.mock.calls[0];
+    const payload = JSON.parse(options.body);
+    expect(payload.coRequesterUserIds).toEqual(['user-secondary-1', 'user-secondary-2']);
   });
 });

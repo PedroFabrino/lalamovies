@@ -79,6 +79,7 @@ describe('WaitlistView - Dedicated Waitlist Page', () => {
         seasonNumber: 2,
         targetEpisode: 1,
         status: 'checking',
+        coRequesterCount: 2,
         createdAt: '2026-01-02T00:00:00.000Z',
       },
       {
@@ -141,6 +142,7 @@ describe('WaitlistView - Dedicated Waitlist Page', () => {
     expect(cards[1].text()).toContain('Severance');
     expect(cards[1].find('[data-testid="entry-season-badge"]').text()).toContain('S02E01');
     expect(cards[1].find('[data-testid="entry-status-badge"]').text()).toContain('Checking Trackers');
+    expect(cards[1].find('[data-testid="entry-co-requester-count"]').text()).toContain('+2');
 
     // Third card: Chainsaw Man S02 - Notified with countdown
     expect(cards[2].text()).toContain('Chainsaw Man');

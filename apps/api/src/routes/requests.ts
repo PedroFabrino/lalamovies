@@ -49,6 +49,7 @@ const createRequestSchema = z
     seasonNumber: z.number().int().optional(),
     episodeNumber: z.number().int().optional(),
     waitlistNextSeason: z.boolean().optional(),
+    coRequesterUserIds: z.array(z.string()).optional(),
   });
 
 const existsRequestSchema = z.object({
@@ -474,6 +475,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       seasonNumber,
       episodeNumber,
       waitlistNextSeason,
+      coRequesterUserIds,
     } = parseResult.data;
 
     const triggerNextSeasonWaitlist = async () => {
@@ -539,11 +541,22 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       if (existing) {
         await triggerNextSeasonWaitlist();
 
-        if (existing.userId === request.currentUser!.id) {
-          return reply.status(200).send({ request: existing });
+        if (existing.userId !== request.currentUser!.id) {
+          addCoRequester(app.db, existing.id, request.currentUser!.id);
         }
 
-        addCoRequester(app.db, existing.id, request.currentUser!.id);
+        if (coRequesterUserIds && Array.isArray(coRequesterUserIds)) {
+          for (const uid of coRequesterUserIds) {
+            if (uid && uid !== existing.userId) {
+              try {
+                addCoRequester(app.db, existing.id, uid);
+              } catch (err) {
+                request.log.warn(err, `Failed to add co-requester ${uid}`);
+              }
+            }
+          }
+        }
+
         return reply.status(200).send({ request: existing });
       }
 
@@ -681,6 +694,18 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       };
 
       app.db.insert(downloadRequests).values(newRequest).run();
+
+      if (coRequesterUserIds && Array.isArray(coRequesterUserIds)) {
+        for (const uid of coRequesterUserIds) {
+          if (uid && uid !== request.currentUser!.id) {
+            try {
+              addCoRequester(app.db, newRequest.id, uid);
+            } catch (err) {
+              request.log.warn(err, `Failed to add co-requester ${uid}`);
+            }
+          }
+        }
+      }
 
       await triggerNextSeasonWaitlist();
 
