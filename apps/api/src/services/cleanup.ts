@@ -381,9 +381,17 @@ export class CleanupService implements ICleanupService {
     if (libraryPath && fs.existsSync(libraryPath)) {
       try {
         fs.rmSync(libraryPath, { recursive: true, force: true });
+        const parentDir = path.dirname(libraryPath);
+        if (fs.existsSync(parentDir) && fs.readdirSync(parentDir).length === 0) {
+          fs.rmdirSync(parentDir);
+        }
       } catch {
         // Continue
       }
+    }
+
+    if (this.fileSystemService?.invalidateFootprintCache) {
+      this.fileSystemService.invalidateFootprintCache();
     }
 
     // 3. Trigger Jellyfin refresh

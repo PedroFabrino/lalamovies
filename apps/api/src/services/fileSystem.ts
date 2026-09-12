@@ -17,11 +17,14 @@ export interface IFileSystemService {
   buildLibraryPath(params: BuildLibraryPathParams): string;
   hardlink(srcPath: string, destPath: string): void;
   hardlinkDirectory(srcDir: string, destDir: string): void;
-  getStorageFootprintBytes(targetPath?: string | string[]): number;
+  getStorageFootprintBytes(targetPath?: string | string[], forceRefresh?: boolean): number;
+  invalidateFootprintCache?(): void;
 }
 
 export class FileSystemService implements IFileSystemService {
   private defaultMediaBasePath: string;
+  private cachedFootprint: { bytes: number; timestamp: number } | null = null;
+  private readonly FOOTPRINT_CACHE_TTL_MS = 60_000;
 
   constructor(mediaBasePath?: string) {
     this.defaultMediaBasePath = mediaBasePath || process.env.MEDIA_PATH || path.resolve(process.cwd(), 'media');
@@ -124,7 +127,15 @@ export class FileSystemService implements IFileSystemService {
     }
   }
 
-  getStorageFootprintBytes(targetPath?: string | string[]): number {
+  invalidateFootprintCache(): void {
+    this.cachedFootprint = null;
+  }
+
+  getStorageFootprintBytes(targetPath?: string | string[], forceRefresh = false): number {
+    if (!targetPath && !forceRefresh && this.cachedFootprint && (Date.now() - this.cachedFootprint.timestamp < this.FOOTPRINT_CACHE_TTL_MS)) {
+      return this.cachedFootprint.bytes;
+    }
+
     let pathsToScan: string[] = [];
     if (targetPath) {
       pathsToScan = Array.isArray(targetPath) ? targetPath : [targetPath];
@@ -173,6 +184,10 @@ export class FileSystemService implements IFileSystemService {
           totalBytes += stat.size;
         }
       }
+    }
+
+    if (!targetPath) {
+      this.cachedFootprint = { bytes: totalBytes, timestamp: Date.now() };
     }
 
     return totalBytes;
