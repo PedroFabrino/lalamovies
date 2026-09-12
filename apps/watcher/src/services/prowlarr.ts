@@ -1,3 +1,5 @@
+import { extractEpisodeInfo } from '../utils/torrentTitleCleaner';
+
 export type Resolution = '2160p' | '1080p' | '720p' | '480p' | 'unknown';
 export type VideoCodec = 'x265' | 'x264' | 'av1' | 'xvid' | 'unknown';
 export type ReleaseSource = 'bluray' | 'web' | 'remux' | 'hdtv' | 'cam' | 'unknown';
@@ -21,6 +23,8 @@ export interface ReleaseCandidate {
 export interface ScoreOptions {
   mediaType?: 'movie' | 'tv_show' | 'anime';
   isSingleEpisode?: boolean;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
 }
 
 export const CAM_REGEX = /\b(CAM|CAMRip|TS|TELESYNC|TeleSync|HDCAM|HDTS|WORKPRINT|WP)\b/i;
@@ -111,6 +115,31 @@ export function scoreRelease(
     score -= 200;
   }
 
+  // Season & Episode Guard
+  if (options?.seasonNumber !== undefined && options?.seasonNumber !== null) {
+    const info = extractEpisodeInfo(candidate.title);
+
+    // Explicit season mismatch
+    if (info.seasonNumber !== undefined && info.seasonNumber !== options.seasonNumber) {
+      score -= 500;
+    }
+
+    // Season pack vs Single Episode
+    if (!options.isSingleEpisode) {
+      if (info.episodeNumber !== undefined) {
+        score -= 150;
+      } else if (info.seasonNumber === options.seasonNumber) {
+        score += 30;
+      }
+    } else if (options.episodeNumber !== undefined && options.episodeNumber !== null) {
+      if (info.episodeNumber !== undefined && info.episodeNumber !== options.episodeNumber) {
+        score -= 500;
+      } else if (info.episodeNumber === options.episodeNumber) {
+        score += 30;
+      }
+    }
+  }
+
   const GB = 1024 * 1024 * 1024;
   const MB = 1024 * 1024;
 
@@ -124,7 +153,7 @@ export function scoreRelease(
     } else if (candidate.sizeBytes < 100 * MB) {
       score -= 50;
     }
-  } else if (options?.mediaType === 'tv_show') {
+  } else if (options?.mediaType === 'tv_show' || options?.mediaType === 'anime') {
     if (candidate.sizeBytes >= 3 * GB && candidate.sizeBytes <= 20 * GB) {
       score += 20;
     } else if (candidate.sizeBytes > 25 * GB && candidate.sizeBytes <= 40 * GB) {
@@ -183,7 +212,13 @@ export class WatcherProwlarrService {
 
     const { mediaType, title, year, seasonNumber, targetEpisode } = entry;
     const isSingleEpisode = targetEpisode !== undefined && targetEpisode !== null;
-    const scoreOptions: ScoreOptions = { mediaType, isSingleEpisode };
+    const effectiveSeason = seasonNumber ?? (mediaType !== 'movie' ? 1 : null);
+    const scoreOptions: ScoreOptions = {
+      mediaType,
+      isSingleEpisode,
+      seasonNumber: effectiveSeason,
+      episodeNumber: targetEpisode ?? null,
+    };
 
     let query = '';
     let categories: number[] = [2000];

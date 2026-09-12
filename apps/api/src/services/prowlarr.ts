@@ -1,3 +1,5 @@
+import { extractEpisodeInfo } from '../utils/torrentTitleCleaner';
+
 export type Resolution = '2160p' | '1080p' | '720p' | '480p' | 'unknown';
 export type VideoCodec = 'x265' | 'x264' | 'av1' | 'xvid' | 'unknown';
 export type ReleaseSource = 'bluray' | 'web' | 'remux' | 'hdtv' | 'cam' | 'unknown';
@@ -41,6 +43,8 @@ export interface SearchReleasesOptions {
 export interface ScoreOptions {
   mediaType?: 'movie' | 'tv_show' | 'anime';
   isSingleEpisode?: boolean;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
 }
 
 export interface IProwlarrService {
@@ -179,6 +183,35 @@ export class ProwlarrService implements IProwlarrService {
       score -= 200; // Heavily penalize CAM/telesync
     }
 
+    // Season & Episode Guard
+    if (options?.seasonNumber !== undefined && options?.seasonNumber !== null) {
+      const info = extractEpisodeInfo(candidate.title);
+
+      // Explicit season mismatch (e.g. S02 when S01 was requested)
+      if (info.seasonNumber !== undefined && info.seasonNumber !== options.seasonNumber) {
+        score -= 500;
+      }
+
+      // Season pack vs Single Episode
+      if (!options.isSingleEpisode) {
+        if (info.episodeNumber !== undefined) {
+          // Individual episode returned when user requested a full season pack
+          score -= 150;
+        } else if (info.seasonNumber === options.seasonNumber) {
+          // Explicitly matched season pack
+          score += 30;
+        }
+      } else if (options.episodeNumber !== undefined && options.episodeNumber !== null) {
+        if (info.episodeNumber !== undefined && info.episodeNumber !== options.episodeNumber) {
+          // Explicit episode mismatch
+          score -= 500;
+        } else if (info.episodeNumber === options.episodeNumber) {
+          // Exact episode match
+          score += 30;
+        }
+      }
+    }
+
     const GB = 1024 * 1024 * 1024;
     const MB = 1024 * 1024;
 
@@ -193,7 +226,7 @@ export class ProwlarrService implements IProwlarrService {
       } else if (candidate.sizeBytes < 100 * MB) {
         score -= 50;
       }
-    } else if (options?.mediaType === 'tv_show') {
+    } else if (options?.mediaType === 'tv_show' || options?.mediaType === 'anime') {
       // Season Pack sizing: max 25 GB cap
       if (candidate.sizeBytes >= 3 * GB && candidate.sizeBytes <= 20 * GB) {
         score += 20;
@@ -347,7 +380,13 @@ export class ProwlarrService implements IProwlarrService {
 
     const { mediaType, title, year, seasonNumber, episodeNumber, romajiTitle, englishTitle } = options;
     const isSingleEpisode = episodeNumber !== undefined && episodeNumber !== null;
-    const scoreOptions: ScoreOptions = { mediaType, isSingleEpisode };
+    const effectiveSeason = seasonNumber ?? (mediaType !== 'movie' ? 1 : null);
+    const scoreOptions: ScoreOptions = {
+      mediaType,
+      isSingleEpisode,
+      seasonNumber: effectiveSeason,
+      episodeNumber: episodeNumber ?? null,
+    };
 
     let candidates: ReleaseCandidate[] = [];
     let isReachable = true;

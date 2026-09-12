@@ -183,6 +183,121 @@ describe('Prowlarr Service - Unit Tests', () => {
       const result = service.scoreRelease(healthyCandidate);
       expect(result.isLowHealth).toBe(false);
     });
+
+    it('heavily penalizes releases with mismatched seasons (Season Guard)', () => {
+      const s01Candidate = {
+        guid: '1',
+        title: 'Show.S01.1080p.WEB-DL.x264',
+        sizeBytes: 15 * GB,
+        formattedSize: '15.0 GB',
+        seeders: 20,
+        leechers: 2,
+        downloadUrl: 'magnet:?xt=1',
+        indexer: 'Tracker',
+        resolution: '1080p' as const,
+        codec: 'x264' as const,
+        source: 'web' as const,
+      };
+
+      const s02Candidate = {
+        guid: '2',
+        title: 'Show.S02E10.1080p.WEB-DL.x264',
+        sizeBytes: 1.4 * GB,
+        formattedSize: '1.4 GB',
+        seeders: 100,
+        leechers: 5,
+        downloadUrl: 'magnet:?xt=2',
+        indexer: 'Tracker',
+        resolution: '1080p' as const,
+        codec: 'x264' as const,
+        source: 'web' as const,
+      };
+
+      const scoreS01 = service.scoreRelease(s01Candidate, {
+        mediaType: 'anime',
+        seasonNumber: 1,
+        isSingleEpisode: false,
+      }).score;
+
+      const scoreS02 = service.scoreRelease(s02Candidate, {
+        mediaType: 'anime',
+        seasonNumber: 1,
+        isSingleEpisode: false,
+      }).score;
+
+      expect(scoreS01).toBeGreaterThan(0);
+      expect(scoreS02).toBeLessThan(0); // Mismatched season docked by 500+ points
+      expect(scoreS01).toBeGreaterThan(scoreS02);
+    });
+
+    it('rewards confirmed season packs and penalizes individual episodes when requesting season pack', () => {
+      const packCandidate = {
+        guid: '1',
+        title: 'Show.S01.1080p.WEB-DL.x264',
+        sizeBytes: 12 * GB,
+        formattedSize: '12.0 GB',
+        seeders: 20,
+        leechers: 2,
+        downloadUrl: 'magnet:?xt=1',
+        indexer: 'Tracker',
+        resolution: '1080p' as const,
+        codec: 'x264' as const,
+        source: 'web' as const,
+      };
+
+      const singleEpCandidate = {
+        guid: '2',
+        title: 'Show.S01E01.1080p.WEB-DL.x264',
+        sizeBytes: 1.2 * GB,
+        formattedSize: '1.2 GB',
+        seeders: 20,
+        leechers: 2,
+        downloadUrl: 'magnet:?xt=2',
+        indexer: 'Tracker',
+        resolution: '1080p' as const,
+        codec: 'x264' as const,
+        source: 'web' as const,
+      };
+
+      const packScore = service.scoreRelease(packCandidate, {
+        mediaType: 'tv_show',
+        seasonNumber: 1,
+        isSingleEpisode: false,
+      }).score;
+
+      const epScore = service.scoreRelease(singleEpCandidate, {
+        mediaType: 'tv_show',
+        seasonNumber: 1,
+        isSingleEpisode: false,
+      }).score;
+
+      expect(packScore).toBeGreaterThan(epScore);
+    });
+
+    it('applies 25GB season pack sizing to anime season packs instead of 10GB movie limit', () => {
+      const anime18GbPack = {
+        guid: '1',
+        title: 'Anime.S01.1080p.WEB-DL.x264',
+        sizeBytes: 18 * GB,
+        formattedSize: '18.0 GB',
+        seeders: 25,
+        leechers: 2,
+        downloadUrl: 'magnet:?xt=1',
+        indexer: 'Tracker',
+        resolution: '1080p' as const,
+        codec: 'x264' as const,
+        source: 'web' as const,
+      };
+
+      const score = service.scoreRelease(anime18GbPack, {
+        mediaType: 'anime',
+        seasonNumber: 1,
+        isSingleEpisode: false,
+      }).score;
+
+      // 1080p (100) + x264 (10) + web (10) + season pack match (30) + 3-20GB pack size bonus (20) + seeders (25) = 195
+      expect(score).toBeGreaterThan(150);
+    });
   });
 
   describe('searchMovieReleases', () => {
