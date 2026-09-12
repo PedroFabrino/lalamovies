@@ -184,7 +184,13 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       .orderBy(desc(watchRequests.createdAt))
       .all();
 
-    return reply.send({ entries: list });
+    const graceHours = Number(process.env.NOTIFY_GRACE_HOURS) || 6;
+    const entriesWithGrace = list.map((entry) => ({
+      ...entry,
+      graceHours,
+    }));
+
+    return reply.send({ entries: entriesWithGrace });
   });
 
   // GET /waitlist/:id
@@ -213,7 +219,8 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    return reply.send({ entry, ...entry });
+    const graceHours = Number(process.env.NOTIFY_GRACE_HOURS) || 6;
+    return reply.send({ entry: { ...entry, graceHours }, ...entry, graceHours });
   });
 
   // DELETE /waitlist/:id

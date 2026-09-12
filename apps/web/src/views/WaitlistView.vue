@@ -293,7 +293,12 @@
                   <span v-if="entry.prowlarrReleaseTitle" class="text-indigo-300 font-mono text-[10px] block truncate">
                     {{ entry.prowlarrReleaseTitle }}
                   </span>
-                  <span class="text-amber-300 font-medium">Auto-downloading in {{ getCountdownSeconds(entry) }}s</span>
+                  <span v-if="getRemainingGraceMs(entry) > 0" class="text-amber-300 font-medium flex items-center gap-1.5 mt-0.5">
+                    <span>⏳ Auto-downloading in {{ formatGraceRemaining(getRemainingGraceMs(entry)) }}</span>
+                  </span>
+                  <span v-else class="text-amber-300 font-medium flex items-center gap-1.5 mt-0.5">
+                    <span>⚡ Grace period ended • Queued for auto-download</span>
+                  </span>
                 </template>
                 <template v-else-if="entry.status === 'triggered'">
                   <span class="text-emerald-300">Submitted to download queue</span>
@@ -931,13 +936,29 @@ async function handleApprove(entry: WaitlistEntry) {
   }
 }
 
-function getCountdownSeconds(entry: WaitlistEntry): number {
-  if (!entry.notifyAt) return 60;
+function getRemainingGraceMs(entry: WaitlistEntry): number {
+  if (!entry.notifyAt) return 0;
   const notifiedTime = new Date(entry.notifyAt).getTime();
-  // 60-second default grace window
-  const graceWindowMs = 60 * 1000;
-  const remaining = Math.max(0, Math.ceil((notifiedTime + graceWindowMs - now.value) / 1000));
-  return remaining;
+  if (isNaN(notifiedTime)) return 0;
+  const graceHours = entry.graceHours ?? 6;
+  const graceWindowMs = graceHours * 60 * 60 * 1000;
+  return Math.max(0, notifiedTime + graceWindowMs - now.value);
+}
+
+function formatGraceRemaining(remainingMs: number): string {
+  if (remainingMs <= 0) return '0s';
+  const totalSeconds = Math.ceil(remainingMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+  }
+  if (minutes > 0) {
+    return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+  }
+  return `${seconds}s`;
 }
 
 function getMediaTypeIcon(type: string): string {
@@ -1014,8 +1035,13 @@ function formatStatusText(entry: WaitlistEntry): string {
       return 'Pending Release';
     case 'checking':
       return 'Checking Trackers';
-    case 'notified':
-      return `Release Found (${getCountdownSeconds(entry)}s)`;
+    case 'notified': {
+      const remainingMs = getRemainingGraceMs(entry);
+      if (remainingMs <= 0) {
+        return 'Release Found (Queued)';
+      }
+      return `Release Found (${formatGraceRemaining(remainingMs)})`;
+    }
     case 'triggered':
       return 'Triggered';
     case 'completed':

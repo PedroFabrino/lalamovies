@@ -554,5 +554,65 @@ describe('WaitlistView - Dedicated Waitlist Page', () => {
 
     expect(api.post).toHaveBeenCalledWith('/waitlist/entry-notified-lioness/approve');
   });
+
+  it('calculates 6-hour grace window countdown and formats human-readable time', async () => {
+    // 2 hours ago: remaining is ~4 hours
+    const notifyAt = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const mockEntries = [
+      {
+        id: 'entry-timer-test',
+        userId: 'user-1',
+        mediaType: 'movie',
+        metadataId: '999',
+        metadataSource: 'tmdb',
+        title: 'Spider-Man: Brand New Day',
+        year: 2026,
+        status: 'notified',
+        notifyAt,
+        graceHours: 6,
+        prowlarrReleaseTitle: 'Spider-Man.1080p',
+        createdAt: notifyAt,
+      },
+    ];
+
+    vi.mocked(api.get).mockResolvedValue({ entries: mockEntries } as any);
+
+    const wrapper = mount(WaitlistView);
+    await flushPromises();
+
+    const card = wrapper.find('[data-testid="waitlist-card"]');
+    expect(card.find('[data-testid="entry-status-badge"]').text()).toMatch(/Release Found \(3h|4h/);
+    expect(card.text()).toMatch(/Auto-downloading in (3h|4h)/);
+  });
+
+  it('displays queued indicator when grace window timer has reached 0', async () => {
+    // 7 hours ago: remaining is 0 (grace period expired)
+    const notifyAt = new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString();
+    const mockEntries = [
+      {
+        id: 'entry-timer-expired',
+        userId: 'user-1',
+        mediaType: 'movie',
+        metadataId: '999',
+        metadataSource: 'tmdb',
+        title: 'Spider-Man: Brand New Day',
+        year: 2026,
+        status: 'notified',
+        notifyAt,
+        graceHours: 6,
+        prowlarrReleaseTitle: 'Spider-Man.1080p',
+        createdAt: notifyAt,
+      },
+    ];
+
+    vi.mocked(api.get).mockResolvedValue({ entries: mockEntries } as any);
+
+    const wrapper = mount(WaitlistView);
+    await flushPromises();
+
+    const card = wrapper.find('[data-testid="waitlist-card"]');
+    expect(card.find('[data-testid="entry-status-badge"]').text()).toContain('Release Found (Queued)');
+    expect(card.text()).toContain('Grace period ended • Queued for auto-download');
+  });
 });
 
