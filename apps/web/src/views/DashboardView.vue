@@ -370,9 +370,31 @@
                 <!-- Requester (Admin View) -->
                 <td
                   v-if="authStore.isAdmin"
-                  class="py-4 px-4 whitespace-nowrap text-xs text-zinc-400"
+                  class="py-4 px-4 text-xs text-zinc-400"
                 >
-                  {{ item.requesterUsername || item.userId.slice(0, 8) }}
+                  <div
+                    v-if="item.coRequesters && item.coRequesters.length > 0"
+                    data-testid="admin-requester-group"
+                    class="flex items-center gap-1.5 flex-wrap"
+                  >
+                    <span class="font-medium text-zinc-200" title="Primary requester">
+                      {{ item.requesterUsername || item.userId.slice(0, 8) }}
+                    </span>
+                    <span class="text-zinc-500 text-[11px] font-normal">+</span>
+                    <span
+                      v-for="coReq in item.coRequesters"
+                      :key="coReq"
+                      data-testid="co-requester-badge"
+                      class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-800/80 text-zinc-400 border border-zinc-700/60 text-[11px]"
+                      :title="`${coReq} (co-requester)`"
+                    >
+                      <span>{{ coReq }}</span>
+                      <span class="text-[9px] uppercase tracking-wider text-indigo-400 font-semibold">(co-req)</span>
+                    </span>
+                  </div>
+                  <span v-else class="whitespace-nowrap">
+                    {{ item.requesterUsername || item.userId.slice(0, 8) }}
+                  </span>
                 </td>
 
                 <!-- Requested Date -->

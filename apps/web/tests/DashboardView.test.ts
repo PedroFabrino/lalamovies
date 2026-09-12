@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import DashboardView from '../src/views/DashboardView.vue';
 import { api } from '../src/lib/api';
@@ -170,5 +170,83 @@ describe('DashboardView - Co-Requester Action Gating (Ticket 03)', () => {
     // Row 2 (isPrimaryRequester: false) does NOT have keep toggle button
     const row2KeepBtn = rows[1].find('button[title*="Keep"]');
     expect(row2KeepBtn.exists()).toBe(false);
+  });
+
+  describe('Admin Dashboard Co-Requesters Grouping (Ticket 05)', () => {
+    it('renders coRequesters inline alongside primary requester for admin', async () => {
+      const authStore = useAuthStore();
+      authStore.user = { id: 'usr_admin', username: 'admin', role: 'admin', jellyfinUserId: 'jf_admin' };
+
+      vi.mocked(api.get).mockImplementation(async (endpoint: string) => {
+        if (endpoint === '/requests') {
+          return {
+            requests: [
+              {
+                id: 'req_with_co',
+                userId: 'usr_alice',
+                requesterUsername: 'alice',
+                title: 'Popular Movie',
+                mediaType: 'movie',
+                status: 'downloading',
+                metadataId: '10',
+                metadataSource: 'tmdb',
+                requestedAt: new Date().toISOString(),
+                isPrimaryRequester: true,
+                keepFlag: false,
+                coRequesters: ['bob', 'charlie'],
+              },
+              {
+                id: 'req_solo',
+                userId: 'usr_david',
+                requesterUsername: 'david',
+                title: 'Solo Movie',
+                mediaType: 'movie',
+                status: 'downloading',
+                metadataId: '11',
+                metadataSource: 'tmdb',
+                requestedAt: new Date().toISOString(),
+                isPrimaryRequester: true,
+                keepFlag: false,
+                coRequesters: [],
+              },
+            ],
+          };
+        }
+        return {};
+      });
+
+      const wrapper = mount(DashboardView, {
+        global: {
+          stubs: {
+            'router-link': true,
+          },
+        },
+      });
+      await flushPromises();
+
+      const rows = wrapper.findAll('tbody tr');
+      expect(rows.length).toBe(2);
+
+      // Row 1: has coRequesters
+      const row1 = rows[0];
+      const requesterGroup = row1.find('[data-testid="admin-requester-group"]');
+      expect(requesterGroup.exists()).toBe(true);
+      expect(requesterGroup.text()).toContain('alice');
+      expect(requesterGroup.text()).toContain('bob');
+      expect(requesterGroup.text()).toContain('charlie');
+
+      const badges = row1.findAll('[data-testid="co-requester-badge"]');
+      expect(badges.length).toBe(2);
+      expect(badges[0].text()).toContain('bob');
+      expect(badges[0].text()).toContain('(co-req)');
+      expect(badges[1].text()).toContain('charlie');
+      expect(badges[1].text()).toContain('(co-req)');
+
+      // Row 2: no coRequesters
+      const row2 = rows[1];
+      expect(row2.find('[data-testid="admin-requester-group"]').exists()).toBe(false);
+      expect(row2.text()).toContain('david');
+      expect(row2.findAll('[data-testid="co-requester-badge"]').length).toBe(0);
+    });
   });
 });
