@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { eq } from 'drizzle-orm';
-import { initDatabase, users, invites, downloadRequests, systemConfig } from '../src/db';
+import { initDatabase, users, invites, downloadRequests, systemConfig, requestCoRequesters } from '../src/db';
 import { buildApp } from '../src/app';
 
 describe('Database Schema & Migrations', () => {
@@ -15,7 +15,7 @@ describe('Database Schema & Migrations', () => {
     dbInstance.sqlite.close();
   });
 
-  it('runs migrations and creates all four tables', () => {
+  it('runs migrations and creates all tables', () => {
     const tables = dbInstance.sqlite
       .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;")
       .all() as { name: string }[];
@@ -25,6 +25,7 @@ describe('Database Schema & Migrations', () => {
     expect(tableNames).toContain('invites');
     expect(tableNames).toContain('download_requests');
     expect(tableNames).toContain('system_config');
+    expect(tableNames).toContain('request_co_requesters');
   });
 
   it('seeds default system_config rows on first run', () => {
@@ -120,6 +121,97 @@ describe('Database Schema & Migrations', () => {
     expect(req?.title).toBe('Fight Club');
     expect(req?.status).toBe('queued');
     expect(req?.keepFlag).toBe(false);
+  });
+
+  it('enforces primary key and foreign key cascades on request_co_requesters', () => {
+    const now = new Date().toISOString();
+
+    dbInstance.db.insert(users).values({
+      id: 'usr_owner',
+      jellyfinUserId: 'jf_owner',
+      username: 'alice',
+      createdAt: now,
+    }).run();
+
+    dbInstance.db.insert(users).values({
+      id: 'usr_co',
+      jellyfinUserId: 'jf_co',
+      username: 'bob',
+      createdAt: now,
+    }).run();
+
+    dbInstance.db.insert(downloadRequests).values({
+      id: 'req_parent',
+      userId: 'usr_owner',
+      magnetLink: 'magnet:?xt=urn:btih:test',
+      mediaType: 'movie',
+      metadataId: '550',
+      metadataSource: 'tmdb',
+      title: 'Fight Club',
+      requestedAt: now,
+    }).run();
+
+    // 1. Foreign key on invalid requestId fails
+    expect(() => {
+      dbInstance.db.insert(requestCoRequesters).values({
+        requestId: 'non_existent_req',
+        userId: 'usr_co',
+        addedAt: now,
+      }).run();
+    }).toThrow();
+
+    // 2. Foreign key on invalid userId fails
+    expect(() => {
+      dbInstance.db.insert(requestCoRequesters).values({
+        requestId: 'req_parent',
+        userId: 'non_existent_usr',
+        addedAt: now,
+      }).run();
+    }).toThrow();
+
+    // 3. Valid insert succeeds
+    dbInstance.db.insert(requestCoRequesters).values({
+      requestId: 'req_parent',
+      userId: 'usr_co',
+      addedAt: now,
+    }).run();
+
+    const row = dbInstance.db.select().from(requestCoRequesters).where(eq(requestCoRequesters.requestId, 'req_parent')).get();
+    expect(row).toBeDefined();
+    expect(row?.userId).toBe('usr_co');
+
+    // 4. Duplicate (requestId, userId) violates composite primary key
+    expect(() => {
+      dbInstance.db.insert(requestCoRequesters).values({
+        requestId: 'req_parent',
+        userId: 'usr_co',
+        addedAt: now,
+      }).run();
+    }).toThrow();
+
+    // 5. Deleting user cascades to request_co_requesters
+    dbInstance.db.delete(users).where(eq(users.id, 'usr_co')).run();
+    const afterUserDelete = dbInstance.db.select().from(requestCoRequesters).where(eq(requestCoRequesters.requestId, 'req_parent')).get();
+    expect(afterUserDelete).toBeUndefined();
+
+    // Re-create user and re-insert co-requester
+    dbInstance.db.insert(users).values({
+      id: 'usr_co2',
+      jellyfinUserId: 'jf_co2',
+      username: 'bob2',
+      createdAt: now,
+    }).run();
+
+    dbInstance.db.insert(requestCoRequesters).values({
+      requestId: 'req_parent',
+      userId: 'usr_co2',
+      addedAt: now,
+    }).run();
+
+    // 6. Deleting parent download_request cascades to request_co_requesters
+    dbInstance.db.delete(downloadRequests).where(eq(downloadRequests.id, 'req_parent')).run();
+    const afterReqDelete = dbInstance.db.select().from(requestCoRequesters).where(eq(requestCoRequesters.requestId, 'req_parent')).get();
+    expect(afterReqDelete).toBeUndefined();
   });
 
   it('decorates fastify app with db and sqlite instances', async () => {

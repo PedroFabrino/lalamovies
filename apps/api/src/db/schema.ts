@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, primaryKey } from 'drizzle-orm/sqlite-core';
 
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
@@ -48,6 +48,22 @@ export const downloadRequests = sqliteTable('download_requests', {
   deferredReason: text('deferred_reason'),
 });
 
+export const requestCoRequesters = sqliteTable(
+  'request_co_requesters',
+  {
+    requestId: text('request_id')
+      .notNull()
+      .references(() => downloadRequests.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    addedAt: text('added_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.requestId, table.userId] }),
+  ]
+);
+
 export const systemConfig = sqliteTable('system_config', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
@@ -59,5 +75,7 @@ export type Invite = typeof invites.$inferSelect;
 export type NewInvite = typeof invites.$inferInsert;
 export type DownloadRequest = typeof downloadRequests.$inferSelect;
 export type NewDownloadRequest = typeof downloadRequests.$inferInsert;
+export type RequestCoRequester = typeof requestCoRequesters.$inferSelect;
+export type NewRequestCoRequester = typeof requestCoRequesters.$inferInsert;
 export type SystemConfig = typeof systemConfig.$inferSelect;
 export type NewSystemConfig = typeof systemConfig.$inferInsert;
