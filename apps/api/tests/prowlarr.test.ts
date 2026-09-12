@@ -539,6 +539,195 @@ describe('Prowlarr Service - Unit Tests', () => {
       expect(result.totalFound).toBe(2);
     });
 
+    it('prefers Latin englishTitle over CJK title for tv_show and searches Latin first', async () => {
+      let capturedUrl = '';
+      vi.spyOn(global, 'fetch').mockImplementationOnce(async (url) => {
+        capturedUrl = String(url);
+        return {
+          ok: true,
+          json: async () => [
+            {
+              guid: 'c1',
+              title: 'Clevatess.S01.1080p.CR.WEB-DL.AAC2.0.H.264.DUAL-OLYMPUS',
+              size: 17.9 * 1024 * 1024 * 1024,
+              indexer: 'BJ-Share',
+              seeders: 15,
+              magnetUrl: 'magnet:?xt=urn:btih:c1',
+            },
+          ],
+        } as Response;
+      });
+
+      const result = await service.searchReleases({
+        mediaType: 'tv_show',
+        title: 'クレバテス-魔獣の王と赤子と屍の勇者',
+        englishTitle: 'Clevatess',
+        seasonNumber: 1,
+      });
+
+      expect(capturedUrl).toContain(encodeURIComponent('Clevatess S01'));
+      expect(result.totalFound).toBe(1);
+      expect(result.recommended?.title).toContain('Clevatess.S01');
+    });
+
+    it('falls back to alternate title for tv_show when primary search returns fewer than 3 candidates', async () => {
+      const urls: string[] = [];
+      vi.spyOn(global, 'fetch')
+        .mockImplementationOnce(async (url) => {
+          urls.push(String(url));
+          return {
+            ok: true,
+            json: async () => [
+              {
+                guid: 'b1',
+                title: 'Show.S01.1080p',
+                size: 5 * 1024 * 1024 * 1024,
+                indexer: 'Tracker',
+                seeders: 10,
+                magnetUrl: 'magnet:?xt=urn:btih:b1',
+              },
+            ],
+          } as Response;
+        })
+        .mockImplementationOnce(async (url) => {
+          urls.push(String(url));
+          return {
+            ok: true,
+            json: async () => [
+              {
+                guid: 'b2',
+                title: 'Show.Alt.S01.1080p',
+                size: 5 * 1024 * 1024 * 1024,
+                indexer: 'Tracker',
+                seeders: 8,
+                magnetUrl: 'magnet:?xt=urn:btih:b2',
+              },
+            ],
+          } as Response;
+        });
+
+      const result = await service.searchReleases({
+        mediaType: 'tv_show',
+        title: 'Original Show Name',
+        englishTitle: 'Alternate Show Name',
+        seasonNumber: 1,
+      });
+
+      expect(urls.length).toBe(2);
+      expect(urls[0]).toContain(encodeURIComponent('Original Show Name S01'));
+      expect(urls[1]).toContain(encodeURIComponent('Alternate Show Name S01'));
+      expect(result.totalFound).toBe(2);
+    });
+
+    it('falls back to bare title for TV Season 1 pack when S01 search finds 0 candidates', async () => {
+      const urls: string[] = [];
+      vi.spyOn(global, 'fetch')
+        .mockImplementationOnce(async (url) => {
+          urls.push(String(url));
+          return {
+            ok: true,
+            json: async () => [],
+          } as Response;
+        })
+        .mockImplementationOnce(async (url) => {
+          urls.push(String(url));
+          return {
+            ok: true,
+            json: async () => [
+              {
+                guid: 'b3',
+                title: 'Miniseries.Complete.1080p',
+                size: 6 * 1024 * 1024 * 1024,
+                indexer: 'Tracker',
+                seeders: 12,
+                magnetUrl: 'magnet:?xt=urn:btih:b3',
+              },
+            ],
+          } as Response;
+        });
+
+      const result = await service.searchReleases({
+        mediaType: 'tv_show',
+        title: 'Miniseries',
+        seasonNumber: 1,
+      });
+
+      expect(urls.length).toBe(2);
+      expect(urls[0]).toContain(encodeURIComponent('Miniseries S01'));
+      expect(urls[1]).toContain(encodeURIComponent('Miniseries'));
+      expect(result.totalFound).toBe(1);
+    });
+
+    it('prefers Latin title for anime when romajiTitle contains CJK characters', async () => {
+      let capturedUrl = '';
+      vi.spyOn(global, 'fetch').mockImplementationOnce(async (url) => {
+        capturedUrl = String(url);
+        return {
+          ok: true,
+          json: async () => [
+            {
+              guid: 'a-cjk',
+              title: 'Clevatess.S01.1080p.CR.WEB-DL.AAC2.0.H.264.DUAL-OLYMPUS',
+              size: 17.9 * 1024 * 1024 * 1024,
+              indexer: 'BJ-Share',
+              seeders: 15,
+              magnetUrl: 'magnet:?xt=urn:btih:a-cjk',
+            },
+          ],
+        } as Response;
+      });
+
+      const result = await service.searchReleases({
+        mediaType: 'anime',
+        title: 'Clevatess',
+        romajiTitle: 'クレバテス-魔獣の王と赤子と屍の勇者',
+        englishTitle: 'Clevatess',
+        seasonNumber: 1,
+      });
+
+      expect(capturedUrl).toContain(encodeURIComponent('Clevatess'));
+      expect(result.totalFound).toBe(1);
+    });
+
+    it('falls back to Title S01 for anime season 1 pack when bare title search finds 0 candidates', async () => {
+      const urls: string[] = [];
+      vi.spyOn(global, 'fetch')
+        .mockImplementationOnce(async (url) => {
+          urls.push(String(url));
+          return {
+            ok: true,
+            json: async () => [],
+          } as Response;
+        })
+        .mockImplementationOnce(async (url) => {
+          urls.push(String(url));
+          return {
+            ok: true,
+            json: async () => [
+              {
+                guid: 'anime-s01',
+                title: 'SomeAnime.S01.1080p',
+                size: 12 * 1024 * 1024 * 1024,
+                indexer: 'Tracker',
+                seeders: 20,
+                magnetUrl: 'magnet:?xt=urn:btih:anime-s01',
+              },
+            ],
+          } as Response;
+        });
+
+      const result = await service.searchReleases({
+        mediaType: 'anime',
+        title: 'SomeAnime',
+        seasonNumber: 1,
+      });
+
+      expect(urls.length).toBe(2);
+      expect(urls[0]).toContain(encodeURIComponent('SomeAnime'));
+      expect(urls[1]).toContain(encodeURIComponent('SomeAnime S01'));
+      expect(result.totalFound).toBe(1);
+    });
+
     it('applies episodic size limits (2GB cap for single episodes, 25GB cap for TV season packs)', () => {
       const GB = 1024 * 1024 * 1024;
 

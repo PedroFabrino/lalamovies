@@ -237,7 +237,7 @@ export class WatcherProwlarrService {
       } else {
         query = `${title.trim()} S${sPad}`;
       }
-      categories = [5000];
+      categories = [5000, 5070];
     } else if (mediaType === 'anime') {
       categories = [5070, 2070];
       const sNum = seasonNumber && seasonNumber > 0 ? seasonNumber : 1;

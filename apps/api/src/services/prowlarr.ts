@@ -63,6 +63,10 @@ export interface IProwlarrService {
   ): Promise<{ candidates: ReleaseCandidate[]; isReachable: boolean; error?: string }>;
 }
 
+export function hasCjkCharacters(s?: string | null): boolean {
+  return Boolean(s && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]/.test(s));
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes <= 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -358,11 +362,7 @@ export class ProwlarrService implements IProwlarrService {
   }
 
   async searchMovieReleases(title: string, year?: number | null): Promise<SearchReleasesResult> {
-    return this.searchReleases({
-      mediaType: 'movie',
-      title,
-      year,
-    });
+    return this.searchReleases({ mediaType: 'movie', title, year });
   }
 
   async searchReleases(options: SearchReleasesOptions): Promise<SearchReleasesResult> {
@@ -374,7 +374,6 @@ export class ProwlarrService implements IProwlarrService {
         isConfigured: false,
         isReachable: false,
         hasHealthyReleases: false,
-        error: 'Prowlarr is not configured with an API key',
       };
     }
 
@@ -392,8 +391,27 @@ export class ProwlarrService implements IProwlarrService {
     let isReachable = true;
     let searchError: string | undefined;
 
+    const mergeCandidates = (newCandidates: ReleaseCandidate[]) => {
+      const existingGuids = new Set(candidates.map((c) => c.guid || c.downloadUrl));
+      for (const item of newCandidates) {
+        const key = item.guid || item.downloadUrl;
+        if (!existingGuids.has(key)) {
+          candidates.push(item);
+          existingGuids.add(key);
+        }
+      }
+    };
+
     if (mediaType === 'movie') {
-      const queryParts = [title.trim()];
+      let primaryTitle = title.trim();
+      let altTitle = englishTitle && englishTitle.trim();
+      if (hasCjkCharacters(primaryTitle) && altTitle && !hasCjkCharacters(altTitle)) {
+        const temp = primaryTitle;
+        primaryTitle = altTitle;
+        altTitle = temp;
+      }
+
+      const queryParts = [primaryTitle];
       if (year) {
         queryParts.push(String(year));
       }
@@ -402,25 +420,80 @@ export class ProwlarrService implements IProwlarrService {
       candidates = searchRes.candidates;
       isReachable = searchRes.isReachable;
       searchError = searchRes.error;
+
+      if (candidates.length < 3 && year) {
+        const fallbackRes = await this.executeSearch(primaryTitle, [2000], scoreOptions);
+        mergeCandidates(fallbackRes.candidates);
+      }
+
+      if (candidates.length < 3 && altTitle && altTitle.toLowerCase() !== primaryTitle.toLowerCase()) {
+        const altParts = [altTitle];
+        if (year) altParts.push(String(year));
+        const fallbackRes = await this.executeSearch(altParts.join(' '), [2000], scoreOptions);
+        mergeCandidates(fallbackRes.candidates);
+      }
     } else if (mediaType === 'tv_show') {
       const sNum = seasonNumber && seasonNumber > 0 ? seasonNumber : 1;
       const sPad = String(sNum).padStart(2, '0');
 
+      let primaryTitle = title.trim();
+      let altTitle = (englishTitle && englishTitle.trim()) || (romajiTitle && romajiTitle.trim());
+
+      // If primaryTitle contains CJK and altTitle is Latin, search Latin first
+      if (hasCjkCharacters(primaryTitle) && altTitle && !hasCjkCharacters(altTitle)) {
+        const temp = primaryTitle;
+        primaryTitle = altTitle;
+        altTitle = temp;
+      }
+
       let query = '';
       if (isSingleEpisode) {
         const ePad = String(episodeNumber).padStart(2, '0');
-        query = `${title.trim()} S${sPad}E${ePad}`;
+        query = `${primaryTitle} S${sPad}E${ePad}`;
       } else {
-        query = `${title.trim()} S${sPad}`;
+        query = `${primaryTitle} S${sPad}`;
       }
 
       const searchRes = await this.executeSearch(query, [5000], scoreOptions);
       candidates = searchRes.candidates;
       isReachable = searchRes.isReachable;
       searchError = searchRes.error;
+
+      // Fallback 1: If fewer than 3 candidates and alternate title is available and distinct
+      if (candidates.length < 3 && altTitle && altTitle.toLowerCase() !== primaryTitle.toLowerCase()) {
+        let altQuery = '';
+        if (isSingleEpisode) {
+          const ePad = String(episodeNumber).padStart(2, '0');
+          altQuery = `${altTitle} S${sPad}E${ePad}`;
+        } else {
+          altQuery = `${altTitle} S${sPad}`;
+        }
+        const fallbackRes = await this.executeSearch(altQuery, [5000], scoreOptions);
+        mergeCandidates(fallbackRes.candidates);
+      }
+
+      // Fallback 2: If Season 1 pack search with "Title S01" found 0 candidates, try "Title" directly
+      if (candidates.length === 0 && !isSingleEpisode && sNum === 1) {
+        const fallbackRes = await this.executeSearch(primaryTitle, [5000], scoreOptions);
+        mergeCandidates(fallbackRes.candidates);
+      }
     } else if (mediaType === 'anime') {
       const animeCategories = [5070, 2070];
-      const primaryTitle = (romajiTitle && romajiTitle.trim().length > 0 ? romajiTitle.trim() : title.trim());
+      let primaryTitle = (romajiTitle && romajiTitle.trim().length > 0 ? romajiTitle.trim() : title.trim());
+      let altTitle = englishTitle && englishTitle.trim();
+
+      // If primaryTitle contains CJK and altTitle or title is Latin, prefer Latin as primary
+      if (hasCjkCharacters(primaryTitle)) {
+        if (altTitle && !hasCjkCharacters(altTitle)) {
+          const temp = primaryTitle;
+          primaryTitle = altTitle;
+          altTitle = temp;
+        } else if (title && !hasCjkCharacters(title.trim())) {
+          const temp = primaryTitle;
+          primaryTitle = title.trim();
+          altTitle = temp;
+        }
+      }
 
       let primaryQuery = '';
       if (isSingleEpisode) {
@@ -439,7 +512,6 @@ export class ProwlarrService implements IProwlarrService {
       searchError = searchRes.error;
 
       // Fallback to English title if fewer than 3 candidates found and English title is different
-      const altTitle = englishTitle && englishTitle.trim();
       if (candidates.length < 3 && altTitle && altTitle.toLowerCase() !== primaryTitle.toLowerCase()) {
         let altQuery = '';
         if (isSingleEpisode) {
@@ -453,14 +525,14 @@ export class ProwlarrService implements IProwlarrService {
         }
 
         const fallbackRes = await this.executeSearch(altQuery, animeCategories, scoreOptions);
-        const existingGuids = new Set(candidates.map((c) => c.guid || c.downloadUrl));
-        for (const fb of fallbackRes.candidates) {
-          const key = fb.guid || fb.downloadUrl;
-          if (!existingGuids.has(key)) {
-            candidates.push(fb);
-            existingGuids.add(key);
-          }
-        }
+        mergeCandidates(fallbackRes.candidates);
+      }
+
+      // Fallback for Season 1: If search with just primaryTitle found 0 candidates, try with "Title S01"
+      if (candidates.length === 0 && !isSingleEpisode && (!seasonNumber || seasonNumber === 1)) {
+        const altS01Query = `${primaryTitle} S01`;
+        const fallbackRes = await this.executeSearch(altS01Query, animeCategories, scoreOptions);
+        mergeCandidates(fallbackRes.candidates);
       }
     }
 

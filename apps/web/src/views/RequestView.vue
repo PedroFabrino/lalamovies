@@ -835,10 +835,10 @@
                   ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm'
                   : 'bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white'"
               >
-                Romaji: {{ selectedCandidate.romajiTitle || selectedCandidate.title }}
+                {{ hasCjk(selectedCandidate.romajiTitle || selectedCandidate.title) ? 'Original' : 'Romaji' }}: {{ selectedCandidate.romajiTitle || selectedCandidate.title }}
               </button>
               <button
-                v-if="selectedCandidate.englishTitle"
+                v-if="selectedCandidate.englishTitle && selectedCandidate.englishTitle !== (selectedCandidate.romajiTitle || selectedCandidate.title)"
                 type="button"
                 @click="setAnimeTitle(selectedCandidate.englishTitle)"
                 class="px-2.5 py-1 rounded-md text-xs font-medium border transition cursor-pointer"
@@ -1613,6 +1613,9 @@ const router = useRouter();
 const route = useRoute();
 const requestsStore = useRequestsStore();
 
+const hasCjk = (s?: string | null): boolean =>
+  Boolean(s && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]/.test(s));
+
 const currentStep = ref<1 | 2 | 3>(1);
 const waitlistNextSeason = ref(false);
 
@@ -2201,13 +2204,18 @@ async function fetchReleasesForCandidate(candidate: MetadataCandidate) {
   const effectiveEpisode = downloadGranularity.value === 'episode' ? (episodeNumber.value ?? 1) : null;
   const effectiveSeason = mediaType.value !== 'movie' ? (seasonNumber.value ?? 1) : null;
 
-  const isEnglishSelected = Boolean(candidate.englishTitle && activeAnimeTitle.value === candidate.englishTitle);
-  const primaryTitle = isEnglishSelected
-    ? candidate.englishTitle!
-    : (activeAnimeTitle.value || candidate.romajiTitle || candidate.title);
-  const fallbackTitle = isEnglishSelected
-    ? (candidate.romajiTitle || candidate.title)
-    : candidate.englishTitle;
+  let primaryTitle = candidate.title;
+  let fallbackTitle = candidate.englishTitle || null;
+
+  if (mediaType.value === 'anime') {
+    const isEnglishSelected = Boolean(candidate.englishTitle && activeAnimeTitle.value === candidate.englishTitle);
+    primaryTitle = isEnglishSelected
+      ? candidate.englishTitle!
+      : (activeAnimeTitle.value || candidate.title);
+    fallbackTitle = isEnglishSelected
+      ? (candidate.romajiTitle || candidate.title)
+      : (candidate.englishTitle || null);
+  }
 
   try {
     const data = await api.post<{
@@ -2225,8 +2233,8 @@ async function fetchReleasesForCandidate(candidate: MetadataCandidate) {
       year: candidate.year,
       seasonNumber: effectiveSeason,
       episodeNumber: effectiveEpisode,
-      romajiTitle: isEnglishSelected ? primaryTitle : (candidate.romajiTitle || candidate.title),
-      englishTitle: isEnglishSelected ? fallbackTitle : candidate.englishTitle,
+      romajiTitle: candidate.romajiTitle || null,
+      englishTitle: fallbackTitle || candidate.englishTitle || candidate.title,
     });
 
     isProwlarrConfigured.value = data.isConfigured;
@@ -2257,7 +2265,19 @@ async function fetchReleasesForCandidate(candidate: MetadataCandidate) {
 
 async function selectCandidate(candidate: MetadataCandidate) {
   selectedCandidate.value = candidate;
-  activeAnimeTitle.value = candidate.romajiTitle || candidate.title;
+  if (mediaType.value === 'anime') {
+    if (candidate.romajiTitle && !hasCjk(candidate.romajiTitle)) {
+      activeAnimeTitle.value = candidate.romajiTitle;
+    } else if (candidate.englishTitle && !hasCjk(candidate.englishTitle)) {
+      activeAnimeTitle.value = candidate.englishTitle;
+    } else if (!hasCjk(candidate.title)) {
+      activeAnimeTitle.value = candidate.title;
+    } else {
+      activeAnimeTitle.value = candidate.romajiTitle || candidate.title;
+    }
+  } else {
+    activeAnimeTitle.value = candidate.title;
+  }
   waitlistNextSeason.value = false;
   currentStep.value = 3;
   if (validBatchItems.value.length <= 1) {
