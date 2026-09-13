@@ -4,6 +4,8 @@ import { WatcherDatabase } from '../db';
 import { watchRequests, WatchRequest } from '../db/schema';
 import { WatcherProwlarrService, CAM_REGEX } from '../services/prowlarr';
 import { sendWaitlistNotification, deleteDiscordMessage } from '../services/notifications';
+import { ReleaseGatingService } from '../services/releaseGating';
+import { computeGraceHours } from '../utils/gracePeriod';
 import { matchesTarget } from '../utils/torrentTitleCleaner';
 
 export interface WatcherPollerLogger {
@@ -21,6 +23,11 @@ export interface WatcherPollerOptions {
   webhookUrl?: string;
   frontendUrl?: string;
   graceHours?: number;
+  movieGraceHours?: number;
+  episodeGraceHours?: number;
+  newReleaseThresholdDays?: number;
+  releaseGatingService?: ReleaseGatingService;
+  tmdbApiKey?: string;
   logger?: WatcherPollerLogger;
 }
 
@@ -33,6 +40,10 @@ export class WatcherPoller {
   private webhookUrl?: string;
   private frontendUrl?: string;
   private graceHours: number;
+  private movieGraceHours: number;
+  private episodeGraceHours: number;
+  private newReleaseThresholdDays: number;
+  private releaseGating?: ReleaseGatingService;
   private task: ScheduledTask | null = null;
   private isPolling = false;
 
@@ -44,6 +55,18 @@ export class WatcherPoller {
     this.webhookUrl = options.webhookUrl;
     this.frontendUrl = options.frontendUrl;
     this.graceHours = options.graceHours || Number(process.env.NOTIFY_GRACE_HOURS) || 6;
+    this.movieGraceHours = options.movieGraceHours ?? (process.env.MOVIE_GRACE_HOURS !== undefined ? Number(process.env.MOVIE_GRACE_HOURS) : 6);
+    this.episodeGraceHours = options.episodeGraceHours ?? (process.env.EPISODE_GRACE_HOURS !== undefined ? Number(process.env.EPISODE_GRACE_HOURS) : 0);
+    this.newReleaseThresholdDays = options.newReleaseThresholdDays ?? (process.env.NEW_RELEASE_THRESHOLD_DAYS !== undefined ? Number(process.env.NEW_RELEASE_THRESHOLD_DAYS) : 30);
+    this.releaseGating =
+      options.releaseGatingService ??
+      (options.tmdbApiKey
+        ? new ReleaseGatingService({
+            db: this.db,
+            tmdbApiKey: options.tmdbApiKey,
+            logger: this.logger,
+          })
+        : undefined);
 
     if (options.schedule) {
       this.schedule = options.schedule;
@@ -111,6 +134,36 @@ export class WatcherPoller {
           const winner = qualifying[0];
           const now = new Date().toISOString();
 
+          let graceOverrideHours = entry.graceOverrideHours;
+          if (graceOverrideHours === null || graceOverrideHours === undefined) {
+            try {
+              if (this.releaseGating) {
+                const fetchedDate = await this.releaseGating.fetchReleaseDate(
+                  entry.mediaType as 'movie' | 'tv_show' | 'anime',
+                  entry.metadataId,
+                  entry.seasonNumber,
+                  entry.targetEpisode
+                );
+                if (fetchedDate) {
+                  graceOverrideHours = computeGraceHours(entry.mediaType, fetchedDate, {
+                    movieGraceHours: this.movieGraceHours,
+                    episodeGraceHours: this.episodeGraceHours,
+                    thresholdDays: this.newReleaseThresholdDays,
+                  });
+                } else {
+                  this.logger?.warn(`TMDB release date not found for "${entry.title}", defaulting grace to ${this.episodeGraceHours}h`);
+                  graceOverrideHours = this.episodeGraceHours;
+                }
+              } else {
+                this.logger?.warn(`No release gating service available to fetch TMDB date for "${entry.title}", defaulting grace to ${this.episodeGraceHours}h`);
+                graceOverrideHours = this.episodeGraceHours;
+              }
+            } catch (err) {
+              this.logger?.warn(`Failed to fetch TMDB release date for "${entry.title}": ${(err as Error).message}`);
+              graceOverrideHours = this.episodeGraceHours;
+            }
+          }
+
           let discordMessageId: string | null = null;
           const secret = this.magicLinkSecret || process.env.MAGIC_LINK_SECRET || 'magic-link-secret-default-change-me';
           if (secret) {
@@ -134,7 +187,7 @@ export class WatcherPoller {
                 secret,
                 webhookUrl: this.webhookUrl,
                 frontendUrl: this.frontendUrl,
-                graceHours: this.graceHours,
+                graceHours: graceOverrideHours ?? this.graceHours,
                 logger: this.logger,
               });
             } catch (err) {
@@ -152,6 +205,7 @@ export class WatcherPoller {
               discordMessageId,
               notifyAt: now,
               updatedAt: now,
+              graceOverrideHours,
             })
             .where(eq(watchRequests.id, entry.id))
             .run();

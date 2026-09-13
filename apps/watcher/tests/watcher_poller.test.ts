@@ -3,6 +3,7 @@ import { initWatcherDatabase } from '../src/db';
 import { watchRequests } from '../src/db/schema';
 import { WatcherProwlarrService } from '../src/services/prowlarr';
 import { WatcherPoller } from '../src/jobs/watcherPoller';
+import { ReleaseGatingService } from '../src/services/releaseGating';
 import { eq } from 'drizzle-orm';
 
 describe('WatcherPoller & Quality Gate (Ticket 04)', () => {
@@ -300,5 +301,189 @@ describe('WatcherPoller & Quality Gate (Ticket 04)', () => {
     expect(res1.polled).toBe(1);
 
     sqlite.close();
+  });
+
+  describe('Grace Period Re-evaluation at Notify Time (Ticket 03)', () => {
+    it('re-evaluates and stamps graceOverrideHours on notify when null', async () => {
+      const { db, sqlite } = initWatcherDatabase(':memory:');
+      const mockProwlarr = new WatcherProwlarrService({ apiKey: 'test-key' });
+      const mockReleaseGating = new ReleaseGatingService({ db, tmdbApiKey: 'test-key' });
+
+      // Return new movie date (today)
+      vi.spyOn(mockReleaseGating, 'fetchReleaseDate').mockResolvedValue('2026-09-13');
+
+      // Return qualifying release
+      vi.spyOn(mockProwlarr, 'searchForEntry').mockResolvedValue([
+        {
+          guid: 'winner-1',
+          title: 'New Movie 2026 1080p BluRay x264',
+          sizeBytes: 5000000000,
+          formattedSize: '5 GB',
+          seeders: 50,
+          leechers: 5,
+          downloadUrl: 'magnet:?xt=urn:btih:newmovie',
+          indexer: 'Tracker',
+          resolution: '1080p',
+          codec: 'x264',
+          source: 'bluray',
+          score: 150,
+          isLowHealth: false,
+        },
+      ]);
+
+      const now = new Date().toISOString();
+      db.insert(watchRequests).values({
+        id: 'entry-null-grace',
+        userId: 'u1',
+        mediaType: 'movie',
+        metadataId: 'movie-100',
+        metadataSource: 'tmdb',
+        title: 'New Movie',
+        status: 'checking',
+        graceOverrideHours: null,
+        createdAt: now,
+        updatedAt: now,
+      }).run();
+
+      const poller = new WatcherPoller({
+        db,
+        prowlarrService: mockProwlarr,
+        releaseGatingService: mockReleaseGating,
+        movieGraceHours: 6,
+        episodeGraceHours: 0,
+        newReleaseThresholdDays: 30,
+      });
+
+      const res = await poller.pollOnce();
+      expect(res.notified).toBe(1);
+
+      const entry = db.select().from(watchRequests).where(eq(watchRequests.id, 'entry-null-grace')).get();
+      expect(entry?.status).toBe('notified');
+      expect(entry?.graceOverrideHours).toBe(6);
+
+      sqlite.close();
+    });
+
+    it('defaults graceOverrideHours to EPISODE_GRACE_HOURS (0h) on TMDB fetch failure', async () => {
+      const { db, sqlite } = initWatcherDatabase(':memory:');
+      const mockProwlarr = new WatcherProwlarrService({ apiKey: 'test-key' });
+      const mockReleaseGating = new ReleaseGatingService({ db, tmdbApiKey: 'test-key' });
+
+      // TMDB fetch fails
+      vi.spyOn(mockReleaseGating, 'fetchReleaseDate').mockRejectedValue(new Error('TMDB connection error'));
+
+      vi.spyOn(mockProwlarr, 'searchForEntry').mockResolvedValue([
+        {
+          guid: 'winner-2',
+          title: 'Movie 1080p BluRay x264',
+          sizeBytes: 5000000000,
+          formattedSize: '5 GB',
+          seeders: 50,
+          leechers: 5,
+          downloadUrl: 'magnet:?xt=urn:btih:movie2',
+          indexer: 'Tracker',
+          resolution: '1080p',
+          codec: 'x264',
+          source: 'bluray',
+          score: 150,
+          isLowHealth: false,
+        },
+      ]);
+
+      const now = new Date().toISOString();
+      db.insert(watchRequests).values({
+        id: 'entry-fail-grace',
+        userId: 'u1',
+        mediaType: 'movie',
+        metadataId: 'movie-200',
+        metadataSource: 'tmdb',
+        title: 'Failed TMDB Movie',
+        status: 'checking',
+        graceOverrideHours: null,
+        createdAt: now,
+        updatedAt: now,
+      }).run();
+
+      const poller = new WatcherPoller({
+        db,
+        prowlarrService: mockProwlarr,
+        releaseGatingService: mockReleaseGating,
+        movieGraceHours: 6,
+        episodeGraceHours: 0,
+        newReleaseThresholdDays: 30,
+      });
+
+      const res = await poller.pollOnce();
+      expect(res.notified).toBe(1);
+
+      const entry = db.select().from(watchRequests).where(eq(watchRequests.id, 'entry-fail-grace')).get();
+      expect(entry?.status).toBe('notified');
+      expect(entry?.graceOverrideHours).toBe(0);
+
+      sqlite.close();
+    });
+
+    it('preserves existing non-null graceOverrideHours and does not overwrite', async () => {
+      const { db, sqlite } = initWatcherDatabase(':memory:');
+      const mockProwlarr = new WatcherProwlarrService({ apiKey: 'test-key' });
+      const mockReleaseGating = new ReleaseGatingService({ db, tmdbApiKey: 'test-key' });
+
+      const fetchSpy = vi.spyOn(mockReleaseGating, 'fetchReleaseDate');
+
+      vi.spyOn(mockProwlarr, 'searchForEntry').mockResolvedValue([
+        {
+          guid: 'winner-3',
+          title: 'Show S01E01 1080p HDTV x264',
+          sizeBytes: 1000000000,
+          formattedSize: '1 GB',
+          seeders: 50,
+          leechers: 5,
+          downloadUrl: 'magnet:?xt=urn:btih:show3',
+          indexer: 'Tracker',
+          resolution: '1080p',
+          codec: 'x264',
+          source: 'web',
+          score: 150,
+          isLowHealth: false,
+        },
+      ]);
+
+      const now = new Date().toISOString();
+      db.insert(watchRequests).values({
+        id: 'entry-existing-grace',
+        userId: 'u1',
+        mediaType: 'tv_show',
+        metadataId: 'tv-300',
+        metadataSource: 'tmdb',
+        title: 'Show with Existing Grace',
+        seasonNumber: 1,
+        targetEpisode: 1,
+        status: 'checking',
+        graceOverrideHours: 12,
+        createdAt: now,
+        updatedAt: now,
+      }).run();
+
+      const poller = new WatcherPoller({
+        db,
+        prowlarrService: mockProwlarr,
+        releaseGatingService: mockReleaseGating,
+        movieGraceHours: 6,
+        episodeGraceHours: 0,
+        newReleaseThresholdDays: 30,
+      });
+
+      const res = await poller.pollOnce();
+      expect(res.notified).toBe(1);
+
+      // fetchReleaseDate should NOT have been called because grace was already stamped
+      expect(fetchSpy).not.toHaveBeenCalled();
+
+      const entry = db.select().from(watchRequests).where(eq(watchRequests.id, 'entry-existing-grace')).get();
+      expect(entry?.status).toBe('notified');
+      expect(entry?.graceOverrideHours).toBe(12);
+
+      sqlite.close();
+    });
   });
 });

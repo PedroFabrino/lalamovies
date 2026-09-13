@@ -86,6 +86,9 @@ export function buildWatcherApp(options: WatcherAppOptions = {}): FastifyInstanc
   const webhookUrl = options.webhookUrl || process.env.WAITLIST_DISCORD_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL;
   const magicLinkSecret = options.magicLinkSecret || process.env.MAGIC_LINK_SECRET;
   const frontendUrl = options.frontendUrl || process.env.FRONTEND_URL;
+  const movieGraceHours = options.movieGraceHours ?? (process.env.MOVIE_GRACE_HOURS !== undefined ? Number(process.env.MOVIE_GRACE_HOURS) : 6);
+  const episodeGraceHours = options.episodeGraceHours ?? (process.env.EPISODE_GRACE_HOURS !== undefined ? Number(process.env.EPISODE_GRACE_HOURS) : 0);
+  const newReleaseThresholdDays = options.newReleaseThresholdDays ?? (process.env.NEW_RELEASE_THRESHOLD_DAYS !== undefined ? Number(process.env.NEW_RELEASE_THRESHOLD_DAYS) : 30);
 
   const poller =
     options.watcherPoller ??
@@ -97,6 +100,11 @@ export function buildWatcherApp(options: WatcherAppOptions = {}): FastifyInstanc
       magicLinkSecret,
       frontendUrl,
       graceHours: options.notifyGraceHours,
+      movieGraceHours,
+      episodeGraceHours,
+      newReleaseThresholdDays,
+      releaseGatingService: releaseGating,
+      tmdbApiKey,
       logger: {
         info: (msg) => app.log.info(msg),
         warn: (msg) => app.log.warn(msg),
@@ -141,10 +149,6 @@ export function buildWatcherApp(options: WatcherAppOptions = {}): FastifyInstanc
   if (options.startSubmitter) {
     submitter.start();
   }
-
-  const movieGraceHours = options.movieGraceHours ?? (process.env.MOVIE_GRACE_HOURS !== undefined ? Number(process.env.MOVIE_GRACE_HOURS) : 6);
-  const episodeGraceHours = options.episodeGraceHours ?? (process.env.EPISODE_GRACE_HOURS !== undefined ? Number(process.env.EPISODE_GRACE_HOURS) : 0);
-  const newReleaseThresholdDays = options.newReleaseThresholdDays ?? (process.env.NEW_RELEASE_THRESHOLD_DAYS !== undefined ? Number(process.env.NEW_RELEASE_THRESHOLD_DAYS) : 30);
 
   app.decorate('db', db);
   app.decorate('sqlite', sqlite);
