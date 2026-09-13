@@ -63,8 +63,21 @@ A user's collection of Waitlist Entries for media that has not yet been released
 _Avoid_: watchlist, pre-order list, download queue
 
 **Waitlist Entry**:
-A single item in the Waitlist representing a user's intent to auto-download a specific Movie, TV Show season, or Anime season once a qualifying release appears. Progresses through lifecycle states (`pending_release`, `checking`, `notified`, `triggered`, `completed`, `rejected`, `cancelled`). Auto-download requires `score ≥ 100` and `seeders ≥ 10` — a stricter bar than the Discovery Feed — because the system acts autonomously on the user's behalf.
+A single item in the Waitlist representing a user's intent to auto-download a specific Movie, TV Show season, or Anime season once a qualifying release appears. Progresses through lifecycle states (`pending_release`, `checking`, `notified`, `triggered`, `completed`, `rejected`, `cancelled`). Auto-download requires `score ≥ 100` and `seeders ≥ 10` — a stricter bar than the Discovery Feed — because the system acts autonomously on the user's behalf. Each entry carries a `Grace Period` applied between notification and auto-download trigger.
 _Avoid_: watchlist item, queued download, anticipated release
+
+**Watch for Next Episodes**:
+A mode activated at the Up Next confirm step for single-episode TV Show and Anime requests. When enabled, the system creates a Waitlist Entry for the next sequential episode after the one being downloaded, and the Watcher's episodic tracking automatically advances the entry to subsequent episodes after each successful download. Checkbox is pre-ticked when the request originates from the Up Next shelf; unchecked by default for manual flows.
+_Avoid_: episode subscription, auto-next, auto-queue
+
+**Grace Period**:
+The configurable delay (in hours) between a Waitlist Entry entering the `notified` state (a qualifying release found) and the Watcher auto-submitting the download. During this window, a Discord notification with Approve/Reject magic links is sent. A Grace Period of 0 hours triggers an immediate silent auto-download with no notification. Computed per-entry at creation time from the Release Newness Threshold; re-evaluated at notify time for entries whose TMDB air date was not yet known at creation.
+_Avoid_: approval window, notification delay, hold period
+
+**Release Newness Threshold**:
+The configurable number of days (default 30, env `NEW_RELEASE_THRESHOLD_DAYS`) used to classify a release as "new" vs "old" when computing its Grace Period. A Movie released within this window receives the configured Movie Grace Period (`MOVIE_GRACE_HOURS`, default 6h). Movies older than the threshold and all episodic releases receive the Episode Grace Period (`EPISODE_GRACE_HOURS`, default 0h).
+_Avoid_: freshness window, age cutoff, new release check
+
 
 
 ### File System
@@ -113,8 +126,12 @@ _Avoid_: registration link, signup link
 The process of removing media from disk, stopping the associated torrent in qBittorrent, and triggering a Jellyfin library rescan. Can be triggered manually by an Admin or automatically by the Cleanup Policy.
 _Avoid_: deletion, purge, removal
 
+**Fully Consumed**:
+A DownloadRequest where at least one file under its Library path appears in the play history of every requester (the original requester and all co-requesters). Fully Consumed requests are the first tier of the Cleanup Policy priority order. A requester whose Jellyfin account no longer exists is treated as having watched.
+_Avoid_: fully watched, completed, seen by all
+
 **Cleanup Policy**:
-The rules governing automatic Cleanup. Evaluated against the Storage Quota (with a secondary safety check on the host disk). Triggers automatic Cleanup when free quota falls below 20%. When free quota falls below 15%, incoming Download Requests are deferred in the ``queued`` state until space is freed. Priority: least-recently-played first, then oldest Download Request first. Items marked Keep are immune. A 24-hour Notification precedes any automatic deletion.
+The rules governing automatic Cleanup. Evaluated against the Storage Quota (with a secondary safety check on the host disk). Triggers automatic Cleanup when free quota falls below 20%. When free quota falls below 15%, incoming Download Requests are deferred in the ``queued`` state until space is freed. Priority: (1) Fully Consumed requests, ordered by least-recently-played; (2) remaining requests, ordered by least-recently-played then oldest Download Request. Items marked Keep are immune. A 24-hour Notification precedes any automatic deletion.
 _Avoid_: retention policy, eviction policy
 
 **Keep Flag**:
