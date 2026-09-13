@@ -81,12 +81,13 @@ export class AutoDownloadSubmitter {
       }
 
       const now = Date.now();
-      const graceMs = this.graceHours * 60 * 60 * 1000;
 
       // Filter entries whose grace window has expired: notify_at + graceHours <= now
       const dueEntries = notifiedEntries.filter((entry) => {
         if (!entry.notifyAt) return false;
         const notifyTime = new Date(entry.notifyAt).getTime();
+        const effectiveGrace = entry.graceOverrideHours ?? this.graceHours;
+        const graceMs = effectiveGrace * 60 * 60 * 1000;
         return notifyTime + graceMs <= now;
       });
 

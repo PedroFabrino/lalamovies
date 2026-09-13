@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { watchRequests, WatchRequest, waitlistCoRequesters } from '../db/schema';
 import { evaluateInitialStatus } from '../services/releaseGating';
 import { verifyMagicLinkToken, deleteDiscordMessage, sendWaitlistCancelNotification } from '../services/notifications';
+import { computeGraceHours } from '../utils/gracePeriod';
 
 interface CreateWaitlistBody {
   mediaType: 'movie' | 'tv_show' | 'anime';
@@ -20,6 +21,7 @@ interface CreateWaitlistBody {
   requesterUsername?: string | null;
   requesterEmail?: string | null;
   tmdbReleaseDate?: string | null;
+  notifyBeforeDownload?: boolean;
 }
 
 export const waitlistRoutes: FastifyPluginAsync = async (app) => {
@@ -212,6 +214,23 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
+    const notifyBeforeDownload = body.notifyBeforeDownload ?? false;
+    let graceOverrideHours: number;
+
+    if (!notifyBeforeDownload) {
+      graceOverrideHours = 0;
+    } else {
+      const movieGraceHours = app.movieGraceHours ?? (process.env.MOVIE_GRACE_HOURS !== undefined ? Number(process.env.MOVIE_GRACE_HOURS) : 6);
+      const episodeGraceHours = app.episodeGraceHours ?? (process.env.EPISODE_GRACE_HOURS !== undefined ? Number(process.env.EPISODE_GRACE_HOURS) : 0);
+      const thresholdDays = app.newReleaseThresholdDays ?? (process.env.NEW_RELEASE_THRESHOLD_DAYS !== undefined ? Number(process.env.NEW_RELEASE_THRESHOLD_DAYS) : 30);
+
+      graceOverrideHours = computeGraceHours(body.mediaType, tmdbReleaseDate, {
+        movieGraceHours,
+        episodeGraceHours,
+        thresholdDays,
+      });
+    }
+
     const newEntry: WatchRequest = {
       id: randomUUID(),
       userId,
@@ -238,7 +257,7 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       updatedAt: now,
       cancelledAt: null,
       cancelledBy: null,
-      graceOverrideHours: null,
+      graceOverrideHours,
     };
 
     app.db.insert(watchRequests).values(newEntry).run();

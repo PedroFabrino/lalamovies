@@ -24,6 +24,9 @@ export interface WatcherAppOptions {
   webhookUrl?: string;
   frontendUrl?: string;
   submitSchedule?: string;
+  movieGraceHours?: number;
+  episodeGraceHours?: number;
+  newReleaseThresholdDays?: number;
   releaseGatingService?: ReleaseGatingService;
   prowlarrService?: WatcherProwlarrService;
   watcherPoller?: WatcherPoller;
@@ -42,6 +45,9 @@ declare module 'fastify' {
     poller: WatcherPoller;
     submitter: AutoDownloadSubmitter;
     episodic: EpisodicTrackingService;
+    movieGraceHours: number;
+    episodeGraceHours: number;
+    newReleaseThresholdDays: number;
   }
 }
 
@@ -136,6 +142,10 @@ export function buildWatcherApp(options: WatcherAppOptions = {}): FastifyInstanc
     submitter.start();
   }
 
+  const movieGraceHours = options.movieGraceHours ?? (process.env.MOVIE_GRACE_HOURS !== undefined ? Number(process.env.MOVIE_GRACE_HOURS) : 6);
+  const episodeGraceHours = options.episodeGraceHours ?? (process.env.EPISODE_GRACE_HOURS !== undefined ? Number(process.env.EPISODE_GRACE_HOURS) : 0);
+  const newReleaseThresholdDays = options.newReleaseThresholdDays ?? (process.env.NEW_RELEASE_THRESHOLD_DAYS !== undefined ? Number(process.env.NEW_RELEASE_THRESHOLD_DAYS) : 30);
+
   app.decorate('db', db);
   app.decorate('sqlite', sqlite);
   app.decorate('serviceApiKey', serviceApiKey);
@@ -145,6 +155,9 @@ export function buildWatcherApp(options: WatcherAppOptions = {}): FastifyInstanc
   app.decorate('poller', poller);
   app.decorate('submitter', submitter);
   app.decorate('episodic', episodic);
+  app.decorate('movieGraceHours', movieGraceHours);
+  app.decorate('episodeGraceHours', episodeGraceHours);
+  app.decorate('newReleaseThresholdDays', newReleaseThresholdDays);
 
   app.addHook('onClose', async () => {
     poller.stop();

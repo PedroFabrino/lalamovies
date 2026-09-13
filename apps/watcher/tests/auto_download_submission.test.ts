@@ -357,4 +357,114 @@ describe('Auto-Download Submission After Grace Window (Ticket 06)', () => {
     const payload = JSON.parse(options.body);
     expect(payload.coRequesterUserIds).toEqual(['user-secondary-1', 'user-secondary-2']);
   });
+
+  it('per-entry graceOverrideHours takes precedence over global grace, and null falls back to global', async () => {
+    const now = Date.now();
+    const minAgo5 = new Date(now - 5 * 60 * 1000).toISOString();
+    const hoursAgo7 = new Date(now - 7 * 60 * 60 * 1000).toISOString();
+    const hoursAgo2 = new Date(now - 2 * 60 * 60 * 1000).toISOString();
+
+    // 1. Entry with graceOverrideHours = 0, notified 5 min ago -> should trigger (override 0h < 5m)
+    app.db.insert(watchRequests).values({
+      id: 'entry-override-0h',
+      userId: 'user-alice',
+      mediaType: 'tv_show',
+      metadataId: 'tmdb-override-0',
+      metadataSource: 'tmdb',
+      title: 'Immediate Episode',
+      status: 'notified',
+      notifyAt: minAgo5,
+      graceOverrideHours: 0,
+      prowlarrReleaseMagnet: 'magnet:?xt=urn:btih:override0',
+      triggeredCount: 0,
+      failureCount: 0,
+      createdAt: minAgo5,
+      updatedAt: minAgo5,
+    }).run();
+
+    // 2. Entry with graceOverrideHours = 10, notified 7h ago -> should NOT trigger yet (7h < 10h)
+    app.db.insert(watchRequests).values({
+      id: 'entry-override-10h',
+      userId: 'user-alice',
+      mediaType: 'movie',
+      metadataId: 'tmdb-override-10',
+      metadataSource: 'tmdb',
+      title: 'Long Grace Movie',
+      status: 'notified',
+      notifyAt: hoursAgo7,
+      graceOverrideHours: 10,
+      prowlarrReleaseMagnet: 'magnet:?xt=urn:btih:override10',
+      triggeredCount: 0,
+      failureCount: 0,
+      createdAt: hoursAgo7,
+      updatedAt: hoursAgo7,
+    }).run();
+
+    // 3. Entry with graceOverrideHours = null, notified 7h ago -> falls back to global (6h) -> should trigger (7h >= 6h)
+    app.db.insert(watchRequests).values({
+      id: 'entry-null-expired',
+      userId: 'user-alice',
+      mediaType: 'movie',
+      metadataId: 'tmdb-null-expired',
+      metadataSource: 'tmdb',
+      title: 'Legacy Due Movie',
+      status: 'notified',
+      notifyAt: hoursAgo7,
+      graceOverrideHours: null,
+      prowlarrReleaseMagnet: 'magnet:?xt=urn:btih:nullexpired',
+      triggeredCount: 0,
+      failureCount: 0,
+      createdAt: hoursAgo7,
+      updatedAt: hoursAgo7,
+    }).run();
+
+    // 4. Entry with graceOverrideHours = null, notified 2h ago -> falls back to global (6h) -> should NOT trigger (2h < 6h)
+    app.db.insert(watchRequests).values({
+      id: 'entry-null-pending',
+      userId: 'user-alice',
+      mediaType: 'movie',
+      metadataId: 'tmdb-null-pending',
+      metadataSource: 'tmdb',
+      title: 'Legacy Pending Movie',
+      status: 'notified',
+      notifyAt: hoursAgo2,
+      graceOverrideHours: null,
+      prowlarrReleaseMagnet: 'magnet:?xt=urn:btih:nullpending',
+      triggeredCount: 0,
+      failureCount: 0,
+      createdAt: hoursAgo2,
+      updatedAt: hoursAgo2,
+    }).run();
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({ id: 'req-success' }),
+    });
+
+    const submitter = new AutoDownloadSubmitter({
+      db: app.db,
+      mainApiUrl: 'http://localhost:3000',
+      serviceApiKey: SERVICE_KEY,
+      graceHours: 6,
+    });
+
+    const result = await submitter.submitOnce();
+    // 4 entries checked, 2 triggered ('entry-override-0h' and 'entry-null-expired')
+    expect(result.checked).toBe(4);
+    expect(result.triggered).toBe(2);
+    expect(result.failed).toBe(0);
+
+    const triggeredEntry1 = app.db.select().from(watchRequests).where(eq(watchRequests.id, 'entry-override-0h')).get();
+    expect(triggeredEntry1?.status).toBe('triggered');
+
+    const triggeredEntry2 = app.db.select().from(watchRequests).where(eq(watchRequests.id, 'entry-null-expired')).get();
+    expect(triggeredEntry2?.status).toBe('triggered');
+
+    const pendingEntry1 = app.db.select().from(watchRequests).where(eq(watchRequests.id, 'entry-override-10h')).get();
+    expect(pendingEntry1?.status).toBe('notified');
+
+    const pendingEntry2 = app.db.select().from(watchRequests).where(eq(watchRequests.id, 'entry-null-pending')).get();
+    expect(pendingEntry2?.status).toBe('notified');
+  });
 });

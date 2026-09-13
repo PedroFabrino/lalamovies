@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildWatcherApp } from '../src/app';
+import { eq } from 'drizzle-orm';
+import { watchRequests } from '../src/db/schema';
 
 describe('Watcher Waitlist CRUD & Authorization', () => {
   it('creates entry, lists, gets by id, and cancels', async () => {
@@ -369,6 +371,88 @@ describe('Watcher Waitlist CRUD & Authorization', () => {
     });
     expect(resS2Pack.statusCode).toBe(201);
     expect(resS2Pack.json().entry.id).not.toBe(s2E1Id);
+
+    await app.close();
+  });
+
+  it('stamps graceOverrideHours on waitlist entry creation according to newness and notifyBeforeDownload', async () => {
+    const app = buildWatcherApp({
+      dbPath: ':memory:',
+      serviceApiKey: 'test-secret',
+      movieGraceHours: 6,
+      episodeGraceHours: 0,
+      newReleaseThresholdDays: 30,
+    });
+
+    const now = new Date();
+    const newReleaseDate = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    // 1. Movie with known new release date + notifyBeforeDownload = true -> graceOverrideHours = 6
+    const resMovie = await app.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: {
+        'x-service-key': 'test-secret',
+        'x-user-id': 'user-1',
+      },
+      payload: {
+        mediaType: 'movie',
+        metadataId: 'movie-new-1',
+        metadataSource: 'tmdb',
+        title: 'New Movie',
+        tmdbReleaseDate: newReleaseDate,
+        notifyBeforeDownload: true,
+      },
+    });
+    expect(resMovie.statusCode).toBe(201);
+    const movieEntryId = resMovie.json().entry.id;
+    const movieRow = app.db.select().from(watchRequests).where(eq(watchRequests.id, movieEntryId)).get();
+    expect(movieRow?.graceOverrideHours).toBe(6);
+
+    // 2. Episode created -> DB row has graceOverrideHours = 0
+    const resEpisode = await app.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: {
+        'x-service-key': 'test-secret',
+        'x-user-id': 'user-1',
+      },
+      payload: {
+        mediaType: 'tv_show',
+        metadataId: 'tv-ep-1',
+        metadataSource: 'tmdb',
+        title: 'TV Show Episode',
+        seasonNumber: 1,
+        targetEpisode: 1,
+        notifyBeforeDownload: true,
+      },
+    });
+    expect(resEpisode.statusCode).toBe(201);
+    const epEntryId = resEpisode.json().entry.id;
+    const epRow = app.db.select().from(watchRequests).where(eq(watchRequests.id, epEntryId)).get();
+    expect(epRow?.graceOverrideHours).toBe(0);
+
+    // 3. Any entry created with notifyBeforeDownload = false -> DB row has graceOverrideHours = 0
+    const resSilentMovie = await app.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: {
+        'x-service-key': 'test-secret',
+        'x-user-id': 'user-1',
+      },
+      payload: {
+        mediaType: 'movie',
+        metadataId: 'movie-silent-1',
+        metadataSource: 'tmdb',
+        title: 'Silent New Movie',
+        tmdbReleaseDate: newReleaseDate,
+        notifyBeforeDownload: false,
+      },
+    });
+    expect(resSilentMovie.statusCode).toBe(201);
+    const silentMovieId = resSilentMovie.json().entry.id;
+    const silentRow = app.db.select().from(watchRequests).where(eq(watchRequests.id, silentMovieId)).get();
+    expect(silentRow?.graceOverrideHours).toBe(0);
 
     await app.close();
   });
