@@ -63,6 +63,9 @@ services:
       - MAIN_API_URL=http://api:3000
       - FRONTEND_URL=${FRONTEND_URL:-https://lalamovies.stream}
       - RESEND_API_KEY=${RESEND_API_KEY}
+      - MOVIE_GRACE_HOURS=${MOVIE_GRACE_HOURS:-6}
+      - EPISODE_GRACE_HOURS=${EPISODE_GRACE_HOURS:-0}
+      - NEW_RELEASE_THRESHOLD_DAYS=${NEW_RELEASE_THRESHOLD_DAYS:-30}
     volumes:
       - watcher_db:/data
     depends_on:

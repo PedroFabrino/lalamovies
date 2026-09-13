@@ -1050,7 +1050,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
     if (!parseResult.success) {
       return reply.status(400).send({
         error: 'Bad Request',
-        message: parseResult.error.errors[0]?.message || 'Invalid query parameters',
+        message: (parseResult.error as any).issues?.[0]?.message || (parseResult.error as any).errors?.[0]?.message || 'Invalid query parameters',
         details: parseResult.error.flatten(),
       });
     }

@@ -238,6 +238,7 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       updatedAt: now,
       cancelledAt: null,
       cancelledBy: null,
+      graceOverrideHours: null,
     };
 
     app.db.insert(watchRequests).values(newEntry).run();

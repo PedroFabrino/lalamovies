@@ -53,7 +53,8 @@ export function initWatcherDatabase(dbPath?: string): { db: WatcherDatabase; sql
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       cancelled_at TEXT,
-      cancelled_by TEXT
+      cancelled_by TEXT,
+      grace_override_hours INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS waitlist_co_requesters (
@@ -84,6 +85,12 @@ export function initWatcherDatabase(dbPath?: string): { db: WatcherDatabase; sql
 
   try {
     sqlite.exec(`ALTER TABLE watch_requests ADD COLUMN requester_email TEXT;`);
+  } catch {
+    // Column already exists
+  }
+
+  try {
+    sqlite.exec(`ALTER TABLE watch_requests ADD COLUMN grace_override_hours INTEGER;`);
   } catch {
     // Column already exists
   }
