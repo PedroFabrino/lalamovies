@@ -1059,6 +1059,52 @@
                 Automatically monitors trackers and downloads Season {{ (seasonNumber || 1) + 1 }} when released.
               </p>
             </div>
+
+            <!-- Watch for next episodes checkbox (Ticket 04 / Issue #70) -->
+            <div
+              v-if="['tv_show', 'anime'].includes(mediaType) && downloadGranularity === 'episode'"
+              class="pt-3 border-t border-zinc-800/80 space-y-2"
+            >
+              <label
+                for="watchForNextEpisodesCheckbox"
+                class="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-zinc-300 select-none hover:text-white transition"
+              >
+                <input
+                  id="watchForNextEpisodesCheckbox"
+                  v-model="watchForNextEpisodes"
+                  type="checkbox"
+                  data-testid="watch-for-next-episodes-checkbox"
+                  class="w-4 h-4 rounded bg-zinc-950 border-zinc-700 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-zinc-900 cursor-pointer"
+                />
+                <span>Watch for next episodes</span>
+              </label>
+              <p class="text-[11px] text-zinc-400 ml-6.5 mt-0.5">
+                Automatically monitors trackers and downloads subsequent episodes as they become available.
+              </p>
+
+              <!-- Sub-checkbox: Notify before each auto-download -->
+              <div
+                v-if="watchForNextEpisodes"
+                class="ml-6.5 pt-1.5"
+              >
+                <label
+                  for="notifyBeforeEachDownloadCheckbox"
+                  class="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-zinc-300 select-none hover:text-white transition"
+                >
+                  <input
+                    id="notifyBeforeEachDownloadCheckbox"
+                    v-model="notifyBeforeEachDownload"
+                    type="checkbox"
+                    data-testid="notify-before-each-download-checkbox"
+                    class="w-4 h-4 rounded bg-zinc-950 border-zinc-700 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-zinc-900 cursor-pointer"
+                  />
+                  <span>Notify me before each auto-download</span>
+                </label>
+                <p class="text-[11px] text-zinc-400 ml-6.5 mt-0.5">
+                  Sends a Discord notification with a grace window before downloading each episode.
+                </p>
+              </div>
+            </div>
           </div>
 
           <!-- Duplicate Request Confirmation Banner (Ticket 04) -->
@@ -1618,6 +1664,8 @@ const hasCjk = (s?: string | null): boolean =>
 
 const currentStep = ref<1 | 2 | 3>(1);
 const waitlistNextSeason = ref(false);
+const watchForNextEpisodes = ref(false);
+const notifyBeforeEachDownload = ref(false);
 
 // Step 1 State
 const inputMode = ref<'search' | 'magnet' | 'file'>('search');
@@ -1912,10 +1960,17 @@ function initFastTrackFromRoute(): boolean {
   inputMode.value = 'search';
   currentStep.value = 3;
 
+  watchForNextEpisodes.value = query.fromUpNext === 'true' || state.fromUpNext === true;
+  notifyBeforeEachDownload.value = false;
+
   return true;
 }
 
 onMounted(async () => {
+  if (route.query.fromUpNext === 'true') {
+    watchForNextEpisodes.value = true;
+    notifyBeforeEachDownload.value = false;
+  }
   const isFastTrack = initFastTrackFromRoute();
 
   if (isFastTrack && selectedCandidate.value) {
@@ -2279,6 +2334,8 @@ async function selectCandidate(candidate: MetadataCandidate) {
     activeAnimeTitle.value = candidate.title;
   }
   waitlistNextSeason.value = false;
+  watchForNextEpisodes.value = route.query.fromUpNext === 'true';
+  notifyBeforeEachDownload.value = false;
   currentStep.value = 3;
   if (validBatchItems.value.length <= 1) {
     const exists = await checkDuplicateExists(candidate);
@@ -2410,6 +2467,31 @@ async function handleConfirmRequest() {
       }
 
       const res = await api.post<{ request: DownloadRequest }>('/requests', payload);
+
+      if (
+        watchForNextEpisodes.value &&
+        ['tv_show', 'anime'].includes(mediaType.value) &&
+        downloadGranularity.value === 'episode'
+      ) {
+        try {
+          const currentEp = effectiveEpisode ?? 1;
+          await api.post('/waitlist', {
+            mediaType: mediaType.value,
+            metadataId: selectedCandidate.value.id,
+            metadataSource: selectedCandidate.value.source,
+            title: selectedCandidate.value.title,
+            year: selectedCandidate.value.year ?? undefined,
+            seasonNumber: effectiveSeason ?? 1,
+            targetEpisode: currentEp + 1,
+            notifyBeforeDownload: notifyBeforeEachDownload.value,
+          });
+        } catch {
+          requestsStore.showToast(
+            'Download started, but failed to watch for next episodes in Waitlist.',
+            'warning'
+          );
+        }
+      }
 
       if (existingRequest.value) {
         requestsStore.showToast(

@@ -5,15 +5,16 @@ import { api } from '../src/lib/api';
 import { createPinia, setActivePinia } from 'pinia';
 
 const mockRouterPush = vi.fn();
+let mockRoute = {
+  query: {} as Record<string, any>,
+  params: {} as Record<string, any>,
+};
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({
     push: mockRouterPush,
   }),
-  useRoute: () => ({
-    query: {},
-    params: {},
-  }),
+  useRoute: () => mockRoute,
 }));
 
 vi.mock('../src/components/Navbar.vue', () => ({
@@ -38,6 +39,7 @@ describe('RequestView - Candidate Explorer UI', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
+    mockRoute = { query: {}, params: {} };
     vi.mocked(api.get).mockResolvedValue({ isConfigured: true, isReachable: true });
   });
 
@@ -664,6 +666,192 @@ describe('RequestView - Candidate Explorer UI', () => {
       // Step 3: Duplicate banner should NOT be visible
       expect(wrapper.find('[data-testid="duplicate-already-exists-banner"]').exists()).toBe(false);
       expect(searchReleasesCalled).toBe(true);
+    });
+  });
+
+  describe('Watch for Next Episodes (Ticket 04 / Issue #70)', () => {
+    it('handles checkbox visibility and pre-tick state from fromUpNext query param', async () => {
+      // 1. fromUpNext=true for single episode TV show -> visible & pre-ticked, sub-checkbox visible
+      mockRoute.query = {
+        title: 'Clevatess',
+        metadataId: '12345',
+        metadataSource: 'tmdb',
+        mediaType: 'tv_show',
+        seasonNumber: '2',
+        episodeNumber: '1',
+        downloadUrl: 'magnet:?xt=urn:btih:clevatess',
+        fromUpNext: 'true',
+      };
+
+      let wrapper = mount(RequestView);
+      await flushPromises();
+
+      const epCheckbox = wrapper.find<HTMLInputElement>('[data-testid="watch-for-next-episodes-checkbox"]');
+      expect(epCheckbox.exists()).toBe(true);
+      expect(epCheckbox.element.checked).toBe(true);
+
+      const subCheckbox = wrapper.find<HTMLInputElement>('[data-testid="notify-before-each-download-checkbox"]');
+      expect(subCheckbox.exists()).toBe(true);
+      expect(subCheckbox.element.checked).toBe(false);
+
+      wrapper.unmount();
+
+      // 2. Normal flow without fromUpNext -> visible & unchecked, sub-checkbox hidden
+      mockRoute.query = {
+        title: 'Clevatess',
+        metadataId: '12345',
+        metadataSource: 'tmdb',
+        mediaType: 'tv_show',
+        seasonNumber: '2',
+        episodeNumber: '1',
+        downloadUrl: 'magnet:?xt=urn:btih:clevatess',
+      };
+
+      wrapper = mount(RequestView);
+      await flushPromises();
+
+      const epCheckboxUnchecked = wrapper.find<HTMLInputElement>('[data-testid="watch-for-next-episodes-checkbox"]');
+      expect(epCheckboxUnchecked.exists()).toBe(true);
+      expect(epCheckboxUnchecked.element.checked).toBe(false);
+      expect(wrapper.find('[data-testid="notify-before-each-download-checkbox"]').exists()).toBe(false);
+
+      wrapper.unmount();
+
+      // 3. Movie -> hidden
+      mockRoute.query = {
+        title: 'Inception',
+        metadataId: '101',
+        metadataSource: 'tmdb',
+        mediaType: 'movie',
+        downloadUrl: 'magnet:?xt=urn:btih:inception',
+        fromUpNext: 'true',
+      };
+
+      wrapper = mount(RequestView);
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="watch-for-next-episodes-checkbox"]').exists()).toBe(false);
+
+      wrapper.unmount();
+
+      // 4. TV show Season pack (no episodeNumber) -> hidden
+      mockRoute.query = {
+        title: 'Clevatess',
+        metadataId: '12345',
+        metadataSource: 'tmdb',
+        mediaType: 'tv_show',
+        seasonNumber: '2',
+        downloadUrl: 'magnet:?xt=urn:btih:clevatess',
+        fromUpNext: 'true',
+      };
+
+      wrapper = mount(RequestView);
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="watch-for-next-episodes-checkbox"]').exists()).toBe(false);
+    });
+
+    it('calls POST /waitlist after confirm with targetEpisode = current + 1 and notifyBeforeDownload', async () => {
+      mockRoute.query = {
+        title: 'Clevatess',
+        metadataId: '12345',
+        metadataSource: 'tmdb',
+        mediaType: 'anime',
+        seasonNumber: '2',
+        episodeNumber: '1',
+        downloadUrl: 'magnet:?xt=urn:btih:clevatess',
+        fromUpNext: 'true',
+      };
+
+      let requestsPayload: any = null;
+      let waitlistPayload: any = null;
+
+      vi.mocked(api.post).mockImplementation(async (endpoint: string, body?: any) => {
+        if (endpoint === '/requests') {
+          requestsPayload = body;
+          return {
+            request: {
+              id: 'req-1',
+              title: 'Clevatess',
+              status: 'downloading',
+            },
+          } as any;
+        }
+        if (endpoint === '/waitlist') {
+          waitlistPayload = body;
+          return { entry: { id: 'w-1' } } as any;
+        }
+        return {} as any;
+      });
+
+      const wrapper = mount(RequestView);
+      await flushPromises();
+
+      // Tick sub-checkbox
+      const subCheckbox = wrapper.find('[data-testid="notify-before-each-download-checkbox"]');
+      await subCheckbox.setValue(true);
+
+      // Confirm & Download
+      const confirmButton = wrapper.findAll('button').find((b) => b.text().includes('Confirm & Download'));
+      expect(confirmButton).toBeDefined();
+      await confirmButton!.trigger('click');
+      await flushPromises();
+
+      expect(requestsPayload).toBeDefined();
+      expect(requestsPayload.mediaType).toBe('anime');
+      expect(requestsPayload.episodeNumber).toBe(1);
+
+      expect(waitlistPayload).toEqual({
+        mediaType: 'anime',
+        metadataId: '12345',
+        metadataSource: 'tmdb',
+        title: 'Clevatess',
+        year: undefined,
+        seasonNumber: 2,
+        targetEpisode: 2,
+        notifyBeforeDownload: true,
+      });
+
+      expect(mockRouterPush).toHaveBeenCalledWith('/dashboard');
+    });
+
+    it('does not block navigation when POST /waitlist fails and shows toast warning', async () => {
+      mockRoute.query = {
+        title: 'Clevatess',
+        metadataId: '12345',
+        metadataSource: 'tmdb',
+        mediaType: 'tv_show',
+        seasonNumber: '1',
+        episodeNumber: '3',
+        downloadUrl: 'magnet:?xt=urn:btih:clevatess',
+        fromUpNext: 'true',
+      };
+
+      vi.mocked(api.post).mockImplementation(async (endpoint: string) => {
+        if (endpoint === '/requests') {
+          return {
+            request: {
+              id: 'req-2',
+              title: 'Clevatess',
+              status: 'downloading',
+            },
+          } as any;
+        }
+        if (endpoint === '/waitlist') {
+          throw new Error('Waitlist service unavailable');
+        }
+        return {} as any;
+      });
+
+      const wrapper = mount(RequestView);
+      await flushPromises();
+
+      const confirmButton = wrapper.findAll('button').find((b) => b.text().includes('Confirm & Download'));
+      await confirmButton!.trigger('click');
+      await flushPromises();
+
+      // Navigation proceeds even though waitlist call failed
+      expect(mockRouterPush).toHaveBeenCalledWith('/dashboard');
     });
   });
 });

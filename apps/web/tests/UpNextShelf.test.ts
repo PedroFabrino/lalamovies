@@ -86,6 +86,7 @@ describe('UpNextShelf.vue - Component Tests', () => {
     expect(mockPush).toHaveBeenCalledWith({
       path: '/request',
       query: {
+        fromUpNext: 'true',
         title: 'Mushoku Tensei',
         metadataId: '127549',
         metadataSource: 'anilist',
@@ -103,6 +104,7 @@ describe('UpNextShelf.vue - Component Tests', () => {
         overview: 'Rudeus continues his journey',
       },
       state: {
+        fromUpNext: true,
         title: 'Mushoku Tensei',
         metadataId: '127549',
         metadataSource: 'anilist',

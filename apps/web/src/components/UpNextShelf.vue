@@ -183,6 +183,7 @@ function selectItem(item: UpNextItem) {
   router.push({
     path: '/request',
     query: {
+      fromUpNext: 'true',
       title: item.showTitle,
       metadataId: item.metadataId,
       metadataSource: item.metadataSource,
@@ -200,6 +201,7 @@ function selectItem(item: UpNextItem) {
       overview: item.overview || undefined,
     },
     state: {
+      fromUpNext: true,
       title: item.showTitle,
       metadataId: item.metadataId,
       metadataSource: item.metadataSource,
