@@ -2488,7 +2488,7 @@ async function handleConfirmRequest() {
         } catch {
           requestsStore.showToast(
             'Download started, but failed to watch for next episodes in Waitlist.',
-            'warning'
+            'error'
           );
         }
       }
