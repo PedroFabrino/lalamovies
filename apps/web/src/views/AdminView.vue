@@ -99,7 +99,7 @@
           :class="activeTab === 'features'
             ? 'border-indigo-500 text-white font-semibold'
             : 'border-transparent text-zinc-400 hover:text-zinc-200 hover:border-zinc-700'"
-          @click="activeTab = 'features'"
+          @click="activeTab = 'features'; loadFeatureFlags()"
         >
           <svg
             class="w-4 h-4"
@@ -993,7 +993,7 @@
     <!-- ================= TAB 4: FEATURE FLAGS ================= -->
     <div
       v-else-if="activeTab === 'features'"
-      class="space-y-8"
+      class="max-w-4xl space-y-6"
     >
       <!-- Error Alert -->
       <div
@@ -1049,7 +1049,20 @@
             <span class="text-xs text-zinc-500 font-mono">{{ discoveryFlags.length }} subsystems</span>
           </div>
 
-          <div class="divide-y divide-zinc-800/60">
+          <div
+            v-if="isLoadingFeatureFlags && discoveryFlags.length === 0"
+            class="h-20 bg-zinc-950/40 rounded-lg animate-pulse"
+          />
+          <div
+            v-else-if="discoveryFlags.length === 0"
+            class="py-4 text-center text-xs text-zinc-500"
+          >
+            No subsystem flags found in this category.
+          </div>
+          <div
+            v-else
+            class="divide-y divide-zinc-800/60"
+          >
             <div
               v-for="flag in discoveryFlags"
               :key="flag.id"
@@ -1109,7 +1122,20 @@
             <span class="text-xs text-zinc-500 font-mono">{{ downloadsFlags.length }} subsystems</span>
           </div>
 
-          <div class="divide-y divide-zinc-800/60">
+          <div
+            v-if="isLoadingFeatureFlags && downloadsFlags.length === 0"
+            class="h-20 bg-zinc-950/40 rounded-lg animate-pulse"
+          />
+          <div
+            v-else-if="downloadsFlags.length === 0"
+            class="py-4 text-center text-xs text-zinc-500"
+          >
+            No subsystem flags found in this category.
+          </div>
+          <div
+            v-else
+            class="divide-y divide-zinc-800/60"
+          >
             <div
               v-for="flag in downloadsFlags"
               :key="flag.id"
@@ -1169,7 +1195,20 @@
             <span class="text-xs text-zinc-500 font-mono">{{ automationFlags.length }} subsystems</span>
           </div>
 
-          <div class="divide-y divide-zinc-800/60">
+          <div
+            v-if="isLoadingFeatureFlags && automationFlags.length === 0"
+            class="h-20 bg-zinc-950/40 rounded-lg animate-pulse"
+          />
+          <div
+            v-else-if="automationFlags.length === 0"
+            class="py-4 text-center text-xs text-zinc-500"
+          >
+            No subsystem flags found in this category.
+          </div>
+          <div
+            v-else
+            class="divide-y divide-zinc-800/60"
+          >
             <div
               v-for="flag in automationFlags"
               :key="flag.id"
@@ -1517,13 +1556,14 @@ onMounted(async () => {
 
 async function loadFeatureFlags() {
   isLoadingFeatureFlags.value = true;
+  featureFlagsError.value = null;
   try {
     const data = await api.get<{ features: AdminFeatureFlag[] }>('/admin/features');
     if (data?.features) {
       featureFlagsList.value = data.features;
     }
-  } catch {
-    // handled
+  } catch (err) {
+    featureFlagsError.value = (err as Error).message || 'Failed to load feature flags';
   } finally {
     isLoadingFeatureFlags.value = false;
   }
