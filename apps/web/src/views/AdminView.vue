@@ -357,7 +357,7 @@
       <!-- ================= TAB 2: SYSTEM CONFIG ================= -->
       <div
         v-else-if="activeTab === 'config'"
-        class="max-w-2xl"
+        class="max-w-4xl mx-auto"
       >
         <div class="bg-zinc-900/60 border border-zinc-800 rounded-xl p-6 sm:p-8 shadow-xl">
           <div class="mb-6">
@@ -993,7 +993,7 @@
     <!-- ================= TAB 4: FEATURE FLAGS ================= -->
     <div
       v-else-if="activeTab === 'features'"
-      class="max-w-4xl space-y-6"
+      class="max-w-4xl mx-auto space-y-6"
     >
       <!-- Error Alert -->
       <div
