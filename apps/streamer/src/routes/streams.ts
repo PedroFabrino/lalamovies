@@ -58,22 +58,36 @@ export const streamRoutes: FastifyPluginAsync = async (app) => {
   app.post('/', { preHandler: [assertPublicTracker] }, async (request, reply) => {
     const body = request.body as {
       magnetLink?: string;
+      downloadUrl?: string;
       title?: string;
       isPrivateTracker?: boolean;
+      indexer?: string;
+      infoHash?: string;
     } | null;
 
-    if (!body || !body.magnetLink || !body.title) {
+    const source = body?.magnetLink || body?.downloadUrl;
+
+    if (!body || !source || !body.title) {
       return reply.status(400).send({
         error: 'Bad Request',
-        message: 'magnetLink and title are required',
+        message: 'magnetLink or downloadUrl, and title are required',
       });
     }
 
     const userId = (request.headers['x-user-id'] as string) || 'default-user';
 
     try {
-      // 1. Add magnet to Real-Debrid
-      const debridTorrentId = await app.debrid.addMagnet(body.magnetLink);
+      // 1. Add magnet or torrent to Real-Debrid (resolving HTTP download proxy/torrent if needed)
+      let debridTorrentId: string;
+      let effectiveMagnet = source;
+
+      if (typeof app.debrid.resolveAndAdd === 'function') {
+        const result = await app.debrid.resolveAndAdd(source, body.infoHash, body.title);
+        debridTorrentId = result.id;
+        effectiveMagnet = result.resolvedMagnet || source;
+      } else {
+        debridTorrentId = await app.debrid.addMagnet(source);
+      }
 
       // 2. Select files on Real-Debrid if metadata already resolved, otherwise StreamPoller handles it
       try {
@@ -96,7 +110,7 @@ export const streamRoutes: FastifyPluginAsync = async (app) => {
           id: streamId,
           userId,
           debridTorrentId,
-          magnetLink: body.magnetLink,
+          magnetLink: effectiveMagnet,
           title: body.title,
           status: 'pending',
           expiresAt,

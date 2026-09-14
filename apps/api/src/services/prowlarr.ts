@@ -35,6 +35,8 @@ export interface ReleaseCandidate {
   score: number;
   isLowHealth: boolean;
   isPrivateTracker: boolean;
+  infoHash?: string;
+  magnetUrl?: string;
 }
 
 export interface SearchReleasesResult {
@@ -426,6 +428,14 @@ export class ProwlarrService implements IProwlarrService {
         continue;
       }
 
+      let infoHash = item.infoHash?.trim().toLowerCase() || '';
+      if (!infoHash) {
+        const hashMatch = downloadUrl.match(/urn:btih:([a-zA-Z0-9]+)/i);
+        if (hashMatch) {
+          infoHash = hashMatch[1].toLowerCase();
+        }
+      }
+
       const sizeBytes = item.size || 0;
       const seeders = typeof item.seeders === 'number' ? Math.max(0, item.seeders) : 0;
       const leechers = typeof item.leechers === 'number' ? Math.max(0, item.leechers) : 0;
@@ -476,6 +486,8 @@ export class ProwlarrService implements IProwlarrService {
         score,
         isLowHealth,
         isPrivateTracker,
+        infoHash: infoHash || undefined,
+        magnetUrl: item.magnetUrl || undefined,
       });
     }
 

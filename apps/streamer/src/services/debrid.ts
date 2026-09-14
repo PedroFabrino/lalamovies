@@ -9,6 +9,12 @@ export interface DebridTorrentInfo {
 export interface IDebridService {
   checkCache(hashes: string[]): Promise<Record<string, boolean>>;
   addMagnet(magnet: string): Promise<string>;
+  addTorrent(fileBuffer: Buffer | Uint8Array): Promise<string>;
+  resolveAndAdd(
+    source: string,
+    infoHash?: string,
+    title?: string
+  ): Promise<{ id: string; resolvedMagnet: string }>;
   selectFiles(torrentId: string, files?: string): Promise<void>;
   getTorrentInfo(torrentId: string): Promise<DebridTorrentInfo>;
   getUnrestrictedLinks(torrentId: string): Promise<string[]>;
@@ -108,6 +114,22 @@ export class DebridService implements IDebridService {
     }
   }
 
+  private async formatDebridError(prefix: string, response: Response): Promise<string> {
+    const errText = await response.text().catch(() => '');
+    let detail = '';
+    try {
+      const parsed = JSON.parse(errText);
+      if (parsed.error_details) {
+        detail = `: ${parsed.error_details}`;
+      } else if (parsed.error) {
+        detail = `: ${parsed.error}`;
+      }
+    } catch {
+      if (errText) detail = `: ${errText}`;
+    }
+    return `${prefix}: HTTP ${response.status}${detail}`;
+  }
+
   async addMagnet(magnet: string): Promise<string> {
     const form = new URLSearchParams();
     form.append('magnet', magnet);
@@ -121,11 +143,98 @@ export class DebridService implements IDebridService {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to add magnet to Real-Debrid: HTTP ${response.status}`);
+      const msg = await this.formatDebridError('Failed to add magnet to Real-Debrid', response);
+      throw new Error(msg);
     }
 
     const data = (await response.json()) as { id: string };
     return data.id;
+  }
+
+  async addTorrent(fileBuffer: Buffer | Uint8Array): Promise<string> {
+    const response = await this.request('/torrents/addTorrent', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/x-bittorrent',
+      },
+      body: fileBuffer,
+    });
+
+    if (!response.ok) {
+      const msg = await this.formatDebridError('Failed to add torrent file to Real-Debrid', response);
+      throw new Error(msg);
+    }
+
+    const data = (await response.json()) as { id: string };
+    return data.id;
+  }
+
+  async resolveAndAdd(
+    source: string,
+    infoHash?: string,
+    title?: string
+  ): Promise<{ id: string; resolvedMagnet: string }> {
+    // 1. If already a magnet URI, add directly
+    if (source.startsWith('magnet:')) {
+      const id = await this.addMagnet(source);
+      return { id, resolvedMagnet: source };
+    }
+
+    // 2. If an HTTP/HTTPS URL, follow redirects and check for magnet redirect or torrent file
+    if (source.startsWith('http://') || source.startsWith('https://')) {
+      try {
+        let currentUrl = source;
+        for (let i = 0; i < 5; i++) {
+          const res = await fetch(currentUrl, { redirect: 'manual' });
+          if (res.status >= 300 && res.status < 400) {
+            const loc = res.headers.get('location');
+            if (!loc) break;
+            if (loc.startsWith('magnet:')) {
+              const id = await this.addMagnet(loc);
+              return { id, resolvedMagnet: loc };
+            }
+            currentUrl = new URL(loc, currentUrl).toString();
+            continue;
+          }
+
+          if (res.ok) {
+            const contentType = (res.headers.get('content-type') || '').toLowerCase();
+            const arrayBuffer = await res.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+
+            // If binary torrent file (starts with 'd' / 0x64 or content-type is torrent)
+            if (contentType.includes('application/x-bittorrent') || (buffer.length > 0 && buffer[0] === 0x64)) {
+              const id = await this.addTorrent(buffer);
+              const magnet = infoHash
+                ? `magnet:?xt=urn:btih:${infoHash}${title ? `&dn=${encodeURIComponent(title)}` : ''}`
+                : source;
+              return { id, resolvedMagnet: magnet };
+            }
+
+            // If response body is a magnet URI string
+            const text = buffer.toString('utf-8').trim();
+            if (text.startsWith('magnet:')) {
+              const id = await this.addMagnet(text);
+              return { id, resolvedMagnet: text };
+            }
+          }
+          break;
+        }
+      } catch {
+        // Fetch failed, fall through to fallback below
+      }
+    }
+
+    // 3. Fallback: if infoHash is provided, construct a magnet link and add
+    if (infoHash) {
+      const fallbackMagnet = `magnet:?xt=urn:btih:${infoHash}${title ? `&dn=${encodeURIComponent(title)}` : ''}`;
+      const id = await this.addMagnet(fallbackMagnet);
+      return { id, resolvedMagnet: fallbackMagnet };
+    }
+
+    // 4. Default: attempt addMagnet with source so that Real-Debrid returns its error
+    const id = await this.addMagnet(source);
+    return { id, resolvedMagnet: source };
   }
 
   async selectFiles(torrentId: string, files = 'all'): Promise<void> {

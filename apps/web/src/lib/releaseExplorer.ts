@@ -13,6 +13,7 @@ export interface ReleaseCandidate {
   score: number;
   isLowHealth: boolean;
   isPrivateTracker?: boolean;
+  infoHash?: string;
 }
 
 export type CandidateSortOption = 'score' | 'seeders' | 'size_asc' | 'size_desc';

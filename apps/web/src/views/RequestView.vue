@@ -1745,14 +1745,14 @@ function extractInfoHash(url: string): string {
 
 function getCandidateCacheStatus(candidate: ReleaseCandidate): boolean | undefined {
   if (candidate.isPrivateTracker) return undefined;
-  const hash = extractInfoHash(candidate.downloadUrl);
+  const hash = (candidate.infoHash || extractInfoHash(candidate.downloadUrl)).toLowerCase();
   return hash ? rdCacheMap.value[hash] : undefined;
 }
 
 async function checkCacheForCandidates(candidates: ReleaseCandidate[]) {
   const publicHashes = candidates
-    .filter((c) => !c.isPrivateTracker && c.downloadUrl)
-    .map((c) => extractInfoHash(c.downloadUrl))
+    .filter((c) => !c.isPrivateTracker)
+    .map((c) => (c.infoHash || extractInfoHash(c.downloadUrl)).toLowerCase())
     .filter(Boolean);
 
   if (publicHashes.length === 0) return;
@@ -1788,6 +1788,7 @@ async function handleInstantStreamCandidate(candidate: ReleaseCandidate) {
       title: candidate.title,
       indexer: candidate.indexer,
       isPrivateTracker: candidate.isPrivateTracker ?? isKnownPrivateIndexer(candidate.indexer),
+      infoHash: candidate.infoHash,
     });
 
     streamModalId.value = res.streamId;

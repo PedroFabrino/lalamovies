@@ -164,4 +164,94 @@ describe('Real-Debrid Client & Cache Check', () => {
 
     await app.close();
   });
+
+  it('addTorrent sends PUT request with torrent buffer to /torrents/addTorrent', async () => {
+    const originalFetch = global.fetch;
+    const fetchMock = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes('/torrents/addTorrent') && init?.method === 'PUT') {
+        return { ok: true, status: 201, json: async () => ({ id: 'torrent-buf-1' }) };
+      }
+      return { ok: false, status: 400 };
+    });
+    global.fetch = fetchMock;
+
+    try {
+      const service = new DebridService('test-rd-key');
+      const fakeBuffer = Buffer.from('d8:announce12:http://test.come');
+      const id = await service.addTorrent(fakeBuffer);
+      expect(id).toBe('torrent-buf-1');
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.real-debrid.com/rest/1.0/torrents/addTorrent',
+        expect.objectContaining({
+          method: 'PUT',
+          headers: expect.objectContaining({
+            'Content-Type': 'application/x-bittorrent',
+          }),
+        })
+      );
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('resolveAndAdd resolves HTTP redirect to magnet link and adds it', async () => {
+    const originalFetch = global.fetch;
+    const fetchMock = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === 'http://prowlarr:9696/download') {
+        return {
+          status: 301,
+          headers: new Headers({
+            location: 'magnet:?xt=urn:btih:resolved12345&dn=Test',
+          }),
+        };
+      }
+      if (url.includes('/torrents/addMagnet')) {
+        return { ok: true, status: 201, json: async () => ({ id: 'rd-resolved-1' }) };
+      }
+      return { ok: false, status: 404 };
+    });
+    global.fetch = fetchMock;
+
+    try {
+      const service = new DebridService('test-rd-key');
+      const res = await service.resolveAndAdd('http://prowlarr:9696/download');
+      expect(res.id).toBe('rd-resolved-1');
+      expect(res.resolvedMagnet).toBe('magnet:?xt=urn:btih:resolved12345&dn=Test');
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('resolveAndAdd downloads .torrent file from HTTP URL and adds via addTorrent', async () => {
+    const originalFetch = global.fetch;
+    const fakeTorrentBuffer = Buffer.from('d8:announce12:http://test.come');
+    const fetchMock = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === 'http://prowlarr:9696/download-torrent') {
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/x-bittorrent' }),
+          arrayBuffer: async () => fakeTorrentBuffer.buffer,
+        };
+      }
+      if (url.includes('/torrents/addTorrent') && init?.method === 'PUT') {
+        return { ok: true, status: 201, json: async () => ({ id: 'rd-torrent-file-1' }) };
+      }
+      return { ok: false, status: 404 };
+    });
+    global.fetch = fetchMock;
+
+    try {
+      const service = new DebridService('test-rd-key');
+      const res = await service.resolveAndAdd(
+        'http://prowlarr:9696/download-torrent',
+        'testhash123',
+        'My Title'
+      );
+      expect(res.id).toBe('rd-torrent-file-1');
+      expect(res.resolvedMagnet).toBe('magnet:?xt=urn:btih:testhash123&dn=My%20Title');
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
 });
