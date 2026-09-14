@@ -559,6 +559,7 @@
       :stream-id="streamModalId"
       :title="streamModalTitle"
       :initial-status="streamModalStatus"
+      :error-message="streamModalError"
       @close="showStreamModal = false"
       @promote="handleOpenPromotion"
     />
@@ -613,6 +614,7 @@ const showStreamModal = ref(false);
 const streamModalId = ref('');
 const streamModalTitle = ref('');
 const streamModalStatus = ref<'pending' | 'ready' | 'error'>('pending');
+const streamModalError = ref('');
 
 const showPromotionModal = ref(false);
 const promotionStream = ref<{ id: string; title: string; magnetLink?: string } | null>(null);
@@ -622,6 +624,7 @@ async function handleInstantStream(item: DiscoveryItem) {
   try {
     streamModalTitle.value = item.title;
     streamModalStatus.value = 'pending';
+    streamModalError.value = '';
     showStreamModal.value = true;
 
     const res = await api.post<{ streamId: string; status: 'pending' | 'ready' }>('/streams', {
@@ -637,6 +640,7 @@ async function handleInstantStream(item: DiscoveryItem) {
     activeStreamsShelfRef.value?.fetchStreams();
   } catch (err: any) {
     streamModalStatus.value = 'error';
+    streamModalError.value = err.message || 'Failed to initialize instant stream';
     requestsStore.showToast(err.message || 'Failed to initialize instant stream', 'error');
   }
 }

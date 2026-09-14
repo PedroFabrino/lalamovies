@@ -40,7 +40,7 @@ declare module 'fastify' {
 
 export function buildStreamerApp(options: StreamerAppOptions = {}): FastifyInstance {
   const app = Fastify({
-    logger: false,
+    logger: process.env.NODE_ENV !== 'test',
   });
 
   const { db, sqlite } = initStreamerDatabase(options.dbPath);

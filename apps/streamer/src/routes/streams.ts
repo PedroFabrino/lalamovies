@@ -75,8 +75,15 @@ export const streamRoutes: FastifyPluginAsync = async (app) => {
       // 1. Add magnet to Real-Debrid
       const debridTorrentId = await app.debrid.addMagnet(body.magnetLink);
 
-      // 2. Select files on Real-Debrid
-      await app.debrid.selectFiles(debridTorrentId, 'all');
+      // 2. Select files on Real-Debrid if metadata already resolved, otherwise StreamPoller handles it
+      try {
+        const info = await app.debrid.getTorrentInfo(debridTorrentId);
+        if (info.status === 'waiting_files_selection') {
+          await app.debrid.selectFiles(debridTorrentId, 'all');
+        }
+      } catch {
+        // Non-blocking: StreamPoller will poll and select files once magnet_conversion finishes
+      }
 
       // 3. Record stream row in DB
       const streamId = randomUUID();

@@ -58,6 +58,14 @@ export class StreamPoller {
           return;
         }
 
+        if (info.status === 'waiting_files_selection') {
+          try {
+            await this.debrid.selectFiles(stream.debridTorrentId, 'all');
+          } catch {
+            // Will retry on next poll cycle
+          }
+        }
+
         if (info.status === 'downloaded') {
           await this.jellyfin.refreshStreamLibrary();
 

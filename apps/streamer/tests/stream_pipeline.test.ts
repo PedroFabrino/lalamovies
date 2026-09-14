@@ -46,11 +46,16 @@ describe('End-to-End Stream Pipeline (#51)', () => {
     global.fetch = fetchMock;
 
     try {
+      const mockStreamPoller = {
+        poll: vi.fn().mockResolvedValue(undefined),
+      };
+
       const app = buildStreamerApp({
         dbPath: ':memory:',
         serviceApiKey: 'test-key',
         debridService: mockDebrid as any,
         jellyfinService: mockJellyfin as any,
+        streamPoller: mockStreamPoller as any,
       });
 
       // 1. POST /streams

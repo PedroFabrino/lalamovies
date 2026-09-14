@@ -1651,6 +1651,7 @@
       :stream-id="streamModalId"
       :title="streamModalTitle"
       :initial-status="streamModalStatus"
+      :error-message="streamModalError"
       @close="showStreamModal = false"
     />
   </div>
@@ -1725,6 +1726,7 @@ const showStreamModal = ref(false);
 const streamModalId = ref('');
 const streamModalTitle = ref('');
 const streamModalStatus = ref<'pending' | 'ready' | 'error'>('pending');
+const streamModalError = ref('');
 
 function extractInfoHash(url: string): string {
   if (!url) return '';
@@ -1765,6 +1767,7 @@ async function handleInstantStreamCandidate(candidate: ReleaseCandidate) {
   try {
     streamModalTitle.value = candidate.title;
     streamModalStatus.value = 'pending';
+    streamModalError.value = '';
     showStreamModal.value = true;
 
     const res = await api.post<{ streamId: string; status: 'pending' | 'ready' }>('/streams', {
@@ -1779,6 +1782,7 @@ async function handleInstantStreamCandidate(candidate: ReleaseCandidate) {
     }
   } catch (err: any) {
     streamModalStatus.value = 'error';
+    streamModalError.value = err.message || 'Failed to initialize instant stream';
     requestsStore.showToast(err.message || 'Failed to initialize instant stream', 'error');
   }
 }
