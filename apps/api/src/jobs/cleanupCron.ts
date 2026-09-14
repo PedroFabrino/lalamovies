@@ -10,6 +10,7 @@ export interface CleanupCronOptions {
   cleanupService: ICleanupService;
   schedule?: string;
   logger?: CleanupCronLogger;
+  isCleanupEnabled?: () => Promise<boolean> | boolean;
 }
 
 export class CleanupCron {
@@ -18,11 +19,13 @@ export class CleanupCron {
   private cleanupService: ICleanupService;
   private schedule: string;
   private logger?: CleanupCronLogger;
+  private isCleanupEnabled?: () => Promise<boolean> | boolean;
 
   constructor(options: CleanupCronOptions) {
     this.cleanupService = options.cleanupService;
     this.schedule = options.schedule || '0 2 * * *';
     this.logger = options.logger;
+    this.isCleanupEnabled = options.isCleanupEnabled;
   }
 
   async runOnce(): Promise<void> {
@@ -30,6 +33,14 @@ export class CleanupCron {
     this.isRunning = true;
 
     try {
+      if (this.isCleanupEnabled) {
+        const enabled = await this.isCleanupEnabled();
+        if (!enabled) {
+          this.logger?.info('Automated cleanup feature is disabled. Skipping scheduled cleanup run.');
+          return;
+        }
+      }
+
       this.logger?.info('Starting nightly cleanup job...');
       // 1. Execute any cleanups whose 24h delay has passed
       if (this.cleanupService.executePendingCleanups) {

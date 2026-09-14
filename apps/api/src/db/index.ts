@@ -58,6 +58,7 @@ export function initDatabase(dbPath?: string, runMigrate = true): { db: AppDatab
     const migrationsFolder = getMigrationsFolder();
     migrate(db, { migrationsFolder });
     seedDefaultConfig(db);
+    seedDefaultFeatureFlags(db);
   }
 
   return { db, sqlite };
@@ -80,6 +81,103 @@ export function seedDefaultConfig(db: AppDatabase) {
 
     if (!existing) {
       db.insert(schema.systemConfig).values({ key, value }).run();
+    }
+  }
+}
+
+export const DEFAULT_FEATURE_FLAGS: Array<{
+  id: string;
+  name: string;
+  description: string;
+  category: 'discovery' | 'downloads' | 'automation';
+  enabled: boolean;
+}> = [
+  {
+    id: 'discovery_feed',
+    name: 'Discovery Feed',
+    description: 'Curated trending and recommended media shelves on the Dashboard',
+    category: 'discovery',
+    enabled: true,
+  },
+  {
+    id: 'up_next',
+    name: 'Up Next Shelf',
+    description: 'Active TV show progress tracking and next-episode prompt on the Dashboard',
+    category: 'discovery',
+    enabled: true,
+  },
+  {
+    id: 'streaming',
+    name: 'Ephemeral Streaming',
+    description: 'Instant zero-disk media playback via Real-Debrid and virtual WebDAV mount',
+    category: 'discovery',
+    enabled: true,
+  },
+  {
+    id: 'manual_torrents',
+    name: 'Manual Torrent Submissions',
+    description: 'Single torrent requests, magnet links, and torrent file uploads',
+    category: 'downloads',
+    enabled: true,
+  },
+  {
+    id: 'batch_uploads',
+    name: 'Batch Uploads',
+    description: 'Batch file and magnet link staging operations',
+    category: 'downloads',
+    enabled: true,
+  },
+  {
+    id: 'waitlist',
+    name: 'Waitlist & Watcher',
+    description: 'Automated Prowlarr indexer polling and notify/auto-download queue',
+    category: 'downloads',
+    enabled: true,
+  },
+  {
+    id: 'automated_cleanup',
+    name: 'Automated Disk Cleanup',
+    description: 'Scheduled periodic disk evaluation and retention tier media eviction',
+    category: 'automation',
+    enabled: true,
+  },
+  {
+    id: 'discord_notifications',
+    name: 'Discord Notifications',
+    description: 'Outbound webhook alerts for download completions and disk cleanup',
+    category: 'automation',
+    enabled: true,
+  },
+  {
+    id: 'user_invites',
+    name: 'User Invites',
+    description: 'Registration of new accounts and generation of invite links',
+    category: 'automation',
+    enabled: true,
+  },
+];
+
+export function seedDefaultFeatureFlags(db: AppDatabase) {
+  const now = new Date().toISOString();
+  for (const flag of DEFAULT_FEATURE_FLAGS) {
+    const existing = db
+      .select()
+      .from(schema.featureFlags)
+      .where(eq(schema.featureFlags.id, flag.id))
+      .get();
+
+    if (!existing) {
+      db.insert(schema.featureFlags)
+        .values({
+          id: flag.id,
+          name: flag.name,
+          description: flag.description,
+          category: flag.category,
+          enabled: flag.enabled,
+          updatedAt: now,
+          updatedByUserId: null,
+        })
+        .run();
     }
   }
 }

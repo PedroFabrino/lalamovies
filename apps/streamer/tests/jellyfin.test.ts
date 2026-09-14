@@ -114,6 +114,10 @@ describe('Streamer Jellyfin Client', () => {
       const id = await service.findItemByPath('/media_data/stream/Inception.2010.mkv');
       expect(id).toBe('item-stream-1');
 
+      // Matching with spaced title vs dot-separated filename
+      const idClean = await service.findItemByPath('Inception 2010');
+      expect(idClean).toBe('item-stream-1');
+
       const notFound = await service.findItemByPath('/media_data/stream/Unknown.mkv');
       expect(notFound).toBeNull();
     } finally {

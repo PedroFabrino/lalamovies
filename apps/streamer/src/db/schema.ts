@@ -11,6 +11,7 @@ export const ephemeralStreams = sqliteTable('ephemeral_streams', {
   }).notNull().default('pending'),
   expiresAt: text('expires_at').notNull(),
   jellyfinItemId: text('jellyfin_item_id'),
+  folderName: text('folder_name'),
   errorMessage: text('error_message'),
   createdAt: text('created_at').notNull(),
 });

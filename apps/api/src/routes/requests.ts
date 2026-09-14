@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { eq, desc, and, ne, inArray } from 'drizzle-orm';
 import { authMiddleware, adminGuard } from '../middleware/auth';
+import { requireFeature } from '../middleware/featureFlags';
 import { systemConfig, downloadRequests, users, DownloadRequest, requestCoRequesters } from '../db/schema';
 import { normalizeShowTitle } from '../services/upNext';
 import { MetadataApiError, MetadataCandidate } from '../services/metadata';
@@ -463,7 +464,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // POST /requests — create download request
-  app.post('/', async (request, reply) => {
+  app.post('/', { preHandler: [requireFeature('manual_torrents')] }, async (request, reply) => {
     const parseResult = createRequestSchema.safeParse(request.body);
     if (!parseResult.success) {
       return reply.status(400).send({
@@ -723,7 +724,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // POST /requests/batch — create batch download requests atomically
-  app.post('/batch', async (request, reply) => {
+  app.post('/batch', { preHandler: [requireFeature('batch_uploads')] }, async (request, reply) => {
     const parseResult = batchRequestSchema.safeParse(request.body);
     if (!parseResult.success) {
       return reply.status(400).send({
@@ -1292,7 +1293,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         userId: data.userId,
         magnetLink: 'promoted-from-stream',
         mediaType: data.mediaType,
-        status: 'completed',
+        status: 'done',
         metadataId: data.metadataId,
         metadataSource: data.metadataSource,
         title: data.title,

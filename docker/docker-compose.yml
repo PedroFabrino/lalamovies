@@ -92,9 +92,12 @@ services:
       - JELLYFIN_URL=http://jellyfin:8096
       - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
       - MAIN_API_URL=http://api:3000
+      - JELLYFIN_PUBLIC_URL=${JELLYFIN_PUBLIC_URL:-https://${JELLYFIN_DOMAIN:-watch.lalamovies.stream}}
+      - ZURG_MOUNT_PATH=/media_data/.zurg
+      - STREAM_PATH=/media_data/stream
     volumes:
       - streamer_db:/data
-      - ${MEDIA_DATA_PATH:-D:/MediaServer/media_data}:/media_data
+      - ${MEDIA_DATA_PATH:-D:/MediaServer/media_data}:/media_data:rslave
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
@@ -127,8 +130,7 @@ services:
     volumes:
       - ./config/jellyfin:/config
       - ./cache/jellyfin:/cache
-      - ${MEDIA_DATA_PATH:-D:/MediaServer/media_data}:/media_data
-      - stream_mount:/media_data/stream
+      - ${MEDIA_DATA_PATH:-D:/MediaServer/media_data}:/media_data:rslave
     depends_on:
       - rclone
 
@@ -155,9 +157,9 @@ services:
       - /dev/fuse
     security_opt:
       - apparmor:unconfined
-    command: "mount zurg: /stream --allow-other --allow-non-empty --vfs-cache-mode=full --vfs-read-chunk-size=128M --dir-cache-time=10s"
+    command: "mount zurg:torrents /media_data/.zurg --allow-other --allow-non-empty --vfs-cache-mode=full --vfs-read-chunk-size=128M --dir-cache-time=10s"
     volumes:
-      - stream_mount:/stream
+      - ${MEDIA_DATA_PATH:-D:/MediaServer/media_data}:/media_data:rshared
     depends_on:
       - zurg
 
@@ -236,6 +238,3 @@ volumes:
     # Kept independent from app_db for isolated backups and schema maintenance.
   streamer_db:
     # Dedicated Docker named volume for Streamer SQLite database (streamer.db) on SSD storage.
-  stream_mount:
-    # Shared named Docker volume for ephemeral virtual stream mount (Zurg WebDAV via Rclone FUSE).
-    # Kept entirely inside Linux container filesystem (WSL2 VM) to allow FUSE on Windows hosts.

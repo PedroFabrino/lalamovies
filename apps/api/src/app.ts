@@ -5,7 +5,7 @@ import fastifyJwt from '@fastify/jwt';
 import fastifyWebsocket from '@fastify/websocket';
 import Database from 'better-sqlite3';
 import { eq } from 'drizzle-orm';
-import { initDatabase, AppDatabase, systemConfig } from './db';
+import { initDatabase, AppDatabase, systemConfig, featureFlags } from './db';
 import { IJellyfinService, JellyfinService } from './services/jellyfin';
 import { IMetadataService, MetadataService } from './services/metadata';
 import { IQBittorrentService, QBittorrentService } from './services/qbittorrent';
@@ -25,6 +25,7 @@ import { discoveryRoutes } from './routes/discovery';
 import { wsRoutes, BroadcastFunction } from './routes/ws';
 import { waitlistRoutes } from './routes/waitlist';
 import { streamsRoutes } from './routes/streams';
+import { isFeatureEnabled } from './middleware/featureFlags';
 
 export interface AppOptions {
   dbPath?: string;
@@ -87,7 +88,11 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
         .get();
       return row?.value || process.env.JELLYFIN_API_KEY || '';
     });
-  const notifications = options.notificationService ?? new NotificationService();
+  const notifications =
+    options.notificationService ??
+    new NotificationService({
+      isDiscordEnabled: () => isFeatureEnabled(db, 'discord_notifications'),
+    });
   const fileSystem = options.fileSystemService ?? new FileSystemService();
   const cleanup =
     options.cleanupService ??
@@ -174,6 +179,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     options.cleanupCron ??
     new CleanupCron({
       cleanupService: cleanup,
+      isCleanupEnabled: () => isFeatureEnabled(db, 'automated_cleanup'),
       logger: {
         info: (msg: string) => app.log.info(msg),
         error: (msg: string, err?: unknown) => app.log.error(err, msg),
@@ -258,11 +264,28 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     return { ok: true };
   });
 
+  const getPublicFeatures = async () => {
+    try {
+      const rows = app.db.select().from(featureFlags).all();
+      const flagsMap: Record<string, boolean> = {};
+      for (const row of rows) {
+        flagsMap[row.id] = Boolean(row.enabled);
+      }
+      return flagsMap;
+    } catch {
+      return {};
+    }
+  };
+
+  app.get('/features', getPublicFeatures);
+  app.get('/api/features', getPublicFeatures);
+
   app.register(authRoutes, { prefix: '/auth' });
   app.register(inviteRoutes, { prefix: '/invites' });
   app.register(requestRoutes, { prefix: '/requests' });
   app.register(requestRoutes, { prefix: '/api/requests' });
   app.register(adminRoutes, { prefix: '/admin' });
+  app.register(adminRoutes, { prefix: '/api/admin' });
   app.register(discoveryRoutes, { prefix: '/discovery' });
   app.register(discoveryRoutes, { prefix: '/api/discovery' });
   app.register(waitlistRoutes, { prefix: '/waitlist' });

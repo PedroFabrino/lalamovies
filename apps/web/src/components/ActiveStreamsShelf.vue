@@ -112,6 +112,7 @@ export interface EphemeralStreamItem {
   status: 'pending' | 'ready' | 'expired' | 'promoted';
   expiresAt: string;
   jellyfinItemId?: string | null;
+  jellyfinUrl?: string | null;
   timeRemainingSeconds: number;
 }
 
@@ -135,6 +136,9 @@ function formatTtl(seconds: number): string {
 }
 
 function getJellyfinUrl(stream: EphemeralStreamItem): string {
+  if (stream.jellyfinUrl) {
+    return stream.jellyfinUrl;
+  }
   if (stream.jellyfinItemId) {
     return `/web/index.html#!/item?id=${stream.jellyfinItemId}`;
   }

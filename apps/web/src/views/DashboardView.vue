@@ -53,13 +53,13 @@
       </div>
 
       <!-- Up Next Shelf (Active Episodic Series) -->
-      <UpNextShelf />
+      <UpNextShelf v-if="featureFlags.isEnabled('up_next')" />
 
       <!-- Discovery Feed Shelf (Curated Quality Releases) -->
-      <DiscoveryFeed ref="discoveryFeedRef" @instant-stream="handleInstantStream" />
+      <DiscoveryFeed v-if="featureFlags.isEnabled('discovery_feed')" ref="discoveryFeedRef" @instant-stream="handleInstantStream" />
 
       <!-- Active Ephemeral Streams Shelf -->
-      <ActiveStreamsShelf ref="activeStreamsShelfRef" @promote="handleOpenPromotion" />
+      <ActiveStreamsShelf v-if="featureFlags.isEnabled('streaming')" ref="activeStreamsShelfRef" @promote="handleOpenPromotion" />
 
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
@@ -590,6 +590,7 @@ import ActiveStreamsShelf from '../components/ActiveStreamsShelf.vue';
 import type { DiscoveryItem } from '../components/DiscoveryFeed.vue';
 import { useAuthStore } from '../stores/auth';
 import { useRequestsStore, DownloadRequest } from '../stores/requests';
+import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { api } from '../lib/api';
 import {
   formatSpeed,
@@ -610,6 +611,7 @@ interface DiskInfo {
 
 const authStore = useAuthStore();
 const requestsStore = useRequestsStore();
+const featureFlags = useFeatureFlags();
 
 const itemToDelete = ref<DownloadRequest | null>(null);
 const isDeleting = ref(false);
@@ -734,6 +736,7 @@ async function handleStreamPromoted(_payload: { streamId: string; requestId: str
 }
 
 onMounted(async () => {
+  featureFlags.ensureFlagsLoaded();
   await requestsStore.fetchAll();
   if (authStore.isAdmin) {
     try {

@@ -1,13 +1,15 @@
-import cron from 'node-cron';
+import cron, { ScheduledTask } from 'node-cron';
 import { eq, and, lte } from 'drizzle-orm';
 import { StreamerDatabase, ephemeralStreams } from '../db';
 import { IDebridService } from '../services/debrid';
 import { IStreamerJellyfinService } from '../services/jellyfin';
+import { SymlinkManager } from '../services/symlinkManager';
 
 export interface EphemeralEvictionCronOptions {
   db: StreamerDatabase;
   debrid: IDebridService;
   jellyfin: IStreamerJellyfinService;
+  symlinkManager?: SymlinkManager;
   cronSchedule?: string;
   logger?: {
     info: (msg: string) => void;
@@ -19,14 +21,16 @@ export class EphemeralEvictionCron {
   private db: StreamerDatabase;
   private debrid: IDebridService;
   private jellyfin: IStreamerJellyfinService;
+  private symlinkManager: SymlinkManager;
   private cronSchedule: string;
-  private task: cron.ScheduledTask | null = null;
+  private task: ScheduledTask | null = null;
   private logger?: { info: (msg: string) => void; error: (msg: string, err?: unknown) => void };
 
   constructor(options: EphemeralEvictionCronOptions) {
     this.db = options.db;
     this.debrid = options.debrid;
     this.jellyfin = options.jellyfin;
+    this.symlinkManager = options.symlinkManager || new SymlinkManager();
     this.cronSchedule = options.cronSchedule || '*/15 * * * *';
     this.logger = options.logger;
   }
@@ -90,6 +94,11 @@ export class EphemeralEvictionCron {
       }
 
       try {
+        const folder = stream.folderName || stream.title;
+        if (folder) {
+          this.symlinkManager.removeStreamSymlink(folder);
+        }
+
         await this.debrid.deleteTorrent(stream.debridTorrentId);
 
         this.db
@@ -127,6 +136,10 @@ export class EphemeralEvictionCron {
     }
 
     try {
+      const folder = stream.folderName || stream.title;
+      if (folder) {
+        this.symlinkManager.removeStreamSymlink(folder);
+      }
       await this.debrid.deleteTorrent(stream.debridTorrentId);
     } catch {
       // Non-blocking

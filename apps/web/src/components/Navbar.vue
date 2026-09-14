@@ -23,14 +23,30 @@
         <router-link
           to="/request"
           class="px-3 py-1.5 text-sm font-medium rounded-lg transition"
-          :class="isRouteActive('/request') ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'"
+          :class="[
+            !isRequestEnabled
+              ? 'opacity-40 cursor-not-allowed pointer-events-none text-zinc-500'
+              : isRouteActive('/request')
+                ? 'bg-zinc-800 text-white'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
+          ]"
+          :title="!isRequestEnabled ? 'Manual torrent requests are temporarily unavailable' : undefined"
+          :tabindex="!isRequestEnabled ? -1 : undefined"
         >
           New Request
         </router-link>
         <router-link
           to="/waitlist"
           class="px-3 py-1.5 text-sm font-medium rounded-lg transition"
-          :class="isRouteActive('/waitlist') ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'"
+          :class="[
+            !isWaitlistEnabled
+              ? 'opacity-40 cursor-not-allowed pointer-events-none text-zinc-500'
+              : isRouteActive('/waitlist')
+                ? 'bg-zinc-800 text-white'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
+          ]"
+          :title="!isWaitlistEnabled ? 'Waitlist is temporarily unavailable' : undefined"
+          :tabindex="!isWaitlistEnabled ? -1 : undefined"
         >
           Waitlist
         </router-link>
@@ -82,14 +98,24 @@
 </template>
 
 <script setup lang="ts">
+import { computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { useProgressSocket } from '../composables/useProgressSocket';
+import { useFeatureFlags } from '../composables/useFeatureFlags';
 
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 const { isConnected } = useProgressSocket();
+const featureFlags = useFeatureFlags();
+
+const isRequestEnabled = computed(() => featureFlags.isEnabled('manual_torrents'));
+const isWaitlistEnabled = computed(() => featureFlags.isEnabled('waitlist'));
+
+onMounted(() => {
+  featureFlags.ensureFlagsLoaded();
+});
 
 function isRouteActive(path: string): boolean {
   return route.path === path;

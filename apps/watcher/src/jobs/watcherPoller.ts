@@ -29,6 +29,8 @@ export interface WatcherPollerOptions {
   releaseGatingService?: ReleaseGatingService;
   tmdbApiKey?: string;
   logger?: WatcherPollerLogger;
+  mainApiUrl?: string;
+  isWaitlistEnabled?: () => Promise<boolean> | boolean;
 }
 
 export class WatcherPoller {
@@ -46,6 +48,8 @@ export class WatcherPoller {
   private releaseGating?: ReleaseGatingService;
   private task: ScheduledTask | null = null;
   private isPolling = false;
+  private mainApiUrl?: string;
+  private isWaitlistEnabledChecker?: () => Promise<boolean> | boolean;
 
   constructor(options: WatcherPollerOptions) {
     this.db = options.db;
@@ -74,6 +78,30 @@ export class WatcherPoller {
       const hours = options.pollIntervalHours || Number(process.env.POLL_INTERVAL_HOURS) || 6;
       this.schedule = `0 */${hours} * * *`;
     }
+    const rawUrl = options.mainApiUrl || process.env.MAIN_API_URL;
+    this.mainApiUrl = rawUrl ? rawUrl.replace(/\/+$/, '') : undefined;
+    this.isWaitlistEnabledChecker = options.isWaitlistEnabled;
+  }
+
+  private async checkWaitlistEnabled(): Promise<boolean> {
+    if (this.isWaitlistEnabledChecker) {
+      return await this.isWaitlistEnabledChecker();
+    }
+    if (!this.mainApiUrl) {
+      return true;
+    }
+    try {
+      const res = await fetch(`${this.mainApiUrl}/features`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as Record<string, boolean>;
+        return data.waitlist !== false;
+      }
+      return true;
+    } catch {
+      return true;
+    }
   }
 
   async pollOnce(): Promise<{ polled: number; notified: number }> {
@@ -81,9 +109,14 @@ export class WatcherPoller {
       this.logger?.info('Watcher poller: tick skipped, previous run in progress.');
       return { polled: 0, notified: 0 };
     }
-
     this.isPolling = true;
+
     try {
+      const waitlistEnabled = await this.checkWaitlistEnabled();
+      if (!waitlistEnabled) {
+        this.logger?.info('Watcher poller: waitlist feature disabled by kill switch, sleeping polling loop.');
+        return { polled: 0, notified: 0 };
+      }
       const checkingEntries = this.db
         .select()
         .from(watchRequests)

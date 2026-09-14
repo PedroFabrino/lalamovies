@@ -2,11 +2,13 @@ import { eq } from 'drizzle-orm';
 import { StreamerDatabase, ephemeralStreams } from '../db';
 import { IDebridService } from '../services/debrid';
 import { IStreamerJellyfinService } from '../services/jellyfin';
+import { SymlinkManager } from '../services/symlinkManager';
 
 export interface StreamPollerOptions {
   db: StreamerDatabase;
   debrid: IDebridService;
   jellyfin: IStreamerJellyfinService;
+  symlinkManager?: SymlinkManager;
   mainApiUrl?: string;
   serviceApiKey?: string;
   pollIntervalMs?: number;
@@ -17,6 +19,7 @@ export class StreamPoller {
   private db: StreamerDatabase;
   private debrid: IDebridService;
   private jellyfin: IStreamerJellyfinService;
+  private symlinkManager: SymlinkManager;
   private mainApiUrl: string;
   private serviceApiKey: string;
   private pollIntervalMs: number;
@@ -26,6 +29,7 @@ export class StreamPoller {
     this.db = options.db;
     this.debrid = options.debrid;
     this.jellyfin = options.jellyfin;
+    this.symlinkManager = options.symlinkManager || new SymlinkManager();
     this.mainApiUrl = (options.mainApiUrl || process.env.MAIN_API_URL || 'http://localhost:3000').replace(/\/+$/, '');
     this.serviceApiKey = options.serviceApiKey || process.env.SERVICE_API_KEY || '';
     this.pollIntervalMs = options.pollIntervalMs || 2000;
@@ -122,12 +126,29 @@ export class StreamPoller {
             return;
           }
 
+          const folderName = info.filename || stream.title;
+          this.symlinkManager.createStreamSymlink(folderName);
+
           await this.jellyfin.refreshStreamLibrary();
 
-          const path = `/media_data/stream/${stream.title}`;
-          let itemId = await this.jellyfin.findItemByPath(path);
-          if (!itemId) {
-            itemId = await this.jellyfin.findItemByPath(stream.title);
+          const path = `/media_data/stream/${folderName}`;
+          let itemId: string | null = null;
+          const waitStepMs = Math.min(1500, this.pollIntervalMs);
+
+          for (let attempt = 0; attempt < 8; attempt++) {
+            itemId = await this.jellyfin.findItemByPath(path);
+            if (!itemId) {
+              itemId = await this.jellyfin.findItemByPath(folderName);
+            }
+            if (!itemId) {
+              itemId = await this.jellyfin.findItemByPath(stream.title);
+            }
+            if (itemId) {
+              break;
+            }
+            if (attempt < 7) {
+              await new Promise((r) => setTimeout(r, waitStepMs));
+            }
           }
 
           const resolvedItemId = itemId || `jellyfin-${stream.id}`;
@@ -137,16 +158,22 @@ export class StreamPoller {
             .set({
               status: 'ready',
               jellyfinItemId: resolvedItemId,
+              folderName,
             })
             .where(eq(ephemeralStreams.id, streamId))
             .run();
+
+          const publicUrl = (process.env.JELLYFIN_PUBLIC_URL || '').replace(/\/+$/, '');
+          const jellyfinUrl = resolvedItemId
+            ? `${publicUrl}/web/index.html#!/item?id=${resolvedItemId}`
+            : (publicUrl ? `${publicUrl}/web/index.html` : '/web/index.html');
 
           await this.broadcastStreamReady({
             type: 'stream_ready',
             streamId: stream.id,
             jellyfinItemId: resolvedItemId,
             title: stream.title,
-            jellyfinUrl: `/web/index.html#!/item?id=${resolvedItemId}`,
+            jellyfinUrl,
           });
 
           return;

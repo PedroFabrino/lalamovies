@@ -180,3 +180,23 @@ _Avoid_: stream host, multihoster, RD service
 The security boundary enforcing that Release Candidates from private indexers configured in Prowlarr are strictly excluded from Debrid Provider ingestion and can only be downloaded via local qBittorrent, preventing passkey leakage and tracker account bans.
 _Avoid_: tracker exclusion, private filter, debrid blocker
 
+### System Control & Resilience
+
+**Feature Flag**:
+A dynamic, runtime boolean configuration switch managed by an Admin via the Admin Panel that immediately enables or disables a specific subsystem across both the API and Web UI without restarting containers.
+_Avoid_: setting, config parameter, toggle option, env variable
+
+**Degraded Mode**:
+The controlled operational state of the application when one or more Feature Flags are toggled off. Active streams or downloads finish cleanly, but new actions and automated background poller tasks for the disabled feature are halted.
+_Avoid_: maintenance mode, broken state, disabled system
+
+**Kill Switch**:
+An emergency toggle mechanism within Feature Flags designed to instantly isolate a malfunctioning external service or resource drain (e.g. failing Debrid API, tracker scraping flood, out-of-control disk cleanup, or webhook notification loops).
+_Avoid_: circuit breaker, emergency stop button
+
+**Coordinated Pause**:
+The mechanism where disabling a Feature Flag in the main API immediately signals background worker services (such as the Watcher and Streamer) to sleep their polling intervals and drop pending scheduler runs, avoiding unnecessary external API and network load while in Degraded Mode.
+_Avoid_: worker kill, task termination, thread sleep
+
+
+

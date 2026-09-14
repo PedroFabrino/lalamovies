@@ -42,11 +42,16 @@ export const streamRoutes: FastifyPluginAsync = async (app) => {
         : rows.filter((r) => r.userId === userId);
 
     const now = Date.now();
+    const publicUrl = (process.env.JELLYFIN_PUBLIC_URL || '').replace(/\/+$/, '');
     const streamsWithTimeRemaining = filteredRows.map((s) => {
       const expiresAtMs = new Date(s.expiresAt).getTime();
       const timeRemainingSeconds = Math.max(0, Math.floor((expiresAtMs - now) / 1000));
+      const jellyfinUrl = s.jellyfinItemId
+        ? `${publicUrl}/web/index.html#!/item?id=${s.jellyfinItemId}`
+        : (publicUrl ? `${publicUrl}/web/index.html` : '/web/index.html');
       return {
         ...s,
+        jellyfinUrl,
         timeRemainingSeconds,
       };
     });
@@ -70,8 +75,9 @@ export const streamRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
+    const publicUrl = (process.env.JELLYFIN_PUBLIC_URL || '').replace(/\/+$/, '');
     const jellyfinUrl = row.jellyfinItemId
-      ? `/web/index.html#!/item?id=${row.jellyfinItemId}`
+      ? `${publicUrl}/web/index.html#!/item?id=${row.jellyfinItemId}`
       : undefined;
 
     return reply.send({

@@ -8,6 +8,9 @@ import { StreamPoller } from './jobs/streamPoller';
 import { EphemeralEvictionCron } from './jobs/ephemeralEvictionCron';
 
 import { IDirectDownloader, DirectDownloader } from './services/httpDownloader';
+import { SymlinkManager } from './services/symlinkManager';
+import { eq } from 'drizzle-orm';
+import { ephemeralStreams } from './db';
 
 export interface StreamerAppOptions {
   dbPath?: string;
@@ -18,6 +21,7 @@ export interface StreamerAppOptions {
   mainApiUrl?: string;
   jellyfinService?: IStreamerJellyfinService;
   debridService?: IDebridService;
+  symlinkManager?: SymlinkManager;
   streamPoller?: StreamPoller;
   evictionCron?: EphemeralEvictionCron;
   directDownloader?: IDirectDownloader;
@@ -32,6 +36,7 @@ declare module 'fastify' {
     mainApiUrl?: string;
     jellyfin: IStreamerJellyfinService;
     debrid: IDebridService;
+    symlinkManager: SymlinkManager;
     streamPoller: StreamPoller;
     evictionCron: EphemeralEvictionCron;
     directDownloader: IDirectDownloader;
@@ -45,6 +50,15 @@ export function buildStreamerApp(options: StreamerAppOptions = {}): FastifyInsta
 
   const { db, sqlite } = initStreamerDatabase(options.dbPath);
   const serviceApiKey = options.serviceApiKey ?? process.env.SERVICE_API_KEY;
+  const symlinkManager =
+    options.symlinkManager ??
+    new SymlinkManager({
+      logger: {
+        info: (msg) => app.log.info(msg),
+        error: (msg, err) => app.log.error(err, msg),
+      },
+    });
+
   const jellyfin =
     options.jellyfinService ??
     new StreamerJellyfinService({
@@ -61,15 +75,17 @@ export function buildStreamerApp(options: StreamerAppOptions = {}): FastifyInsta
       db,
       debrid,
       jellyfin,
+      symlinkManager,
       mainApiUrl: options.mainApiUrl,
       serviceApiKey,
     });
-    const evictionCron =
+  const evictionCron =
     options.evictionCron ??
     new EphemeralEvictionCron({
       db,
       debrid,
       jellyfin,
+      symlinkManager,
       logger: {
         info: (msg) => app.log.info(msg),
         error: (msg, err) => app.log.error(err, msg),
@@ -84,9 +100,25 @@ export function buildStreamerApp(options: StreamerAppOptions = {}): FastifyInsta
   app.decorate('mainApiUrl', mainApiUrl);
   app.decorate('jellyfin', jellyfin);
   app.decorate('debrid', debrid);
+  app.decorate('symlinkManager', symlinkManager);
   app.decorate('streamPoller', streamPoller);
   app.decorate('evictionCron', evictionCron);
   app.decorate('directDownloader', directDownloader);
+
+  // Reconcile active stream symlinks on startup
+  try {
+    const readyStreams = db
+      .select()
+      .from(ephemeralStreams)
+      .where(eq(ephemeralStreams.status, 'ready'))
+      .all();
+    const activeFolders = readyStreams
+      .map((s) => s.folderName || s.title)
+      .filter((f): f is string => Boolean(f));
+    symlinkManager.reconcileActiveStreams(activeFolders);
+  } catch (err) {
+    app.log.error(err, 'Failed initial active stream reconciliation');
+  }
 
   if (options.startCron) {
     evictionCron.start();

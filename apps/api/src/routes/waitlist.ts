@@ -2,6 +2,7 @@ import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import { eq, and, ne, inArray } from 'drizzle-orm';
 import { users, downloadRequests } from '../db/schema';
 import { JwtPayload } from '../middleware/auth';
+import { requireFeature } from '../middleware/featureFlags';
 import { normalizeShowTitle } from '../services/upNext';
 
 async function waitlistAuth(request: FastifyRequest, reply: FastifyReply) {
@@ -249,7 +250,7 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
 export const waitlistRoutes: FastifyPluginAsync = async (app) => {
   app.addHook('preHandler', waitlistAuth);
 
-  app.post('/', async (request, reply) => {
+  app.post('/', { preHandler: [requireFeature('waitlist')] }, async (request, reply) => {
     return forwardToWatcher(request, reply, '');
   });
 

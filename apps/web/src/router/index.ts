@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
+import { useRequestsStore } from '../stores/requests';
+import { useFeatureFlags } from '../composables/useFeatureFlags';
 
 const routes: RouteRecordRaw[] = [
   {
@@ -27,13 +29,13 @@ const routes: RouteRecordRaw[] = [
     path: '/request',
     name: 'request',
     component: () => import('../views/RequestView.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, requiresFeature: 'manual_torrents' },
   },
   {
     path: '/waitlist',
     name: 'waitlist',
     component: () => import('../views/WaitlistView.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, requiresFeature: 'waitlist' },
   },
   {
     path: '/admin',
@@ -77,6 +79,17 @@ router.beforeEach(async (to, _from, next) => {
 
   if (to.meta.requiresAdmin && !authStore.isAdmin) {
     return next({ name: 'forbidden' });
+  }
+
+  if (to.meta.requiresFeature) {
+    const featureFlags = useFeatureFlags();
+    await featureFlags.ensureFlagsLoaded();
+    const featureKey = to.meta.requiresFeature as string;
+    if (!featureFlags.isEnabled(featureKey)) {
+      const requestsStore = useRequestsStore();
+      requestsStore.showToast('This feature is temporarily unavailable.', 'info');
+      return next({ name: 'dashboard' });
+    }
   }
 
   next();

@@ -4,6 +4,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { eq, desc } from 'drizzle-orm';
 import { invites, users, User } from '../db/schema';
 import { authMiddleware, adminGuard } from '../middleware/auth';
+import { requireFeature } from '../middleware/featureFlags';
 
 const acceptInviteSchema = z.object({
   username: z.string().min(2, 'Username must be at least 2 characters'),
@@ -12,7 +13,10 @@ const acceptInviteSchema = z.object({
 
 export const inviteRoutes: FastifyPluginAsync = async (app) => {
   // POST /invites (admin only)
-  app.post('/', { preHandler: [authMiddleware, adminGuard] }, async (request, reply) => {
+  app.post(
+    '/',
+    { preHandler: [authMiddleware, adminGuard, requireFeature('user_invites')] },
+    async (request, reply) => {
     const token = randomBytes(24).toString('hex');
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
 
@@ -110,7 +114,10 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // POST /invites/:token/accept (public accept)
-  app.post('/:token/accept', async (request, reply) => {
+  app.post(
+    '/:token/accept',
+    { preHandler: [requireFeature('user_invites')] },
+    async (request, reply) => {
     const { token } = request.params as { token: string };
 
     const parseResult = acceptInviteSchema.safeParse(request.body);

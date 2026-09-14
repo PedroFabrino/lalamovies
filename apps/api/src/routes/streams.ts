@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { users } from '../db/schema';
 import { JwtPayload } from '../middleware/auth';
 import { isKnownPrivateIndexer, hasPasskey } from '../services/prowlarr';
+import { isFeatureEnabled } from '../middleware/featureFlags';
 
 async function streamsAuth(request: FastifyRequest, reply: FastifyReply) {
   // 1. Try JWT authentication first (from cookie or authorization header)
@@ -37,6 +38,16 @@ async function streamsAuth(request: FastifyRequest, reply: FastifyReply) {
 }
 
 async function forwardToStreamer(request: FastifyRequest, reply: FastifyReply, subpath: string) {
+  if (request.method === 'POST' && subpath === '') {
+    if (!isFeatureEnabled(request.server.db, 'streaming')) {
+      return reply.status(503).send({
+        error: 'FEATURE_DISABLED',
+        code: 'FEATURE_DISABLED',
+        message: "Feature 'streaming' is temporarily disabled",
+      });
+    }
+  }
+
   const streamerUrl = request.server.streamerUrl || process.env.STREAMER_URL;
   if (!streamerUrl) {
     return reply.status(503).send({

@@ -92,6 +92,30 @@
           </svg>
           <span>Disk & Cleanup</span>
         </button>
+
+        <button
+          type="button"
+          class="px-4 py-2.5 text-sm font-medium border-b-2 transition flex items-center gap-2 cursor-pointer"
+          :class="activeTab === 'features'
+            ? 'border-indigo-500 text-white font-semibold'
+            : 'border-transparent text-zinc-400 hover:text-zinc-200 hover:border-zinc-700'"
+          @click="activeTab = 'features'"
+        >
+          <svg
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+            />
+          </svg>
+          <span>Feature Flags</span>
+        </button>
       </div>
 
       <!-- ================= TAB 1: USERS & INVITES ================= -->
@@ -112,7 +136,9 @@
             </div>
             <button
               type="button"
-              class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-medium rounded-lg shadow transition flex items-center gap-2 cursor-pointer"
+              :disabled="!featureFlags.isEnabled('user_invites')"
+              :title="!featureFlags.isEnabled('user_invites') ? 'User invites are disabled' : ''"
+              class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-medium rounded-lg shadow transition flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               @click="openInviteModal"
             >
               <svg
@@ -964,6 +990,316 @@
       </div>
     </div>
 
+    <!-- ================= TAB 4: FEATURE FLAGS ================= -->
+    <div
+      v-else-if="activeTab === 'features'"
+      class="space-y-8"
+    >
+      <!-- Error Alert -->
+      <div
+        v-if="featureFlagsError"
+        class="p-4 rounded-xl border bg-red-950/60 border-red-800 text-red-200 text-sm flex items-center justify-between"
+      >
+        <span>{{ featureFlagsError }}</span>
+        <button
+          type="button"
+          class="text-zinc-400 hover:text-white"
+          @click="featureFlagsError = null"
+        >
+          ✕
+        </button>
+      </div>
+
+      <!-- Info Banner -->
+      <div class="bg-zinc-900/60 border border-zinc-800 rounded-xl p-6 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-semibold text-white">Runtime Feature Flags & Kill Switches</h2>
+          <p class="text-sm text-zinc-400 mt-1">
+            Toggle 9 core application capabilities instantly with zero downtime. High-impact operational flags trigger a safety guardrail before entering Degraded Mode.
+          </p>
+        </div>
+        <button
+          type="button"
+          class="px-3.5 py-2 text-xs font-semibold rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition shrink-0 cursor-pointer flex items-center gap-2"
+          :disabled="isLoadingFeatureFlags"
+          @click="loadFeatureFlags"
+        >
+          <svg
+            class="w-3.5 h-3.5"
+            :class="{ 'animate-spin': isLoadingFeatureFlags }"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span>Refresh</span>
+        </button>
+      </div>
+
+      <!-- 3 Categorized Cards -->
+      <div class="space-y-6">
+        <!-- 1. Content & Discovery -->
+        <div class="bg-zinc-900/60 border border-zinc-800 rounded-xl p-6 shadow-xl space-y-4">
+          <div class="border-b border-zinc-800 pb-3 flex items-center justify-between">
+            <div>
+              <h3 class="text-base font-semibold text-white">Content & Discovery</h3>
+              <p class="text-xs text-zinc-400 mt-0.5">Control front-of-house discovery shelves and media playback pipelines</p>
+            </div>
+            <span class="text-xs text-zinc-500 font-mono">{{ discoveryFlags.length }} subsystems</span>
+          </div>
+
+          <div class="divide-y divide-zinc-800/60">
+            <div
+              v-for="flag in discoveryFlags"
+              :key="flag.id"
+              class="py-4 first:pt-2 last:pb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+            >
+              <div class="space-y-1">
+                <div class="flex items-center gap-2.5">
+                  <span class="font-medium text-white text-sm">{{ flag.name }}</span>
+                  <span
+                    class="px-2 py-0.5 text-[11px] font-semibold rounded-full border"
+                    :class="flag.enabled ? 'bg-emerald-950/60 border-emerald-800 text-emerald-400' : 'bg-rose-950/60 border-rose-800 text-rose-400'"
+                  >
+                    {{ flag.enabled ? 'Operational' : 'Disabled' }}
+                  </span>
+                  <span
+                    v-if="HIGH_IMPACT_FLAGS.includes(flag.id)"
+                    class="px-1.5 py-0.5 text-[10px] font-bold uppercase rounded bg-amber-950/60 border border-amber-800 text-amber-300"
+                  >
+                    High Impact
+                  </span>
+                </div>
+                <p class="text-xs text-zinc-400 max-w-2xl">{{ flag.description }}</p>
+                <div class="text-[11px] text-zinc-500 flex items-center gap-3 pt-0.5">
+                  <span>Key: <code class="text-zinc-400">{{ flag.id }}</code></span>
+                  <span>•</span>
+                  <span>Updated: {{ formatDate(flag.updatedAt) }}</span>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-3 shrink-0">
+                <button
+                  type="button"
+                  role="switch"
+                  :aria-checked="flag.enabled"
+                  :disabled="isUpdatingFlag === flag.id"
+                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden disabled:opacity-50"
+                  :class="flag.enabled ? 'bg-indigo-600' : 'bg-zinc-700'"
+                  @click="handleToggleClick(flag)"
+                >
+                  <span
+                    class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                    :class="flag.enabled ? 'translate-x-5' : 'translate-x-0'"
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Downloads & Torrents -->
+        <div class="bg-zinc-900/60 border border-zinc-800 rounded-xl p-6 shadow-xl space-y-4">
+          <div class="border-b border-zinc-800 pb-3 flex items-center justify-between">
+            <div>
+              <h3 class="text-base font-semibold text-white">Downloads & Torrents</h3>
+              <p class="text-xs text-zinc-400 mt-0.5">Control ingestion pipelines, qBittorrent submissions, and tracker scrapers</p>
+            </div>
+            <span class="text-xs text-zinc-500 font-mono">{{ downloadsFlags.length }} subsystems</span>
+          </div>
+
+          <div class="divide-y divide-zinc-800/60">
+            <div
+              v-for="flag in downloadsFlags"
+              :key="flag.id"
+              class="py-4 first:pt-2 last:pb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+            >
+              <div class="space-y-1">
+                <div class="flex items-center gap-2.5">
+                  <span class="font-medium text-white text-sm">{{ flag.name }}</span>
+                  <span
+                    class="px-2 py-0.5 text-[11px] font-semibold rounded-full border"
+                    :class="flag.enabled ? 'bg-emerald-950/60 border-emerald-800 text-emerald-400' : 'bg-rose-950/60 border-rose-800 text-rose-400'"
+                  >
+                    {{ flag.enabled ? 'Operational' : 'Disabled' }}
+                  </span>
+                  <span
+                    v-if="HIGH_IMPACT_FLAGS.includes(flag.id)"
+                    class="px-1.5 py-0.5 text-[10px] font-bold uppercase rounded bg-amber-950/60 border border-amber-800 text-amber-300"
+                  >
+                    High Impact
+                  </span>
+                </div>
+                <p class="text-xs text-zinc-400 max-w-2xl">{{ flag.description }}</p>
+                <div class="text-[11px] text-zinc-500 flex items-center gap-3 pt-0.5">
+                  <span>Key: <code class="text-zinc-400">{{ flag.id }}</code></span>
+                  <span>•</span>
+                  <span>Updated: {{ formatDate(flag.updatedAt) }}</span>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-3 shrink-0">
+                <button
+                  type="button"
+                  role="switch"
+                  :aria-checked="flag.enabled"
+                  :disabled="isUpdatingFlag === flag.id"
+                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden disabled:opacity-50"
+                  :class="flag.enabled ? 'bg-indigo-600' : 'bg-zinc-700'"
+                  @click="handleToggleClick(flag)"
+                >
+                  <span
+                    class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                    :class="flag.enabled ? 'translate-x-5' : 'translate-x-0'"
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Automation & System -->
+        <div class="bg-zinc-900/60 border border-zinc-800 rounded-xl p-6 shadow-xl space-y-4">
+          <div class="border-b border-zinc-800 pb-3 flex items-center justify-between">
+            <div>
+              <h3 class="text-base font-semibold text-white">Automation & System</h3>
+              <p class="text-xs text-zinc-400 mt-0.5">Safeguard background schedulers, storage eviction, and external webhooks</p>
+            </div>
+            <span class="text-xs text-zinc-500 font-mono">{{ automationFlags.length }} subsystems</span>
+          </div>
+
+          <div class="divide-y divide-zinc-800/60">
+            <div
+              v-for="flag in automationFlags"
+              :key="flag.id"
+              class="py-4 first:pt-2 last:pb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+            >
+              <div class="space-y-1">
+                <div class="flex items-center gap-2.5">
+                  <span class="font-medium text-white text-sm">{{ flag.name }}</span>
+                  <span
+                    class="px-2 py-0.5 text-[11px] font-semibold rounded-full border"
+                    :class="flag.enabled ? 'bg-emerald-950/60 border-emerald-800 text-emerald-400' : 'bg-rose-950/60 border-rose-800 text-rose-400'"
+                  >
+                    {{ flag.enabled ? 'Operational' : 'Disabled' }}
+                  </span>
+                  <span
+                    v-if="HIGH_IMPACT_FLAGS.includes(flag.id)"
+                    class="px-1.5 py-0.5 text-[10px] font-bold uppercase rounded bg-amber-950/60 border border-amber-800 text-amber-300"
+                  >
+                    High Impact
+                  </span>
+                </div>
+                <p class="text-xs text-zinc-400 max-w-2xl">{{ flag.description }}</p>
+                <div class="text-[11px] text-zinc-500 flex items-center gap-3 pt-0.5">
+                  <span>Key: <code class="text-zinc-400">{{ flag.id }}</code></span>
+                  <span>•</span>
+                  <span>Updated: {{ formatDate(flag.updatedAt) }}</span>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-3 shrink-0">
+                <button
+                  type="button"
+                  role="switch"
+                  :aria-checked="flag.enabled"
+                  :disabled="isUpdatingFlag === flag.id"
+                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden disabled:opacity-50"
+                  :class="flag.enabled ? 'bg-indigo-600' : 'bg-zinc-700'"
+                  @click="handleToggleClick(flag)"
+                >
+                  <span
+                    class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                    :class="flag.enabled ? 'translate-x-5' : 'translate-x-0'"
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- High-Impact Feature Flag Confirmation Modal (Subtask #87) -->
+    <div
+      v-if="flagConfirmModal"
+      class="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4"
+    >
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div class="flex items-center gap-3 text-amber-400">
+          <div class="w-10 h-10 rounded-full bg-amber-950/60 border border-amber-800/80 flex items-center justify-center shrink-0">
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold text-white">
+              Disable {{ flagConfirmModal.flag.name }}?
+            </h3>
+            <span class="text-xs font-semibold text-amber-400 uppercase tracking-wide">High-Impact Kill Switch</span>
+          </div>
+        </div>
+
+        <p class="text-sm text-zinc-300">
+          {{ flagConfirmModal.impactMessage }}
+        </p>
+
+        <p class="text-xs text-zinc-400">
+          The system will enter Degraded Mode for this subsystem immediately.
+        </p>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button
+            type="button"
+            class="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-white rounded-lg transition cursor-pointer"
+            :disabled="isUpdatingFlag !== null"
+            @click="flagConfirmModal = null"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold rounded-lg shadow transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            :disabled="isUpdatingFlag !== null"
+            @click="executeToggleFlag(flagConfirmModal.flag, false)"
+          >
+            <svg
+              v-if="isUpdatingFlag === flagConfirmModal.flag.id"
+              class="animate-spin h-4 w-4 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              />
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v8H4z"
+              />
+            </svg>
+            <span>Confirm Disable</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Action Confirmation Modal (Delete User / Clean Item) -->
     <div
       v-if="modalAction"
@@ -1039,10 +1375,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue';
+import { ref, onMounted, reactive, computed } from 'vue';
 import Navbar from '../components/Navbar.vue';
 import { api, ApiError } from '../lib/api';
 import { useAuthStore } from '../stores/auth';
+import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { DownloadRequest } from '../stores/requests';
 import { formatDate, formatMediaType, formatSpeed, formatMediaSubtitle } from '../lib/formatters';
 
@@ -1064,6 +1401,16 @@ interface InviteItem {
   status: 'used' | 'expired' | 'pending';
 }
 
+interface AdminFeatureFlag {
+  id: string;
+  name: string;
+  description: string;
+  category: 'discovery' | 'downloads' | 'automation';
+  enabled: boolean;
+  updatedAt: string;
+  updatedByUserId?: string | null;
+}
+
 interface DiskInfo {
   percentFree: number;
   percentUsed: number;
@@ -1077,7 +1424,41 @@ interface DiskInfo {
 }
 
 const authStore = useAuthStore();
-const activeTab = ref<'users' | 'config' | 'cleanup'>('users');
+const featureFlags = useFeatureFlags();
+const activeTab = ref<'users' | 'config' | 'cleanup' | 'features'>('users');
+
+// ================= Tab 4: Feature Flags State (Subtask #86, #87) =================
+const featureFlagsList = ref<AdminFeatureFlag[]>([]);
+const isLoadingFeatureFlags = ref(false);
+const isUpdatingFlag = ref<string | null>(null);
+const featureFlagsError = ref<string | null>(null);
+
+const HIGH_IMPACT_FLAGS = ['automated_cleanup', 'manual_torrents', 'streaming'];
+
+const HIGH_IMPACT_MESSAGES: Record<string, string> = {
+  automated_cleanup:
+    'Disabling Automated Disk Cleanup suspends automatic periodic media eviction. Host storage may exhaust if new downloads continue.',
+  manual_torrents:
+    'Disabling Manual Torrent Submissions halts new single torrent requests and magnet link additions across all users.',
+  streaming:
+    'Disabling Ephemeral Streaming prevents new instant playback sessions. Existing active streams remain playable until natural expiration.',
+};
+
+const flagConfirmModal = ref<{
+  flag: AdminFeatureFlag;
+  targetEnabled: boolean;
+  impactMessage: string;
+} | null>(null);
+
+const discoveryFlags = computed(() =>
+  featureFlagsList.value.filter((f) => f.category === 'discovery')
+);
+const downloadsFlags = computed(() =>
+  featureFlagsList.value.filter((f) => f.category === 'downloads')
+);
+const automationFlags = computed(() =>
+  featureFlagsList.value.filter((f) => f.category === 'automation')
+);
 
 // ================= Tab 1: Users & Invites State =================
 const usersList = ref<AdminUser[]>([]);
@@ -1130,8 +1511,65 @@ onMounted(async () => {
     loadInvites(),
     loadConfig(),
     loadDiskAndCandidates(),
+    loadFeatureFlags(),
   ]);
 });
+
+async function loadFeatureFlags() {
+  isLoadingFeatureFlags.value = true;
+  try {
+    const data = await api.get<{ features: AdminFeatureFlag[] }>('/admin/features');
+    if (data?.features) {
+      featureFlagsList.value = data.features;
+    }
+  } catch {
+    // handled
+  } finally {
+    isLoadingFeatureFlags.value = false;
+  }
+}
+
+function handleToggleClick(flag: AdminFeatureFlag) {
+  const targetEnabled = !flag.enabled;
+  if (!targetEnabled && HIGH_IMPACT_FLAGS.includes(flag.id)) {
+    flagConfirmModal.value = {
+      flag,
+      targetEnabled,
+      impactMessage:
+        HIGH_IMPACT_MESSAGES[flag.id] ||
+        'Disabling this subsystem will place background workers and user flows into Degraded Mode.',
+    };
+    return;
+  }
+  executeToggleFlag(flag, targetEnabled);
+}
+
+async function executeToggleFlag(flag: AdminFeatureFlag, targetEnabled: boolean) {
+  const prevValue = flag.enabled;
+  flag.enabled = targetEnabled;
+  isUpdatingFlag.value = flag.id;
+  try {
+    const res = await api.patch<{ feature: AdminFeatureFlag; flags: Record<string, boolean> }>(
+      `/admin/features/${flag.id}`,
+      { enabled: targetEnabled }
+    );
+    if (res?.feature) {
+      const idx = featureFlagsList.value.findIndex((f) => f.id === flag.id);
+      if (idx !== -1) {
+        featureFlagsList.value[idx] = res.feature;
+      }
+    }
+  } catch (err) {
+    flag.enabled = prevValue;
+    featureFlagsError.value = (err as Error).message || 'Failed to update feature flag';
+    setTimeout(() => {
+      featureFlagsError.value = null;
+    }, 5000);
+  } finally {
+    isUpdatingFlag.value = null;
+    flagConfirmModal.value = null;
+  }
+}
 
 async function loadUsers() {
   isLoadingUsers.value = true;

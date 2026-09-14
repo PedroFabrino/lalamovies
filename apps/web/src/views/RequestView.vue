@@ -13,6 +13,33 @@
         </p>
       </div>
 
+      <!-- Disabled Feature Warning Banner (Subtask #91) -->
+      <div
+        v-if="!isManualTorrentsEnabled"
+        class="mb-6 p-4 rounded-xl border border-amber-800 bg-amber-950/40 text-amber-200 flex items-start gap-3 shadow-lg"
+        data-testid="manual-torrents-disabled-banner"
+      >
+        <svg
+          class="w-5 h-5 text-amber-400 shrink-0 mt-0.5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+          />
+        </svg>
+        <div class="text-sm">
+          <p class="font-semibold text-white">Manual Torrent Submissions Temporarily Disabled</p>
+          <p class="text-amber-300/90 mt-0.5">
+            Administrators have paused new torrent submissions for system maintenance or storage safety. You cannot submit new requests at this time.
+          </p>
+        </div>
+      </div>
+
       <!-- Step Indicator -->
       <div class="flex items-center justify-between mb-8 max-w-lg mx-auto">
         <div class="flex items-center gap-2">
@@ -1664,7 +1691,7 @@
         </button>
         <button
           type="button"
-          :disabled="isSubmitting || isCheckingExists || (!existingRequest && ((inputMode === 'file' && validBatchItems.length === 0) || (inputMode === 'magnet' && !magnetLink.trim()) || (inputMode === 'search' && (isSearchingReleases || (isManualFallbackInStep3 ? (manualFallbackMode === 'magnet' ? !fallbackMagnetLink.trim() : !fallbackFile) : (!selectedRelease && !recommendedRelease))))))"
+          :disabled="!isManualTorrentsEnabled || isSubmitting || isCheckingExists || (!existingRequest && ((inputMode === 'file' && validBatchItems.length === 0) || (inputMode === 'magnet' && !magnetLink.trim()) || (inputMode === 'search' && (isSearchingReleases || (isManualFallbackInStep3 ? (manualFallbackMode === 'magnet' ? !fallbackMagnetLink.trim() : !fallbackFile) : (!selectedRelease && !recommendedRelease))))))"
           class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg shadow transition flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           @click="handleConfirmRequest"
         >
@@ -1730,6 +1757,7 @@ import Navbar from '../components/Navbar.vue';
 import StreamProgressModal from '../components/StreamProgressModal.vue';
 import { api, ApiError } from '../lib/api';
 import { useRequestsStore, MediaType, DownloadRequest } from '../stores/requests';
+import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { formatMediaType, formatBytes } from '../lib/formatters';
 import { parseTorrentFile, fileToBase64, ParsedTorrentClient } from '../lib/torrentParser';
 import { cleanTorrentTitle, extractEpisodeInfo } from '../lib/torrentTitleCleaner';
@@ -1768,6 +1796,8 @@ export interface BatchItem {
 const router = useRouter();
 const route = useRoute();
 const requestsStore = useRequestsStore();
+const featureFlags = useFeatureFlags();
+const isManualTorrentsEnabled = computed(() => featureFlags.isEnabled('manual_torrents'));
 
 const hasCjk = (s?: string | null): boolean =>
   Boolean(s && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]/.test(s));
@@ -2178,6 +2208,7 @@ function initFastTrackFromRoute(): boolean {
 }
 
 onMounted(async () => {
+  featureFlags.ensureFlagsLoaded();
   if (route.query.fromUpNext === 'true') {
     watchForNextEpisodes.value = true;
     notifyBeforeEachDownload.value = false;
@@ -2735,6 +2766,7 @@ async function confirmStep2Selection() {
 }
 
 async function handleConfirmRequest() {
+  if (!isManualTorrentsEnabled.value) return;
   if (!selectedCandidate.value) return;
 
   isSubmitting.value = true;

@@ -53,6 +53,12 @@ export function initStreamerDatabase(dbPath?: string): { db: StreamerDatabase; s
     // Column already exists
   }
 
+  try {
+    sqlite.exec(`ALTER TABLE ephemeral_streams ADD COLUMN folder_name TEXT;`);
+  } catch {
+    // Column already exists
+  }
+
   const db = drizzle(sqlite, { schema });
   return { db, sqlite };
 }

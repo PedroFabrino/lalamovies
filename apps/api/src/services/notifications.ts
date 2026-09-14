@@ -55,9 +55,19 @@ export interface DiscordEmbed {
 }
 
 export class DiscordNotifier implements INotificationService {
-  constructor(private webhookUrl?: string) {}
+  constructor(
+    private webhookUrl?: string,
+    private isDiscordEnabled?: () => Promise<boolean> | boolean
+  ) {}
 
   async send(event: NotificationEvent, payload: NotificationPayload): Promise<void> {
+    if (this.isDiscordEnabled) {
+      const enabled = await this.isDiscordEnabled();
+      if (!enabled) {
+        return; // Silently skip webhook when feature is disabled
+      }
+    }
+
     const url = this.webhookUrl || process.env.DISCORD_WEBHOOK_URL;
     if (!url || !url.trim()) {
       return; // Silently no-op if no URL configured
@@ -234,13 +244,34 @@ export class ResendNotifier implements INotificationService {
   }
 }
 
+export interface NotificationServiceOptions {
+  webhookUrl?: string;
+  resendApiKey?: string;
+  isDiscordEnabled?: () => Promise<boolean> | boolean;
+}
+
 export class NotificationService implements INotificationService {
   private notifiers: INotificationService[];
 
-  constructor(webhookUrl?: string, resendApiKey?: string) {
+  constructor(
+    webhookUrlOrOptions?: string | NotificationServiceOptions,
+    resendApiKey?: string
+  ) {
+    let webhookUrl: string | undefined;
+    let resendKey: string | undefined = resendApiKey;
+    let isDiscordEnabled: (() => Promise<boolean> | boolean) | undefined;
+
+    if (typeof webhookUrlOrOptions === 'object' && webhookUrlOrOptions !== null) {
+      webhookUrl = webhookUrlOrOptions.webhookUrl;
+      resendKey = webhookUrlOrOptions.resendApiKey ?? resendApiKey;
+      isDiscordEnabled = webhookUrlOrOptions.isDiscordEnabled;
+    } else {
+      webhookUrl = webhookUrlOrOptions;
+    }
+
     this.notifiers = [
-      new DiscordNotifier(webhookUrl),
-      new ResendNotifier(resendApiKey),
+      new DiscordNotifier(webhookUrl, isDiscordEnabled),
+      new ResendNotifier(resendKey),
     ];
   }
 

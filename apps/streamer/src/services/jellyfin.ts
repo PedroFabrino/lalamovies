@@ -202,13 +202,21 @@ export class StreamerJellyfinService implements IStreamerJellyfinService {
     }
 
     const normalizedTarget = targetPath.toLowerCase().replace(/\\/g, '/');
+    const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cleanTarget = clean(targetPath.replace(/^\/media_data\/stream\/?/i, ''));
+
     const matched = data.Items.find((item) => {
-      if (!item.Path) return false;
-      const normalizedItemPath = item.Path.toLowerCase().replace(/\\/g, '/');
+      if (!item.Path && !item.Name) return false;
+      const normalizedItemPath = (item.Path || '').toLowerCase().replace(/\\/g, '/');
+      const cleanItemPath = clean(normalizedItemPath);
+      const cleanItemName = clean(item.Name || '');
+
       return (
         normalizedItemPath === normalizedTarget ||
         normalizedItemPath.endsWith(normalizedTarget) ||
-        normalizedTarget.endsWith(normalizedItemPath)
+        normalizedTarget.endsWith(normalizedItemPath) ||
+        (cleanTarget.length >= 3 && cleanItemPath.includes(cleanTarget)) ||
+        (cleanTarget.length >= 3 && cleanItemName.includes(cleanTarget))
       );
     });
 

@@ -84,6 +84,16 @@ export const systemConfig = sqliteTable('system_config', {
   value: text('value').notNull(),
 });
 
+export const featureFlags = sqliteTable('feature_flags', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description').notNull(),
+  category: text('category', { enum: ['discovery', 'downloads', 'automation'] }).notNull(),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  updatedAt: text('updated_at').notNull(),
+  updatedByUserId: text('updated_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+});
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Invite = typeof invites.$inferSelect;
@@ -94,3 +104,5 @@ export type RequestCoRequester = typeof requestCoRequesters.$inferSelect;
 export type NewRequestCoRequester = typeof requestCoRequesters.$inferInsert;
 export type SystemConfig = typeof systemConfig.$inferSelect;
 export type NewSystemConfig = typeof systemConfig.$inferInsert;
+export type FeatureFlag = typeof featureFlags.$inferSelect;
+export type NewFeatureFlag = typeof featureFlags.$inferInsert;

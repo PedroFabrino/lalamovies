@@ -1,6 +1,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRequestsStore } from '../stores/requests';
 import { API_BASE_URL } from '../lib/api';
+import { handleFeatureFlagsWsMessage } from './useFeatureFlags';
 
 export function useProgressSocket() {
   const requestsStore = useRequestsStore();
@@ -54,6 +55,8 @@ export function useProgressSocket() {
             requestsStore.handleProgressMessage(data);
           } else if (data.type === 'status') {
             requestsStore.handleStatusMessage(data);
+          } else if (data.type === 'feature_flags_updated') {
+            handleFeatureFlagsWsMessage(event);
           }
           window.dispatchEvent(new MessageEvent('message', { data: event.data }));
         } catch {
