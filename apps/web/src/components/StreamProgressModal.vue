@@ -91,21 +91,46 @@
       </div>
 
       <!-- State: Error -->
-      <div v-else class="space-y-4 py-2">
+      <div v-else class="space-y-4 py-2" data-testid="stream-error-card">
         <div class="w-16 h-16 mx-auto rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400 text-2xl">
           ⚠️
         </div>
         <div>
           <h3 class="text-lg font-bold text-white">Stream Setup Failed</h3>
-          <p class="text-xs text-red-300 mt-1">{{ currentErrorMessage || errorMessage || 'An unexpected error occurred.' }}</p>
+          <p class="text-xs text-red-300 mt-1 max-w-sm mx-auto leading-relaxed">
+            {{ currentErrorMessage || errorMessage || 'An unexpected error occurred.' }}
+          </p>
         </div>
-        <button
-          type="button"
-          class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs rounded-xl transition cursor-pointer"
-          @click="handleClose"
-        >
-          Close
-        </button>
+
+        <div class="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
+          <button
+            v-if="canAddToWaitlist && !waitlistAdded"
+            type="button"
+            class="w-full sm:w-auto px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+            data-testid="button-error-add-waitlist"
+            :disabled="isAddingToWaitlist"
+            @click="handleAddToWaitlist"
+          >
+            <span>⏳</span>
+            <span>{{ isAddingToWaitlist ? 'Adding...' : 'Add to Waitlist' }}</span>
+          </button>
+          <span
+            v-else-if="waitlistAdded"
+            class="px-3 py-2 rounded-xl bg-emerald-950/80 border border-emerald-700/80 text-emerald-300 text-xs font-medium flex items-center gap-1.5"
+            data-testid="badge-waitlist-added"
+          >
+            <span>✓</span>
+            <span>Added to Waitlist</span>
+          </span>
+          <button
+            type="button"
+            class="w-full sm:w-auto px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium text-xs rounded-xl transition cursor-pointer"
+            data-testid="button-error-close"
+            @click="handleClose"
+          >
+            {{ canAddToWaitlist ? 'Close & Pick Another' : 'Close' }}
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -115,21 +140,36 @@
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
 import { api } from '../lib/api';
 
-const props = defineProps<{
-  show: boolean;
-  streamId?: string;
-  title: string;
-  initialStatus?: 'pending' | 'ready' | 'error';
-  jellyfinUrl?: string;
-  errorMessage?: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    show: boolean;
+    streamId?: string;
+    title: string;
+    initialStatus?: 'pending' | 'ready' | 'error';
+    jellyfinUrl?: string;
+    errorMessage?: string;
+    canAddToWaitlist?: boolean;
+    isAddingToWaitlist?: boolean;
+    waitlistAdded?: boolean;
+  }>(),
+  {
+    canAddToWaitlist: false,
+    isAddingToWaitlist: false,
+    waitlistAdded: false,
+  }
+);
 
 const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'ready', payload: { streamId: string; jellyfinUrl: string }): void;
   (e: 'promote', payload: { streamId: string; title: string }): void;
   (e: 'error', payload: { streamId?: string; error: string; isInfringing?: boolean; infoHash?: string }): void;
+  (e: 'add-to-waitlist'): void;
 }>();
+
+function handleAddToWaitlist() {
+  emit('add-to-waitlist');
+}
 
 const status = ref<'pending' | 'ready' | 'error'>(props.initialStatus || 'pending');
 const currentJellyfinUrl = ref(props.jellyfinUrl || '');

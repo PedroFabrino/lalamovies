@@ -560,9 +560,13 @@
       :title="streamModalTitle"
       :initial-status="streamModalStatus"
       :error-message="streamModalError"
+      :can-add-to-waitlist="Boolean(activeStreamingItem)"
+      :is-adding-to-waitlist="isAddingToWaitlistFromModal"
+      :waitlist-added="hasAddedToWaitlistFromModal"
       @close="showStreamModal = false"
       @promote="handleOpenPromotion"
       @error="handleStreamPlaybackError"
+      @add-to-waitlist="handleConfirmAddToWaitlist"
     />
 
     <!-- Promotion Modal -->
@@ -622,6 +626,8 @@ const promotionStream = ref<{ id: string; title: string; magnetLink?: string } |
 const activeStreamsShelfRef = ref<InstanceType<typeof ActiveStreamsShelf> | null>(null);
 const discoveryFeedRef = ref<InstanceType<typeof DiscoveryFeed> | null>(null);
 const activeStreamingItem = ref<DiscoveryItem | null>(null);
+const isAddingToWaitlistFromModal = ref(false);
+const hasAddedToWaitlistFromModal = ref(false);
 
 async function handleInstantStream(item: DiscoveryItem) {
   activeStreamingItem.value = item;
@@ -657,9 +663,10 @@ async function handleStreamPlaybackError(payload: {
   isInfringing?: boolean;
   infoHash?: string;
 }) {
-  showStreamModal.value = false;
+  // Keep modal open so user sees what happened
   streamModalStatus.value = 'error';
   streamModalError.value = payload.error;
+  hasAddedToWaitlistFromModal.value = false;
 
   const item = activeStreamingItem.value;
   if (!item) return;
@@ -679,6 +686,14 @@ async function handleStreamPlaybackError(payload: {
     }
   }
 
+  // Reload discovery feed silently
+  discoveryFeedRef.value?.fetchFeed?.();
+}
+
+async function handleConfirmAddToWaitlist() {
+  const item = activeStreamingItem.value;
+  if (!item) return;
+  isAddingToWaitlistFromModal.value = true;
   try {
     await api.post('/waitlist', {
       mediaType: item.mediaType,
@@ -688,18 +703,18 @@ async function handleStreamPlaybackError(payload: {
       year: item.year,
       posterUrl: item.posterUrl,
     });
-    const reason = isInfringing ? 'DMCA blocked' : 'Stream error';
-    requestsStore.showToast(`Stream unavailable (${reason}). Added "${item.title}" to your waitlist.`, 'info');
+    hasAddedToWaitlistFromModal.value = true;
+    requestsStore.showToast(`Added "${item.title}" to your waitlist!`, 'success');
   } catch (err: any) {
     if (err?.status === 409 || err?.message?.includes('already')) {
-      requestsStore.showToast(`Stream unavailable. "${item.title}" is already in your library or waitlist.`, 'info');
+      hasAddedToWaitlistFromModal.value = true;
+      requestsStore.showToast(`"${item.title}" is already in your library or waitlist.`, 'info');
     } else {
-      requestsStore.showToast(`Stream unavailable: ${payload.error}`, 'error');
+      requestsStore.showToast(`Failed to add to waitlist: ${err?.message || 'Unknown error'}`, 'error');
     }
+  } finally {
+    isAddingToWaitlistFromModal.value = false;
   }
-
-  // Reload discovery feed silently
-  discoveryFeedRef.value?.fetchFeed?.();
 }
 
 function handleOpenPromotion(payload: { id?: string; streamId?: string; title: string }) {

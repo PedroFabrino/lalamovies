@@ -1713,8 +1713,12 @@
       :title="streamModalTitle"
       :initial-status="streamModalStatus"
       :error-message="streamModalError"
+      :can-add-to-waitlist="Boolean(selectedCandidate)"
+      :is-adding-to-waitlist="isAddingToWaitlistFromModal"
+      :waitlist-added="hasAddedToWaitlistFromModal"
       @close="showStreamModal = false"
       @error="handleStreamPlaybackError"
+      @add-to-waitlist="handleConfirmAddToWaitlist"
     />
   </div>
 </template>
@@ -2619,16 +2623,19 @@ async function reloadReleasesSilently() {
   }
 }
 
+const isAddingToWaitlistFromModal = ref(false);
+const hasAddedToWaitlistFromModal = ref(false);
+
 async function handleStreamPlaybackError(payload: {
   streamId?: string;
   error: string;
   isInfringing?: boolean;
   infoHash?: string;
 }) {
-  // 1. Close modal so user isn't stuck on error screen
-  showStreamModal.value = false;
+  // Keep modal open so user sees what happened
   streamModalStatus.value = 'error';
   streamModalError.value = payload.error;
+  hasAddedToWaitlistFromModal.value = false;
 
   const candidate = activeStreamingCandidate.value;
   const isInfringing =
@@ -2641,7 +2648,7 @@ async function handleStreamPlaybackError(payload: {
     payload.infoHash ||
     (candidate ? (candidate.infoHash || extractInfoHash(candidate.downloadUrl)) : '');
 
-  // 2. Mark hash as infringing if DMCA 451
+  // 1. Mark hash as infringing if DMCA 451
   if (isInfringing && failedHash) {
     try {
       await api.post('/requests/mark-infringing', { infoHash: failedHash });
@@ -2656,45 +2663,40 @@ async function handleStreamPlaybackError(payload: {
     }
   }
 
-  // 3. Add item to waitlist (watchlist)
-  if (selectedCandidate.value) {
-    const title = selectedCandidate.value.title;
-    try {
-      await api.post('/waitlist', {
-        mediaType: mediaType.value,
-        metadataId: selectedCandidate.value.id,
-        metadataSource: selectedCandidate.value.source || 'tmdb',
-        title: title,
-        year: selectedCandidate.value.year,
-        posterUrl: selectedCandidate.value.posterUrl,
-        seasonNumber: mediaType.value !== 'movie' ? (seasonNumber.value ?? 1) : null,
-        targetEpisode:
-          downloadGranularity.value === 'episode' && episodeNumber.value
-            ? episodeNumber.value
-            : (mediaType.value === 'movie' ? null : 1),
-      });
-
-      const reason = isInfringing ? 'DMCA blocked' : 'Stream error';
-      requestsStore.showToast(
-        `Stream unavailable (${reason}). Added "${title}" to your waitlist.`,
-        'info'
-      );
-    } catch (err: any) {
-      if (err?.status === 409 || err?.message?.includes('already')) {
-        requestsStore.showToast(
-          `Stream unavailable. "${title}" is already in your library or waitlist.`,
-          'info'
-        );
-      } else {
-        requestsStore.showToast(`Stream unavailable: ${payload.error}`, 'error');
-      }
-    }
-  } else {
-    requestsStore.showToast(`Stream unavailable: ${payload.error}`, 'error');
-  }
-
-  // 4. Reload candidate list silently
+  // 2. Reload candidate list silently in the background while modal is shown
   await reloadReleasesSilently();
+}
+
+async function handleConfirmAddToWaitlist() {
+  if (!selectedCandidate.value) return;
+  const title = selectedCandidate.value.title;
+  isAddingToWaitlistFromModal.value = true;
+  try {
+    await api.post('/waitlist', {
+      mediaType: mediaType.value,
+      metadataId: selectedCandidate.value.id,
+      metadataSource: selectedCandidate.value.source || 'tmdb',
+      title: title,
+      year: selectedCandidate.value.year,
+      posterUrl: selectedCandidate.value.posterUrl,
+      seasonNumber: mediaType.value !== 'movie' ? (seasonNumber.value ?? 1) : null,
+      targetEpisode:
+        downloadGranularity.value === 'episode' && episodeNumber.value
+          ? episodeNumber.value
+          : (mediaType.value === 'movie' ? null : 1),
+    });
+    hasAddedToWaitlistFromModal.value = true;
+    requestsStore.showToast(`Added "${title}" to your waitlist!`, 'success');
+  } catch (err: any) {
+    if (err?.status === 409 || err?.message?.includes('already')) {
+      hasAddedToWaitlistFromModal.value = true;
+      requestsStore.showToast(`"${title}" is already in your library or waitlist.`, 'info');
+    } else {
+      requestsStore.showToast(`Failed to add to waitlist: ${err?.message || 'Unknown error'}`, 'error');
+    }
+  } finally {
+    isAddingToWaitlistFromModal.value = false;
+  }
 }
 
 async function selectCandidate(candidate: MetadataCandidate) {

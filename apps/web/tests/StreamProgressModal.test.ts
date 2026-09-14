@@ -107,4 +107,24 @@ describe('StreamProgressModal.vue', () => {
       infoHash: '2a4a6d6710f271957b1ea2f8a9a748e84e6d10a3',
     });
   });
+
+  it('renders Add to Waitlist button in error state when canAddToWaitlist is true and emits add-to-waitlist on click', async () => {
+    const wrapper = mount(StreamProgressModal, {
+      props: {
+        show: true,
+        streamId: 'test-stream-1',
+        title: 'Incredibles 2',
+        initialStatus: 'error',
+        errorMessage: 'This release is blocked by Real-Debrid due to a copyright takedown',
+        canAddToWaitlist: true,
+      },
+    });
+
+    const waitlistBtn = wrapper.find('[data-testid="button-error-add-waitlist"]');
+    expect(waitlistBtn.exists()).toBe(true);
+    expect(waitlistBtn.text()).toContain('Add to Waitlist');
+
+    await waitlistBtn.trigger('click');
+    expect(wrapper.emitted('add-to-waitlist')).toHaveLength(1);
+  });
 });
