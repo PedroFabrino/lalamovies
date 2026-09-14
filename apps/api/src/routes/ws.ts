@@ -26,6 +26,33 @@ const wsRoutesPlugin: FastifyPluginAsync = async (app) => {
 
   app.decorate('broadcast', broadcast);
 
+  app.post('/api/broadcast', async (request, reply) => {
+    const serviceKey = app.serviceApiKey;
+    const headerKey = request.headers['x-service-key'];
+    const providedKey = Array.isArray(headerKey) ? headerKey[0] : headerKey;
+
+    if (!serviceKey || providedKey !== serviceKey) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    if (request.body && typeof request.body === 'object') {
+      const body = request.body as Record<string, any>;
+      broadcast(body);
+
+      if (body.type === 'stream_ready' && body.title && app.notifications) {
+        app.notifications
+          .send('stream.ready', {
+            title: body.title,
+            jellyfinUrl: body.jellyfinUrl,
+          })
+          .catch((err) => {
+            app.log.warn(err, 'Failed to send Discord notification for stream_ready');
+          });
+      }
+    }
+    return reply.status(200).send({ ok: true });
+  });
+
   // Every 2 seconds, broadcast progress for actively downloading requests
   const progressTimer = setInterval(async () => {
     if (clients.size === 0) return;

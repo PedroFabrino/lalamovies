@@ -24,6 +24,7 @@ import { adminRoutes } from './routes/admin';
 import { discoveryRoutes } from './routes/discovery';
 import { wsRoutes, BroadcastFunction } from './routes/ws';
 import { waitlistRoutes } from './routes/waitlist';
+import { streamsRoutes } from './routes/streams';
 
 export interface AppOptions {
   dbPath?: string;
@@ -44,6 +45,7 @@ export interface AppOptions {
   jwtSecret?: string;
   serviceApiKey?: string;
   watcherUrl?: string;
+  streamerUrl?: string;
 }
 
 declare module 'fastify' {
@@ -64,6 +66,7 @@ declare module 'fastify' {
     broadcast: BroadcastFunction;
     serviceApiKey?: string;
     watcherUrl?: string;
+    streamerUrl?: string;
   }
 }
 
@@ -121,6 +124,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   }
 
   const watcherUrl = options.watcherUrl ?? process.env.WATCHER_URL;
+  const streamerUrl = options.streamerUrl ?? process.env.STREAMER_URL;
 
   const upNext =
     options.upNextService ??
@@ -196,11 +200,40 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
 
   app.decorate('serviceApiKey', serviceApiKey);
   app.decorate('watcherUrl', watcherUrl);
+  app.decorate('streamerUrl', streamerUrl);
 
   app.addHook('onClose', async () => {
     poller.stop();
     cleanupCron.stop();
     sqlite.close();
+  });
+
+  app.addHook('onReady', async () => {
+    if (jellyfin.ensureStreamLibrary) {
+      try {
+        const libraryId = await jellyfin.ensureStreamLibrary();
+        if (libraryId) {
+          const existing = db
+            .select()
+            .from(systemConfig)
+            .where(eq(systemConfig.key, 'stream_library_id'))
+            .get();
+          if (existing) {
+            db.update(systemConfig)
+              .set({ value: libraryId })
+              .where(eq(systemConfig.key, 'stream_library_id'))
+              .run();
+          } else {
+            db.insert(systemConfig)
+              .values({ key: 'stream_library_id', value: libraryId })
+              .run();
+          }
+          app.log.info(`Stream library ensured in Jellyfin with ID ${libraryId}`);
+        }
+      } catch (err) {
+        app.log.warn(`Could not ensure Stream library in Jellyfin on startup: ${(err as Error).message}`);
+      }
+    }
   });
 
   app.register(cors, {
@@ -234,6 +267,8 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.register(discoveryRoutes, { prefix: '/api/discovery' });
   app.register(waitlistRoutes, { prefix: '/waitlist' });
   app.register(waitlistRoutes, { prefix: '/api/waitlist' });
+  app.register(streamsRoutes, { prefix: '/streams' });
+  app.register(streamsRoutes, { prefix: '/api/streams' });
   app.register(wsRoutes);
 
   return app;

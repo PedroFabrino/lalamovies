@@ -119,15 +119,18 @@ describe('DiscoveryFeed.vue - Component Tests', () => {
   });
 
   it('switches category tabs and fetches new category data', async () => {
-    vi.mocked(api.get)
-      .mockResolvedValueOnce({
-        available: true,
-        items: [sampleMovieItem],
-      })
-      .mockResolvedValueOnce({
-        available: true,
-        items: [sampleTvItem],
-      });
+    vi.mocked(api.get).mockImplementation(async (url: string) => {
+      if (url.includes('category=tv')) {
+        return { available: true, items: [sampleTvItem] };
+      }
+      if (url.includes('category=movies')) {
+        return { available: true, items: [sampleMovieItem] };
+      }
+      if (url.includes('cache-check')) {
+        return { cached: {} };
+      }
+      return { available: true, items: [] };
+    });
 
     const wrapper = mount(DiscoveryFeed);
     await flushPromises();
@@ -313,5 +316,54 @@ describe('DiscoveryFeed.vue - Component Tests', () => {
     await flushPromises();
 
     expect(wrapper.find('[data-testid="discovery-feed-section"]').exists()).toBe(false);
+  });
+
+  it('renders Instant Stream badge for cached public items and suppresses for private items', async () => {
+    const cachedPublicItem: DiscoveryItem = {
+      ...sampleMovieItem,
+      id: 'movie-cached',
+      downloadUrl: 'magnet:?xt=urn:btih:cachedhash',
+      isPrivateTracker: false,
+    };
+
+    const privateItem: DiscoveryItem = {
+      ...sampleMovieItem,
+      id: 'movie-private',
+      downloadUrl: 'magnet:?xt=urn:btih:privatehash',
+      isPrivateTracker: true,
+      indexer: 'PrivateTracker',
+    };
+
+    vi.mocked(api.get).mockImplementation(async (url: string) => {
+      if (url.includes('/discovery/feed')) {
+        return {
+          available: true,
+          items: [cachedPublicItem, privateItem],
+        };
+      }
+      if (url.includes('/api/streams/cache-check')) {
+        return {
+          cached: {
+            cachedhash: true,
+          },
+        };
+      }
+      return { available: true, items: [] };
+    });
+
+    const wrapper = mount(DiscoveryFeed);
+    await flushPromises();
+
+    const cards = wrapper.findAll('[data-testid="discovery-card"]');
+    expect(cards).toHaveLength(2);
+
+    // First card: cached public item -> has Instant Stream badge and stream button
+    expect(cards[0].find('[data-testid="badge-instant-stream"]').exists()).toBe(true);
+    expect(cards[0].find('[data-testid="button-instant-stream"]').text()).toContain('Instant Stream');
+
+    // Second card: private item -> stream button is suppressed, shows 🔒 Private
+    expect(cards[1].find('[data-testid="badge-instant-stream"]').exists()).toBe(false);
+    expect(cards[1].find('[data-testid="button-instant-stream"]').exists()).toBe(false);
+    expect(cards[1].text()).toContain('Private');
   });
 });

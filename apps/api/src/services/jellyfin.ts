@@ -25,6 +25,7 @@ export interface IJellyfinService {
   deleteUser(userId: string): Promise<void>;
   refreshLibrary?(): Promise<void>;
   getPlayHistory?(userId?: string): Promise<Record<string, string>>;
+  ensureStreamLibrary?(): Promise<string>;
 }
 
 export class JellyfinService implements IJellyfinService {
@@ -208,6 +209,84 @@ export class JellyfinService implements IJellyfinService {
         throw err;
       }
       throw new JellyfinApiError(`Failed to connect to Jellyfin server: ${(err as Error).message}`);
+    }
+  }
+
+  async ensureStreamLibrary(): Promise<string> {
+    const listUrl = `${this.baseUrl}/Library/VirtualFolders`;
+    try {
+      const response = await fetch(listUrl, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (response.ok) {
+        const folders = (await response.json()) as Array<{
+          Name?: string;
+          Locations?: string[];
+          ItemId?: string;
+          CollectionType?: string;
+        }>;
+
+        const existing = folders.find(
+          (f) =>
+            f.Name?.toLowerCase() === 'stream' ||
+            f.Locations?.some((loc) => loc.includes('/media_data/stream') || loc.includes('/stream'))
+        );
+
+        if (existing?.ItemId) {
+          return existing.ItemId;
+        }
+      }
+
+      const createUrl = `${this.baseUrl}/Library/VirtualFolders?name=Stream&collectionType=mixed&paths=${encodeURIComponent('/media_data/stream')}&refreshLibrary=false`;
+      const createRes = await fetch(createUrl, {
+        method: 'POST',
+        headers: this.getHeaders(),
+      });
+
+      if (!createRes.ok && createRes.status !== 409) {
+        const simpleUrl = `${this.baseUrl}/Library/VirtualFolders?name=Stream&collectionType=mixed`;
+        await fetch(simpleUrl, {
+          method: 'POST',
+          headers: this.getHeaders(),
+        });
+        const pathUrl = `${this.baseUrl}/Library/VirtualFolders/Paths?name=Stream&path=${encodeURIComponent('/media_data/stream')}`;
+        await fetch(pathUrl, {
+          method: 'POST',
+          headers: this.getHeaders(),
+        });
+      }
+
+      const verifyRes = await fetch(listUrl, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (verifyRes.ok) {
+        const folders = (await verifyRes.json()) as Array<{
+          Name?: string;
+          Locations?: string[];
+          ItemId?: string;
+        }>;
+
+        const created = folders.find(
+          (f) =>
+            f.Name?.toLowerCase() === 'stream' ||
+            f.Locations?.some((loc) => loc.includes('/media_data/stream') || loc.includes('/stream'))
+        );
+
+        if (created?.ItemId) {
+          return created.ItemId;
+        }
+      }
+
+      return 'stream-library-id';
+    } catch (err: unknown) {
+      if (err instanceof JellyfinApiError) {
+        throw err;
+      }
+      throw new JellyfinApiError(`Failed to ensure Stream library: ${(err as Error).message}`);
     }
   }
 }

@@ -24,6 +24,7 @@ export interface DiscoveryItem {
   score: number;
   metadataId: string | null;
   metadataSource: 'tmdb' | 'anilist' | null;
+  isPrivateTracker: boolean;
 }
 
 export interface DiscoveryFeedResult {
@@ -330,6 +331,7 @@ export class DiscoveryService implements IDiscoveryService {
           score: candidate.score,
           metadataId,
           metadataSource,
+          isPrivateTracker: candidate.isPrivateTracker ?? false,
         };
       })
     );

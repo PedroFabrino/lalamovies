@@ -1437,6 +1437,22 @@
                           <span class="text-[11px] font-mono text-zinc-400">
                             {{ candidate.indexer }}
                           </span>
+                          <span
+                            v-if="candidate.isPrivateTracker"
+                            class="px-2 py-0.5 rounded bg-amber-950/80 border border-amber-700/80 text-amber-300 text-[10px] font-bold uppercase tracking-wider"
+                            title="Private tracker — cloud streaming barred"
+                            data-testid="badge-private-tracker"
+                          >
+                            🔒 Private
+                          </span>
+                          <span
+                            v-else-if="getCandidateCacheStatus(candidate) === true"
+                            class="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/50 text-amber-300 text-[10px] font-bold tracking-wider flex items-center gap-1"
+                            title="Cached in Real-Debrid — ready for instant stream"
+                            data-testid="badge-instant-cached"
+                          >
+                            ⚡ Instant Stream
+                          </span>
                         </div>
                         <h5
                           class="text-xs font-mono text-zinc-200 group-hover:text-white transition break-all leading-snug"
@@ -1446,15 +1462,31 @@
                         </h5>
                       </div>
 
-                      <button
-                        type="button"
-                        class="shrink-0 px-3 py-1 rounded text-xs font-medium border transition cursor-pointer"
-                        :class="selectedRelease?.guid === candidate.guid
-                          ? 'bg-indigo-600 border-indigo-500 text-white'
-                          : 'bg-zinc-800 border-zinc-700 text-zinc-300 group-hover:bg-zinc-700 group-hover:text-white'"
-                      >
-                        {{ selectedRelease?.guid === candidate.guid ? 'Selected' : 'Choose' }}
-                      </button>
+                      <div class="flex items-center gap-2 shrink-0">
+                        <button
+                          v-if="!candidate.isPrivateTracker"
+                          type="button"
+                          class="px-2.5 py-1 rounded text-xs font-semibold border transition cursor-pointer flex items-center gap-1"
+                          :class="getCandidateCacheStatus(candidate) === true
+                            ? 'bg-amber-500 hover:bg-amber-400 border-amber-400 text-zinc-950 shadow-sm'
+                            : 'bg-zinc-800 hover:bg-zinc-700 border-zinc-700 text-zinc-300'"
+                          title="Stream instantly via cloud debrid"
+                          data-testid="button-instant-stream"
+                          @click.stop="handleInstantStreamCandidate(candidate)"
+                        >
+                          <span>⚡</span>
+                          <span>{{ getCandidateCacheStatus(candidate) === true ? 'Instant Stream' : 'Stream' }}</span>
+                        </button>
+                        <button
+                          type="button"
+                          class="px-3 py-1 rounded text-xs font-medium border transition cursor-pointer"
+                          :class="selectedRelease?.guid === candidate.guid
+                            ? 'bg-indigo-600 border-indigo-500 text-white'
+                            : 'bg-zinc-800 border-zinc-700 text-zinc-300 group-hover:bg-zinc-700 group-hover:text-white'"
+                        >
+                          {{ selectedRelease?.guid === candidate.guid ? 'Selected' : 'Choose' }}
+                        </button>
+                      </div>
                     </div>
 
                     <!-- Metadata Badges -->
@@ -1612,6 +1644,15 @@
       </div>
       </div>
     </main>
+
+    <!-- Instant Stream Progress Modal -->
+    <StreamProgressModal
+      :show="showStreamModal"
+      :stream-id="streamModalId"
+      :title="streamModalTitle"
+      :initial-status="streamModalStatus"
+      @close="showStreamModal = false"
+    />
   </div>
 </template>
 
@@ -1619,6 +1660,7 @@
 import { ref, computed, nextTick, watch, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import Navbar from '../components/Navbar.vue';
+import StreamProgressModal from '../components/StreamProgressModal.vue';
 import { api, ApiError } from '../lib/api';
 import { useRequestsStore, MediaType, DownloadRequest } from '../stores/requests';
 import { formatMediaType, formatBytes } from '../lib/formatters';
@@ -1677,6 +1719,69 @@ const releaseCandidates = ref<ReleaseCandidate[]>([]);
 const isExplorerExpanded = ref(false);
 const candidateSortBy = ref<CandidateSortOption>('score');
 const sortOptions = SORT_OPTIONS;
+
+const rdCacheMap = ref<Record<string, boolean>>({});
+const showStreamModal = ref(false);
+const streamModalId = ref('');
+const streamModalTitle = ref('');
+const streamModalStatus = ref<'pending' | 'ready' | 'error'>('pending');
+
+function extractInfoHash(url: string): string {
+  if (!url) return '';
+  const match = url.match(/urn:btih:([a-zA-Z0-9]+)/i);
+  return match ? match[1].toLowerCase() : '';
+}
+
+function getCandidateCacheStatus(candidate: ReleaseCandidate): boolean | undefined {
+  if (candidate.isPrivateTracker) return undefined;
+  const hash = extractInfoHash(candidate.downloadUrl);
+  return hash ? rdCacheMap.value[hash] : undefined;
+}
+
+async function checkCacheForCandidates(candidates: ReleaseCandidate[]) {
+  const publicHashes = candidates
+    .filter((c) => !c.isPrivateTracker && c.downloadUrl)
+    .map((c) => extractInfoHash(c.downloadUrl))
+    .filter(Boolean);
+
+  if (publicHashes.length === 0) return;
+
+  try {
+    const res = await api.get<{ cached: Record<string, boolean> }>(
+      `/api/streams/cache-check?hashes=${publicHashes.join(',')}`
+    );
+    if (res && res.cached) {
+      rdCacheMap.value = {
+        ...rdCacheMap.value,
+        ...res.cached,
+      };
+    }
+  } catch {
+    // Non-blocking
+  }
+}
+
+async function handleInstantStreamCandidate(candidate: ReleaseCandidate) {
+  try {
+    streamModalTitle.value = candidate.title;
+    streamModalStatus.value = 'pending';
+    showStreamModal.value = true;
+
+    const res = await api.post<{ streamId: string; status: 'pending' | 'ready' }>('/streams', {
+      magnetLink: candidate.downloadUrl,
+      title: candidate.title,
+      isPrivateTracker: candidate.isPrivateTracker,
+    });
+
+    streamModalId.value = res.streamId;
+    if (res.status === 'ready') {
+      streamModalStatus.value = 'ready';
+    }
+  } catch (err: any) {
+    streamModalStatus.value = 'error';
+    requestsStore.showToast(err.message || 'Failed to initialize instant stream', 'error');
+  }
+}
 
 const activeRelease = computed(() => selectedRelease.value || recommendedRelease.value);
 const sortedReleaseCandidates = computed(() =>
@@ -2298,6 +2403,10 @@ async function fetchReleasesForCandidate(candidate: MetadataCandidate) {
     recommendedRelease.value = data.recommended;
     releaseCandidates.value = data.candidates || [];
     selectedRelease.value = data.recommended;
+
+    if (releaseCandidates.value.length > 0) {
+      checkCacheForCandidates(releaseCandidates.value);
+    }
 
     if (selectedRelease.value) {
       magnetLink.value = selectedRelease.value.downloadUrl;

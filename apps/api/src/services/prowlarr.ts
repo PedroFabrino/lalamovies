@@ -4,6 +4,22 @@ export type Resolution = '2160p' | '1080p' | '720p' | '480p' | 'unknown';
 export type VideoCodec = 'x265' | 'x264' | 'av1' | 'xvid' | 'unknown';
 export type ReleaseSource = 'bluray' | 'web' | 'remux' | 'hdtv' | 'cam' | 'unknown';
 
+export function hasPasskey(urlOrMagnet: string): boolean {
+  if (!urlOrMagnet) return false;
+  try {
+    const decoded = decodeURIComponent(urlOrMagnet);
+    const patterns = [
+      /[?&](passkey|authkey|torrent_pass|auth|key|uk)=[a-zA-Z0-9]+/i,
+      /\/announce\/[a-zA-Z0-9]{16,}/i,
+      /[a-zA-Z0-9]{16,}\/announce/i,
+      /announce\?.*?(passkey|authkey)/i,
+    ];
+    return patterns.some((p) => p.test(decoded));
+  } catch {
+    return false;
+  }
+}
+
 export interface ReleaseCandidate {
   guid: string;
   title: string;
@@ -18,6 +34,7 @@ export interface ReleaseCandidate {
   source: ReleaseSource;
   score: number;
   isLowHealth: boolean;
+  isPrivateTracker: boolean;
 }
 
 export interface SearchReleasesResult {
@@ -78,10 +95,68 @@ export function formatBytes(bytes: number): string {
 export class ProwlarrService implements IProwlarrService {
   private prowlarrUrl: string;
   private apiKey: string;
+  private indexerPrivacyCache: Map<string | number, boolean> = new Map();
+  private indexerCacheExpiresAt = 0;
+  private readonly CACHE_TTL_MS = 10 * 60 * 1000;
 
   constructor(prowlarrUrl?: string, apiKey?: string) {
     this.prowlarrUrl = (prowlarrUrl || process.env.PROWLARR_URL || 'http://localhost:9696').replace(/\/+$/, '');
     this.apiKey = apiKey || process.env.PROWLARR_API_KEY || '';
+  }
+
+  async getIndexerPrivacy(indexerIdOrName: number | string): Promise<boolean> {
+    await this.refreshIndexerPrivacyCacheIfNeeded();
+    if (typeof indexerIdOrName === 'number') {
+      if (this.indexerPrivacyCache.has(indexerIdOrName)) {
+        return this.indexerPrivacyCache.get(indexerIdOrName)!;
+      }
+    } else {
+      const lower = String(indexerIdOrName).toLowerCase().trim();
+      if (this.indexerPrivacyCache.has(lower)) {
+        return this.indexerPrivacyCache.get(lower)!;
+      }
+    }
+    return false;
+  }
+
+  async refreshIndexerPrivacyCacheIfNeeded(): Promise<void> {
+    if (Date.now() < this.indexerCacheExpiresAt && this.indexerPrivacyCache.size > 0) {
+      return;
+    }
+    if (!this.apiKey) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${this.prowlarrUrl}/api/v1/indexer`, {
+        headers: {
+          'X-Api-Key': this.apiKey,
+          Accept: 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const indexers = (await response.json()) as Array<{
+          id?: number;
+          name?: string;
+          privacy?: string;
+        }>;
+
+        this.indexerPrivacyCache.clear();
+        for (const idx of indexers) {
+          const isPrivate = idx.privacy !== 'public';
+          if (idx.id !== undefined) {
+            this.indexerPrivacyCache.set(idx.id, isPrivate);
+          }
+          if (idx.name) {
+            this.indexerPrivacyCache.set(idx.name.toLowerCase().trim(), isPrivate);
+          }
+        }
+        this.indexerCacheExpiresAt = Date.now() + this.CACHE_TTL_MS;
+      }
+    } catch {
+      // Non-blocking fallback
+    }
   }
 
   isConfigured(): boolean {
@@ -308,6 +383,7 @@ export class ProwlarrService implements IProwlarrService {
     }>;
 
     const candidates: ReleaseCandidate[] = [];
+    await this.refreshIndexerPrivacyCacheIfNeeded();
 
     for (const item of rawData) {
       const releaseTitle = item.title?.trim() || '';
@@ -321,7 +397,17 @@ export class ProwlarrService implements IProwlarrService {
       const seeders = typeof item.seeders === 'number' ? Math.max(0, item.seeders) : 0;
       const leechers = typeof item.leechers === 'number' ? Math.max(0, item.leechers) : 0;
       const indexer = item.indexer || 'Tracker';
+      const indexerId = (item as any).indexerId;
       const guid = item.guid || downloadUrl;
+
+      let isPrivateTracker = false;
+      if (indexerId !== undefined && this.indexerPrivacyCache.has(indexerId)) {
+        isPrivateTracker = this.indexerPrivacyCache.get(indexerId)!;
+      } else if (this.indexerPrivacyCache.has(indexer.toLowerCase().trim())) {
+        isPrivateTracker = this.indexerPrivacyCache.get(indexer.toLowerCase().trim())!;
+      } else if (hasPasskey(downloadUrl)) {
+        isPrivateTracker = true;
+      }
 
       const { resolution, codec, source } = this.parseReleaseTitle(releaseTitle);
       const { score, isLowHealth } = this.scoreRelease(
@@ -337,6 +423,7 @@ export class ProwlarrService implements IProwlarrService {
           resolution,
           codec,
           source,
+          isPrivateTracker,
         },
         scoreOptions
       );
@@ -355,6 +442,7 @@ export class ProwlarrService implements IProwlarrService {
         source,
         score,
         isLowHealth,
+        isPrivateTracker,
       });
     }
 

@@ -163,6 +163,15 @@
               {{ item.resolution }}
             </div>
 
+            <!-- Instant Stream Badge (Top-Left under resolution) -->
+            <div
+              v-if="!item.isPrivateTracker && getItemCacheStatus(item) === true"
+              class="absolute top-8 left-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/90 text-zinc-950 shadow flex items-center gap-0.5"
+              data-testid="badge-instant-stream"
+            >
+              ⚡ Instant Stream
+            </div>
+
             <!-- Rating Badge (Top-Right) -->
             <div
               v-if="item.rating"
@@ -211,13 +220,37 @@
             </div>
 
             <div class="flex items-center justify-between pt-1 border-t border-zinc-800/60 text-[10px] text-zinc-500">
-              <span class="truncate max-w-[90px]">{{ item.indexer }}</span>
-              <span class="text-indigo-400 font-medium group-hover:underline flex items-center gap-0.5">
-                Request
-                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                </svg>
+              <span class="truncate max-w-[110px] flex items-center gap-1">
+                <span class="truncate">{{ item.indexer }}</span>
+                <span
+                  v-if="item.isPrivateTracker"
+                  class="text-amber-400 font-medium shrink-0 flex items-center gap-0.5 text-[9px] bg-amber-950/60 border border-amber-800/60 rounded px-1 py-0.2"
+                  title="Private tracker — cloud streaming barred for security"
+                >
+                  🔒 Private
+                </span>
               </span>
+              <div class="flex items-center gap-1.5">
+                <button
+                  v-if="!item.isPrivateTracker"
+                  type="button"
+                  class="text-[10px] font-semibold px-2 py-0.5 rounded transition cursor-pointer flex items-center gap-1"
+                  :class="getItemCacheStatus(item) === true
+                    ? 'bg-amber-500 text-zinc-950 hover:bg-amber-400'
+                    : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'"
+                  :title="getItemCacheStatus(item) === true ? 'Instant Stream available from Real-Debrid cache' : 'Will be cached to cloud first'"
+                  data-testid="button-instant-stream"
+                  @click.stop="handleInstantStreamClick(item)"
+                >
+                  <span>{{ getItemCacheStatus(item) === true ? '⚡ Instant Stream' : 'Stream (will cache)' }}</span>
+                </button>
+                <span class="text-indigo-400 font-medium group-hover:underline flex items-center gap-0.5">
+                  Request
+                  <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -253,6 +286,7 @@ export interface DiscoveryItem {
   score: number;
   metadataId: string | null;
   metadataSource: 'tmdb' | 'anilist' | null;
+  isPrivateTracker?: boolean;
 }
 
 interface DiscoveryFeedResponse {
@@ -262,6 +296,51 @@ interface DiscoveryFeedResponse {
 }
 
 const router = useRouter();
+
+const emit = defineEmits<{
+  (e: 'instant-stream', item: DiscoveryItem): void;
+}>();
+
+const cacheMap = ref<Record<string, boolean>>({});
+
+function extractHash(magnetOrUrl: string): string {
+  if (!magnetOrUrl) return '';
+  const match = magnetOrUrl.match(/urn:btih:([a-zA-Z0-9]+)/i);
+  return match ? match[1].toLowerCase() : '';
+}
+
+function getItemCacheStatus(item: DiscoveryItem): boolean | undefined {
+  if (item.isPrivateTracker) return undefined;
+  const hash = extractHash(item.downloadUrl);
+  return hash ? cacheMap.value[hash] : undefined;
+}
+
+async function checkCacheForItems(items: DiscoveryItem[]) {
+  const publicHashes = items
+    .filter((i) => !i.isPrivateTracker && i.downloadUrl)
+    .map((i) => extractHash(i.downloadUrl))
+    .filter(Boolean);
+
+  if (publicHashes.length === 0) return;
+
+  try {
+    const res = await api.get<{ cached: Record<string, boolean> }>(
+      `/api/streams/cache-check?hashes=${publicHashes.join(',')}`
+    );
+    if (res && res.cached) {
+      cacheMap.value = {
+        ...cacheMap.value,
+        ...res.cached,
+      };
+    }
+  } catch {
+    // Non-blocking
+  }
+}
+
+function handleInstantStreamClick(item: DiscoveryItem) {
+  emit('instant-stream', item);
+}
 
 const DISCOVERY_CACHE_KEY = 'mdm_discovery_cache_v1';
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -347,6 +426,7 @@ async function fetchFeed(category: CategoryTab, force = false) {
     available.value = true;
     categoryCache.value[category] = res.items || [];
     saveCategoryToStorage(category, res.items || []);
+    checkCacheForItems(res.items || []);
   } catch {
     // Only mark unavailable if we don't have cached data to show
     if (categoryCache.value[category].length === 0) {

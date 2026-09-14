@@ -56,7 +56,10 @@
       <UpNextShelf />
 
       <!-- Discovery Feed Shelf (Curated Quality Releases) -->
-      <DiscoveryFeed />
+      <DiscoveryFeed @instant-stream="handleInstantStream" />
+
+      <!-- Active Ephemeral Streams Shelf -->
+      <ActiveStreamsShelf ref="activeStreamsShelfRef" @promote="handleOpenPromotion" />
 
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
@@ -549,6 +552,24 @@
         </div>
       </div>
     </div>
+
+    <!-- Stream Progress Modal -->
+    <StreamProgressModal
+      :show="showStreamModal"
+      :stream-id="streamModalId"
+      :title="streamModalTitle"
+      :initial-status="streamModalStatus"
+      @close="showStreamModal = false"
+      @promote="handleOpenPromotion"
+    />
+
+    <!-- Promotion Modal -->
+    <PromotionModal
+      :show="showPromotionModal"
+      :stream="promotionStream"
+      @close="showPromotionModal = false"
+      @promoted="handleStreamPromoted"
+    />
   </div>
 </template>
 
@@ -557,6 +578,10 @@ import { ref, onMounted } from 'vue';
 import Navbar from '../components/Navbar.vue';
 import UpNextShelf from '../components/UpNextShelf.vue';
 import DiscoveryFeed from '../components/DiscoveryFeed.vue';
+import StreamProgressModal from '../components/StreamProgressModal.vue';
+import PromotionModal from '../components/PromotionModal.vue';
+import ActiveStreamsShelf from '../components/ActiveStreamsShelf.vue';
+import type { DiscoveryItem } from '../components/DiscoveryFeed.vue';
 import { useAuthStore } from '../stores/auth';
 import { useRequestsStore, DownloadRequest } from '../stores/requests';
 import { api } from '../lib/api';
@@ -583,6 +608,54 @@ const requestsStore = useRequestsStore();
 const itemToDelete = ref<DownloadRequest | null>(null);
 const isDeleting = ref(false);
 const diskInfo = ref<DiskInfo | null>(null);
+
+const showStreamModal = ref(false);
+const streamModalId = ref('');
+const streamModalTitle = ref('');
+const streamModalStatus = ref<'pending' | 'ready' | 'error'>('pending');
+
+const showPromotionModal = ref(false);
+const promotionStream = ref<{ id: string; title: string; magnetLink?: string } | null>(null);
+const activeStreamsShelfRef = ref<InstanceType<typeof ActiveStreamsShelf> | null>(null);
+
+async function handleInstantStream(item: DiscoveryItem) {
+  try {
+    streamModalTitle.value = item.title;
+    streamModalStatus.value = 'pending';
+    showStreamModal.value = true;
+
+    const res = await api.post<{ streamId: string; status: 'pending' | 'ready' }>('/streams', {
+      magnetLink: item.downloadUrl,
+      title: item.title,
+      isPrivateTracker: item.isPrivateTracker,
+    });
+
+    streamModalId.value = res.streamId;
+    if (res.status === 'ready') {
+      streamModalStatus.value = 'ready';
+    }
+    activeStreamsShelfRef.value?.fetchStreams();
+  } catch (err: any) {
+    streamModalStatus.value = 'error';
+    requestsStore.showToast(err.message || 'Failed to initialize instant stream', 'error');
+  }
+}
+
+function handleOpenPromotion(payload: { id?: string; streamId?: string; title: string }) {
+  showStreamModal.value = false;
+  promotionStream.value = {
+    id: payload.id || payload.streamId || '',
+    title: payload.title,
+  };
+  showPromotionModal.value = true;
+}
+
+async function handleStreamPromoted(_payload: { streamId: string; requestId: string }) {
+  showPromotionModal.value = false;
+  requestsStore.showToast('Stream successfully promoted to permanent library!', 'success');
+  await requestsStore.fetchAll();
+  activeStreamsShelfRef.value?.fetchStreams();
+}
 
 onMounted(async () => {
   await requestsStore.fetchAll();

@@ -1,4 +1,4 @@
-export type NotificationEvent = 'download.completed' | 'cleanup.scheduled' | 'cleanup.done';
+export type NotificationEvent = 'download.completed' | 'cleanup.scheduled' | 'cleanup.done' | 'stream.ready';
 
 export interface NotificationPayload {
   title: string;
@@ -155,6 +155,31 @@ export class DiscordNotifier implements INotificationService {
             name: 'Requested By',
             value: payload.requestedBy,
             inline: true,
+          });
+        }
+        break;
+      }
+      case 'stream.ready': {
+        title = '⚡ Instant Stream Ready';
+        description = `**${displayTitle}** is now mounted in the Jellyfin Stream library and ready to watch!`;
+        color = 0xf59e0b; // Amber
+
+        fields.push({
+          name: 'Tier',
+          value: 'Ephemeral Stream (24h cloud cache)',
+          inline: true,
+        });
+
+        const jfUrl =
+          payload.jellyfinUrl ||
+          process.env.JELLYFIN_PUBLIC_URL ||
+          (process.env.JELLYFIN_DOMAIN ? `https://${process.env.JELLYFIN_DOMAIN}` : undefined) ||
+          process.env.JELLYFIN_URL;
+        if (jfUrl) {
+          fields.push({
+            name: 'Jellyfin',
+            value: `[Watch Now](${jfUrl})`,
+            inline: false,
           });
         }
         break;

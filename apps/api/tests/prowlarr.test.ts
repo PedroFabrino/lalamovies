@@ -491,39 +491,43 @@ describe('Prowlarr Service - Unit Tests', () => {
 
     it('falls back to English title when Romaji anime search finds fewer than 3 candidates', async () => {
       const urls: string[] = [];
-      vi.spyOn(global, 'fetch')
-        .mockImplementationOnce(async (url) => {
-          urls.push(String(url));
-          return {
-            ok: true,
-            json: async () => [
-              {
-                guid: 'r1',
-                title: 'Shingeki no Kyojin - 01 (1080p)',
-                size: 1.4 * 1024 * 1024 * 1024,
-                indexer: 'Nyaa',
-                seeders: 10,
-                magnetUrl: 'magnet:?xt=urn:btih:r1',
-              },
-            ],
-          } as Response;
-        })
-        .mockImplementationOnce(async (url) => {
-          urls.push(String(url));
-          return {
-            ok: true,
-            json: async () => [
-              {
-                guid: 'e1',
-                title: 'Attack on Titan - 01 (1080p)',
-                size: 1.3 * 1024 * 1024 * 1024,
-                indexer: '1337x',
-                seeders: 30,
-                magnetUrl: 'magnet:?xt=urn:btih:e1',
-              },
-            ],
-          } as Response;
-        });
+      const searchResults = [
+        [
+          {
+            guid: 'r1',
+            title: 'Shingeki no Kyojin - 01 (1080p)',
+            size: 1.4 * 1024 * 1024 * 1024,
+            indexer: 'Nyaa',
+            seeders: 10,
+            magnetUrl: 'magnet:?xt=urn:btih:r1',
+          },
+        ],
+        [
+          {
+            guid: 'e1',
+            title: 'Attack on Titan - 01 (1080p)',
+            size: 1.3 * 1024 * 1024 * 1024,
+            indexer: '1337x',
+            seeders: 30,
+            magnetUrl: 'magnet:?xt=urn:btih:e1',
+          },
+        ],
+      ];
+      let searchCount = 0;
+
+      vi.spyOn(global, 'fetch').mockImplementation(async (url) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/api/v1/indexer')) {
+          return { ok: true, json: async () => [] } as Response;
+        }
+        urls.push(urlStr);
+        const results = searchResults[searchCount] || [];
+        searchCount++;
+        return {
+          ok: true,
+          json: async () => results,
+        } as Response;
+      });
 
       const result = await service.searchReleases({
         mediaType: 'anime',
@@ -572,39 +576,43 @@ describe('Prowlarr Service - Unit Tests', () => {
 
     it('falls back to alternate title for tv_show when primary search returns fewer than 3 candidates', async () => {
       const urls: string[] = [];
-      vi.spyOn(global, 'fetch')
-        .mockImplementationOnce(async (url) => {
-          urls.push(String(url));
-          return {
-            ok: true,
-            json: async () => [
-              {
-                guid: 'b1',
-                title: 'Show.S01.1080p',
-                size: 5 * 1024 * 1024 * 1024,
-                indexer: 'Tracker',
-                seeders: 10,
-                magnetUrl: 'magnet:?xt=urn:btih:b1',
-              },
-            ],
-          } as Response;
-        })
-        .mockImplementationOnce(async (url) => {
-          urls.push(String(url));
-          return {
-            ok: true,
-            json: async () => [
-              {
-                guid: 'b2',
-                title: 'Show.Alt.S01.1080p',
-                size: 5 * 1024 * 1024 * 1024,
-                indexer: 'Tracker',
-                seeders: 8,
-                magnetUrl: 'magnet:?xt=urn:btih:b2',
-              },
-            ],
-          } as Response;
-        });
+      const searchResults = [
+        [
+          {
+            guid: 'b1',
+            title: 'Show.S01.1080p',
+            size: 5 * 1024 * 1024 * 1024,
+            indexer: 'Tracker',
+            seeders: 10,
+            magnetUrl: 'magnet:?xt=urn:btih:b1',
+          },
+        ],
+        [
+          {
+            guid: 'b2',
+            title: 'Show.Alt.S01.1080p',
+            size: 5 * 1024 * 1024 * 1024,
+            indexer: 'Tracker',
+            seeders: 8,
+            magnetUrl: 'magnet:?xt=urn:btih:b2',
+          },
+        ],
+      ];
+      let searchCount = 0;
+
+      vi.spyOn(global, 'fetch').mockImplementation(async (url) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/api/v1/indexer')) {
+          return { ok: true, json: async () => [] } as Response;
+        }
+        urls.push(urlStr);
+        const results = searchResults[searchCount] || [];
+        searchCount++;
+        return {
+          ok: true,
+          json: async () => results,
+        } as Response;
+      });
 
       const result = await service.searchReleases({
         mediaType: 'tv_show',
@@ -621,30 +629,34 @@ describe('Prowlarr Service - Unit Tests', () => {
 
     it('falls back to bare title for TV Season 1 pack when S01 search finds 0 candidates', async () => {
       const urls: string[] = [];
-      vi.spyOn(global, 'fetch')
-        .mockImplementationOnce(async (url) => {
-          urls.push(String(url));
-          return {
-            ok: true,
-            json: async () => [],
-          } as Response;
-        })
-        .mockImplementationOnce(async (url) => {
-          urls.push(String(url));
-          return {
-            ok: true,
-            json: async () => [
-              {
-                guid: 'b3',
-                title: 'Miniseries.Complete.1080p',
-                size: 6 * 1024 * 1024 * 1024,
-                indexer: 'Tracker',
-                seeders: 12,
-                magnetUrl: 'magnet:?xt=urn:btih:b3',
-              },
-            ],
-          } as Response;
-        });
+      const searchResults = [
+        [],
+        [
+          {
+            guid: 'b3',
+            title: 'Miniseries.Complete.1080p',
+            size: 6 * 1024 * 1024 * 1024,
+            indexer: 'Tracker',
+            seeders: 12,
+            magnetUrl: 'magnet:?xt=urn:btih:b3',
+          },
+        ],
+      ];
+      let searchCount = 0;
+
+      vi.spyOn(global, 'fetch').mockImplementation(async (url) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/api/v1/indexer')) {
+          return { ok: true, json: async () => [] } as Response;
+        }
+        urls.push(urlStr);
+        const results = searchResults[searchCount] || [];
+        searchCount++;
+        return {
+          ok: true,
+          json: async () => results,
+        } as Response;
+      });
 
       const result = await service.searchReleases({
         mediaType: 'tv_show',
@@ -691,30 +703,34 @@ describe('Prowlarr Service - Unit Tests', () => {
 
     it('falls back to Title S01 for anime season 1 pack when bare title search finds 0 candidates', async () => {
       const urls: string[] = [];
-      vi.spyOn(global, 'fetch')
-        .mockImplementationOnce(async (url) => {
-          urls.push(String(url));
-          return {
-            ok: true,
-            json: async () => [],
-          } as Response;
-        })
-        .mockImplementationOnce(async (url) => {
-          urls.push(String(url));
-          return {
-            ok: true,
-            json: async () => [
-              {
-                guid: 'anime-s01',
-                title: 'SomeAnime.S01.1080p',
-                size: 12 * 1024 * 1024 * 1024,
-                indexer: 'Tracker',
-                seeders: 20,
-                magnetUrl: 'magnet:?xt=urn:btih:anime-s01',
-              },
-            ],
-          } as Response;
-        });
+      const searchResults = [
+        [],
+        [
+          {
+            guid: 'anime-s01',
+            title: 'SomeAnime.S01.1080p',
+            size: 12 * 1024 * 1024 * 1024,
+            indexer: 'Tracker',
+            seeders: 20,
+            magnetUrl: 'magnet:?xt=urn:btih:anime-s01',
+          },
+        ],
+      ];
+      let searchCount = 0;
+
+      vi.spyOn(global, 'fetch').mockImplementation(async (url) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/api/v1/indexer')) {
+          return { ok: true, json: async () => [] } as Response;
+        }
+        urls.push(urlStr);
+        const results = searchResults[searchCount] || [];
+        searchCount++;
+        return {
+          ok: true,
+          json: async () => results,
+        } as Response;
+      });
 
       const result = await service.searchReleases({
         mediaType: 'anime',

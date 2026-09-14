@@ -208,6 +208,36 @@ describe('DiscordNotifier & ResendNotifier (Ticket 15)', () => {
       });
     });
 
+    it('sends stream.ready event with amber color and Jellyfin link', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+        statusText: 'No Content',
+      });
+
+      const webhookUrl = 'https://discord.com/api/webhooks/test/123';
+      const notifier = new DiscordNotifier(webhookUrl);
+
+      const payload: NotificationPayload = {
+        title: 'Dune: Part Two',
+        jellyfinUrl: 'http://localhost:8096/web/index.html#!/item?id=dune-123',
+      };
+
+      await notifier.send('stream.ready', payload);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [, options] = fetchMock.mock.calls[0];
+      const parsedBody = JSON.parse(options.body);
+      const embed = parsedBody.embeds[0];
+
+      expect(embed.title).toBe('⚡ Instant Stream Ready');
+      expect(embed.description).toContain('Dune: Part Two');
+      expect(embed.description).toContain('ready to watch');
+      expect(embed.color).toBe(0xf59e0b);
+      expect(embed.fields.some((f: any) => f.name === 'Tier')).toBe(true);
+      expect(embed.fields.some((f: any) => f.name === 'Jellyfin')).toBe(true);
+    });
+
     it('sends cleanup.scheduled event with scheduled time and keep flag notice', async () => {
       fetchMock.mockResolvedValueOnce({
         ok: true,

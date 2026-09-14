@@ -1216,4 +1216,96 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
     await app.cleanup.cleanItem(id);
     return reply.send({ ok: true });
   });
+
+  // POST /requests/from-stream — promotion from ephemeral stream
+  app.post('/from-stream', async (request, reply) => {
+    const serviceKey = app.serviceApiKey;
+    const headerKey = request.headers['x-service-key'];
+    const providedKey = Array.isArray(headerKey) ? headerKey[0] : headerKey;
+    const isServiceAuth = Boolean(serviceKey && providedKey === serviceKey);
+    const isAdmin = request.currentUser?.role === 'admin';
+
+    if (!isServiceAuth && !isAdmin) {
+      return reply.status(401).send({
+        error: 'Unauthorized',
+        message: 'Invalid or missing authorization',
+      });
+    }
+
+    const schema = z.object({
+      userId: z.string().min(1),
+      mediaType: z.enum(['movie', 'tv_show', 'anime']),
+      metadataId: z.string().min(1),
+      metadataSource: z.enum(['tmdb', 'anilist']),
+      title: z.string().min(1),
+      year: z.number().int().optional().nullable(),
+      seasonNumber: z.number().int().optional().nullable(),
+      episodeNumber: z.number().int().optional().nullable(),
+      stagingPath: z.string().min(1),
+      sizeBytes: z.number().optional().nullable(),
+    });
+
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: parsed.error.issues[0]?.message || 'Invalid request body',
+      });
+    }
+
+    const data = parsed.data;
+    const requestId = randomUUID();
+    const now = new Date().toISOString();
+
+    let ext = path.extname(data.stagingPath) || '.mkv';
+    let destPath = '';
+    try {
+      destPath = app.fileSystem.buildLibraryPath({
+        mediaType: data.mediaType,
+        title: data.title,
+        year: data.year,
+        seasonNumber: data.seasonNumber,
+        episodeNumber: data.episodeNumber,
+        ext,
+      });
+
+      if (fs.existsSync(data.stagingPath)) {
+        app.fileSystem.hardlink(data.stagingPath, destPath);
+      }
+    } catch (err) {
+      app.log.warn(err, 'Failed to hardlink stream promotion file');
+    }
+
+    app.db
+      .insert(downloadRequests)
+      .values({
+        id: requestId,
+        userId: data.userId,
+        magnetLink: 'promoted-from-stream',
+        mediaType: data.mediaType,
+        status: 'completed',
+        metadataId: data.metadataId,
+        metadataSource: data.metadataSource,
+        title: data.title,
+        year: data.year ?? null,
+        seasonNumber: data.seasonNumber ?? null,
+        episodeNumber: data.episodeNumber ?? null,
+        jellyfinPath: destPath || null,
+        keepFlag: false,
+        requestedAt: now,
+        downloadedAt: now,
+        sizeBytes: data.sizeBytes ?? null,
+      })
+      .run();
+
+    if (app.jellyfin.refreshLibrary) {
+      app.jellyfin.refreshLibrary().catch(() => {});
+    }
+
+    return reply.status(201).send({
+      requestId,
+      jellyfinPath: destPath,
+      status: 'completed',
+    });
+  });
 };

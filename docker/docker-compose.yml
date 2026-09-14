@@ -30,6 +30,7 @@ services:
       - FRONTEND_URL=${FRONTEND_URL:-https://lalamovies.stream}
       - SERVICE_API_KEY=${SERVICE_API_KEY}
       - WATCHER_URL=${WATCHER_URL:-http://mdm-watcher:3001}
+      - STREAMER_URL=${STREAMER_URL:-http://mdm-streamer:3002}
       - MAGIC_LINK_SECRET=${MAGIC_LINK_SECRET}
       - WAITLIST_DISCORD_WEBHOOK_URL=${WAITLIST_DISCORD_WEBHOOK_URL}
     volumes:
@@ -40,6 +41,7 @@ services:
       - jellyfin
       - prowlarr
       - watcher
+      - streamer
 
   watcher:
     build:
@@ -70,6 +72,27 @@ services:
       - watcher_db:/data
     depends_on:
       - prowlarr
+
+  streamer:
+    build:
+      context: ..
+      dockerfile: apps/streamer/Dockerfile
+      network: host
+    container_name: mdm-streamer
+    restart: unless-stopped
+    environment:
+      - PORT=${STREAMER_PORT:-3002}
+      - HOST=0.0.0.0
+      - NODE_ENV=production
+      - STREAMER_DB_PATH=${STREAMER_DB_PATH:-/data/streamer.db}
+      - SERVICE_API_KEY=${SERVICE_API_KEY}
+      - REALDEBRID_API_KEY=${REALDEBRID_API_KEY}
+      - JELLYFIN_URL=http://jellyfin:8096
+      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
+      - MAIN_API_URL=http://api:3000
+    volumes:
+      - streamer_db:/data
+      - ${MEDIA_DATA_PATH:-D:/MediaServer/media_data}:/media_data
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
@@ -103,6 +126,38 @@ services:
       - ./config/jellyfin:/config
       - ./cache/jellyfin:/cache
       - ${MEDIA_DATA_PATH:-D:/MediaServer/media_data}:/media_data
+      - stream_mount:/media_data/stream:shared
+    depends_on:
+      - rclone
+
+  zurg:
+    image: ghcr.io/debridmediamanager/zurg-testing:latest
+    container_name: mdm-zurg
+    restart: unless-stopped
+    environment:
+      - ZURG_TOKEN=${REALDEBRID_API_KEY}
+    volumes:
+      - ./config/zurg/config.yml:/app/config.yml
+
+  rclone:
+    image: rclone/rclone:latest
+    container_name: mdm-rclone
+    restart: unless-stopped
+    environment:
+      - RCLONE_CONFIG_ZURG_TYPE=webdav
+      - RCLONE_CONFIG_ZURG_URL=http://zurg:9999/dav
+      - RCLONE_CONFIG_ZURG_VENDOR=other
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse
+    security_opt:
+      - apparmor:unconfined
+    command: "mount zurg: /stream --allow-other --vfs-cache-mode=full --vfs-read-chunk-size=128M --dir-cache-time=10s"
+    volumes:
+      - stream_mount:/stream:shared
+    depends_on:
+      - zurg
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
@@ -177,3 +232,8 @@ volumes:
   watcher_db:
     # Dedicated Docker named volume for Watcher SQLite database (watcher.db) on SSD storage.
     # Kept independent from app_db for isolated backups and schema maintenance.
+  streamer_db:
+    # Dedicated Docker named volume for Streamer SQLite database (streamer.db) on SSD storage.
+  stream_mount:
+    # Shared named Docker volume for ephemeral virtual stream mount (Zurg WebDAV via Rclone FUSE).
+    # Kept entirely inside Linux container filesystem (WSL2 VM) to allow FUSE on Windows hosts.

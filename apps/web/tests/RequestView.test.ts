@@ -854,4 +854,147 @@ describe('RequestView - Candidate Explorer UI', () => {
       expect(mockRouterPush).toHaveBeenCalledWith('/dashboard');
     });
   });
+
+  describe('#47 Story 20 - Search Candidate Cache Visibility & Instant Stream', () => {
+    it('checks RD cache, shows Private/Instant badges, and triggers instant stream', async () => {
+      const hash1 = '1111111111111111111111111111111111111111';
+      const hash2 = '2222222222222222222222222222222222222222';
+
+      vi.mocked(api.get).mockImplementation(async (endpoint: string) => {
+        if (endpoint.includes('/api/streams/cache-check')) {
+          return {
+            cached: {
+              [hash1]: true,
+              [hash2]: false,
+            },
+          } as any;
+        }
+        return { isConfigured: true, isReachable: true } as any;
+      });
+
+      vi.mocked(api.post).mockImplementation(async (endpoint: string, body?: any) => {
+        if (endpoint === '/requests/search-metadata') {
+          return {
+            candidates: [
+              {
+                id: '999',
+                source: 'tmdb',
+                title: 'Dune: Part Two',
+                year: 2024,
+                overview: 'Paul Atreides unites with Chani...',
+                posterUrl: null,
+              },
+            ],
+          } as any;
+        }
+        if (endpoint === '/requests/search-releases') {
+          return {
+            recommended: {
+              guid: 'rel-cached',
+              title: 'Dune.Part.Two.2024.1080p.Cached',
+              sizeBytes: 4 * 1024 * 1024 * 1024,
+              formattedSize: '4.0 GB',
+              seeders: 50,
+              leechers: 2,
+              downloadUrl: `magnet:?xt=urn:btih:${hash1}&dn=Dune2`,
+              indexer: '1337x',
+              resolution: '1080p',
+              codec: 'x264',
+              source: 'bluray',
+              score: 120,
+              isLowHealth: false,
+              isPrivateTracker: false,
+            },
+            candidates: [
+              {
+                guid: 'rel-cached',
+                title: 'Dune.Part.Two.2024.1080p.Cached',
+                sizeBytes: 4 * 1024 * 1024 * 1024,
+                formattedSize: '4.0 GB',
+                seeders: 50,
+                leechers: 2,
+                downloadUrl: `magnet:?xt=urn:btih:${hash1}&dn=Dune2`,
+                indexer: '1337x',
+                resolution: '1080p',
+                codec: 'x264',
+                score: 120,
+                isLowHealth: false,
+                isPrivateTracker: false,
+              },
+              {
+                guid: 'rel-private',
+                title: 'Dune.Part.Two.2024.1080p.Private',
+                sizeBytes: 5 * 1024 * 1024 * 1024,
+                formattedSize: '5.0 GB',
+                seeders: 80,
+                leechers: 1,
+                downloadUrl: `magnet:?xt=urn:btih:3333333333333333333333333333333333333333`,
+                indexer: 'TorrentLeech',
+                resolution: '1080p',
+                codec: 'x264',
+                score: 110,
+                isLowHealth: false,
+                isPrivateTracker: true,
+              },
+            ],
+            totalFound: 2,
+            isConfigured: true,
+            isReachable: true,
+          } as any;
+        }
+        if (endpoint === '/streams') {
+          return {
+            streamId: 'stream-instant-999',
+            status: 'ready',
+          } as any;
+        }
+        return {} as any;
+      });
+
+      const wrapper = mount(RequestView);
+      await flushPromises();
+
+      // 1. Search metadata
+      const queryInput = wrapper.find('#customQuery');
+      await queryInput.setValue('Dune: Part Two');
+      await wrapper.find('form').trigger('submit.prevent');
+      await flushPromises();
+
+      // 2. Step 2: click candidate card
+      const candidateCard = wrapper.find('.group');
+      expect(candidateCard.exists()).toBe(true);
+      await candidateCard.trigger('click');
+      await flushPromises();
+
+      // 3. Step 3: Expand explorer
+      const toggleBtn = wrapper.find('[data-testid="toggle-explorer"]');
+      expect(toggleBtn.exists()).toBe(true);
+      await toggleBtn.trigger('click');
+      await flushPromises();
+
+      // Check cache endpoint was queried for public hashes
+      expect(api.get).toHaveBeenCalledWith(expect.stringContaining(`/api/streams/cache-check?hashes=${hash1}`));
+
+      // Verify Instant Stream badge on cached candidate
+      const instantBadge = wrapper.find('[data-testid="badge-instant-cached"]');
+      expect(instantBadge.exists()).toBe(true);
+
+      // Verify Private badge on private tracker candidate
+      const privateBadge = wrapper.find('[data-testid="badge-private-tracker"]');
+      expect(privateBadge.exists()).toBe(true);
+
+      // Click Instant Stream button
+      const streamBtn = wrapper.find('[data-testid="button-instant-stream"]');
+      expect(streamBtn.exists()).toBe(true);
+      await streamBtn.trigger('click');
+      await flushPromises();
+
+      expect(api.post).toHaveBeenCalledWith('/streams', {
+        magnetLink: `magnet:?xt=urn:btih:${hash1}&dn=Dune2`,
+        title: 'Dune.Part.Two.2024.1080p.Cached',
+        isPrivateTracker: false,
+      });
+    });
+  });
 });
+
