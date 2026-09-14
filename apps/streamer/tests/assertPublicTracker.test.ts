@@ -27,6 +27,32 @@ describe('assertPublicTracker Middleware', () => {
     await app.close();
   });
 
+  it('rejects releases with private indexer name like BJ-Share with HTTP 400', async () => {
+    const app = buildStreamerApp({ dbPath: ':memory:', serviceApiKey: 'test-key' });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/streams',
+      headers: {
+        'x-service-key': 'test-key',
+        'content-type': 'application/json',
+      },
+      payload: {
+        indexer: 'BJ-Share',
+        magnetLink: 'magnet:?xt=urn:btih:1234567890abcdef',
+        title: 'An Action Hero',
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({
+      error: 'Bad Request',
+      message: 'Releases from private trackers cannot be streamed via cloud debrid',
+    });
+
+    await app.close();
+  });
+
   it('rejects magnet links containing announce passkeys with HTTP 400', async () => {
     const app = buildStreamerApp({ dbPath: ':memory:', serviceApiKey: 'test-key' });
 

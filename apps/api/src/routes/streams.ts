@@ -2,6 +2,7 @@ import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { users } from '../db/schema';
 import { JwtPayload } from '../middleware/auth';
+import { isKnownPrivateIndexer, hasPasskey } from '../services/prowlarr';
 
 async function streamsAuth(request: FastifyRequest, reply: FastifyReply) {
   // 1. Try JWT authentication first (from cookie or authorization header)
@@ -42,6 +43,53 @@ async function forwardToStreamer(request: FastifyRequest, reply: FastifyReply, s
       error: 'Service Unavailable',
       message: 'Streamer service not configured',
     });
+  }
+
+  // Airgap validation: prevent any private tracker releases from reaching cloud debrid
+  if (request.method === 'POST' && subpath === '') {
+    const body = request.body as {
+      isPrivateTracker?: boolean;
+      indexer?: string;
+      magnetLink?: string;
+      downloadUrl?: string;
+    } | null;
+
+    if (body) {
+      if (body.isPrivateTracker === true) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'Releases from private trackers cannot be streamed via cloud debrid',
+        });
+      }
+      if (body.indexer && isKnownPrivateIndexer(body.indexer)) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'Releases from private trackers cannot be streamed via cloud debrid',
+        });
+      }
+      if (body.indexer && request.server.prowlarr?.isIndexerPrivate?.(body.indexer)) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'Releases from private trackers cannot be streamed via cloud debrid',
+        });
+      }
+      const magnetOrUrl = body.magnetLink || body.downloadUrl;
+      if (magnetOrUrl) {
+        if (hasPasskey(magnetOrUrl)) {
+          return reply.status(400).send({
+            error: 'Bad Request',
+            message: 'Private tracker announce passkey detected. Streaming barred to prevent security leaks',
+          });
+        }
+        const indexerMatch = magnetOrUrl.match(/(?:\/indexer\/|\/api\/v1\/indexer\/)(\d+)/i);
+        if (indexerMatch && request.server.prowlarr?.isIndexerPrivate?.(Number(indexerMatch[1]))) {
+          return reply.status(400).send({
+            error: 'Bad Request',
+            message: 'Releases from private trackers cannot be streamed via cloud debrid',
+          });
+        }
+      }
+    }
   }
 
   const cleanStreamerUrl = streamerUrl.replace(/\/$/, '');

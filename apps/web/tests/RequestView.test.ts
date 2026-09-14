@@ -992,8 +992,52 @@ describe('RequestView - Candidate Explorer UI', () => {
       expect(api.post).toHaveBeenCalledWith('/streams', {
         magnetLink: `magnet:?xt=urn:btih:${hash1}&dn=Dune2`,
         title: 'Dune.Part.Two.2024.1080p.Cached',
+        indexer: '1337x',
         isPrivateTracker: false,
       });
+    });
+
+    it('bars streaming and shows 🔒 Private badge when navigated from BJ-Share', async () => {
+      mockRoute.query = {
+        title: 'An Action Hero',
+        metadataId: '12345',
+        mediaType: 'movie',
+        releaseTitle: 'An.Action.Hero.2022.1080p.NF.WEB-DL.DDP5.1.H.264-EcK.mkv',
+        downloadUrl: 'http://prowlarr:9696/api/v1/indexer/5/download?link=bjshare',
+        indexer: 'BJ-Share',
+        seeders: '23',
+        sizeBytes: '5368709120',
+      };
+      mockRoute.state = {};
+
+      const wrapper = mount(RequestView, {
+        global: {
+          stubs: {
+            Navbar: true,
+            StreamProgressModal: true,
+          },
+        },
+      });
+      await flushPromises();
+
+      // Check active release card shows 🔒 Private badge
+      const activePrivateBadge = wrapper.find('[data-testid="badge-private-tracker-active"]');
+      expect(activePrivateBadge.exists()).toBe(true);
+
+      // Expand explorer
+      const toggle = wrapper.find('[data-testid="toggle-explorer"]');
+      if (toggle.exists()) {
+        await toggle.trigger('click');
+        await flushPromises();
+      }
+
+      // Check candidate card shows 🔒 Private badge
+      const candidatePrivateBadge = wrapper.find('[data-testid="badge-private-tracker"]');
+      expect(candidatePrivateBadge.exists()).toBe(true);
+
+      // Check that Stream button does NOT exist
+      const streamBtn = wrapper.find('[data-testid="button-instant-stream"]');
+      expect(streamBtn.exists()).toBe(false);
     });
   });
 });

@@ -203,6 +203,7 @@ describe('DiscoveryFeed.vue - Component Tests', () => {
         sizeBytes: '2500000000',
         posterUrl: 'https://image.tmdb.org/t/p/w500/gladiator.jpg',
         overview: 'Epic historical action film',
+        isPrivateTracker: 'false',
       },
       state: {
         title: 'Gladiator II',
@@ -220,6 +221,7 @@ describe('DiscoveryFeed.vue - Component Tests', () => {
         sizeBytes: 2500000000,
         posterUrl: 'https://image.tmdb.org/t/p/w500/gladiator.jpg',
         overview: 'Epic historical action film',
+        isPrivateTracker: undefined,
       },
     });
   });

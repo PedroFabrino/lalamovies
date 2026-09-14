@@ -16,18 +16,36 @@ export function hasPasskey(urlOrMagnet: string): boolean {
   }
 }
 
+export function isKnownPrivateTrackerName(indexer?: string): boolean {
+  if (!indexer) return false;
+  const name = indexer.toLowerCase().trim();
+  return (
+    name.includes('bj-share') ||
+    name.includes('bjshare') ||
+    name.includes('iptorrents') ||
+    name.includes('torrentleech') ||
+    name.includes('gazelle') ||
+    name.includes('filelist') ||
+    name.includes('redacted') ||
+    name.includes('ops') ||
+    name.includes('btn') ||
+    name.includes('ptp')
+  );
+}
+
 export async function assertPublicTracker(request: FastifyRequest, reply: FastifyReply) {
   const body = request.body as {
     isPrivateTracker?: boolean;
     magnetLink?: string;
     downloadUrl?: string;
+    indexer?: string;
   } | null;
 
   if (!body || typeof body !== 'object') {
     return;
   }
 
-  if (body.isPrivateTracker === true) {
+  if (body.isPrivateTracker === true || isKnownPrivateTrackerName(body.indexer)) {
     return reply.status(400).send({
       error: 'Bad Request',
       message: 'Releases from private trackers cannot be streamed via cloud debrid',

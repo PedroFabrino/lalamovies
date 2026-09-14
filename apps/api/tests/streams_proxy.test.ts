@@ -89,4 +89,92 @@ describe('Streams Proxy Routes', () => {
       global.fetch = originalFetch;
     }
   });
+
+  it('rejects POST /streams with isPrivateTracker: true with 400', async () => {
+    const fetchMock = vi.fn();
+    const originalFetch = global.fetch;
+    global.fetch = fetchMock;
+
+    try {
+      const app = buildApp({
+        dbPath: ':memory:',
+        startPoller: false,
+        startCleanupCron: false,
+        serviceApiKey: 'secret-key',
+        streamerUrl: 'http://localhost:3002',
+      });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/streams',
+        headers: {
+          'x-service-key': 'secret-key',
+          'content-type': 'application/json',
+        },
+        payload: {
+          title: 'Secret Private Release',
+          magnetLink: 'magnet:?xt=urn:btih:private123',
+          isPrivateTracker: true,
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json()).toEqual({
+        error: 'Bad Request',
+        message: 'Releases from private trackers cannot be streamed via cloud debrid',
+      });
+      expect(fetchMock).not.toHaveBeenCalledWith(
+        expect.stringContaining(':3002/streams'),
+        expect.anything()
+      );
+
+      await app.close();
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('rejects POST /streams with indexer: "BJ-Share" with 400', async () => {
+    const fetchMock = vi.fn();
+    const originalFetch = global.fetch;
+    global.fetch = fetchMock;
+
+    try {
+      const app = buildApp({
+        dbPath: ':memory:',
+        startPoller: false,
+        startCleanupCron: false,
+        serviceApiKey: 'secret-key',
+        streamerUrl: 'http://localhost:3002',
+      });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/streams',
+        headers: {
+          'x-service-key': 'secret-key',
+          'content-type': 'application/json',
+        },
+        payload: {
+          title: 'An Action Hero',
+          magnetLink: 'magnet:?xt=urn:btih:bjshare123',
+          indexer: 'BJ-Share',
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json()).toEqual({
+        error: 'Bad Request',
+        message: 'Releases from private trackers cannot be streamed via cloud debrid',
+      });
+      expect(fetchMock).not.toHaveBeenCalledWith(
+        expect.stringContaining(':3002/streams'),
+        expect.anything()
+      );
+
+      await app.close();
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
 });

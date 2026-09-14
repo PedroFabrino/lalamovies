@@ -45,3 +45,20 @@ export function sortReleaseCandidates(
       return list;
   }
 }
+
+export function isKnownPrivateIndexer(indexerName?: string): boolean {
+  if (!indexerName) return false;
+  const name = indexerName.toLowerCase().trim();
+  return (
+    name.includes('bj-share') ||
+    name.includes('bjshare') ||
+    name.includes('iptorrents') ||
+    name.includes('torrentleech') ||
+    name.includes('gazelle') ||
+    name.includes('filelist') ||
+    name.includes('redacted') ||
+    name.includes('ops') ||
+    name.includes('btn') ||
+    name.includes('ptp')
+  );
+}

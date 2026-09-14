@@ -64,20 +64,21 @@ export interface ScoreOptions {
   episodeNumber?: number | null;
 }
 
-export interface IProwlarrService {
-  isConfigured(): boolean;
-  checkHealth(): Promise<boolean>;
-  parseReleaseTitle(title: string): { resolution: Resolution; codec: VideoCodec; source: ReleaseSource };
-  scoreRelease(
-    candidate: Omit<ReleaseCandidate, 'score' | 'isLowHealth'>,
-    options?: ScoreOptions
-  ): { score: number; isLowHealth: boolean };
-  searchMovieReleases(title: string, year?: number | null): Promise<SearchReleasesResult>;
-  searchReleases(options: SearchReleasesOptions): Promise<SearchReleasesResult>;
-  searchLatestByCategory(
-    categories: number[],
-    scoreOptions?: ScoreOptions
-  ): Promise<{ candidates: ReleaseCandidate[]; isReachable: boolean; error?: string }>;
+export function isKnownPrivateIndexer(indexerName?: string): boolean {
+  if (!indexerName) return false;
+  const name = indexerName.toLowerCase().trim();
+  return (
+    name.includes('bj-share') ||
+    name.includes('bjshare') ||
+    name.includes('iptorrents') ||
+    name.includes('torrentleech') ||
+    name.includes('gazelle') ||
+    name.includes('filelist') ||
+    name.includes('redacted') ||
+    name.includes('ops') ||
+    name.includes('btn') ||
+    name.includes('ptp')
+  );
 }
 
 export function hasCjkCharacters(s?: string | null): boolean {
@@ -90,6 +91,24 @@ export function formatBytes(bytes: number): string {
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
   const clampedIndex = Math.min(i, units.length - 1);
   return `${(bytes / Math.pow(1024, clampedIndex)).toFixed(1)} ${units[clampedIndex]}`;
+}
+
+export interface IProwlarrService {
+  isConfigured(): boolean;
+  checkHealth(): Promise<boolean>;
+  getIndexerPrivacy(indexerIdOrName: number | string): Promise<boolean>;
+  isIndexerPrivate(indexerIdOrName: number | string): boolean;
+  parseReleaseTitle(title: string): { resolution: Resolution; codec: VideoCodec; source: ReleaseSource };
+  scoreRelease(
+    candidate: Omit<ReleaseCandidate, 'score' | 'isLowHealth'>,
+    options?: ScoreOptions
+  ): { score: number; isLowHealth: boolean };
+  searchMovieReleases(title: string, year?: number | null): Promise<SearchReleasesResult>;
+  searchReleases(options: SearchReleasesOptions): Promise<SearchReleasesResult>;
+  searchLatestByCategory(
+    categories: number[],
+    scoreOptions?: ScoreOptions
+  ): Promise<{ candidates: ReleaseCandidate[]; isReachable: boolean; error?: string }>;
 }
 
 export class ProwlarrService implements IProwlarrService {
@@ -116,7 +135,21 @@ export class ProwlarrService implements IProwlarrService {
         return this.indexerPrivacyCache.get(lower)!;
       }
     }
-    return false;
+    return isKnownPrivateIndexer(String(indexerIdOrName));
+  }
+
+  isIndexerPrivate(indexerIdOrName: number | string): boolean {
+    if (typeof indexerIdOrName === 'number') {
+      if (this.indexerPrivacyCache.has(indexerIdOrName)) {
+        return this.indexerPrivacyCache.get(indexerIdOrName)!;
+      }
+    } else {
+      const lower = String(indexerIdOrName).toLowerCase().trim();
+      if (this.indexerPrivacyCache.has(lower)) {
+        return this.indexerPrivacyCache.get(lower)!;
+      }
+    }
+    return isKnownPrivateIndexer(String(indexerIdOrName));
   }
 
   async refreshIndexerPrivacyCacheIfNeeded(): Promise<void> {
@@ -405,7 +438,7 @@ export class ProwlarrService implements IProwlarrService {
         isPrivateTracker = this.indexerPrivacyCache.get(indexerId)!;
       } else if (this.indexerPrivacyCache.has(indexer.toLowerCase().trim())) {
         isPrivateTracker = this.indexerPrivacyCache.get(indexer.toLowerCase().trim())!;
-      } else if (hasPasskey(downloadUrl)) {
+      } else if (hasPasskey(downloadUrl) || isKnownPrivateIndexer(indexer)) {
         isPrivateTracker = true;
       }
 

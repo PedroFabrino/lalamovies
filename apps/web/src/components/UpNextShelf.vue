@@ -152,6 +152,7 @@ export interface UpNextItem {
   metadataId: string;
   metadataSource: 'tmdb' | 'anilist';
   year: number | null;
+  isPrivateTracker?: boolean;
 }
 
 interface UpNextResponse {
@@ -199,6 +200,7 @@ function selectItem(item: UpNextItem) {
       sizeBytes: String(item.sizeBytes),
       posterUrl: item.posterUrl || undefined,
       overview: item.overview || undefined,
+      isPrivateTracker: item.isPrivateTracker ? 'true' : 'false',
     },
     state: {
       fromUpNext: true,
@@ -217,6 +219,7 @@ function selectItem(item: UpNextItem) {
       sizeBytes: item.sizeBytes,
       posterUrl: item.posterUrl,
       overview: item.overview,
+      isPrivateTracker: item.isPrivateTracker,
     },
   });
 }

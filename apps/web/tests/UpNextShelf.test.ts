@@ -102,6 +102,7 @@ describe('UpNextShelf.vue - Component Tests', () => {
         sizeBytes: '1400000000',
         posterUrl: 'https://anilist.co/cover_anime.jpg',
         overview: 'Rudeus continues his journey',
+        isPrivateTracker: 'false',
       },
       state: {
         fromUpNext: true,
@@ -120,6 +121,7 @@ describe('UpNextShelf.vue - Component Tests', () => {
         sizeBytes: 1400000000,
         posterUrl: 'https://anilist.co/cover_anime.jpg',
         overview: 'Rudeus continues his journey',
+        isPrivateTracker: undefined,
       },
     });
   });

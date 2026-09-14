@@ -25,6 +25,7 @@ export interface UpNextItem {
   metadataId: string;
   metadataSource: 'tmdb' | 'anilist';
   year: number | null;
+  isPrivateTracker: boolean;
 }
 
 export interface UpNextResult {
@@ -575,6 +576,7 @@ export class UpNextService implements IUpNextService {
           metadataId,
           metadataSource,
           year,
+          isPrivateTracker: bestCandidate.isPrivateTracker ?? false,
         });
       } catch (err) {
         if (

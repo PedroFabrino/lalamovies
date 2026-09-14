@@ -1307,6 +1307,14 @@
                   <span class="text-xs font-mono text-zinc-400">
                     via {{ activeRelease.indexer }}
                   </span>
+                  <span
+                    v-if="activeRelease.isPrivateTracker"
+                    class="px-2 py-0.5 rounded bg-amber-950/80 border border-amber-700/80 text-amber-300 text-[10px] font-bold uppercase tracking-wider"
+                    title="Private tracker — cloud streaming barred"
+                    data-testid="badge-private-tracker-active"
+                  >
+                    🔒 Private
+                  </span>
                 </div>
               </div>
 
@@ -1672,6 +1680,7 @@ import {
   type CandidateSortOption,
   SORT_OPTIONS,
   sortReleaseCandidates,
+  isKnownPrivateIndexer,
 } from '../lib/releaseExplorer';
 
 interface MetadataCandidate {
@@ -1764,6 +1773,10 @@ async function checkCacheForCandidates(candidates: ReleaseCandidate[]) {
 }
 
 async function handleInstantStreamCandidate(candidate: ReleaseCandidate) {
+  if (candidate.isPrivateTracker || isKnownPrivateIndexer(candidate.indexer)) {
+    requestsStore.showToast('Releases from private trackers cannot be streamed via cloud debrid', 'error');
+    return;
+  }
   try {
     streamModalTitle.value = candidate.title;
     streamModalStatus.value = 'pending';
@@ -1773,7 +1786,8 @@ async function handleInstantStreamCandidate(candidate: ReleaseCandidate) {
     const res = await api.post<{ streamId: string; status: 'pending' | 'ready' }>('/streams', {
       magnetLink: candidate.downloadUrl,
       title: candidate.title,
-      isPrivateTracker: candidate.isPrivateTracker,
+      indexer: candidate.indexer,
+      isPrivateTracker: candidate.isPrivateTracker ?? isKnownPrivateIndexer(candidate.indexer),
     });
 
     streamModalId.value = res.streamId;
@@ -2042,11 +2056,17 @@ function initFastTrackFromRoute(): boolean {
   const rawSizeBytes = query.sizeBytes ? parseInt(String(query.sizeBytes), 10) : (state.sizeBytes ?? 0);
   const rawScore = query.score ? parseInt(String(query.score), 10) : (state.score ?? 100);
 
+  const rawIndexer = String(query.indexer || state.indexer || 'Indexer');
+  const rawIsPrivate =
+    query.isPrivateTracker === 'true' ||
+    state.isPrivateTracker === true ||
+    isKnownPrivateIndexer(rawIndexer);
+
   const candidate: ReleaseCandidate = {
     guid: String(query.guid || state.guid || `fast-track-${Date.now()}`),
     title: String(query.releaseTitle || state.releaseTitle || rawTitle),
     downloadUrl: String(rawDownloadUrl),
-    indexer: String(query.indexer || state.indexer || 'Indexer'),
+    indexer: rawIndexer,
     sizeBytes: isNaN(rawSizeBytes) ? 0 : rawSizeBytes,
     formattedSize: String(
       query.formattedSize ||
@@ -2060,6 +2080,7 @@ function initFastTrackFromRoute(): boolean {
     source: String(query.source || state.source || 'unknown'),
     score: isNaN(rawScore) ? 100 : rawScore,
     isLowHealth: !isNaN(rawSeeders) && rawSeeders < 5,
+    isPrivateTracker: rawIsPrivate,
   };
 
   recommendedRelease.value = candidate;
@@ -2401,12 +2422,23 @@ async function fetchReleasesForCandidate(candidate: MetadataCandidate) {
       englishTitle: fallbackTitle || candidate.englishTitle || candidate.title,
     });
 
+    const mappedCandidates = (data.candidates || []).map((c) => ({
+      ...c,
+      isPrivateTracker: c.isPrivateTracker ?? isKnownPrivateIndexer(c.indexer),
+    }));
+    const mappedRecommended = data.recommended
+      ? {
+          ...data.recommended,
+          isPrivateTracker: data.recommended.isPrivateTracker ?? isKnownPrivateIndexer(data.recommended.indexer),
+        }
+      : null;
+
     isProwlarrConfigured.value = data.isConfigured;
     isProwlarrReachable.value = data.isReachable ?? true;
-    hasHealthyReleases.value = data.hasHealthyReleases ?? (data.candidates && data.candidates.some((c) => !c.isLowHealth));
-    recommendedRelease.value = data.recommended;
-    releaseCandidates.value = data.candidates || [];
-    selectedRelease.value = data.recommended;
+    hasHealthyReleases.value = data.hasHealthyReleases ?? mappedCandidates.some((c) => !c.isLowHealth);
+    recommendedRelease.value = mappedRecommended;
+    releaseCandidates.value = mappedCandidates;
+    selectedRelease.value = mappedRecommended;
 
     if (releaseCandidates.value.length > 0) {
       checkCacheForCandidates(releaseCandidates.value);

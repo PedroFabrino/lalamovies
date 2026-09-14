@@ -461,6 +461,7 @@ function selectItem(item: DiscoveryItem) {
       sizeBytes: String(item.sizeBytes),
       posterUrl: item.posterUrl || undefined,
       overview: item.overview || undefined,
+      isPrivateTracker: item.isPrivateTracker ? 'true' : 'false',
     },
     state: {
       title: item.title,
@@ -478,6 +479,7 @@ function selectItem(item: DiscoveryItem) {
       sizeBytes: item.sizeBytes,
       posterUrl: item.posterUrl,
       overview: item.overview,
+      isPrivateTracker: item.isPrivateTracker,
     },
   });
 }
