@@ -54,6 +54,34 @@ export const streamRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ streams: streamsWithTimeRemaining });
   });
 
+  // GET /streams/:id — get stream details / status
+  app.get('/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const row = app.db
+      .select()
+      .from(ephemeralStreams)
+      .where(eq(ephemeralStreams.id, id))
+      .get();
+
+    if (!row) {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: 'Stream not found',
+      });
+    }
+
+    const jellyfinUrl = row.jellyfinItemId
+      ? `/web/index.html#!/item?id=${row.jellyfinItemId}`
+      : undefined;
+
+    return reply.send({
+      stream: {
+        ...row,
+        jellyfinUrl,
+      },
+    });
+  });
+
   // POST /streams — create a new ephemeral stream
   app.post('/', { preHandler: [assertPublicTracker] }, async (request, reply) => {
     const body = request.body as {

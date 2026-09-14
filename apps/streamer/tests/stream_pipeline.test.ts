@@ -26,7 +26,7 @@ describe('End-to-End Stream Pipeline (#51)', () => {
           progress: 100,
           links: ['https://rd.com/link'],
         }),
-      getUnrestrictedLinks: vi.fn(),
+      getUnrestrictedLinks: vi.fn().mockResolvedValue(['https://rd.com/stream/dune2.mkv']),
       deleteTorrent: vi.fn(),
     };
 

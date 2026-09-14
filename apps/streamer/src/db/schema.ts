@@ -7,10 +7,11 @@ export const ephemeralStreams = sqliteTable('ephemeral_streams', {
   magnetLink: text('magnet_link').notNull(),
   title: text('title').notNull(),
   status: text('status', {
-    enum: ['pending', 'ready', 'expired', 'promoted'],
+    enum: ['pending', 'ready', 'expired', 'promoted', 'error'],
   }).notNull().default('pending'),
   expiresAt: text('expires_at').notNull(),
   jellyfinItemId: text('jellyfin_item_id'),
+  errorMessage: text('error_message'),
   createdAt: text('created_at').notNull(),
 });
 

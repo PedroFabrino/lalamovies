@@ -44,6 +44,7 @@ export function useProgressSocket() {
       ws.onopen = () => {
         isConnected.value = true;
         retryDelay = 1000;
+        (window as any).__mdm_ws = ws;
       };
 
       ws.onmessage = (event: MessageEvent) => {
@@ -54,6 +55,7 @@ export function useProgressSocket() {
           } else if (data.type === 'status') {
             requestsStore.handleStatusMessage(data);
           }
+          window.dispatchEvent(new MessageEvent('message', { data: event.data }));
         } catch {
           // Ignore parse errors
         }

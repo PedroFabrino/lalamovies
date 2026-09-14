@@ -49,6 +49,10 @@ const wsRoutesPlugin: FastifyPluginAsync = async (app) => {
             app.log.warn(err, 'Failed to send Discord notification for stream_ready');
           });
       }
+
+      if (body.type === 'stream_error' && body.isInfringing && body.infoHash) {
+        app.prowlarr?.markHashInfringing?.(body.infoHash);
+      }
     }
     return reply.status(200).send({ ok: true });
   });

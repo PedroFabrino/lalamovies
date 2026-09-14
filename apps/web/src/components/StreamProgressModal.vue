@@ -97,7 +97,7 @@
         </div>
         <div>
           <h3 class="text-lg font-bold text-white">Stream Setup Failed</h3>
-          <p class="text-xs text-red-300 mt-1">{{ errorMessage || 'An unexpected error occurred.' }}</p>
+          <p class="text-xs text-red-300 mt-1">{{ currentErrorMessage || errorMessage || 'An unexpected error occurred.' }}</p>
         </div>
         <button
           type="button"
@@ -113,6 +113,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
+import { api } from '../lib/api';
 
 const props = defineProps<{
   show: boolean;
@@ -131,6 +132,7 @@ const emit = defineEmits<{
 
 const status = ref<'pending' | 'ready' | 'error'>(props.initialStatus || 'pending');
 const currentJellyfinUrl = ref(props.jellyfinUrl || '');
+const currentErrorMessage = ref(props.errorMessage || '');
 
 watch(
   () => props.initialStatus,
@@ -146,11 +148,19 @@ watch(
   }
 );
 
+watch(
+  () => props.errorMessage,
+  (newMsg) => {
+    if (newMsg) currentErrorMessage.value = newMsg;
+  }
+);
+
 const effectiveJellyfinUrl = computed(() => {
   return currentJellyfinUrl.value || '/web/index.html';
 });
 
 function handleClose() {
+  stopPolling();
   emit('close');
 }
 
@@ -161,6 +171,61 @@ function handlePromote() {
   });
 }
 
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+async function checkStreamStatus() {
+  if (!props.streamId || status.value !== 'pending') return;
+  try {
+    const res = await api.get<{ stream: any }>(`/streams/${props.streamId}`);
+    if (res && res.stream) {
+      if (res.stream.status === 'ready') {
+        status.value = 'ready';
+        if (res.stream.jellyfinUrl) {
+          currentJellyfinUrl.value = res.stream.jellyfinUrl;
+        }
+        stopPolling();
+        emit('ready', {
+          streamId: res.stream.id,
+          jellyfinUrl: currentJellyfinUrl.value,
+        });
+      } else if (res.stream.status === 'error' || res.stream.status === 'expired') {
+        status.value = 'error';
+        currentErrorMessage.value =
+          res.stream.errorMessage || 'Stream setup failed or was cancelled.';
+        stopPolling();
+      }
+    }
+  } catch {
+    // Non-blocking
+  }
+}
+
+function startPolling() {
+  stopPolling();
+  if (props.show && props.streamId && status.value === 'pending') {
+    pollTimer = setInterval(checkStreamStatus, 1500);
+  }
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
+watch(
+  () => [props.show, props.streamId, status.value],
+  ([show, streamId, st]) => {
+    if (show && streamId && st === 'pending') {
+      startPolling();
+    } else {
+      stopPolling();
+    }
+  },
+  { immediate: true }
+);
+
 function handleWebSocketMessage(event: MessageEvent) {
   try {
     const data = JSON.parse(event.data);
@@ -170,10 +235,17 @@ function handleWebSocketMessage(event: MessageEvent) {
         if (data.jellyfinUrl) {
           currentJellyfinUrl.value = data.jellyfinUrl;
         }
+        stopPolling();
         emit('ready', {
           streamId: data.streamId,
           jellyfinUrl: currentJellyfinUrl.value,
         });
+      }
+    } else if (data.type === 'stream_error') {
+      if (!props.streamId || data.streamId === props.streamId) {
+        status.value = 'error';
+        currentErrorMessage.value = data.error || 'Stream setup failed.';
+        stopPolling();
       }
     }
   } catch {
@@ -183,13 +255,13 @@ function handleWebSocketMessage(event: MessageEvent) {
 
 onMounted(() => {
   window.addEventListener('message', handleWebSocketMessage);
-  // Also register on window if app exposes ws
   if ((window as any).__mdm_ws) {
     (window as any).__mdm_ws.addEventListener('message', handleWebSocketMessage);
   }
 });
 
 onUnmounted(() => {
+  stopPolling();
   window.removeEventListener('message', handleWebSocketMessage);
   if ((window as any).__mdm_ws) {
     (window as any).__mdm_ws.removeEventListener('message', handleWebSocketMessage);

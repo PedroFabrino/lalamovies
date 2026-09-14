@@ -37,6 +37,7 @@ export interface ReleaseCandidate {
   isPrivateTracker: boolean;
   infoHash?: string;
   magnetUrl?: string;
+  isInfringing?: boolean;
 }
 
 export interface SearchReleasesResult {
@@ -111,6 +112,8 @@ export interface IProwlarrService {
     categories: number[],
     scoreOptions?: ScoreOptions
   ): Promise<{ candidates: ReleaseCandidate[]; isReachable: boolean; error?: string }>;
+  markHashInfringing?(hash: string): void;
+  isHashInfringing?(hash: string): boolean;
 }
 
 export class ProwlarrService implements IProwlarrService {
@@ -119,10 +122,27 @@ export class ProwlarrService implements IProwlarrService {
   private indexerPrivacyCache: Map<string | number, boolean> = new Map();
   private indexerCacheExpiresAt = 0;
   private readonly CACHE_TTL_MS = 10 * 60 * 1000;
+  private infringingHashes: Set<string> = new Set([
+    '2a4a6d6710f271957b1ea2f8a9a748e84e6d10a3',
+    '6b7469c830b624321f843a95d0bd162aaf2abff4',
+    'f80c229155dc53d373b9464119503cf0dae092a9',
+    '23fcdd2d194d479de2c38e1dd1befe6d8b28af9b',
+  ]);
 
   constructor(prowlarrUrl?: string, apiKey?: string) {
     this.prowlarrUrl = (prowlarrUrl || process.env.PROWLARR_URL || 'http://localhost:9696').replace(/\/+$/, '');
     this.apiKey = apiKey || process.env.PROWLARR_API_KEY || '';
+  }
+
+  markHashInfringing(hash: string): void {
+    if (hash) {
+      this.infringingHashes.add(hash.toLowerCase().trim());
+    }
+  }
+
+  isHashInfringing(hash: string): boolean {
+    if (!hash) return false;
+    return this.infringingHashes.has(hash.toLowerCase().trim());
   }
 
   async getIndexerPrivacy(indexerIdOrName: number | string): Promise<boolean> {
@@ -488,6 +508,7 @@ export class ProwlarrService implements IProwlarrService {
         isPrivateTracker,
         infoHash: infoHash || undefined,
         magnetUrl: item.magnetUrl || undefined,
+        isInfringing: Boolean(infoHash && this.isHashInfringing(infoHash)),
       });
     }
 

@@ -55,11 +55,20 @@ export class StreamPoller {
           info.status === 'dead' ||
           info.status === 'magnet_error'
         ) {
+          const reason = `Torrent failed on Real-Debrid with status: ${info.status}`;
+          await this.debrid.deleteTorrent(stream.debridTorrentId).catch(() => {});
           this.db
             .update(ephemeralStreams)
-            .set({ status: 'expired' })
+            .set({ status: 'error', errorMessage: reason })
             .where(eq(ephemeralStreams.id, streamId))
             .run();
+
+          await this.broadcastStreamReady({
+            type: 'stream_error',
+            streamId: stream.id,
+            title: stream.title,
+            error: reason,
+          });
           return;
         }
 
@@ -72,6 +81,47 @@ export class StreamPoller {
         }
 
         if (info.status === 'downloaded') {
+          // Verify that Real-Debrid actually allows unrestricting the links (i.e. not DMCA 451 infringing_file)
+          try {
+            const unrestricted = await this.debrid.getUnrestrictedLinks(stream.debridTorrentId);
+            if (!unrestricted || unrestricted.length === 0) {
+              throw new Error('No playable stream links returned by Real-Debrid');
+            }
+          } catch (unrestrictErr: any) {
+            const errMessage = unrestrictErr?.message || '';
+            const isInfringing = errMessage.includes('infringing_file') || errMessage.includes('451');
+            const userReason = isInfringing
+              ? 'This release has been blocked by Real-Debrid (DMCA takedown: infringing file). Please choose another release.'
+              : `Real-Debrid error: ${errMessage}`;
+
+            // Extract infoHash from magnetLink if available
+            const hashMatch = stream.magnetLink?.match(/urn:btih:([a-zA-Z0-9]+)/i);
+            const infoHash = hashMatch ? hashMatch[1].toLowerCase() : undefined;
+
+            // Delete dead torrent from Real-Debrid immediately so Zurg doesn't keep failing
+            await this.debrid.deleteTorrent(stream.debridTorrentId).catch(() => {});
+
+            this.db
+              .update(ephemeralStreams)
+              .set({
+                status: 'error',
+                errorMessage: userReason,
+              })
+              .where(eq(ephemeralStreams.id, streamId))
+              .run();
+
+            await this.broadcastStreamReady({
+              type: 'stream_error',
+              streamId: stream.id,
+              title: stream.title,
+              error: userReason,
+              isInfringing,
+              infoHash,
+            });
+
+            return;
+          }
+
           await this.jellyfin.refreshStreamLibrary();
 
           const path = `/media_data/stream/${stream.title}`;
@@ -115,11 +165,19 @@ export class StreamPoller {
       .where(eq(ephemeralStreams.id, streamId))
       .get();
     if (remaining && remaining.status === 'pending') {
+      const timeoutReason = 'Stream setup timed out waiting for cloud conversion.';
       this.db
         .update(ephemeralStreams)
-        .set({ status: 'expired' })
+        .set({ status: 'error', errorMessage: timeoutReason })
         .where(eq(ephemeralStreams.id, streamId))
         .run();
+
+      await this.broadcastStreamReady({
+        type: 'stream_error',
+        streamId,
+        title: remaining.title,
+        error: timeoutReason,
+      });
     }
   }
 

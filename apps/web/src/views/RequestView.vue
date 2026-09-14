@@ -1315,6 +1315,14 @@
                   >
                     🔒 Private
                   </span>
+                  <span
+                    v-else-if="activeRelease.isInfringing"
+                    class="px-2 py-0.5 rounded bg-red-950/80 border border-red-700/80 text-red-300 text-[10px] font-bold uppercase tracking-wider"
+                    title="Real-Debrid DMCA takedown — streaming blocked"
+                    data-testid="badge-infringing-active"
+                  >
+                    🚫 DMCA Blocked
+                  </span>
                 </div>
               </div>
 
@@ -1410,9 +1418,23 @@
                     </div>
                   </div>
 
-                  <span class="text-zinc-500 text-[11px]">
-                    Click any release to select it
-                  </span>
+                  <div class="flex items-center gap-3">
+                    <label class="flex items-center gap-1.5 text-zinc-400 cursor-pointer text-[11px] select-none">
+                      <input
+                        type="checkbox"
+                        v-model="hideInfringing"
+                        class="rounded border-zinc-700 bg-zinc-900 text-indigo-600 focus:ring-0 w-3.5 h-3.5"
+                        data-testid="toggle-hide-infringing"
+                      />
+                      <span>Hide DMCA Blocked</span>
+                    </label>
+                    <span v-if="infringingCount > 0 && hideInfringing" class="text-amber-400/80 text-[11px]">
+                      ({{ infringingCount }} hidden)
+                    </span>
+                    <span class="text-zinc-500 text-[11px]">
+                      Click any release to select it
+                    </span>
+                  </div>
                 </div>
 
                 <!-- Scrollable Candidate List -->
@@ -1454,6 +1476,14 @@
                             🔒 Private
                           </span>
                           <span
+                            v-else-if="candidate.isInfringing"
+                            class="px-2 py-0.5 rounded bg-red-950/80 border border-red-700/80 text-red-300 text-[10px] font-bold tracking-wider flex items-center gap-1"
+                            title="Real-Debrid DMCA takedown — streaming blocked"
+                            data-testid="badge-dmca-blocked-label"
+                          >
+                            🚫 DMCA Blocked
+                          </span>
+                          <span
                             v-else-if="getCandidateCacheStatus(candidate) === true"
                             class="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/50 text-amber-300 text-[10px] font-bold tracking-wider flex items-center gap-1"
                             title="Cached in Real-Debrid — ready for instant stream"
@@ -1471,8 +1501,17 @@
                       </div>
 
                       <div class="flex items-center gap-2 shrink-0">
+                        <span
+                          v-if="candidate.isInfringing"
+                          class="px-2.5 py-1 rounded text-xs font-medium bg-red-950/60 border border-red-800/60 text-red-400 flex items-center gap-1 cursor-not-allowed"
+                          title="This release has been taken down on Real-Debrid (DMCA infringing file)"
+                          data-testid="badge-dmca-blocked"
+                        >
+                          <span>🚫</span>
+                          <span>DMCA Blocked</span>
+                        </span>
                         <button
-                          v-if="!candidate.isPrivateTracker"
+                          v-else-if="!candidate.isPrivateTracker"
                           type="button"
                           class="px-2.5 py-1 rounded text-xs font-semibold border transition cursor-pointer flex items-center gap-1"
                           :class="getCandidateCacheStatus(candidate) === true
@@ -1773,6 +1812,10 @@ async function checkCacheForCandidates(candidates: ReleaseCandidate[]) {
 }
 
 async function handleInstantStreamCandidate(candidate: ReleaseCandidate) {
+  if (candidate.isInfringing) {
+    requestsStore.showToast('This release has been blocked by Real-Debrid due to a DMCA copyright takedown', 'error');
+    return;
+  }
   if (candidate.isPrivateTracker || isKnownPrivateIndexer(candidate.indexer)) {
     requestsStore.showToast('Releases from private trackers cannot be streamed via cloud debrid', 'error');
     return;
@@ -1802,10 +1845,20 @@ async function handleInstantStreamCandidate(candidate: ReleaseCandidate) {
   }
 }
 
+const hideInfringing = ref(true);
+
+const infringingCount = computed(() => {
+  return releaseCandidates.value.filter((c) => c.isInfringing).length;
+});
+
 const activeRelease = computed(() => selectedRelease.value || recommendedRelease.value);
-const sortedReleaseCandidates = computed(() =>
-  sortReleaseCandidates(releaseCandidates.value, candidateSortBy.value)
-);
+const sortedReleaseCandidates = computed(() => {
+  let list = releaseCandidates.value;
+  if (hideInfringing.value) {
+    list = list.filter((c) => !c.isInfringing);
+  }
+  return sortReleaseCandidates(list, candidateSortBy.value);
+});
 
 function selectRelease(candidate: ReleaseCandidate) {
   selectedRelease.value = candidate;

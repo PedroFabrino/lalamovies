@@ -296,7 +296,8 @@ export class DebridService implements IDebridService {
       });
 
       if (!res.ok) {
-        throw new Error(`Failed to unrestrict link: HTTP ${res.status}`);
+        const msg = await this.formatDebridError('Failed to unrestrict link', res);
+        throw new Error(msg);
       }
 
       const parsed = (await res.json()) as { download: string };

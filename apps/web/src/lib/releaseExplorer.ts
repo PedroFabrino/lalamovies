@@ -14,6 +14,7 @@ export interface ReleaseCandidate {
   isLowHealth: boolean;
   isPrivateTracker?: boolean;
   infoHash?: string;
+  isInfringing?: boolean;
 }
 
 export type CandidateSortOption = 'score' | 'seeders' | 'size_asc' | 'size_desc';

@@ -37,6 +37,7 @@ export function initStreamerDatabase(dbPath?: string): { db: StreamerDatabase; s
       status TEXT NOT NULL DEFAULT 'pending',
       expires_at TEXT NOT NULL,
       jellyfin_item_id TEXT,
+      error_message TEXT,
       created_at TEXT NOT NULL
     );
 
@@ -45,6 +46,12 @@ export function initStreamerDatabase(dbPath?: string): { db: StreamerDatabase; s
       value TEXT NOT NULL
     );
   `);
+
+  try {
+    sqlite.exec(`ALTER TABLE ephemeral_streams ADD COLUMN error_message TEXT;`);
+  } catch {
+    // Column already exists
+  }
 
   const db = drizzle(sqlite, { schema });
   return { db, sqlite };
