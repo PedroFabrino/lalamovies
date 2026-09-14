@@ -1039,6 +1039,52 @@ describe('RequestView - Candidate Explorer UI', () => {
       const streamBtn = wrapper.find('[data-testid="button-instant-stream"]');
       expect(streamBtn.exists()).toBe(false);
     });
+
+    it('hides active and drawer stream buttons when streaming feature flag is disabled', async () => {
+      const { useFeatureFlags } = await import('../src/composables/useFeatureFlags');
+      const featureFlags = useFeatureFlags();
+      featureFlags.setFlag('streaming', false);
+
+      mockRoute.query = {
+        title: 'Dune: Part Two',
+        metadataId: '693134',
+        mediaType: 'movie',
+        releaseTitle: 'Dune.Part.Two.2024.1080p.Cached',
+        downloadUrl: 'magnet:?xt=urn:btih:dune2cached&dn=Dune2',
+        indexer: '1337x',
+        seeders: '50',
+        sizeBytes: '4294967296',
+      };
+      mockRoute.state = {};
+
+      const wrapper = mount(RequestView, {
+        global: {
+          stubs: {
+            Navbar: true,
+            StreamProgressModal: true,
+          },
+        },
+      });
+      await flushPromises();
+
+      // Check active release stream button does not exist
+      const activeStreamBtn = wrapper.find('[data-testid="button-instant-stream-active"]');
+      expect(activeStreamBtn.exists()).toBe(false);
+
+      // Expand explorer
+      const toggle = wrapper.find('[data-testid="toggle-explorer"]');
+      if (toggle.exists()) {
+        await toggle.trigger('click');
+        await flushPromises();
+      }
+
+      // Check drawer stream badge and button do not exist
+      expect(wrapper.find('[data-testid="badge-instant-cached"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="button-instant-stream"]').exists()).toBe(false);
+
+      // Reset flag
+      featureFlags.setFlag('streaming', true);
+    });
   });
 });
 

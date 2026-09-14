@@ -165,7 +165,7 @@
 
             <!-- Instant Stream Badge (Top-Left under resolution) -->
             <div
-              v-if="!item.isPrivateTracker && getItemCacheStatus(item) === true"
+              v-if="isStreamingEnabled && !item.isPrivateTracker && getItemCacheStatus(item) === true"
               class="absolute top-8 left-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/90 text-zinc-950 shadow flex items-center gap-0.5"
               data-testid="badge-instant-stream"
             >
@@ -232,7 +232,7 @@
               </span>
               <div class="flex items-center gap-1.5">
                 <button
-                  v-if="!item.isPrivateTracker"
+                  v-if="isStreamingEnabled && !item.isPrivateTracker"
                   type="button"
                   class="text-[10px] font-semibold px-2 py-0.5 rounded transition cursor-pointer flex items-center gap-1"
                   :class="getItemCacheStatus(item) === true
@@ -263,6 +263,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '../lib/api';
+import { useFeatureFlags } from '../composables/useFeatureFlags';
 
 export type CategoryTab = 'movies' | 'tv' | 'anime';
 
@@ -296,6 +297,8 @@ interface DiscoveryFeedResponse {
 }
 
 const router = useRouter();
+const featureFlags = useFeatureFlags();
+const isStreamingEnabled = computed(() => featureFlags.isEnabled('streaming'));
 
 const emit = defineEmits<{
   (e: 'instant-stream', item: DiscoveryItem): void;
@@ -316,6 +319,8 @@ function getItemCacheStatus(item: DiscoveryItem): boolean | undefined {
 }
 
 async function checkCacheForItems(items: DiscoveryItem[]) {
+  if (!isStreamingEnabled.value) return;
+
   const publicHashes = items
     .filter((i) => !i.isPrivateTracker && i.downloadUrl)
     .map((i) => extractHash(i.downloadUrl))

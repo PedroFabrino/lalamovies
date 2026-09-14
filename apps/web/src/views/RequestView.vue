@@ -1382,7 +1382,7 @@
                   <span>{{ activeRelease.seeders }} seeders</span>
                 </span>
                 <button
-                  v-if="!activeRelease.isPrivateTracker && !activeRelease.isInfringing"
+                  v-if="isStreamingEnabled && !activeRelease.isPrivateTracker && !activeRelease.isInfringing"
                   type="button"
                   class="px-2.5 py-0.5 rounded text-xs font-semibold border transition cursor-pointer flex items-center gap-1"
                   :class="getCandidateCacheStatus(activeRelease) === true
@@ -1525,7 +1525,7 @@
                             🚫 DMCA Blocked
                           </span>
                           <span
-                            v-else-if="getCandidateCacheStatus(candidate) === true"
+                            v-else-if="isStreamingEnabled && getCandidateCacheStatus(candidate) === true"
                             class="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/50 text-amber-300 text-[10px] font-bold tracking-wider flex items-center gap-1"
                             title="Cached in Real-Debrid — ready for instant stream"
                             data-testid="badge-instant-cached"
@@ -1552,7 +1552,7 @@
                           <span>DMCA Blocked</span>
                         </span>
                         <button
-                          v-else-if="!candidate.isPrivateTracker"
+                          v-else-if="isStreamingEnabled && !candidate.isPrivateTracker"
                           type="button"
                           class="px-2.5 py-1 rounded text-xs font-semibold border transition cursor-pointer flex items-center gap-1"
                           :class="getCandidateCacheStatus(candidate) === true
@@ -1798,6 +1798,7 @@ const route = useRoute();
 const requestsStore = useRequestsStore();
 const featureFlags = useFeatureFlags();
 const isManualTorrentsEnabled = computed(() => featureFlags.isEnabled('manual_torrents'));
+const isStreamingEnabled = computed(() => featureFlags.isEnabled('streaming'));
 
 const hasCjk = (s?: string | null): boolean =>
   Boolean(s && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]/.test(s));
@@ -1838,6 +1839,8 @@ function getCandidateCacheStatus(candidate: ReleaseCandidate): boolean | undefin
 }
 
 async function checkCacheForCandidates(candidates: ReleaseCandidate[]) {
+  if (!isStreamingEnabled.value) return;
+
   const publicHashes = candidates
     .filter((c) => !c.isPrivateTracker)
     .map((c) => (c.infoHash || extractInfoHash(c.downloadUrl)).toLowerCase())
@@ -1863,6 +1866,10 @@ async function checkCacheForCandidates(candidates: ReleaseCandidate[]) {
 const activeStreamingCandidate = ref<ReleaseCandidate | null>(null);
 
 async function handleInstantStreamCandidate(candidate: ReleaseCandidate) {
+  if (!isStreamingEnabled.value) {
+    requestsStore.showToast('Streaming is currently disabled by administrators', 'error');
+    return;
+  }
   if (candidate.isInfringing) {
     requestsStore.showToast('This release has been blocked by Real-Debrid due to a DMCA copyright takedown', 'error');
     return;

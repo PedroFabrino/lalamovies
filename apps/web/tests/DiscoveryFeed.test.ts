@@ -368,4 +368,38 @@ describe('DiscoveryFeed.vue - Component Tests', () => {
     expect(cards[1].find('[data-testid="button-instant-stream"]').exists()).toBe(false);
     expect(cards[1].text()).toContain('Private');
   });
+
+  it('hides Instant Stream badge and button when streaming feature flag is disabled', async () => {
+    const { useFeatureFlags } = await import('../src/composables/useFeatureFlags');
+    const featureFlags = useFeatureFlags();
+    featureFlags.setFlag('streaming', false);
+
+    const cachedPublicItem: DiscoveryItem = {
+      ...sampleMovieItem,
+      id: 'movie-cached',
+      downloadUrl: 'magnet:?xt=urn:btih:cachedhash',
+      isPrivateTracker: false,
+    };
+
+    vi.mocked(api.get).mockImplementation(async (url: string) => {
+      if (url.includes('/discovery/feed')) {
+        return {
+          available: true,
+          items: [cachedPublicItem],
+        };
+      }
+      return { available: true, items: [] };
+    });
+
+    const wrapper = mount(DiscoveryFeed);
+    await flushPromises();
+
+    const card = wrapper.find('[data-testid="discovery-card"]');
+    expect(card.exists()).toBe(true);
+    expect(card.find('[data-testid="badge-instant-stream"]').exists()).toBe(false);
+    expect(card.find('[data-testid="button-instant-stream"]').exists()).toBe(false);
+
+    // Reset flag
+    featureFlags.setFlag('streaming', true);
+  });
 });
