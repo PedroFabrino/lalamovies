@@ -49,7 +49,12 @@ export class StreamPoller {
       try {
         const info = await this.debrid.getTorrentInfo(stream.debridTorrentId);
 
-        if (info.status === 'error' || info.status === 'virus' || info.status === 'dead') {
+        if (
+          info.status === 'error' ||
+          info.status === 'virus' ||
+          info.status === 'dead' ||
+          info.status === 'magnet_error'
+        ) {
           this.db
             .update(ephemeralStreams)
             .set({ status: 'expired' })
@@ -101,6 +106,20 @@ export class StreamPoller {
       }
 
       await new Promise((r) => setTimeout(r, this.pollIntervalMs));
+    }
+
+    // If poll loop timed out and stream is still pending, expire it
+    const remaining = this.db
+      .select()
+      .from(ephemeralStreams)
+      .where(eq(ephemeralStreams.id, streamId))
+      .get();
+    if (remaining && remaining.status === 'pending') {
+      this.db
+        .update(ephemeralStreams)
+        .set({ status: 'expired' })
+        .where(eq(ephemeralStreams.id, streamId))
+        .run();
     }
   }
 
