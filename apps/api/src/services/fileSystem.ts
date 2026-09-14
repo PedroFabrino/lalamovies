@@ -140,12 +140,19 @@ export class FileSystemService implements IFileSystemService {
     if (targetPath) {
       pathsToScan = Array.isArray(targetPath) ? targetPath : [targetPath];
     } else {
-      if (fs.existsSync('/media_data')) {
-        pathsToScan = ['/media_data'];
+      const candidates = [
+        fs.existsSync('/media_data/downloads') ? '/media_data/downloads' : null,
+        process.env.STAGING_PATH,
+        this.defaultMediaBasePath,
+      ].filter((p): p is string => Boolean(p && fs.existsSync(p)));
+
+      if (candidates.length > 0) {
+        pathsToScan = Array.from(new Set(candidates));
       } else {
-        const staging = process.env.STAGING_PATH || path.resolve(process.cwd(), 'downloads', 'staging');
-        const media = this.defaultMediaBasePath;
-        pathsToScan = [staging, media];
+        pathsToScan = [
+          path.resolve(process.cwd(), 'downloads', 'staging'),
+          this.defaultMediaBasePath,
+        ];
       }
     }
 
@@ -169,9 +176,18 @@ export class FileSystemService implements IFileSystemService {
       }
 
       if (stat.isDirectory()) {
+        const baseName = path.basename(current);
+        // Exclude virtual cloud mounts (.zurg), ephemeral stream folders, and hidden directories
+        if (baseName.startsWith('.') || baseName === 'stream') {
+          continue;
+        }
+
         try {
           const entries = fs.readdirSync(current);
           for (const entry of entries) {
+            if (entry.startsWith('.') || entry === 'stream') {
+              continue;
+            }
             stack.push(path.join(current, entry));
           }
         } catch {

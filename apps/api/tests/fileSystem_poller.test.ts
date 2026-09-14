@@ -164,6 +164,26 @@ describe('FileSystemService', () => {
       const totalFootprint = fsService.getStorageFootprintBytes(tmpDir);
       expect(totalFootprint).toBe(1024 * 1024 + 512 * 1024);
     });
+
+    it('ignores hidden directories such as .zurg and stream directory when calculating footprint', () => {
+      const stagingDir = path.join(tmpDir, 'staging');
+      const zurgMountDir = path.join(tmpDir, '.zurg');
+      const streamDir = path.join(tmpDir, 'stream');
+      fs.mkdirSync(stagingDir, { recursive: true });
+      fs.mkdirSync(zurgMountDir, { recursive: true });
+      fs.mkdirSync(streamDir, { recursive: true });
+
+      // Create a 1 MB file in staging
+      fs.writeFileSync(path.join(stagingDir, 'real-file.mkv'), Buffer.alloc(1024 * 1024, 1));
+
+      // Create a 10 MB dummy file in .zurg and 5 MB in stream
+      fs.writeFileSync(path.join(zurgMountDir, 'cloud-virtual.mkv'), Buffer.alloc(10 * 1024 * 1024, 2));
+      fs.writeFileSync(path.join(streamDir, 'ephemeral.mkv'), Buffer.alloc(5 * 1024 * 1024, 3));
+
+      // Total physical footprint must ONLY be the 1 MB file in staging
+      const totalFootprint = fsService.getStorageFootprintBytes(tmpDir);
+      expect(totalFootprint).toBe(1024 * 1024);
+    });
   });
 });
 
