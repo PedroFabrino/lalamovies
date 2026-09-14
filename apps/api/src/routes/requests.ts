@@ -343,6 +343,15 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  // POST /requests/mark-infringing
+  app.post('/mark-infringing', async (request, reply) => {
+    const body = request.body as { infoHash?: string } | undefined;
+    if (body?.infoHash) {
+      app.prowlarr?.markHashInfringing?.(body.infoHash);
+    }
+    return reply.send({ success: true });
+  });
+
   // POST /requests/search-metadata
   app.post('/search-metadata', async (request, reply) => {
     const parseResult = searchMetadataSchema.safeParse(request.body);

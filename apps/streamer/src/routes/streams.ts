@@ -159,9 +159,19 @@ export const streamRoutes: FastifyPluginAsync = async (app) => {
       });
     } catch (err: unknown) {
       app.log.error(err, 'Failed to initialize instant stream');
+      const msg = (err as Error).message || 'Failed to start instant stream';
+      const isInfringing = msg.includes('451') || msg.includes('infringing_file');
+      if (isInfringing && (app as any).streamPoller) {
+        (app as any).streamPoller.broadcastToMainApi?.({
+          type: 'stream_error',
+          error: msg,
+          isInfringing: true,
+          infoHash: body?.infoHash,
+        }).catch(() => {});
+      }
       return reply.status(500).send({
         error: 'Internal Server Error',
-        message: (err as Error).message || 'Failed to start instant stream',
+        message: msg,
       });
     }
   });

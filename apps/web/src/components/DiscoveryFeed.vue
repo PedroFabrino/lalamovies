@@ -400,7 +400,7 @@ function toggleCollapse() {
   localStorage.setItem('mdm_discovery_collapsed', String(isCollapsed.value));
 }
 
-async function fetchFeed(category: CategoryTab, force = false) {
+async function fetchFeed(category: CategoryTab = activeCategory.value, force = false) {
   const current = getStoredCache();
   const entry = current[category];
 
@@ -486,5 +486,9 @@ function selectItem(item: DiscoveryItem) {
 
 onMounted(() => {
   fetchFeed(activeCategory.value);
+});
+
+defineExpose({
+  fetchFeed,
 });
 </script>

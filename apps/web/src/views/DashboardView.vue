@@ -56,7 +56,7 @@
       <UpNextShelf />
 
       <!-- Discovery Feed Shelf (Curated Quality Releases) -->
-      <DiscoveryFeed @instant-stream="handleInstantStream" />
+      <DiscoveryFeed ref="discoveryFeedRef" @instant-stream="handleInstantStream" />
 
       <!-- Active Ephemeral Streams Shelf -->
       <ActiveStreamsShelf ref="activeStreamsShelfRef" @promote="handleOpenPromotion" />
@@ -562,6 +562,7 @@
       :error-message="streamModalError"
       @close="showStreamModal = false"
       @promote="handleOpenPromotion"
+      @error="handleStreamPlaybackError"
     />
 
     <!-- Promotion Modal -->
@@ -619,8 +620,11 @@ const streamModalError = ref('');
 const showPromotionModal = ref(false);
 const promotionStream = ref<{ id: string; title: string; magnetLink?: string } | null>(null);
 const activeStreamsShelfRef = ref<InstanceType<typeof ActiveStreamsShelf> | null>(null);
+const discoveryFeedRef = ref<InstanceType<typeof DiscoveryFeed> | null>(null);
+const activeStreamingItem = ref<DiscoveryItem | null>(null);
 
 async function handleInstantStream(item: DiscoveryItem) {
+  activeStreamingItem.value = item;
   try {
     streamModalTitle.value = item.title;
     streamModalStatus.value = 'pending';
@@ -639,10 +643,63 @@ async function handleInstantStream(item: DiscoveryItem) {
     }
     activeStreamsShelfRef.value?.fetchStreams();
   } catch (err: any) {
-    streamModalStatus.value = 'error';
-    streamModalError.value = err.message || 'Failed to initialize instant stream';
-    requestsStore.showToast(err.message || 'Failed to initialize instant stream', 'error');
+    const errorMsg = err.message || 'Failed to initialize instant stream';
+    await handleStreamPlaybackError({
+      error: errorMsg,
+      isInfringing: errorMsg.includes('451') || errorMsg.includes('infringing'),
+    });
   }
+}
+
+async function handleStreamPlaybackError(payload: {
+  streamId?: string;
+  error: string;
+  isInfringing?: boolean;
+  infoHash?: string;
+}) {
+  showStreamModal.value = false;
+  streamModalStatus.value = 'error';
+  streamModalError.value = payload.error;
+
+  const item = activeStreamingItem.value;
+  if (!item) return;
+
+  const isInfringing =
+    Boolean(payload.isInfringing) ||
+    payload.error.includes('451') ||
+    payload.error.includes('infringing');
+
+  const failedHash = payload.infoHash;
+
+  if (isInfringing && failedHash) {
+    try {
+      await api.post('/requests/mark-infringing', { infoHash: failedHash });
+    } catch {
+      // Non-blocking
+    }
+  }
+
+  try {
+    await api.post('/waitlist', {
+      mediaType: item.mediaType,
+      metadataId: item.metadataId,
+      metadataSource: item.metadataSource || (item.mediaType === 'anime' ? 'anilist' : 'tmdb'),
+      title: item.title,
+      year: item.year,
+      posterUrl: item.posterUrl,
+    });
+    const reason = isInfringing ? 'DMCA blocked' : 'Stream error';
+    requestsStore.showToast(`Stream unavailable (${reason}). Added "${item.title}" to your waitlist.`, 'info');
+  } catch (err: any) {
+    if (err?.status === 409 || err?.message?.includes('already')) {
+      requestsStore.showToast(`Stream unavailable. "${item.title}" is already in your library or waitlist.`, 'info');
+    } else {
+      requestsStore.showToast(`Stream unavailable: ${payload.error}`, 'error');
+    }
+  }
+
+  // Reload discovery feed silently
+  discoveryFeedRef.value?.fetchFeed?.();
 }
 
 function handleOpenPromotion(payload: { id?: string; streamId?: string; title: string }) {

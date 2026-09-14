@@ -74,4 +74,37 @@ describe('StreamProgressModal.vue', () => {
       },
     ]);
   });
+
+  it('transitions to error state and emits error event on stream_error message event', async () => {
+    const wrapper = mount(StreamProgressModal, {
+      props: {
+        show: true,
+        streamId: 'test-stream-1',
+        title: 'Incredibles 2',
+        initialStatus: 'pending',
+      },
+    });
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'stream_error',
+          streamId: 'test-stream-1',
+          error: 'Real-Debrid error (451): infringing_file',
+          isInfringing: true,
+          infoHash: '2a4a6d6710f271957b1ea2f8a9a748e84e6d10a3',
+        }),
+      })
+    );
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.emitted('error')).toHaveLength(1);
+    expect(wrapper.emitted('error')![0][0]).toEqual({
+      streamId: 'test-stream-1',
+      error: 'Real-Debrid error (451): infringing_file',
+      isInfringing: true,
+      infoHash: '2a4a6d6710f271957b1ea2f8a9a748e84e6d10a3',
+    });
+  });
 });

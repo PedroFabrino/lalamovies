@@ -128,6 +128,7 @@ const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'ready', payload: { streamId: string; jellyfinUrl: string }): void;
   (e: 'promote', payload: { streamId: string; title: string }): void;
+  (e: 'error', payload: { streamId?: string; error: string; isInfringing?: boolean; infoHash?: string }): void;
 }>();
 
 const status = ref<'pending' | 'ready' | 'error'>(props.initialStatus || 'pending');
@@ -193,6 +194,14 @@ async function checkStreamStatus() {
         currentErrorMessage.value =
           res.stream.errorMessage || 'Stream setup failed or was cancelled.';
         stopPolling();
+        const isInfringing =
+          res.stream.errorMessage?.includes('infringing') ||
+          res.stream.errorMessage?.includes('451');
+        emit('error', {
+          streamId: res.stream.id || props.streamId,
+          error: currentErrorMessage.value,
+          isInfringing,
+        });
       }
     }
   } catch {
@@ -246,6 +255,12 @@ function handleWebSocketMessage(event: MessageEvent) {
         status.value = 'error';
         currentErrorMessage.value = data.error || 'Stream setup failed.';
         stopPolling();
+        emit('error', {
+          streamId: data.streamId || props.streamId,
+          error: currentErrorMessage.value,
+          isInfringing: Boolean(data.isInfringing),
+          infoHash: data.infoHash,
+        });
       }
     }
   } catch {

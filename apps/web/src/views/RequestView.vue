@@ -1354,6 +1354,20 @@
                   <span>{{ activeRelease.isLowHealth ? '⚠️' : '✓' }}</span>
                   <span>{{ activeRelease.seeders }} seeders</span>
                 </span>
+                <button
+                  v-if="!activeRelease.isPrivateTracker && !activeRelease.isInfringing"
+                  type="button"
+                  class="px-2.5 py-0.5 rounded text-xs font-semibold border transition cursor-pointer flex items-center gap-1"
+                  :class="getCandidateCacheStatus(activeRelease) === true
+                    ? 'bg-amber-500 hover:bg-amber-400 border-amber-400 text-zinc-950 shadow-sm'
+                    : 'bg-zinc-800 hover:bg-zinc-700 border-zinc-700 text-zinc-300'"
+                  title="Stream instantly via cloud debrid"
+                  data-testid="button-instant-stream-active"
+                  @click.stop="handleInstantStreamCandidate(activeRelease)"
+                >
+                  <span>⚡</span>
+                  <span>{{ getCandidateCacheStatus(activeRelease) === true ? 'Instant Stream' : 'Stream' }}</span>
+                </button>
               </div>
             </div>
 
@@ -1700,6 +1714,7 @@
       :initial-status="streamModalStatus"
       :error-message="streamModalError"
       @close="showStreamModal = false"
+      @error="handleStreamPlaybackError"
     />
   </div>
 </template>
@@ -1811,6 +1826,8 @@ async function checkCacheForCandidates(candidates: ReleaseCandidate[]) {
   }
 }
 
+const activeStreamingCandidate = ref<ReleaseCandidate | null>(null);
+
 async function handleInstantStreamCandidate(candidate: ReleaseCandidate) {
   if (candidate.isInfringing) {
     requestsStore.showToast('This release has been blocked by Real-Debrid due to a DMCA copyright takedown', 'error');
@@ -1820,6 +1837,9 @@ async function handleInstantStreamCandidate(candidate: ReleaseCandidate) {
     requestsStore.showToast('Releases from private trackers cannot be streamed via cloud debrid', 'error');
     return;
   }
+
+  activeStreamingCandidate.value = candidate;
+
   try {
     streamModalTitle.value = candidate.title;
     streamModalStatus.value = 'pending';
@@ -1839,9 +1859,12 @@ async function handleInstantStreamCandidate(candidate: ReleaseCandidate) {
       streamModalStatus.value = 'ready';
     }
   } catch (err: any) {
-    streamModalStatus.value = 'error';
-    streamModalError.value = err.message || 'Failed to initialize instant stream';
-    requestsStore.showToast(err.message || 'Failed to initialize instant stream', 'error');
+    const errorMsg = err.message || 'Failed to initialize instant stream';
+    await handleStreamPlaybackError({
+      error: errorMsg,
+      isInfringing: errorMsg.includes('451') || errorMsg.includes('infringing'),
+      infoHash: candidate.infoHash,
+    });
   }
 }
 
@@ -2515,6 +2538,163 @@ async function fetchReleasesForCandidate(candidate: MetadataCandidate) {
   } finally {
     isSearchingReleases.value = false;
   }
+}
+
+async function reloadReleasesSilently() {
+  if (!selectedCandidate.value) return;
+
+  const candidate = selectedCandidate.value;
+  const effectiveEpisode = downloadGranularity.value === 'episode' ? (episodeNumber.value ?? 1) : null;
+  const effectiveSeason = mediaType.value !== 'movie' ? (seasonNumber.value ?? 1) : null;
+
+  let primaryTitle = candidate.title;
+  let fallbackTitle = candidate.englishTitle || null;
+
+  if (mediaType.value === 'anime') {
+    const isEnglishSelected = Boolean(candidate.englishTitle && activeAnimeTitle.value === candidate.englishTitle);
+    primaryTitle = isEnglishSelected
+      ? candidate.englishTitle!
+      : (activeAnimeTitle.value || candidate.title);
+    fallbackTitle = isEnglishSelected
+      ? (candidate.romajiTitle || candidate.title)
+      : (candidate.englishTitle || null);
+  }
+
+  try {
+    const data = await api.post<{
+      recommended: ReleaseCandidate | null;
+      candidates: ReleaseCandidate[];
+      totalFound: number;
+      isConfigured: boolean;
+      isReachable?: boolean;
+      hasHealthyReleases?: boolean;
+    }>('/requests/search-releases', {
+      metadataId: candidate.id,
+      metadataSource: candidate.source,
+      mediaType: mediaType.value,
+      title: primaryTitle,
+      year: candidate.year,
+      seasonNumber: effectiveSeason,
+      episodeNumber: effectiveEpisode,
+      romajiTitle: candidate.romajiTitle || null,
+      englishTitle: fallbackTitle || candidate.englishTitle || candidate.title,
+    });
+
+    const mappedCandidates = (data.candidates || []).map((c) => ({
+      ...c,
+      isPrivateTracker: c.isPrivateTracker ?? isKnownPrivateIndexer(c.indexer),
+    }));
+    const mappedRecommended = data.recommended
+      ? {
+          ...data.recommended,
+          isPrivateTracker: data.recommended.isPrivateTracker ?? isKnownPrivateIndexer(data.recommended.indexer),
+        }
+      : null;
+
+    isProwlarrConfigured.value = data.isConfigured;
+    isProwlarrReachable.value = data.isReachable ?? true;
+    hasHealthyReleases.value = data.hasHealthyReleases ?? mappedCandidates.some((c) => !c.isLowHealth);
+
+    releaseCandidates.value = mappedCandidates;
+    recommendedRelease.value = mappedRecommended;
+
+    // If currently selected release is infringing, reset to recommended
+    if (
+      selectedRelease.value &&
+      (selectedRelease.value.isInfringing ||
+        mappedCandidates.find((c) => c.guid === selectedRelease.value?.guid)?.isInfringing)
+    ) {
+      selectedRelease.value = mappedRecommended;
+      if (mappedRecommended) {
+        magnetLink.value = mappedRecommended.downloadUrl;
+      }
+    }
+
+    if (releaseCandidates.value.length > 0) {
+      checkCacheForCandidates(releaseCandidates.value);
+    }
+  } catch (err) {
+    // Non-blocking for silent reload
+    console.error('Silent release reload failed:', err);
+  }
+}
+
+async function handleStreamPlaybackError(payload: {
+  streamId?: string;
+  error: string;
+  isInfringing?: boolean;
+  infoHash?: string;
+}) {
+  // 1. Close modal so user isn't stuck on error screen
+  showStreamModal.value = false;
+  streamModalStatus.value = 'error';
+  streamModalError.value = payload.error;
+
+  const candidate = activeStreamingCandidate.value;
+  const isInfringing =
+    Boolean(payload.isInfringing) ||
+    payload.error.includes('451') ||
+    payload.error.includes('infringing') ||
+    payload.error.includes('copyright takedown');
+
+  const failedHash =
+    payload.infoHash ||
+    (candidate ? (candidate.infoHash || extractInfoHash(candidate.downloadUrl)) : '');
+
+  // 2. Mark hash as infringing if DMCA 451
+  if (isInfringing && failedHash) {
+    try {
+      await api.post('/requests/mark-infringing', { infoHash: failedHash });
+    } catch {
+      // Non-blocking
+    }
+    const localMatch = releaseCandidates.value.find(
+      (c) => (c.infoHash || extractInfoHash(c.downloadUrl)).toLowerCase() === failedHash.toLowerCase()
+    );
+    if (localMatch) {
+      localMatch.isInfringing = true;
+    }
+  }
+
+  // 3. Add item to waitlist (watchlist)
+  if (selectedCandidate.value) {
+    const title = selectedCandidate.value.title;
+    try {
+      await api.post('/waitlist', {
+        mediaType: mediaType.value,
+        metadataId: selectedCandidate.value.id,
+        metadataSource: selectedCandidate.value.source || 'tmdb',
+        title: title,
+        year: selectedCandidate.value.year,
+        posterUrl: selectedCandidate.value.posterUrl,
+        seasonNumber: mediaType.value !== 'movie' ? (seasonNumber.value ?? 1) : null,
+        targetEpisode:
+          downloadGranularity.value === 'episode' && episodeNumber.value
+            ? episodeNumber.value
+            : (mediaType.value === 'movie' ? null : 1),
+      });
+
+      const reason = isInfringing ? 'DMCA blocked' : 'Stream error';
+      requestsStore.showToast(
+        `Stream unavailable (${reason}). Added "${title}" to your waitlist.`,
+        'info'
+      );
+    } catch (err: any) {
+      if (err?.status === 409 || err?.message?.includes('already')) {
+        requestsStore.showToast(
+          `Stream unavailable. "${title}" is already in your library or waitlist.`,
+          'info'
+        );
+      } else {
+        requestsStore.showToast(`Stream unavailable: ${payload.error}`, 'error');
+      }
+    }
+  } else {
+    requestsStore.showToast(`Stream unavailable: ${payload.error}`, 'error');
+  }
+
+  // 4. Reload candidate list silently
+  await reloadReleasesSilently();
 }
 
 async function selectCandidate(candidate: MetadataCandidate) {
