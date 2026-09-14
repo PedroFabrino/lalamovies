@@ -126,7 +126,7 @@ services:
       - ./config/jellyfin:/config
       - ./cache/jellyfin:/cache
       - ${MEDIA_DATA_PATH:-D:/MediaServer/media_data}:/media_data
-      - stream_mount:/media_data/stream:shared
+      - stream_mount:/media_data/stream
     depends_on:
       - rclone
 
@@ -153,9 +153,9 @@ services:
       - /dev/fuse
     security_opt:
       - apparmor:unconfined
-    command: "mount zurg: /stream --allow-other --vfs-cache-mode=full --vfs-read-chunk-size=128M --dir-cache-time=10s"
+    command: "mount zurg: /stream --allow-other --allow-non-empty --vfs-cache-mode=full --vfs-read-chunk-size=128M --dir-cache-time=10s"
     volumes:
-      - stream_mount:/stream:shared
+      - stream_mount:/stream
     depends_on:
       - zurg
 
