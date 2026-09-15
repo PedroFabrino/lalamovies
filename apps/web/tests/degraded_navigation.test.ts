@@ -34,6 +34,7 @@ describe('Degraded Navigation & Router Redirect Guards (Subtask #89)', () => {
     ff.setFlags({
       manual_torrents: true,
       waitlist: true,
+      jellyfin_library_view: true,
     });
 
     const wrapper = mount(Navbar, {
@@ -43,11 +44,14 @@ describe('Degraded Navigation & Router Redirect Guards (Subtask #89)', () => {
     });
 
     const links = wrapper.findAll('router-link-stub');
+    const libraryLink = links.find((l) => l.attributes('to') === '/library');
     const requestLink = links.find((l) => l.attributes('to') === '/request');
     const waitlistLink = links.find((l) => l.attributes('to') === '/waitlist');
 
+    expect(libraryLink?.classes()).not.toContain('pointer-events-none');
     expect(requestLink?.classes()).not.toContain('pointer-events-none');
     expect(waitlistLink?.classes()).not.toContain('pointer-events-none');
+    expect(libraryLink?.attributes('title')).toBeUndefined();
     expect(requestLink?.attributes('title')).toBeUndefined();
     expect(waitlistLink?.attributes('title')).toBeUndefined();
   });
@@ -57,6 +61,7 @@ describe('Degraded Navigation & Router Redirect Guards (Subtask #89)', () => {
     ff.setFlags({
       manual_torrents: false,
       waitlist: false,
+      jellyfin_library_view: false,
     });
 
     const wrapper = mount(Navbar, {
@@ -66,8 +71,13 @@ describe('Degraded Navigation & Router Redirect Guards (Subtask #89)', () => {
     });
 
     const links = wrapper.findAll('router-link-stub');
+    const libraryLink = links.find((l) => l.attributes('to') === '/library');
     const requestLink = links.find((l) => l.attributes('to') === '/request');
     const waitlistLink = links.find((l) => l.attributes('to') === '/waitlist');
+
+    expect(libraryLink?.classes()).toContain('opacity-40');
+    expect(libraryLink?.classes()).toContain('pointer-events-none');
+    expect(libraryLink?.attributes('title')).toContain('temporarily unavailable');
 
     expect(requestLink?.classes()).toContain('opacity-40');
     expect(requestLink?.classes()).toContain('pointer-events-none');
@@ -87,6 +97,7 @@ describe('Degraded Navigation & Router Redirect Guards (Subtask #89)', () => {
     ff.setFlags({
       waitlist: false,
       manual_torrents: true,
+      jellyfin_library_view: false,
     });
 
     const requestsStore = useRequestsStore();
@@ -99,6 +110,11 @@ describe('Degraded Navigation & Router Redirect Guards (Subtask #89)', () => {
     await router.push('/waitlist');
 
     // Should redirect to dashboard
+    expect(router.currentRoute.value.path).toBe('/dashboard');
+    expect(showToastSpy).toHaveBeenCalledWith('This feature is temporarily unavailable.', 'info');
+
+    // Attempt direct navigation to disabled /library route
+    await router.push('/library');
     expect(router.currentRoute.value.path).toBe('/dashboard');
     expect(showToastSpy).toHaveBeenCalledWith('This feature is temporarily unavailable.', 'info');
   });

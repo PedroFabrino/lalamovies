@@ -26,6 +26,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/library',
+    name: 'library',
+    component: () => import('../views/LibraryView.vue'),
+    meta: { requiresAuth: true, requiresFeature: 'jellyfin_library_view' },
+  },
+  {
     path: '/request',
     name: 'request',
     component: () => import('../views/RequestView.vue'),

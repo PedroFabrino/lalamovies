@@ -1234,8 +1234,8 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
     // If not found at jellyfinPath, check qBittorrent & staging
     if (!isComplete && item.qbTorrentHash) {
       try {
-        const torrents = await app.qbittorrent.getTorrents();
-        const found = torrents.find((t) => t.hash.toLowerCase() === item.qbTorrentHash?.toLowerCase());
+        const torrents = app.qbittorrent.getAllTorrents ? await app.qbittorrent.getAllTorrents() : [];
+        const found = torrents.find((t: any) => t.hash.toLowerCase() === item.qbTorrentHash?.toLowerCase());
         if (found) {
           torrentSize = found.size;
           if (found.progress === 1 || found.state.includes('complete') || found.state.includes('upload') || found.state.includes('seed')) {

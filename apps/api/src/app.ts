@@ -25,6 +25,7 @@ import { discoveryRoutes } from './routes/discovery';
 import { wsRoutes, BroadcastFunction } from './routes/ws';
 import { waitlistRoutes } from './routes/waitlist';
 import { streamsRoutes } from './routes/streams';
+import { libraryRoutes } from './routes/library';
 import { isFeatureEnabled } from './middleware/featureFlags';
 
 export interface AppOptions {
@@ -292,6 +293,8 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.register(waitlistRoutes, { prefix: '/api/waitlist' });
   app.register(streamsRoutes, { prefix: '/streams' });
   app.register(streamsRoutes, { prefix: '/api/streams' });
+  app.register(libraryRoutes, { prefix: '/library' });
+  app.register(libraryRoutes, { prefix: '/api/library' });
   app.register(wsRoutes);
 
   return app;

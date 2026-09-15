@@ -21,6 +21,21 @@
           Dashboard
         </router-link>
         <router-link
+          to="/library"
+          class="px-3 py-1.5 text-sm font-medium rounded-lg transition"
+          :class="[
+            !isLibraryEnabled
+              ? 'opacity-40 cursor-not-allowed pointer-events-none text-zinc-500'
+              : isRouteActive('/library')
+                ? 'bg-zinc-800 text-white'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
+          ]"
+          :title="!isLibraryEnabled ? 'Media library is temporarily unavailable' : undefined"
+          :tabindex="!isLibraryEnabled ? -1 : undefined"
+        >
+          Library
+        </router-link>
+        <router-link
           to="/request"
           class="px-3 py-1.5 text-sm font-medium rounded-lg transition"
           :class="[
@@ -110,6 +125,7 @@ const authStore = useAuthStore();
 const { isConnected } = useProgressSocket();
 const featureFlags = useFeatureFlags();
 
+const isLibraryEnabled = computed(() => featureFlags.isEnabled('jellyfin_library_view'));
 const isRequestEnabled = computed(() => featureFlags.isEnabled('manual_torrents'));
 const isWaitlistEnabled = computed(() => featureFlags.isEnabled('waitlist'));
 

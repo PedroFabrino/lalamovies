@@ -135,6 +135,13 @@ export const DEFAULT_FEATURE_FLAGS: Array<{
     enabled: true,
   },
   {
+    id: 'jellyfin_library_view',
+    name: 'Media Library View',
+    description: 'Portal view of Jellyfin media folders with moving and deletion capabilities',
+    category: 'downloads',
+    enabled: true,
+  },
+  {
     id: 'automated_cleanup',
     name: 'Automated Disk Cleanup',
     description: 'Scheduled periodic disk evaluation and retention tier media eviction',
