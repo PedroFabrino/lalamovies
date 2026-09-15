@@ -223,6 +223,14 @@
               <span class="truncate max-w-[110px] flex items-center gap-1">
                 <span class="truncate">{{ item.indexer }}</span>
                 <span
+                  v-if="item.isPreferred"
+                  class="text-teal-400 font-medium shrink-0 flex items-center gap-0.5 text-[9px] bg-teal-950/60 border border-teal-800/60 rounded px-1 py-0.2"
+                  title="Preferred Indexer"
+                  data-testid="badge-preferred"
+                >
+                  ⭐ Preferred
+                </span>
+                <span
                   v-if="item.isPrivateTracker"
                   class="text-amber-400 font-medium shrink-0 flex items-center gap-0.5 text-[9px] bg-amber-950/60 border border-amber-800/60 rounded px-1 py-0.2"
                   title="Private tracker — cloud streaming barred for security"
@@ -232,7 +240,7 @@
               </span>
               <div class="flex items-center gap-1.5">
                 <button
-                  v-if="isStreamingEnabled && !item.isPrivateTracker"
+                  v-if="isStreamingEnabled && (!item.isPrivateTracker || Boolean(item.streamUrl)) && !(item.isPreferred && !item.streamUrl)"
                   type="button"
                   class="text-[10px] font-semibold px-2 py-0.5 rounded transition cursor-pointer flex items-center gap-1"
                   :class="getItemCacheStatus(item) === true
@@ -288,6 +296,9 @@ export interface DiscoveryItem {
   metadataId: string | null;
   metadataSource: 'tmdb' | 'anilist' | null;
   isPrivateTracker?: boolean;
+  isPreferred?: boolean;
+  streamUrl?: string;
+  streamIndexer?: string;
 }
 
 interface DiscoveryFeedResponse {
@@ -313,7 +324,11 @@ function extractHash(magnetOrUrl: string): string {
 }
 
 function getItemCacheStatus(item: DiscoveryItem): boolean | undefined {
-  if (item.isPrivateTracker) return undefined;
+  if (item.streamUrl) {
+    const hash = extractHash(item.streamUrl);
+    return hash ? cacheMap.value[hash] : undefined;
+  }
+  if (item.isPrivateTracker || item.isPreferred) return undefined;
   const hash = extractHash(item.downloadUrl);
   return hash ? cacheMap.value[hash] : undefined;
 }
@@ -322,8 +337,11 @@ async function checkCacheForItems(items: DiscoveryItem[]) {
   if (!isStreamingEnabled.value) return;
 
   const publicHashes = items
-    .filter((i) => !i.isPrivateTracker && i.downloadUrl)
-    .map((i) => extractHash(i.downloadUrl))
+    .map((i) => {
+      if (i.streamUrl) return extractHash(i.streamUrl);
+      if (!i.isPrivateTracker && !i.isPreferred && i.downloadUrl) return extractHash(i.downloadUrl);
+      return '';
+    })
     .filter(Boolean);
 
   if (publicHashes.length === 0) return;
@@ -344,7 +362,17 @@ async function checkCacheForItems(items: DiscoveryItem[]) {
 }
 
 function handleInstantStreamClick(item: DiscoveryItem) {
-  emit('instant-stream', item);
+  if (item.streamUrl) {
+    emit('instant-stream', {
+      ...item,
+      downloadUrl: item.streamUrl,
+      indexer: item.streamIndexer || item.indexer,
+      isPrivateTracker: false,
+      isPreferred: false,
+    });
+  } else {
+    emit('instant-stream', item);
+  }
 }
 
 const DISCOVERY_CACHE_KEY = 'mdm_discovery_cache_v1';

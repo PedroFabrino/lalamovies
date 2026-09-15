@@ -13,6 +13,7 @@ export interface ReleaseCandidate {
   score: number;
   isLowHealth: boolean;
   isPrivateTracker?: boolean;
+  isPreferred?: boolean;
   infoHash?: string;
   isInfringing?: boolean;
 }

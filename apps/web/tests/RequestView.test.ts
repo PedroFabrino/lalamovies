@@ -1086,5 +1086,179 @@ describe('RequestView - Candidate Explorer UI', () => {
       featureFlags.setFlag('streaming', true);
     });
   });
+
+  describe('Preferred Indexer Badges in Step 3 (Subtask 06)', () => {
+    it('renders BJ-Share Preferred badge on recommended card and Preferred pill in explorer drawer', async () => {
+      vi.mocked(api.get).mockResolvedValue({ isConfigured: true, isReachable: true });
+
+      vi.mocked(api.post).mockImplementation(async (endpoint: string) => {
+        if (endpoint === '/requests/search-metadata') {
+          return {
+            candidates: [
+              {
+                id: 'm-pref',
+                source: 'tmdb',
+                title: 'Preferred Movie',
+                year: 2024,
+                overview: 'A movie with a preferred release...',
+                posterUrl: null,
+              },
+            ],
+          } as any;
+        }
+        if (endpoint === '/requests/search-releases') {
+          return {
+            recommended: {
+              guid: 'rel-pref',
+              title: 'Preferred.Movie.2024.1080p.WEB-DL.x264',
+              sizeBytes: 3 * 1024 * 1024 * 1024,
+              formattedSize: '3.0 GB',
+              seeders: 15,
+              leechers: 1,
+              downloadUrl: 'magnet:?xt=urn:btih:prefrel',
+              indexer: 'BJ-Share',
+              resolution: '1080p',
+              codec: 'x264',
+              source: 'web',
+              score: 420,
+              isLowHealth: false,
+              isPrivateTracker: true,
+              isPreferred: true,
+            },
+            candidates: [
+              {
+                guid: 'rel-pref',
+                title: 'Preferred.Movie.2024.1080p.WEB-DL.x264',
+                sizeBytes: 3 * 1024 * 1024 * 1024,
+                formattedSize: '3.0 GB',
+                seeders: 15,
+                leechers: 1,
+                downloadUrl: 'magnet:?xt=urn:btih:prefrel',
+                indexer: 'BJ-Share',
+                resolution: '1080p',
+                codec: 'x264',
+                source: 'web',
+                score: 420,
+                isLowHealth: false,
+                isPrivateTracker: true,
+                isPreferred: true,
+              },
+              {
+                guid: 'rel-pub',
+                title: 'Preferred.Movie.2024.1080p.BluRay.x264',
+                sizeBytes: 4 * 1024 * 1024 * 1024,
+                formattedSize: '4.0 GB',
+                seeders: 50,
+                leechers: 5,
+                downloadUrl: 'magnet:?xt=urn:btih:pubrel',
+                indexer: '1337x',
+                resolution: '1080p',
+                codec: 'x264',
+                source: 'bluray',
+                score: 120,
+                isLowHealth: false,
+                isPrivateTracker: false,
+                isPreferred: false,
+              },
+            ],
+            totalFound: 2,
+            isConfigured: true,
+          } as any;
+        }
+        return {} as any;
+      });
+
+      const wrapper = mount(RequestView);
+
+      // Advance to step 2
+      const queryInput = wrapper.find('#customQuery');
+      await queryInput.setValue('Preferred Movie');
+      await wrapper.find('form').trigger('submit.prevent');
+      await flushPromises();
+
+      // Click metadata candidate to advance to step 3
+      const candidateCard = wrapper.find('.group');
+      await candidateCard.trigger('click');
+      await flushPromises();
+
+      // 1. Assert BJ-Share Preferred badge renders on Recommended card
+      const recommendedPrefBadge = wrapper.find('[data-testid="badge-preferred-recommended"]');
+      expect(recommendedPrefBadge.exists()).toBe(true);
+      expect(recommendedPrefBadge.text()).toContain('BJ-Share Preferred');
+
+      // 2. Open explorer drawer and assert Preferred pill renders for preferred candidate, but not for public candidate
+      const toggleBtn = wrapper.find('[data-testid="toggle-explorer"]');
+      await toggleBtn.trigger('click');
+      await flushPromises();
+
+      const prefCandidateRow = wrapper.find('[data-testid="candidate-item-rel-pref"]');
+      expect(prefCandidateRow.exists()).toBe(true);
+      const prefPill = prefCandidateRow.find('[data-testid="badge-preferred-candidate"]');
+      expect(prefPill.exists()).toBe(true);
+      expect(prefPill.text()).toContain('Preferred');
+
+      const pubCandidateRow = wrapper.find('[data-testid="candidate-item-rel-pub"]');
+      expect(pubCandidateRow.exists()).toBe(true);
+      expect(pubCandidateRow.find('[data-testid="badge-preferred-candidate"]').exists()).toBe(false);
+    });
+
+    it('omits BJ-Share Preferred badge when recommended release is not preferred', async () => {
+      vi.mocked(api.get).mockResolvedValue({ isConfigured: true, isReachable: true });
+
+      vi.mocked(api.post).mockImplementation(async (endpoint: string) => {
+        if (endpoint === '/requests/search-metadata') {
+          return {
+            candidates: [
+              {
+                id: 'm-pub',
+                source: 'tmdb',
+                title: 'Public Only Movie',
+                year: 2024,
+                overview: 'Overview...',
+                posterUrl: null,
+              },
+            ],
+          } as any;
+        }
+        if (endpoint === '/requests/search-releases') {
+          return {
+            recommended: {
+              guid: 'rel-pub',
+              title: 'Public.Movie.2024.1080p.BluRay.x264',
+              sizeBytes: 3 * 1024 * 1024 * 1024,
+              formattedSize: '3.0 GB',
+              seeders: 50,
+              leechers: 5,
+              downloadUrl: 'magnet:?xt=urn:btih:pubrel',
+              indexer: '1337x',
+              resolution: '1080p',
+              codec: 'x264',
+              source: 'bluray',
+              score: 120,
+              isLowHealth: false,
+              isPrivateTracker: false,
+              isPreferred: false,
+            },
+            candidates: [],
+            totalFound: 1,
+            isConfigured: true,
+          } as any;
+        }
+        return {} as any;
+      });
+
+      const wrapper = mount(RequestView);
+      const queryInput = wrapper.find('#customQuery');
+      await queryInput.setValue('Public Only Movie');
+      await wrapper.find('form').trigger('submit.prevent');
+      await flushPromises();
+
+      const candidateCard = wrapper.find('.group');
+      await candidateCard.trigger('click');
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="badge-preferred-recommended"]').exists()).toBe(false);
+    });
+  });
 });
 

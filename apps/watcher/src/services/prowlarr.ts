@@ -1,4 +1,5 @@
 import { extractEpisodeInfo } from '../utils/torrentTitleCleaner';
+import { isPreferredIndexer, isQualifiedPreferred } from '../utils/preferredIndexer';
 
 export type Resolution = '2160p' | '1080p' | '720p' | '480p' | 'unknown';
 export type VideoCodec = 'x265' | 'x264' | 'av1' | 'xvid' | 'unknown';
@@ -18,6 +19,7 @@ export interface ReleaseCandidate {
   source: ReleaseSource;
   score: number;
   isLowHealth: boolean;
+  isPreferred: boolean;
 }
 
 export interface ScoreOptions {
@@ -176,6 +178,11 @@ export function scoreRelease(
   }
 
   score += Math.min(candidate.seeders, 50);
+
+  if (isQualifiedPreferred(candidate)) {
+    score += 300;
+  }
+
   const isLowHealth = candidate.seeders < 5;
 
   return { score, isLowHealth };
@@ -296,6 +303,7 @@ export class WatcherProwlarrService {
       const indexer = item.indexer || 'Tracker';
       const guid = item.guid || downloadUrl;
 
+      const isPreferred = isPreferredIndexer(indexer);
       const { resolution, codec, source } = parseReleaseTitle(releaseTitle);
       const { score, isLowHealth } = scoreRelease(
         {
@@ -310,6 +318,7 @@ export class WatcherProwlarrService {
           resolution,
           codec,
           source,
+          isPreferred,
         },
         scoreOptions
       );
@@ -328,7 +337,13 @@ export class WatcherProwlarrService {
         source,
         score,
         isLowHealth,
+        isPreferred,
       });
+    }
+
+    // When PREFERRED_INDEXER_REGEX is configured, filter candidates to preferred only
+    if (process.env.PREFERRED_INDEXER_REGEX?.trim()) {
+      return candidates.filter((c) => c.isPreferred);
     }
 
     return candidates;

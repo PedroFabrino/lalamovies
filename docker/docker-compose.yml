@@ -35,6 +35,7 @@ services:
       - STREAMER_URL=${STREAMER_URL:-http://mdm-streamer:3002}
       - MAGIC_LINK_SECRET=${MAGIC_LINK_SECRET}
       - WAITLIST_DISCORD_WEBHOOK_URL=${WAITLIST_DISCORD_WEBHOOK_URL}
+      - PREFERRED_INDEXER_REGEX=${PREFERRED_INDEXER_REGEX:-}
     volumes:
       - app_db:/data
       - ${MEDIA_DATA_PATH:-D:/MediaServer/media_data}:/media_data
@@ -70,6 +71,7 @@ services:
       - MOVIE_GRACE_HOURS=${MOVIE_GRACE_HOURS:-6}
       - EPISODE_GRACE_HOURS=${EPISODE_GRACE_HOURS:-0}
       - NEW_RELEASE_THRESHOLD_DAYS=${NEW_RELEASE_THRESHOLD_DAYS:-30}
+      - PREFERRED_INDEXER_REGEX=${PREFERRED_INDEXER_REGEX:-}
     volumes:
       - watcher_db:/data
     depends_on:

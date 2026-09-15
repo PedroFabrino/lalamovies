@@ -671,4 +671,159 @@ describe('GET /discovery/feed - HTTP Integration', () => {
     expect(res2.headers['cache-control']).toBe('no-cache, no-store, must-revalidate');
     expect(searchSpy).toHaveBeenCalledTimes(2);
   });
+
+  describe('Dual-Candidate Binding & Airgap Enforcement (Subtask 04)', () => {
+    it('binds public streamUrl when group winner is preferred and public alternative exists', async () => {
+      prowlarr.candidates = [
+        {
+          guid: 'pref-1',
+          title: 'Dune Part Two 2024 1080p WEB-DL x264',
+          sizeBytes: 3000000000,
+          formattedSize: '3.0 GB',
+          seeders: 20,
+          leechers: 2,
+          downloadUrl: 'magnet:?xt=urn:btih:pref_dune&tr=http://bj-share.info/announce?passkey=secret123',
+          indexer: 'BJ-Share',
+          resolution: '1080p',
+          codec: 'x264',
+          source: 'web',
+          score: 420,
+          isLowHealth: false,
+          isPrivateTracker: true,
+          isPreferred: true,
+        },
+        {
+          guid: 'pub-1',
+          title: 'Dune Part Two 2024 1080p BluRay x264',
+          sizeBytes: 3500000000,
+          formattedSize: '3.5 GB',
+          seeders: 50,
+          leechers: 5,
+          downloadUrl: 'magnet:?xt=urn:btih:pub_dune',
+          indexer: '1337x',
+          resolution: '1080p',
+          codec: 'x264',
+          source: 'bluray',
+          score: 120,
+          isLowHealth: false,
+          isPrivateTracker: false,
+          isPreferred: false,
+        },
+      ];
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/discovery/feed?category=movies&refresh=true',
+        cookies: { token },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.available).toBe(true);
+      expect(body.items).toHaveLength(1);
+
+      const item = body.items[0];
+      expect(item.isPreferred).toBe(true);
+      expect(item.downloadUrl).toContain('pref_dune');
+      expect(item.indexer).toBe('BJ-Share');
+
+      // Dual-candidate: streamUrl is the public alternative
+      expect(item.streamUrl).toBe('magnet:?xt=urn:btih:pub_dune');
+      expect(item.streamIndexer).toBe('1337x');
+      // Airgap: streamUrl is never the preferred downloadUrl
+      expect(item.streamUrl).not.toBe(item.downloadUrl);
+    });
+
+    it('leaves streamUrl absent when group winner is preferred and NO public alternative exists', async () => {
+      prowlarr.candidates = [
+        {
+          guid: 'pref-only',
+          title: 'Rare Brazilian Film 2024 1080p WEB-DL x264',
+          sizeBytes: 2000000000,
+          formattedSize: '2.0 GB',
+          seeders: 15,
+          leechers: 1,
+          downloadUrl: 'magnet:?xt=urn:btih:pref_rare&tr=http://bj-share.info/announce?passkey=secret123',
+          indexer: 'BJ-Share',
+          resolution: '1080p',
+          codec: 'x264',
+          source: 'web',
+          score: 410,
+          isLowHealth: false,
+          isPrivateTracker: true,
+          isPreferred: true,
+        },
+        {
+          guid: 'another-private',
+          title: 'Rare Brazilian Film 2024 720p HDTV x264',
+          sizeBytes: 1500000000,
+          formattedSize: '1.5 GB',
+          seeders: 10,
+          leechers: 1,
+          downloadUrl: 'magnet:?xt=urn:btih:priv_other&tr=http://tracker.com/announce?passkey=secret456',
+          indexer: 'TorrentLeech',
+          resolution: '720p',
+          codec: 'x264',
+          source: 'hdtv',
+          score: 90,
+          isLowHealth: false,
+          isPrivateTracker: true,
+          isPreferred: false,
+        },
+      ];
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/discovery/feed?category=movies&refresh=true',
+        cookies: { token },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.available).toBe(true);
+      expect(body.items).toHaveLength(1);
+
+      const item = body.items[0];
+      expect(item.isPreferred).toBe(true);
+      expect(item.downloadUrl).toContain('pref_rare');
+      // No public alternative, so streamUrl must be undefined
+      expect(item.streamUrl).toBeUndefined();
+      expect(item.streamIndexer).toBeUndefined();
+    });
+
+    it('leaves streamUrl absent and isPreferred false when group winner is a public candidate', async () => {
+      prowlarr.candidates = [
+        {
+          guid: 'pub-only',
+          title: 'Public Movie 2024 1080p BluRay x264',
+          sizeBytes: 3000000000,
+          formattedSize: '3.0 GB',
+          seeders: 50,
+          leechers: 5,
+          downloadUrl: 'magnet:?xt=urn:btih:pub_only',
+          indexer: '1337x',
+          resolution: '1080p',
+          codec: 'x264',
+          source: 'bluray',
+          score: 130,
+          isLowHealth: false,
+          isPrivateTracker: false,
+          isPreferred: false,
+        },
+      ];
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/discovery/feed?category=movies&refresh=true',
+        cookies: { token },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.available).toBe(true);
+      expect(body.items).toHaveLength(1);
+
+      const item = body.items[0];
+      expect(item.isPreferred).toBe(false);
+      expect(item.streamUrl).toBeUndefined();
+      expect(item.streamIndexer).toBeUndefined();
+    });
+  });
 });

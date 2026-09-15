@@ -1233,4 +1233,188 @@ describe('POST /requests/search-releases - Route Tests', () => {
       await testApp.close();
     });
   });
+
+  describe('Preferred Indexer (BJ-Share) - Subtask 02', () => {
+    const originalEnv = process.env.PREFERRED_INDEXER_REGEX;
+    const service = new ProwlarrService('http://localhost:9696', 'mock-key');
+
+    beforeEach(() => {
+      process.env.PREFERRED_INDEXER_REGEX = 'bj[-_ ]?share';
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      if (originalEnv !== undefined) {
+        process.env.PREFERRED_INDEXER_REGEX = originalEnv;
+      } else {
+        delete process.env.PREFERRED_INDEXER_REGEX;
+      }
+    });
+
+    it('awards +300 bonus in scoreRelease when candidate is qualified preferred', () => {
+      const preferred = service.scoreRelease({
+        guid: 'pref-1',
+        title: 'Movie.2024.1080p.WEB-DL.x264',
+        sizeBytes: 3 * 1024 * 1024 * 1024,
+        formattedSize: '3.0 GB',
+        seeders: 5,
+        leechers: 1,
+        downloadUrl: 'magnet:?xt=urn:btih:pref',
+        indexer: 'BJ-Share',
+        resolution: '1080p',
+        codec: 'x264',
+        source: 'web',
+        isPrivateTracker: true,
+      });
+
+      const publicRel = service.scoreRelease({
+        guid: 'pub-1',
+        title: 'Movie.2024.1080p.WEB-DL.x264',
+        sizeBytes: 3 * 1024 * 1024 * 1024,
+        formattedSize: '3.0 GB',
+        seeders: 5,
+        leechers: 1,
+        downloadUrl: 'magnet:?xt=urn:btih:pub',
+        indexer: '1337x',
+        resolution: '1080p',
+        codec: 'x264',
+        source: 'web',
+        isPrivateTracker: false,
+      });
+
+      expect(preferred.score - publicRel.score).toBe(300);
+    });
+
+    it('preferred release with 3 seeders beats public release with 50 seeders for recommended', async () => {
+      const mockTorrents = [
+        {
+          guid: 'pub-1',
+          title: 'Movie.2024.1080p.WEB-DL.x264',
+          size: 3 * 1024 * 1024 * 1024,
+          seeders: 50,
+          leechers: 5,
+          downloadUrl: 'magnet:?xt=urn:btih:pub',
+          indexer: '1337x',
+        },
+        {
+          guid: 'pref-1',
+          title: 'Movie.2024.1080p.WEB-DL.x264',
+          size: 3 * 1024 * 1024 * 1024,
+          seeders: 3,
+          leechers: 0,
+          downloadUrl: 'magnet:?xt=urn:btih:pref',
+          indexer: 'BJ-Share',
+        },
+      ];
+
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockTorrents,
+      } as Response);
+
+      const result = await service.searchMovieReleases('Movie', 2024);
+      expect(result.recommended).not.toBeNull();
+      expect(result.recommended?.guid).toBe('pref-1');
+      expect(result.recommended?.isPreferred).toBe(true);
+      expect(result.hasHealthyReleases).toBe(true);
+    });
+
+    it('preferred release with < 3 seeders does not take recommended slot (falls back to public)', async () => {
+      const mockTorrents = [
+        {
+          guid: 'pub-1',
+          title: 'Movie.2024.1080p.WEB-DL.x264',
+          size: 3 * 1024 * 1024 * 1024,
+          seeders: 20,
+          leechers: 2,
+          downloadUrl: 'magnet:?xt=urn:btih:pub',
+          indexer: '1337x',
+        },
+        {
+          guid: 'pref-dead',
+          title: 'Movie.2024.1080p.WEB-DL.x264',
+          size: 3 * 1024 * 1024 * 1024,
+          seeders: 2, // < 3 seeders
+          leechers: 0,
+          downloadUrl: 'magnet:?xt=urn:btih:prefdead',
+          indexer: 'BJ-Share',
+        },
+      ];
+
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockTorrents,
+      } as Response);
+
+      const result = await service.searchMovieReleases('Movie', 2024);
+      expect(result.recommended).not.toBeNull();
+      expect(result.recommended?.guid).toBe('pub-1');
+    });
+
+    it('preferred CAM release does not take recommended slot', async () => {
+      const mockTorrents = [
+        {
+          guid: 'pub-1',
+          title: 'Movie.2024.1080p.WEB-DL.x264',
+          size: 3 * 1024 * 1024 * 1024,
+          seeders: 20,
+          leechers: 2,
+          downloadUrl: 'magnet:?xt=urn:btih:pub',
+          indexer: '1337x',
+        },
+        {
+          guid: 'pref-cam',
+          title: 'Movie.2024.HDCAM.x264',
+          size: 1 * 1024 * 1024 * 1024,
+          seeders: 50,
+          leechers: 0,
+          downloadUrl: 'magnet:?xt=urn:btih:prefcam',
+          indexer: 'BJ-Share',
+        },
+      ];
+
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockTorrents,
+      } as Response);
+
+      const result = await service.searchMovieReleases('Movie', 2024);
+      expect(result.recommended).not.toBeNull();
+      expect(result.recommended?.guid).toBe('pub-1');
+    });
+
+    it('when PREFERRED_INDEXER_REGEX is unset, behaves identically to standard scoring', async () => {
+      delete process.env.PREFERRED_INDEXER_REGEX;
+
+      const mockTorrents = [
+        {
+          guid: 'pub-1',
+          title: 'Movie.2024.1080p.WEB-DL.x264',
+          size: 3 * 1024 * 1024 * 1024,
+          seeders: 50,
+          leechers: 5,
+          downloadUrl: 'magnet:?xt=urn:btih:pub',
+          indexer: '1337x',
+        },
+        {
+          guid: 'pref-1',
+          title: 'Movie.2024.1080p.WEB-DL.x264',
+          size: 3 * 1024 * 1024 * 1024,
+          seeders: 3,
+          leechers: 0,
+          downloadUrl: 'magnet:?xt=urn:btih:pref',
+          indexer: 'BJ-Share',
+        },
+      ];
+
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockTorrents,
+      } as Response);
+
+      const result = await service.searchMovieReleases('Movie', 2024);
+      expect(result.recommended?.guid).toBe('pub-1');
+      expect(result.candidates.find((c) => c.guid === 'pref-1')?.isPreferred).toBe(false);
+    });
+  });
 });

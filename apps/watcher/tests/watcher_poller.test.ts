@@ -486,4 +486,192 @@ describe('WatcherPoller & Quality Gate (Ticket 04)', () => {
       sqlite.close();
     });
   });
+
+  describe('Preferred Indexer Auto-Download Filter (Subtask 03)', () => {
+    const originalEnv = process.env.PREFERRED_INDEXER_REGEX;
+
+    beforeEach(() => {
+      process.env.PREFERRED_INDEXER_REGEX = 'bj[-_ ]?share';
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      if (originalEnv !== undefined) {
+        process.env.PREFERRED_INDEXER_REGEX = originalEnv;
+      } else {
+        delete process.env.PREFERRED_INDEXER_REGEX;
+      }
+    });
+
+    it('filters out public-only releases in searchForEntry when preferred indexer is configured', async () => {
+      const mockProwlarr = new WatcherProwlarrService({ apiKey: 'test-key' });
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          {
+            guid: 'pub-1',
+            title: 'Awesome Movie 2024 1080p BluRay x264',
+            size: 3000000000,
+            seeders: 50,
+            leechers: 5,
+            downloadUrl: 'magnet:?xt=urn:btih:pub1',
+            indexer: '1337x',
+          },
+          {
+            guid: 'pub-2',
+            title: 'Awesome Movie 2024 1080p WEB-DL x265',
+            size: 2000000000,
+            seeders: 80,
+            leechers: 10,
+            downloadUrl: 'magnet:?xt=urn:btih:pub2',
+            indexer: 'Nyaa',
+          },
+        ],
+      } as Response);
+
+      const entry: any = {
+        mediaType: 'movie',
+        title: 'Awesome Movie',
+        year: 2024,
+      };
+
+      const candidates = await mockProwlarr.searchForEntry(entry);
+      expect(candidates).toHaveLength(0);
+    });
+
+    it('returns BJ-Share candidate when preferred indexer matches', async () => {
+      const mockProwlarr = new WatcherProwlarrService({ apiKey: 'test-key' });
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          {
+            guid: 'pub-1',
+            title: 'Awesome Movie 2024 1080p BluRay x264',
+            size: 3000000000,
+            seeders: 50,
+            leechers: 5,
+            downloadUrl: 'magnet:?xt=urn:btih:pub1',
+            indexer: '1337x',
+          },
+          {
+            guid: 'pref-1',
+            title: 'Awesome Movie 2024 1080p WEB-DL x264',
+            size: 2500000000,
+            seeders: 15,
+            leechers: 2,
+            downloadUrl: 'magnet:?xt=urn:btih:pref1',
+            indexer: 'BJ-Share',
+          },
+        ],
+      } as Response);
+
+      const entry: any = {
+        mediaType: 'movie',
+        title: 'Awesome Movie',
+        year: 2024,
+      };
+
+      const candidates = await mockProwlarr.searchForEntry(entry);
+      expect(candidates).toHaveLength(1);
+      expect(candidates[0].guid).toBe('pref-1');
+      expect(candidates[0].isPreferred).toBe(true);
+    });
+
+    it('returns all candidates when PREFERRED_INDEXER_REGEX is unset', async () => {
+      delete process.env.PREFERRED_INDEXER_REGEX;
+      const mockProwlarr = new WatcherProwlarrService({ apiKey: 'test-key' });
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          {
+            guid: 'pub-1',
+            title: 'Awesome Movie 2024 1080p BluRay x264',
+            size: 3000000000,
+            seeders: 50,
+            leechers: 5,
+            downloadUrl: 'magnet:?xt=urn:btih:pub1',
+            indexer: '1337x',
+          },
+          {
+            guid: 'pref-1',
+            title: 'Awesome Movie 2024 1080p WEB-DL x264',
+            size: 2500000000,
+            seeders: 15,
+            leechers: 2,
+            downloadUrl: 'magnet:?xt=urn:btih:pref1',
+            indexer: 'BJ-Share',
+          },
+        ],
+      } as Response);
+
+      const entry: any = {
+        mediaType: 'movie',
+        title: 'Awesome Movie',
+        year: 2024,
+      };
+
+      const candidates = await mockProwlarr.searchForEntry(entry);
+      expect(candidates).toHaveLength(2);
+      expect(candidates[0].isPreferred).toBe(false);
+      expect(candidates[1].isPreferred).toBe(false);
+    });
+
+    it('WatcherPoller stays in checking state when only public releases exist, and notifies when preferred arrives', async () => {
+      const { db, sqlite } = initWatcherDatabase(':memory:');
+      const mockProwlarr = new WatcherProwlarrService({ apiKey: 'test-key' });
+
+      const now = new Date().toISOString();
+      db.insert(watchRequests).values({
+        id: 'entry-preferred-test',
+        userId: 'u1',
+        mediaType: 'movie',
+        metadataId: 'm-pref-1',
+        metadataSource: 'tmdb',
+        title: 'Wanted Movie',
+        status: 'checking',
+        createdAt: now,
+        updatedAt: now,
+      }).run();
+
+      const poller = new WatcherPoller({
+        db,
+        prowlarrService: mockProwlarr,
+      });
+
+      // Pass 1: searchForEntry returns [] because only public candidates exist
+      vi.spyOn(mockProwlarr, 'searchForEntry').mockResolvedValueOnce([]);
+
+      const result1 = await poller.pollOnce();
+      expect(result1.notified).toBe(0);
+      const entryAfterPass1 = db.select().from(watchRequests).where(eq(watchRequests.id, 'entry-preferred-test')).get();
+      expect(entryAfterPass1?.status).toBe('checking');
+
+      // Pass 2: searchForEntry returns qualifying BJ-Share candidate
+      vi.spyOn(mockProwlarr, 'searchForEntry').mockResolvedValueOnce([
+        {
+          guid: 'pref-qualifying',
+          title: 'Wanted Movie 2024 1080p WEB-DL x264',
+          sizeBytes: 2500000000,
+          formattedSize: '2.5 GB',
+          seeders: 15,
+          leechers: 2,
+          downloadUrl: 'magnet:?xt=urn:btih:prefqualifying',
+          indexer: 'BJ-Share',
+          resolution: '1080p',
+          codec: 'x264',
+          source: 'web',
+          score: 130, // >= 100
+          isLowHealth: false,
+          isPreferred: true,
+        },
+      ]);
+
+      const result2 = await poller.pollOnce();
+      expect(result2.notified).toBe(1);
+      const entryAfterPass2 = db.select().from(watchRequests).where(eq(watchRequests.id, 'entry-preferred-test')).get();
+      expect(entryAfterPass2?.status).toBe('notified');
+
+      sqlite.close();
+    });
+  });
 });

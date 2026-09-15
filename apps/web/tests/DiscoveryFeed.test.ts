@@ -402,4 +402,106 @@ describe('DiscoveryFeed.vue - Component Tests', () => {
     // Reset flag
     featureFlags.setFlag('streaming', true);
   });
+
+  describe('Preferred Indexer & Dual-Candidate Streaming (Subtask 05)', () => {
+    it('renders ⭐ Preferred badge and 🔒 Private label on preferred cards', async () => {
+      const preferredItem: DiscoveryItem = {
+        ...sampleMovieItem,
+        id: 'pref-card',
+        indexer: 'BJ-Share',
+        isPreferred: true,
+        isPrivateTracker: true,
+      };
+
+      vi.mocked(api.get).mockResolvedValueOnce({
+        available: true,
+        items: [preferredItem],
+      });
+
+      const wrapper = mount(DiscoveryFeed);
+      await flushPromises();
+
+      const prefBadge = wrapper.find('[data-testid="badge-preferred"]');
+      expect(prefBadge.exists()).toBe(true);
+      expect(prefBadge.text()).toContain('Preferred');
+      expect(wrapper.text()).toContain('Private');
+    });
+
+    it('hides Instant Stream button when card is preferred-only with no streamUrl', async () => {
+      const preferredOnlyItem: DiscoveryItem = {
+        ...sampleMovieItem,
+        id: 'pref-only-card',
+        indexer: 'BJ-Share',
+        isPreferred: true,
+        isPrivateTracker: true,
+        downloadUrl: 'magnet:?xt=urn:btih:bjshareonly',
+        streamUrl: undefined,
+      };
+
+      vi.mocked(api.get).mockResolvedValueOnce({
+        available: true,
+        items: [preferredOnlyItem],
+      });
+
+      const wrapper = mount(DiscoveryFeed);
+      await flushPromises();
+
+      const streamBtn = wrapper.find('[data-testid="button-instant-stream"]');
+      expect(streamBtn.exists()).toBe(false);
+    });
+
+    it('shows Instant Stream button, checks cache for streamUrl hash, and emits streamUrl for dual-candidate card', async () => {
+      const dualCandidateItem: DiscoveryItem = {
+        ...sampleMovieItem,
+        id: 'pref-dual-card',
+        indexer: 'BJ-Share',
+        isPreferred: true,
+        isPrivateTracker: true,
+        downloadUrl: 'magnet:?xt=urn:btih:bjsharedownload&tr=http://bj-share.info/announce?passkey=secret',
+        streamUrl: 'magnet:?xt=urn:btih:publicstreamhash',
+        streamIndexer: '1337x',
+      };
+
+      let requestedCacheCheckUrl = '';
+      vi.mocked(api.get).mockImplementation(async (url: string) => {
+        if (url.includes('/discovery/feed')) {
+          return {
+            available: true,
+            items: [dualCandidateItem],
+          };
+        }
+        if (url.includes('/api/streams/cache-check')) {
+          requestedCacheCheckUrl = url;
+          return {
+            cached: {
+              publicstreamhash: true,
+            },
+          };
+        }
+        return { available: true, items: [] };
+      });
+
+      const wrapper = mount(DiscoveryFeed);
+      await flushPromises();
+
+      // Assert cache check queried the streamUrl hash (publicstreamhash), NOT bjsharedownload
+      expect(requestedCacheCheckUrl).toContain('publicstreamhash');
+      expect(requestedCacheCheckUrl).not.toContain('bjsharedownload');
+
+      // Assert stream button is present
+      const streamBtn = wrapper.find('[data-testid="button-instant-stream"]');
+      expect(streamBtn.exists()).toBe(true);
+      expect(streamBtn.text()).toContain('Instant Stream');
+
+      // Click Instant Stream button and assert emitted event uses streamUrl and not private tracker downloadUrl
+      await streamBtn.trigger('click');
+      const emitted = wrapper.emitted('instant-stream');
+      expect(emitted).toBeDefined();
+      expect(emitted![0][0]).toMatchObject({
+        downloadUrl: 'magnet:?xt=urn:btih:publicstreamhash',
+        isPrivateTracker: false,
+      });
+      expect((emitted![0][0] as any).downloadUrl).not.toContain('bjsharedownload');
+    });
+  });
 });

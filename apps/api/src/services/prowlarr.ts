@@ -1,4 +1,5 @@
 import { extractEpisodeInfo } from '../utils/torrentTitleCleaner';
+import { isPreferredIndexer, isQualifiedPreferred } from '../utils/preferredIndexer';
 
 export type Resolution = '2160p' | '1080p' | '720p' | '480p' | 'unknown';
 export type VideoCodec = 'x265' | 'x264' | 'av1' | 'xvid' | 'unknown';
@@ -35,6 +36,7 @@ export interface ReleaseCandidate {
   score: number;
   isLowHealth: boolean;
   isPrivateTracker: boolean;
+  isPreferred: boolean;
   infoHash?: string;
   magnetUrl?: string;
   isInfringing?: boolean;
@@ -387,6 +389,11 @@ export class ProwlarrService implements IProwlarrService {
     // Seeders health bonus (capped at 50 points)
     score += Math.min(candidate.seeders, 50);
 
+    // Preferred Indexer bonus (+300 points for qualified preferred candidates)
+    if (isQualifiedPreferred(candidate)) {
+      score += 300;
+    }
+
     const isLowHealth = candidate.seeders < 5;
 
     return { score, isLowHealth };
@@ -472,6 +479,7 @@ export class ProwlarrService implements IProwlarrService {
         isPrivateTracker = true;
       }
 
+      const isPreferred = isPreferredIndexer(indexer);
       const { resolution, codec, source } = this.parseReleaseTitle(releaseTitle);
       const { score, isLowHealth } = this.scoreRelease(
         {
@@ -487,6 +495,7 @@ export class ProwlarrService implements IProwlarrService {
           codec,
           source,
           isPrivateTracker,
+          isPreferred,
         },
         scoreOptions
       );
@@ -506,6 +515,7 @@ export class ProwlarrService implements IProwlarrService {
         score,
         isLowHealth,
         isPrivateTracker,
+        isPreferred,
         infoHash: infoHash || undefined,
         magnetUrl: item.magnetUrl || undefined,
         isInfringing: Boolean(infoHash && this.isHashInfringing(infoHash)),
@@ -693,9 +703,14 @@ export class ProwlarrService implements IProwlarrService {
     // Sort by score descending
     candidates.sort((a, b) => b.score - a.score);
 
-    // Recommended release must be healthy (seeders >= 5) and score > 0
-    const recommended = candidates.find((c) => !c.isLowHealth && c.score > 0) || null;
-    const hasHealthyReleases = candidates.some((c) => !c.isLowHealth && c.score > 0);
+    // Recommended release selection:
+    // 1. Qualified preferred release (seeders >= 3, non-CAM) with positive score
+    // 2. Fallback: healthy public release (seeders >= 5) with positive score
+    const recommended =
+      candidates.find((c) => isQualifiedPreferred(c) && c.score > 0) ||
+      candidates.find((c) => !c.isLowHealth && c.score > 0) ||
+      null;
+    const hasHealthyReleases = candidates.some((c) => (!c.isLowHealth || isQualifiedPreferred(c)) && c.score > 0);
 
     return {
       recommended,

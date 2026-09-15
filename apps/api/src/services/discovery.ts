@@ -25,6 +25,9 @@ export interface DiscoveryItem {
   metadataId: string | null;
   metadataSource: 'tmdb' | 'anilist' | null;
   isPrivateTracker: boolean;
+  isPreferred: boolean;
+  streamUrl?: string;
+  streamIndexer?: string;
 }
 
 export interface DiscoveryFeedResult {
@@ -215,8 +218,13 @@ export class DiscoveryService implements IDiscoveryService {
       dedupeGroups.set(dedupeKey, group);
     }
 
+    interface SelectedGroupItem {
+      parsed: ParsedCandidate;
+      streamCandidate?: ReleaseCandidate;
+    }
+
     // Select the best candidate per group (highest score, tiebreak higher seeders)
-    const topCandidates: ParsedCandidate[] = [];
+    const topCandidates: SelectedGroupItem[] = [];
     for (const group of dedupeGroups.values()) {
       group.sort((a, b) => {
         if (b.candidate.score !== a.candidate.score) {
@@ -224,15 +232,34 @@ export class DiscoveryService implements IDiscoveryService {
         }
         return b.candidate.seeders - a.candidate.seeders;
       });
-      topCandidates.push(group[0]);
+      const winner = group[0];
+      let streamCandidate: ReleaseCandidate | undefined;
+
+      // When the winning candidate is from the Preferred Indexer, scan for the best public alternative
+      if (winner.candidate.isPreferred) {
+        const publicCandidates = group
+          .map((g) => g.candidate)
+          .filter((c) => !c.isPrivateTracker && !c.isPreferred);
+        if (publicCandidates.length > 0) {
+          publicCandidates.sort((a, b) => {
+            if (b.score !== a.score) {
+              return b.score - a.score;
+            }
+            return b.seeders - a.seeders;
+          });
+          streamCandidate = publicCandidates[0];
+        }
+      }
+
+      topCandidates.push({ parsed: winner, streamCandidate });
     }
 
-    // Rank across all groups by score descending, then seeders descending
+    // Rank across all groups by winner score descending, then seeders descending
     topCandidates.sort((a, b) => {
-      if (b.candidate.score !== a.candidate.score) {
-        return b.candidate.score - a.candidate.score;
+      if (b.parsed.candidate.score !== a.parsed.candidate.score) {
+        return b.parsed.candidate.score - a.parsed.candidate.score;
       }
-      return b.candidate.seeders - a.candidate.seeders;
+      return b.parsed.candidate.seeders - a.parsed.candidate.seeders;
     });
 
     // Top 10 items
@@ -242,7 +269,8 @@ export class DiscoveryService implements IDiscoveryService {
     // 3. Metadata Enrichment
     const enrichedItems: DiscoveryItem[] = await Promise.all(
       selected.map(async (item) => {
-        const { candidate, cleanTitle, year, seasonNumber, episodeNumber } = item;
+        const { candidate, cleanTitle, year, seasonNumber, episodeNumber } = item.parsed;
+        const streamCandidate = item.streamCandidate;
 
         let posterUrl: string | null = null;
         let rating: number | null = null;
@@ -332,6 +360,9 @@ export class DiscoveryService implements IDiscoveryService {
           metadataId,
           metadataSource,
           isPrivateTracker: candidate.isPrivateTracker ?? false,
+          isPreferred: Boolean(candidate.isPreferred),
+          streamUrl: streamCandidate ? streamCandidate.downloadUrl : undefined,
+          streamIndexer: streamCandidate ? streamCandidate.indexer : undefined,
         };
       })
     );

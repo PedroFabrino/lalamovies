@@ -1320,6 +1320,14 @@
                     <span>✓</span>
                     <span>Custom Selected Release</span>
                   </span>
+                  <span
+                    v-if="activeRelease.isPreferred"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-teal-950/80 border border-teal-700/80 text-teal-300 text-xs font-semibold"
+                    data-testid="badge-preferred-recommended"
+                  >
+                    <span>⭐</span>
+                    <span>BJ-Share Preferred</span>
+                  </span>
                 </div>
 
                 <div class="flex items-center gap-3">
@@ -1507,6 +1515,13 @@
                           </span>
                           <span class="text-[11px] font-mono text-zinc-400">
                             {{ candidate.indexer }}
+                          </span>
+                          <span
+                            v-if="candidate.isPreferred"
+                            class="px-2 py-0.5 rounded bg-teal-950/80 border border-teal-700/80 text-teal-300 text-[10px] font-bold uppercase tracking-wider"
+                            data-testid="badge-preferred-candidate"
+                          >
+                            ⭐ Preferred
                           </span>
                           <span
                             v-if="candidate.isPrivateTracker"

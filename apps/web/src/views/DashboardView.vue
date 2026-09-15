@@ -666,9 +666,9 @@ async function handleInstantStream(item: DiscoveryItem) {
     showStreamModal.value = true;
 
     const res = await api.post<{ streamId: string; status: 'pending' | 'ready' }>('/streams', {
-      magnetLink: item.downloadUrl,
+      magnetLink: item.streamUrl || item.downloadUrl,
       title: item.title,
-      isPrivateTracker: item.isPrivateTracker,
+      isPrivateTracker: item.streamUrl ? false : item.isPrivateTracker,
     });
 
     streamModalId.value = res.streamId;
