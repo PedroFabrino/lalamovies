@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs';
+import path from 'node:path';
 import { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { buildApp } from '../src/app';
@@ -15,6 +16,7 @@ class MockJellyfinService implements IJellyfinService {
   }
   async createUser() { return 'new_id'; }
   async deleteUser() {}
+  async refreshLibrary() {}
 }
 
 class MockQBittorrentService implements IQBittorrentService {
@@ -88,6 +90,8 @@ describe('Download Request Submission & Management', () => {
   let mockCleanup: MockCleanupService;
   let adminCookie: string;
   let userCookie: string;
+  let adminUserId: string;
+  let testUserId: string;
 
   beforeEach(async () => {
     mockQb = new MockQBittorrentService();
@@ -113,6 +117,7 @@ describe('Download Request Submission & Management', () => {
       payload: { username: 'admin_alice', password: 'password123' },
     });
     adminCookie = adminRes.cookies[0].value;
+    adminUserId = adminRes.json().user.id;
 
     // 2. Second user -> User
     const userRes = await app.inject({
@@ -121,6 +126,7 @@ describe('Download Request Submission & Management', () => {
       payload: { username: 'user_bob', password: 'password123' },
     });
     userCookie = userRes.cookies[0].value;
+    testUserId = userRes.json().user.id;
   });
 
   afterEach(async () => {
@@ -599,5 +605,92 @@ describe('Download Request Submission & Management', () => {
       cookies: { token: otherToken },
     });
     expect(listCoReqAfter.json().requests.some((r: any) => r.id === id)).toBe(false);
+  });
+
+  describe('POST /requests/:id/retry', () => {
+    it('returns 400 if request is not in error state', async () => {
+      app.db.insert(downloadRequests).values({
+        id: 'req_downloading_1',
+        userId: testUserId,
+        magnetLink: 'magnet:?xt=urn:btih:1111',
+        mediaType: 'movie',
+        status: 'downloading',
+        metadataId: '10',
+        metadataSource: 'tmdb',
+        title: 'Active Movie',
+        requestedAt: new Date().toISOString(),
+      }).run();
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/requests/req_downloading_1/retry',
+        cookies: { token: adminCookie },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().message).toContain('Only requests in error state can be retried');
+    });
+
+    it('resets incomplete torrent to downloading status', async () => {
+      app.db.insert(downloadRequests).values({
+        id: 'req_err_retry_1',
+        userId: testUserId,
+        magnetLink: 'magnet:?xt=urn:btih:2222',
+        mediaType: 'movie',
+        status: 'error',
+        metadataId: '20',
+        metadataSource: 'tmdb',
+        title: 'Error Movie Incomplete',
+        errorMessage: 'Connection lost',
+        requestedAt: new Date().toISOString(),
+      }).run();
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/requests/req_err_retry_1/retry',
+        cookies: { token: adminCookie },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().request.status).toBe('downloading');
+      expect(res.json().request.errorMessage).toBeNull();
+    });
+
+    it('completes request to seeding if files already exist on disk', async () => {
+      // Create a temporary media file to mock existing library path
+      const tmpFile = path.resolve(process.cwd(), 'tests_retry_sample.mkv');
+      fs.writeFileSync(tmpFile, 'test media content');
+
+      try {
+        app.db.insert(downloadRequests).values({
+          id: 'req_err_retry_complete',
+          userId: testUserId,
+          magnetLink: 'magnet:?xt=urn:btih:3333',
+          mediaType: 'movie',
+          status: 'error',
+          metadataId: '30',
+          metadataSource: 'tmdb',
+          title: 'Error Movie On Disk',
+          errorMessage: 'Failed to refresh Jellyfin library: HTTP 401',
+          jellyfinPath: tmpFile,
+          requestedAt: new Date().toISOString(),
+        }).run();
+
+        const res = await app.inject({
+          method: 'POST',
+          url: '/requests/req_err_retry_complete/retry',
+          cookies: { token: adminCookie },
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.json().request.status).toBe('seeding');
+        expect(res.json().request.errorMessage).toBeNull();
+        expect(res.json().request.jellyfinPath).toBe(tmpFile);
+      } finally {
+        if (fs.existsSync(tmpFile)) {
+          fs.unlinkSync(tmpFile);
+        }
+      }
+    });
   });
 });

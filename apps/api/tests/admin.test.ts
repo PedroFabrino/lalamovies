@@ -21,7 +21,18 @@ class MockJellyfinService implements IJellyfinService {
     return 'jf_mock_created';
   }
   async deleteUser(): Promise<void> {}
-  async refreshLibrary(): Promise<void> {}
+  public failRefresh = false;
+  async refreshLibrary(): Promise<void> {
+    if (this.failRefresh) {
+      throw new Error('Jellyfin refresh failed: HTTP 401');
+    }
+  }
+  async checkStatus(): Promise<{ reachable: boolean; authenticated: boolean; error?: string; serverName?: string; version?: string }> {
+    if (this.failRefresh) {
+      return { reachable: true, authenticated: false, error: 'Authentication failed (HTTP 401)' };
+    }
+    return { reachable: true, authenticated: true, serverName: 'Test Jellyfin', version: '10.8.0' };
+  }
   async getPlayHistory(): Promise<Record<string, string>> {
     return {};
   }
@@ -78,6 +89,7 @@ class MockCleanupService implements ICleanupService {
 describe('Admin REST Endpoints (Ticket 10)', () => {
   let app: FastifyInstance;
   let mockCleanup: MockCleanupService;
+  let mockJellyfin: MockJellyfinService;
   let adminCookie: string;
   let userCookie: string;
   let adminId: string;
@@ -85,10 +97,11 @@ describe('Admin REST Endpoints (Ticket 10)', () => {
 
   beforeEach(async () => {
     mockCleanup = new MockCleanupService();
+    mockJellyfin = new MockJellyfinService();
 
     app = buildApp({
       dbPath: ':memory:',
-      jellyfinService: new MockJellyfinService(),
+      jellyfinService: mockJellyfin,
       qbittorrentService: new MockQBittorrentService(),
       cleanupService: mockCleanup,
       jwtSecret: 'test-jwt-secret-key-32-characters-minimum',
@@ -506,6 +519,61 @@ describe('Admin REST Endpoints (Ticket 10)', () => {
       expect(data.storageFootprintBytes).toBeGreaterThanOrEqual(0);
       expect(data.storageFootprintGb).toBeGreaterThanOrEqual(0);
       expect(data.quotaUsedPercent).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe('Media Server (Jellyfin) Controls Endpoints', () => {
+    it('GET /admin/jellyfin/status returns health and auth info', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/admin/jellyfin/status',
+        cookies: { token: adminCookie },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = JSON.parse(res.payload);
+      expect(data.reachable).toBe(true);
+      expect(data.authenticated).toBe(true);
+      expect(data.serverName).toBe('Test Jellyfin');
+    });
+
+    it('GET /admin/jellyfin/status reports auth failure if key is invalid', async () => {
+      mockJellyfin.failRefresh = true;
+      const res = await app.inject({
+        method: 'GET',
+        url: '/admin/jellyfin/status',
+        cookies: { token: adminCookie },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = JSON.parse(res.payload);
+      expect(data.reachable).toBe(true);
+      expect(data.authenticated).toBe(false);
+      mockJellyfin.failRefresh = false;
+    });
+
+    it('POST /admin/jellyfin/rescan triggers library refresh', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/admin/jellyfin/rescan',
+        cookies: { token: adminCookie },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = JSON.parse(res.payload);
+      expect(data.success).toBe(true);
+    });
+
+    it('POST /admin/jellyfin/rescan returns 502 if Jellyfin fails', async () => {
+      mockJellyfin.failRefresh = true;
+      const res = await app.inject({
+        method: 'POST',
+        url: '/admin/jellyfin/rescan',
+        cookies: { token: adminCookie },
+      });
+
+      expect(res.statusCode).toBe(502);
+      mockJellyfin.failRefresh = false;
     });
   });
 });

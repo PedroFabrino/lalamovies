@@ -94,6 +94,7 @@ export class DownloadPoller {
           }
         }
 
+        let completedDestPath: string | null = null;
         try {
           const torrentStatus = await this.qbittorrent.getTorrentStatus(req.qbTorrentHash);
           if (!torrentStatus) continue;
@@ -226,6 +227,7 @@ export class DownloadPoller {
             } else {
               this.fileSystem.hardlink(sourceItem, destPath);
             }
+            completedDestPath = destPath;
 
             // Hardlink subtitles for movies if available
             if (req.mediaType === 'movie' && !isDirectory && files.length > 0) {
@@ -307,12 +309,16 @@ export class DownloadPoller {
           }
         } catch (itemErr) {
           this.logger?.error(`Error processing download completion for ${req.title}:`, itemErr);
+          const errorUpdate: Record<string, unknown> = {
+            status: 'error',
+            errorMessage: (itemErr as Error).message || 'Failed to complete download processing',
+          };
+          if (completedDestPath && fs.existsSync(completedDestPath)) {
+            errorUpdate.jellyfinPath = completedDestPath;
+          }
           this.db
             .update(downloadRequests)
-            .set({
-              status: 'error',
-              errorMessage: (itemErr as Error).message || 'Failed to complete download processing',
-            })
+            .set(errorUpdate)
             .where(eq(downloadRequests.id, req.id))
             .run();
 

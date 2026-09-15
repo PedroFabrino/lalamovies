@@ -339,4 +339,29 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
     return reply.send({ feature: updated, flags: flagsMap });
   });
+
+  // GET /admin/jellyfin/status — check Jellyfin connection and authentication health
+  app.get('/jellyfin/status', async (_request, reply) => {
+    if (app.jellyfin.checkStatus) {
+      const status = await app.jellyfin.checkStatus();
+      return reply.send(status);
+    }
+    return reply.send({ reachable: true, authenticated: true });
+  });
+
+  // POST /admin/jellyfin/rescan — triggers manual Jellyfin library refresh
+  app.post('/jellyfin/rescan', async (_request, reply) => {
+    try {
+      if (app.jellyfin.refreshLibrary) {
+        await app.jellyfin.refreshLibrary();
+      }
+      return reply.send({ success: true, message: 'Jellyfin library refresh triggered successfully' });
+    } catch (err: unknown) {
+      const msg = (err as Error).message || 'Failed to refresh Jellyfin library';
+      return reply.status(502).send({
+        error: 'Bad Gateway',
+        message: msg,
+      });
+    }
+  });
 };

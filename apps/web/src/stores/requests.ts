@@ -105,6 +105,22 @@ export const useRequestsStore = defineStore('requests', () => {
     }
   }
 
+  async function retryRequest(id: string): Promise<DownloadRequest> {
+    try {
+      const data = await api.post<{ request: DownloadRequest; message?: string }>(`/requests/${id}/retry`);
+      const index = requests.value.findIndex((r) => r.id === id);
+      if (index !== -1) {
+        requests.value[index] = data.request;
+      }
+      return data.request;
+    } catch (err) {
+      if (err instanceof ApiError) {
+        throw new Error(err.message);
+      }
+      throw new Error('Failed to retry request');
+    }
+  }
+
   function handleProgressMessage(payload: {
     requestId: string;
     progress: number;
@@ -142,6 +158,7 @@ export const useRequestsStore = defineStore('requests', () => {
     fetchAll,
     deleteRequest,
     toggleKeep,
+    retryRequest,
     handleProgressMessage,
     handleStatusMessage,
   };

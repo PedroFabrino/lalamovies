@@ -1198,6 +1198,210 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ request: item });
   });
 
+  // POST /requests/:id/retry — admin retry failed request
+  app.post('/:id/retry', { preHandler: [adminGuard] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const item = app.db
+      .select()
+      .from(downloadRequests)
+      .where(eq(downloadRequests.id, id))
+      .get();
+
+    if (!item) {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: 'Download request not found',
+      });
+    }
+
+    if (item.status !== 'error') {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Only requests in error state can be retried',
+      });
+    }
+
+    const stagingPath = process.env.STAGING_PATH || path.resolve(process.cwd(), 'downloads', 'staging');
+    let destPath = item.jellyfinPath;
+    let isComplete = false;
+    let torrentSize = item.sizeBytes;
+
+    if (destPath && fs.existsSync(destPath)) {
+      isComplete = true;
+    }
+
+    // If not found at jellyfinPath, check qBittorrent & staging
+    if (!isComplete && item.qbTorrentHash) {
+      try {
+        const torrents = await app.qbittorrent.getTorrents();
+        const found = torrents.find((t) => t.hash.toLowerCase() === item.qbTorrentHash?.toLowerCase());
+        if (found) {
+          torrentSize = found.size;
+          if (found.progress === 1 || found.state.includes('complete') || found.state.includes('upload') || found.state.includes('seed')) {
+            isComplete = true;
+
+            // Attempt hardlink move
+            let files: Array<{ name: string; size: number }> = [];
+            if (app.qbittorrent.getTorrentFiles) {
+              files = await app.qbittorrent.getTorrentFiles(item.qbTorrentHash);
+            }
+            const videoExtensions = ['.mkv', '.mp4', '.avi', '.ts', '.mov', '.webm', '.m4v'];
+            const videoFiles = files
+              .filter((f) => videoExtensions.includes(path.extname(f.name).toLowerCase()))
+              .sort((a, b) => b.size - a.size);
+
+            let sourceItem = path.join(stagingPath, found.name);
+            let isDirectory = false;
+            let ext = path.extname(found.name) || '.mkv';
+
+            if (files.length > 0) {
+              const firstSegment = files[0].name.split('/')[0];
+              const rootDir = path.join(stagingPath, firstSegment);
+              if (item.episodeNumber != null && videoFiles.length === 1) {
+                sourceItem = path.join(stagingPath, videoFiles[0].name);
+                ext = path.extname(videoFiles[0].name) || '.mkv';
+                isDirectory = false;
+              } else if (fs.existsSync(rootDir) && fs.statSync(rootDir).isDirectory()) {
+                sourceItem = rootDir;
+                isDirectory = true;
+              }
+            } else if (fs.existsSync(sourceItem)) {
+              isDirectory = fs.statSync(sourceItem).isDirectory();
+            }
+
+            destPath = app.fileSystem.buildLibraryPath({
+              mediaType: item.mediaType as 'movie' | 'tv_show' | 'anime',
+              title: item.title,
+              year: item.year,
+              seasonNumber: item.seasonNumber,
+              episodeNumber: item.episodeNumber,
+              isSeasonPack: isDirectory || (item.mediaType !== 'movie' && !ext),
+              ext,
+            });
+
+            if (fs.existsSync(sourceItem)) {
+              if (isDirectory) {
+                app.fileSystem.hardlinkDirectory(sourceItem, destPath);
+              } else {
+                app.fileSystem.hardlink(sourceItem, destPath);
+              }
+            }
+          }
+        }
+      } catch (checkErr) {
+        app.log.warn(`Error verifying torrent/files for retry: ${(checkErr as Error).message}`);
+      }
+    }
+
+    if (isComplete && destPath && fs.existsSync(destPath)) {
+      // Re-trigger Jellyfin library refresh
+      if (app.jellyfin.refreshLibrary) {
+        try {
+          await app.jellyfin.refreshLibrary();
+        } catch (refreshErr) {
+          const errMsg = (refreshErr as Error).message || 'Failed to refresh Jellyfin library';
+          app.db
+            .update(downloadRequests)
+            .set({
+              errorMessage: errMsg,
+              jellyfinPath: destPath,
+            })
+            .where(eq(downloadRequests.id, id))
+            .run();
+
+          return reply.status(502).send({
+            error: 'Bad Gateway',
+            message: `Files verified on disk, but Jellyfin refresh failed: ${errMsg}`,
+          });
+        }
+      }
+
+      const downloadedAt = item.downloadedAt || new Date().toISOString();
+      app.db
+        .update(downloadRequests)
+        .set({
+          status: 'seeding',
+          jellyfinPath: destPath,
+          downloadedAt,
+          errorMessage: null,
+          sizeBytes: torrentSize,
+        })
+        .where(eq(downloadRequests.id, id))
+        .run();
+
+      app.broadcast?.({
+        type: 'status',
+        requestId: id,
+        status: 'seeding',
+      });
+
+      if (app.notifications) {
+        try {
+          let requestedBy: string | undefined;
+          if (item.userId) {
+            const reqUser = app.db
+              .select({ username: users.username })
+              .from(users)
+              .where(eq(users.id, item.userId))
+              .get();
+            requestedBy = reqUser?.username;
+          }
+
+          await app.notifications.send('download.completed', {
+            title: item.title,
+            requestId: item.id,
+            mediaType: item.mediaType,
+            year: item.year,
+            seasonNumber: item.seasonNumber,
+            episodeNumber: item.episodeNumber,
+            requestedBy,
+            path: destPath,
+            jellyfinUrl:
+              process.env.JELLYFIN_PUBLIC_URL ||
+              (process.env.JELLYFIN_DOMAIN ? `https://${process.env.JELLYFIN_DOMAIN}` : undefined) ||
+              process.env.JELLYFIN_URL ||
+              undefined,
+          });
+        } catch {
+          // Non-fatal notification failure
+        }
+      }
+
+      const updated = app.db
+        .select()
+        .from(downloadRequests)
+        .where(eq(downloadRequests.id, id))
+        .get();
+
+      return reply.send({ request: updated, message: 'Request successfully completed and synced to Jellyfin' });
+    } else {
+      // Torrent is incomplete or missing from disk; reset to downloading
+      app.db
+        .update(downloadRequests)
+        .set({
+          status: 'downloading',
+          errorMessage: null,
+        })
+        .where(eq(downloadRequests.id, id))
+        .run();
+
+      app.broadcast?.({
+        type: 'status',
+        requestId: id,
+        status: 'downloading',
+      });
+
+      const updated = app.db
+        .select()
+        .from(downloadRequests)
+        .where(eq(downloadRequests.id, id))
+        .get();
+
+      return reply.send({ request: updated, message: 'Request reset to downloading' });
+    }
+  });
+
   // DELETE /requests/:id — delete/cleanup request
   app.delete('/:id', async (request, reply) => {
     const { id } = request.params as { id: string };

@@ -26,6 +26,7 @@ export interface IJellyfinService {
   refreshLibrary?(): Promise<void>;
   getPlayHistory?(userId?: string): Promise<Record<string, string>>;
   ensureStreamLibrary?(): Promise<string>;
+  checkStatus?(): Promise<{ reachable: boolean; authenticated: boolean; error?: string; serverName?: string; version?: string }>;
 }
 
 export class JellyfinService implements IJellyfinService {
@@ -148,6 +149,46 @@ export class JellyfinService implements IJellyfinService {
         throw err;
       }
       throw new JellyfinApiError(`Failed to connect to Jellyfin server: ${(err as Error).message}`);
+    }
+  }
+
+  async checkStatus(): Promise<{ reachable: boolean; authenticated: boolean; error?: string; serverName?: string; version?: string }> {
+    const url = `${this.baseUrl}/System/Info`;
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        return {
+          reachable: true,
+          authenticated: false,
+          error: 'Authentication failed (HTTP 401/403). Check JELLYFIN_API_KEY.',
+        };
+      }
+
+      if (!response.ok) {
+        return {
+          reachable: true,
+          authenticated: false,
+          error: `Jellyfin returned HTTP ${response.status}`,
+        };
+      }
+
+      const data = (await response.json()) as { ServerName?: string; Version?: string };
+      return {
+        reachable: true,
+        authenticated: true,
+        serverName: data.ServerName,
+        version: data.Version,
+      };
+    } catch (err: unknown) {
+      return {
+        reachable: false,
+        authenticated: false,
+        error: (err as Error).message || 'Connection refused or unreachable',
+      };
     }
   }
 
