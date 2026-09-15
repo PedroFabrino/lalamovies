@@ -180,9 +180,24 @@
         >
           <!-- Top Card Artwork & Checkbox Header -->
           <div class="relative aspect-[16/10] bg-zinc-950 flex items-center justify-center overflow-hidden border-b border-zinc-800/80">
-            <!-- Background Graphic / Icon Fallback -->
-            <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-900/40 to-zinc-900/10 z-0" />
-            <div class="text-zinc-700 z-0 flex flex-col items-center gap-1">
+            <!-- Background Image -->
+            <img
+              v-if="item.backdropUrl || item.posterUrl"
+              :src="(item.backdropUrl || item.posterUrl) || ''"
+              :alt="item.title"
+              class="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              loading="lazy"
+              @error="(e) => ((e.target as HTMLElement).style.display = 'none')"
+            />
+
+            <!-- Gradient Overlay to ensure badges & controls remain legible -->
+            <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-zinc-950/20 z-0 pointer-events-none" />
+
+            <!-- Fallback Icon if no image -->
+            <div
+              v-if="!item.backdropUrl && !item.posterUrl"
+              class="text-zinc-700 z-0 flex flex-col items-center gap-1"
+            >
               <svg class="w-10 h-10 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
@@ -243,10 +258,10 @@
 
               <div class="flex items-center gap-2 text-xs text-zinc-400 mb-3">
                 <span v-if="item.year" class="font-medium text-zinc-300">{{ item.year }}</span>
-                <span v-if="item.year">•</span>
+                <span v-if="item.year">ï¿½</span>
                 <span class="capitalize">{{ formatMediaType(item.mediaType) }}</span>
                 <span v-if="item.coRequesters && item.coRequesters.length > 0" class="text-amber-400/90 text-[11px]" :title="formatCoRequestersTooltip(item)">
-                  • +{{ item.coRequesters.length }} co-requester{{ item.coRequesters.length > 1 ? 's' : '' }}
+                  ï¿½ +{{ item.coRequesters.length }} co-requester{{ item.coRequesters.length > 1 ? 's' : '' }}
                 </span>
               </div>
             </div>
@@ -385,7 +400,7 @@
             :key="item.id"
             class="text-xs text-zinc-300 truncate"
           >
-            • {{ item.title }} <span v-if="item.year" class="text-zinc-500">({{ item.year }})</span>
+            ï¿½ {{ item.title }} <span v-if="item.year" class="text-zinc-500">({{ item.year }})</span>
           </div>
         </div>
 
@@ -497,7 +512,7 @@
             :key="item.id"
             class="text-xs text-zinc-300 truncate"
           >
-            • {{ item.title }} <span v-if="item.year" class="text-zinc-500">({{ item.year }})</span>
+            ï¿½ {{ item.title }} <span v-if="item.year" class="text-zinc-500">({{ item.year }})</span>
           </div>
         </div>
 
@@ -565,6 +580,8 @@ export interface LibraryMediaItem {
   mediaType: 'movie' | 'tv_show' | 'anime';
   sizeBytes: number;
   jellyfinPath: string | null;
+  posterUrl?: string | null;
+  backdropUrl?: string | null;
   requestedBy: MediaRequester;
   coRequesters: MediaRequester[];
   canManage: boolean;

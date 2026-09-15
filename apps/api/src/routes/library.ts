@@ -5,7 +5,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { authMiddleware } from '../middleware/auth';
 import { requireFeature } from '../middleware/featureFlags';
-import { downloadRequests, users, requestCoRequesters, DownloadRequest } from '../db/schema';
+import { downloadRequests, users, requestCoRequesters, systemConfig, DownloadRequest } from '../db/schema';
 
 export interface MediaRequester {
   id: string;
@@ -35,10 +35,107 @@ export interface LibraryMediaCard {
   mediaType: 'movie' | 'tv_show' | 'anime';
   sizeBytes: number;
   jellyfinPath: string | null;
+  posterUrl?: string | null;
+  backdropUrl?: string | null;
+  metadataId?: string;
+  metadataSource?: string;
   requestedBy: MediaRequester;
   coRequesters: MediaRequester[];
   canManage: boolean;
   seasons?: SeasonItem[];
+}
+
+interface MediaArtwork {
+  posterUrl: string | null;
+  backdropUrl: string | null;
+}
+
+const artworkCache = new Map<string, MediaArtwork>();
+
+async function resolveArtwork(
+  metadataId: string | null | undefined,
+  metadataSource: string | null | undefined,
+  mediaType: 'movie' | 'tv_show' | 'anime',
+  title: string,
+  tmdbApiKey?: string,
+  metadataService?: any
+): Promise<MediaArtwork> {
+  const cacheKey = `${metadataSource || 'unknown'}:${metadataId || title}:${mediaType}`;
+  if (artworkCache.has(cacheKey)) {
+    return artworkCache.get(cacheKey)!;
+  }
+
+  let result: MediaArtwork = { posterUrl: null, backdropUrl: null };
+
+  try {
+    if (metadataSource === 'tmdb' && metadataId && tmdbApiKey) {
+      const type = mediaType === 'movie' ? 'movie' : 'tv';
+      const url = `https://api.themoviedb.org/3/${type}/${encodeURIComponent(metadataId)}?api_key=${encodeURIComponent(tmdbApiKey)}`;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      if (res.ok) {
+        const data = (await res.json()) as { poster_path?: string | null; backdrop_path?: string | null };
+        result = {
+          posterUrl: data.poster_path ? `https://image.tmdb.org/t/p/w500${data.poster_path}` : null,
+          backdropUrl: data.backdrop_path ? `https://image.tmdb.org/t/p/w780${data.backdrop_path}` : null,
+        };
+      }
+    } else if (metadataSource === 'anilist' && metadataId) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3000);
+      const graphqlQuery = `query ($id: Int) { Media(id: $id, type: ANIME) { coverImage { large extraLarge } bannerImage } }`;
+      const res = await fetch('https://graphql.anilist.co', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ query: graphqlQuery, variables: { id: parseInt(metadataId, 10) } }),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (res.ok) {
+        const data = (await res.json()) as {
+          data?: {
+            Media?: {
+              coverImage?: { large?: string; extraLarge?: string };
+              bannerImage?: string;
+            };
+          };
+        };
+        const media = data?.data?.Media;
+        if (media) {
+          result = {
+            posterUrl: media.coverImage?.extraLarge || media.coverImage?.large || null,
+            backdropUrl: media.bannerImage || null,
+          };
+        }
+      }
+    }
+  } catch {
+    // Non-fatal
+  }
+
+  // Fallback to searching if still null and metadataService is provided
+  if (!result.posterUrl && !result.backdropUrl && metadataService) {
+    try {
+      if (mediaType === 'anime') {
+        const candidates = await metadataService.searchAniList(title);
+        if (candidates.length > 0 && candidates[0].posterUrl) {
+          result = { posterUrl: candidates[0].posterUrl, backdropUrl: null };
+        }
+      } else if (tmdbApiKey) {
+        const candidates = await metadataService.searchTMDB(title, mediaType, tmdbApiKey);
+        if (candidates.length > 0 && candidates[0].posterUrl) {
+          result = { posterUrl: candidates[0].posterUrl, backdropUrl: null };
+        }
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  artworkCache.set(cacheKey, result);
+  return result;
 }
 
 const moveMediaSchema = z.object({
@@ -120,6 +217,8 @@ export const libraryRoutes: FastifyPluginAsync = async (app) => {
           mediaType: 'movie',
           sizeBytes: item.sizeBytes || 0,
           jellyfinPath: item.jellyfinPath,
+          metadataId: item.metadataId,
+          metadataSource: item.metadataSource,
           requestedBy: reqUser,
           coRequesters: coReqs,
           canManage,
@@ -210,6 +309,8 @@ export const libraryRoutes: FastifyPluginAsync = async (app) => {
           mediaType,
           sizeBytes: totalSize,
           jellyfinPath: commonFolderPath || primaryReq.jellyfinPath,
+          metadataId: primaryReq.metadataId,
+          metadataSource: primaryReq.metadataSource,
           requestedBy: primaryUser,
           coRequesters: Array.from(coReqUserMap.values()),
           canManage,
@@ -222,6 +323,32 @@ export const libraryRoutes: FastifyPluginAsync = async (app) => {
 
     const showsList = formatSeriesGroups(showsGroupMap, 'tv_show');
     const animeList = formatSeriesGroups(animeGroupMap, 'anime');
+
+    const tmdbKeyRow = app.db
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.key, 'tmdb_api_key'))
+      .get();
+    const tmdbApiKey = tmdbKeyRow?.value || process.env.TMDB_API_KEY;
+
+    // Resolve artwork in parallel across all items
+    await Promise.allSettled([
+      ...moviesList.map(async (m) => {
+        const art = await resolveArtwork(m.metadataId, m.metadataSource, 'movie', m.title, tmdbApiKey, app.metadata);
+        m.posterUrl = art.posterUrl;
+        m.backdropUrl = art.backdropUrl;
+      }),
+      ...showsList.map(async (s) => {
+        const art = await resolveArtwork(s.metadataId, s.metadataSource, 'tv_show', s.title, tmdbApiKey, app.metadata);
+        s.posterUrl = art.posterUrl;
+        s.backdropUrl = art.backdropUrl;
+      }),
+      ...animeList.map(async (a) => {
+        const art = await resolveArtwork(a.metadataId, a.metadataSource, 'anime', a.title, tmdbApiKey, app.metadata);
+        a.posterUrl = art.posterUrl;
+        a.backdropUrl = art.backdropUrl;
+      }),
+    ]);
 
     return reply.send({
       movies: moviesList,
