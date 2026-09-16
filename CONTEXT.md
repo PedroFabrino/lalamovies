@@ -202,5 +202,24 @@ _Avoid_: circuit breaker, emergency stop button
 The mechanism where disabling a Feature Flag in the main API immediately signals background worker services (such as the Watcher and Streamer) to sleep their polling intervals and drop pending scheduler runs, avoiding unnecessary external API and network load while in Degraded Mode.
 _Avoid_: worker kill, task termination, thread sleep
 
+### Subtitle Generation & AI Transcription
+
+**Transcription Queue**:
+The staging queue within MDM that holds completed Private Library media items awaiting AI subtitle generation during the configured Transcription Window.
+_Avoid_: subtitle queue, whisper queue, translation jobs
+
+**Transcription Window**:
+The operator-configured daily time range (evaluated in the user's local system timezone) during which automated Whisper translation is permitted to run on the host GPU.
+_Avoid_: off-peak hours, free hours, cron window
+
+**Subgen**:
+The containerised, self-hosted Whisper transcription service running locally on the host GPU, invoked by MDM to produce English subtitles for unsubbed Private media.
+_Avoid_: Whisper API, Bazarr worker, subtitle engine
+
+**Transcription Status**:
+The orthogonal state (`none`, `pending`, `transcribing`, `completed`, `failed`) tracked on a Download Request for subtitle generation, independent of its seeding lifecycle.
+_Avoid_: sub status, whisper state, translation stage
+
+
 
 

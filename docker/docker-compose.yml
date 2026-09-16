@@ -226,6 +226,33 @@ services:
       - IP6_PROVIDER=none
       - TZ=${TZ:-UTC}
 
+  subgen:
+    image: mccloud/subgen:latest
+    container_name: mdm-subgen
+    restart: unless-stopped
+    environment:
+      - TRANSCRIBE_DEVICE=cuda
+      - WHISPER_MODEL=large-v3
+      - TRANSCRIBE_OR_TRANSLATE=translate
+      - SUBTITLE_LANGUAGE_NAME=en
+      - COMPUTE_TYPE=float16
+      - CONCURRENT_TRANSCRIPTIONS=1
+      - CLEAR_VRAM_ON_COMPLETE=True
+      - MODEL_CLEANUP_DELAY=30
+      - WEBHOOK_URL_COMPLETED=http://api:3000/internal/subgen/webhook
+    ports:
+      - "${SUBGEN_PORT:-9000}:9000"
+    volumes:
+      - ./config/subgen/models:/subgen/models
+      - ${MEDIA_DATA_PATH:-D:/MediaServer/media_data}:/media_data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
 volumes:
   app_db:
     # Dedicated Docker named volume for SQLite database (app.db) on SSD storage.

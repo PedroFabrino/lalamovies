@@ -50,6 +50,10 @@ export const downloadRequests = sqliteTable(
     sizeBytes: integer('size_bytes'),
     torrentFilePath: text('torrent_file_path'),
     deferredReason: text('deferred_reason'),
+    transcriptionStatus: text('transcription_status', {
+      enum: ['none', 'pending', 'transcribing', 'completed', 'failed'],
+    }).notNull().default('none'),
+    transcriptionError: text('transcription_error'),
   },
   (table) => [
     uniqueIndex('download_requests_movie_unique')
@@ -111,3 +115,4 @@ export type NewFeatureFlag = typeof featureFlags.$inferInsert;
 export type UserRole = 'user' | 'trusted' | 'admin';
 export type InviteRole = 'user' | 'trusted';
 export type MediaType = 'movie' | 'tv_show' | 'anime' | 'private';
+export type TranscriptionStatus = 'none' | 'pending' | 'transcribing' | 'completed' | 'failed';

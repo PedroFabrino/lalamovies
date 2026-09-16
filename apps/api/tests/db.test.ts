@@ -37,6 +37,9 @@ describe('Database Schema & Migrations', () => {
       disk_warn_threshold: '20',
       disk_reject_threshold: '15',
       storage_quota_gb: '150',
+      transcription_window_start: '02:00',
+      transcription_window_end: '07:00',
+      transcription_timezone: 'America/Sao_Paulo',
     });
   });
 

@@ -596,13 +596,54 @@
                       {{ item.errorMessage || 'Download error' }}
                     </div>
                     <div
-                      v-else-if="item.status === 'seeding'"
-                      class="text-xs text-emerald-400/90 flex items-center gap-1"
+                      v-else-if="item.status === 'seeding' || item.status === 'done'"
+                      class="space-y-1.5"
                     >
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span>In Jellyfin private library</span>
+                      <div class="text-xs text-emerald-400/90 flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>In Jellyfin private library</span>
+                      </div>
+                      <!-- Subtitle status badge -->
+                      <div v-if="item.transcriptionStatus && item.transcriptionStatus !== 'none'" class="flex items-center">
+                        <span
+                          v-if="item.transcriptionStatus === 'pending'"
+                          class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-amber-950/60 border border-amber-800 text-amber-300"
+                          title="Queued for off-peak transcription window"
+                        >
+                          <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                          <span>Pending Window</span>
+                        </span>
+                        <span
+                          v-else-if="item.transcriptionStatus === 'transcribing'"
+                          class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-950/60 border border-indigo-800 text-indigo-300"
+                        >
+                          <svg class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          <span>Transcribing...</span>
+                        </span>
+                        <span
+                          v-else-if="item.transcriptionStatus === 'completed'"
+                          class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-950/60 border border-emerald-800 text-emerald-300"
+                        >
+                          <svg class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span>Subtitles Ready</span>
+                        </span>
+                        <span
+                          v-else-if="item.transcriptionStatus === 'failed'"
+                          class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-rose-950/60 border border-rose-800 text-rose-300"
+                          :title="item.transcriptionError || 'Transcription failed'"
+                        >
+                          <svg class="w-3 h-3 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>Transcription Failed</span>
+                        </span>
+                      </div>
                     </div>
                     <div v-else class="text-xs text-zinc-500">—</div>
                   </td>
@@ -619,6 +660,28 @@
                   </td>
                   <td class="py-4 px-4 whitespace-nowrap text-right">
                     <div class="flex items-center justify-end gap-1.5">
+                      <button
+                        v-if="canTranscribe(item)"
+                        type="button"
+                        :disabled="transcribingId === item.id || item.transcriptionStatus === 'transcribing'"
+                        class="px-2 py-1 text-xs font-medium rounded-lg transition cursor-pointer flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        :class="item.transcriptionStatus === 'failed'
+                          ? 'text-rose-300 hover:text-rose-200 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800'
+                          : 'text-indigo-300 hover:text-indigo-200 bg-indigo-950/40 hover:bg-indigo-900/60 border border-indigo-800'"
+                        :title="item.transcriptionStatus === 'failed' ? 'Retry Subtitle Transcription' : 'Generate English Subtitles'"
+                        @click="handleTranscribe(item)"
+                      >
+                        <svg
+                          class="w-3.5 h-3.5"
+                          :class="{ 'animate-spin': transcribingId === item.id || item.transcriptionStatus === 'transcribing' }"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>{{ item.transcriptionStatus === 'failed' ? 'Retry Subtitles' : 'Generate Subtitles' }}</span>
+                      </button>
                       <button
                         v-if="authStore.isAdmin && item.status === 'error'"
                         type="button"
@@ -930,6 +993,31 @@ function canDelete(item: DownloadRequest): boolean {
   if (item.isPrimaryRequester === false) return false;
   if (authStore.isAdmin) return true;
   return item.userId === authStore.user?.id;
+}
+
+function canTranscribe(item: DownloadRequest): boolean {
+  if (item.mediaType !== 'private') return false;
+  if (item.status !== 'seeding' && item.status !== 'done') return false;
+  if (authStore.isAdmin) return true;
+  if (authStore.isTrusted && item.userId === authStore.user?.id) return true;
+  return false;
+}
+
+const transcribingId = ref<string | null>(null);
+
+async function handleTranscribe(item: DownloadRequest) {
+  transcribingId.value = item.id;
+  try {
+    const res = await api.post<{ request: DownloadRequest }>(`/requests/${item.id}/transcribe`);
+    if (res?.request) {
+      requestsStore.updateRequest(res.request);
+    }
+    requestsStore.showToast('Subtitle transcription queued.', 'success');
+  } catch (err: any) {
+    requestsStore.showToast(err.message || 'Failed to queue subtitle transcription.', 'error');
+  } finally {
+    transcribingId.value = null;
+  }
 }
 
 const retryingId = ref<string | null>(null);

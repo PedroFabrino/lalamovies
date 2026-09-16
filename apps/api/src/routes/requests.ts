@@ -741,6 +741,8 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         sizeBytes: torrentSizeBytes,
         torrentFilePath,
         deferredReason,
+        transcriptionStatus: 'none',
+        transcriptionError: null,
       };
 
       app.db.insert(downloadRequests).values(newRequest).run();
@@ -955,6 +957,8 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         sizeBytes: torrentSizeBytes,
         torrentFilePath,
         deferredReason,
+        transcriptionStatus: 'none',
+        transcriptionError: null,
       });
     }
 
@@ -964,12 +968,14 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         id, user_id, magnet_link, media_type, status, metadata_id, metadata_source,
         title, year, season_number, episode_number, jellyfin_path, keep_flag,
         qb_torrent_hash, error_message, requested_at, downloaded_at, last_played_at,
-        scheduled_delete_at, size_bytes, torrent_file_path, deferred_reason
+        scheduled_delete_at, size_bytes, torrent_file_path, deferred_reason,
+        transcription_status, transcription_error
       ) VALUES (
         @id, @userId, @magnetLink, @mediaType, @status, @metadataId, @metadataSource,
         @title, @year, @seasonNumber, @episodeNumber, @jellyfinPath, @keepFlag,
         @qbTorrentHash, @errorMessage, @requestedAt, @downloadedAt, @lastPlayedAt,
-        @scheduledDeleteAt, @sizeBytes, @torrentFilePath, @deferredReason
+        @scheduledDeleteAt, @sizeBytes, @torrentFilePath, @deferredReason,
+        @transcriptionStatus, @transcriptionError
       )
     `);
 
@@ -1520,6 +1526,60 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
 
     await app.cleanup.cleanItem(id);
     return reply.send({ ok: true });
+  });
+
+  // POST /requests/:id/transcribe — manually queue or re-run subtitle transcription
+  app.post('/:id/transcribe', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const item = app.db
+      .select()
+      .from(downloadRequests)
+      .where(eq(downloadRequests.id, id))
+      .get();
+
+    if (!item) {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: 'Download request not found',
+      });
+    }
+
+    const currentUser = request.currentUser!;
+    const isAdmin = currentUser.role === 'admin';
+    const isTrusted = currentUser.role === 'trusted';
+    const isOwner = item.userId === currentUser.id;
+    const isPrivate = item.mediaType === 'private';
+
+    if (!isAdmin && (!isTrusted || !isOwner || !isPrivate)) {
+      return reply.status(403).send({
+        error: 'Forbidden',
+        message: 'Only admins or trusted owners of private media can trigger transcription',
+      });
+    }
+
+    app.db
+      .update(downloadRequests)
+      .set({
+        transcriptionStatus: 'pending',
+        transcriptionError: null,
+      })
+      .where(eq(downloadRequests.id, id))
+      .run();
+
+    const updated = app.db
+      .select()
+      .from(downloadRequests)
+      .where(eq(downloadRequests.id, id))
+      .get();
+
+    app.broadcast?.({
+      type: 'transcription_updated',
+      requestId: id,
+      status: 'pending',
+    });
+
+    return reply.send({ request: updated });
   });
 
   // POST /requests/from-stream — promotion from ephemeral stream

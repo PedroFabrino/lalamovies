@@ -131,8 +131,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ config });
   });
 
-  // PUT /admin/config — accepts partial map of config keys to update
-  app.put('/config', async (request, reply) => {
+  const updateConfigHandler = async (request: any, reply: any) => {
     const body = request.body as Record<string, unknown> | null;
     if (!body || typeof body !== 'object') {
       return reply.status(400).send({
@@ -162,6 +161,14 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           return reply.status(400).send({
             error: 'Bad Request',
             message: `${key} must be a positive integer between 1 and 100`,
+          });
+        }
+      } else if (key === 'transcription_window_start' || key === 'transcription_window_end') {
+        const str = String(val);
+        if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(str)) {
+          return reply.status(400).send({
+            error: 'Bad Request',
+            message: `${key} must be in HH:MM format (e.g. 02:00)`,
           });
         }
       }
@@ -195,7 +202,13 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       config[row.key] = row.value;
     }
     return reply.send({ config });
-  });
+  };
+
+  // PUT /admin/config — accepts partial map of config keys to update
+  app.put('/config', updateConfigHandler);
+
+  // PATCH /admin/config — accepts partial map of config keys to update
+  app.patch('/config', updateConfigHandler);
 
   // POST /admin/cleanup — triggers CleanupService.checkDiskAndClean() immediately
   app.post('/cleanup', async (_request, reply) => {

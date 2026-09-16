@@ -17,6 +17,7 @@ import { IDiscoveryService, DiscoveryService } from './services/discovery';
 import { IUpNextService, UpNextService } from './services/upNext';
 import { DownloadPoller } from './jobs/downloadPoller';
 import { CleanupCron } from './jobs/cleanupCron';
+import { TranscriptionCron } from './jobs/transcriptionCron';
 import { authRoutes } from './routes/auth';
 import { inviteRoutes } from './routes/invites';
 import { requestRoutes } from './routes/requests';
@@ -26,7 +27,10 @@ import { wsRoutes, BroadcastFunction } from './routes/ws';
 import { waitlistRoutes } from './routes/waitlist';
 import { streamsRoutes } from './routes/streams';
 import { libraryRoutes } from './routes/library';
+import { internalRoutes } from './routes/internal';
 import { isFeatureEnabled } from './middleware/featureFlags';
+import { ISubtitleInspectionService, SubtitleInspectionService } from './services/subtitleInspection';
+import { ISubgenService, SubgenService } from './services/subgen';
 
 export interface AppOptions {
   dbPath?: string;
@@ -42,12 +46,16 @@ export interface AppOptions {
   upNextService?: IUpNextService;
   downloadPoller?: DownloadPoller;
   cleanupCron?: CleanupCron;
+  transcriptionCron?: TranscriptionCron;
   startPoller?: boolean;
   startCleanupCron?: boolean;
+  startTranscriptionCron?: boolean;
   jwtSecret?: string;
   serviceApiKey?: string;
   watcherUrl?: string;
   streamerUrl?: string;
+  subtitleInspectionService?: ISubtitleInspectionService;
+  subgenService?: ISubgenService;
 }
 
 declare module 'fastify' {
@@ -60,6 +68,7 @@ declare module 'fastify' {
     cleanup: ICleanupService;
     notifications: INotificationService;
     cleanupCron: CleanupCron;
+    transcriptionCron: TranscriptionCron;
     fileSystem: IFileSystemService;
     prowlarr: IProwlarrService;
     discovery: IDiscoveryService;
@@ -69,6 +78,8 @@ declare module 'fastify' {
     serviceApiKey?: string;
     watcherUrl?: string;
     streamerUrl?: string;
+    subtitleInspection: ISubtitleInspectionService;
+    subgen: ISubgenService;
   }
 }
 
@@ -153,6 +164,24 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       },
     });
 
+  const subtitleInspection =
+    options.subtitleInspectionService ??
+    new SubtitleInspectionService({
+      logger: {
+        warn: (msg: string) => app.log.warn(msg),
+        error: (msg: string, err?: unknown) => app.log.error(err, msg),
+      },
+    });
+
+  const subgen =
+    options.subgenService ??
+    new SubgenService({
+      logger: {
+        info: (msg: string) => app.log.info(msg),
+        error: (msg: string, err?: unknown) => app.log.error(err, msg),
+      },
+    });
+
   const poller =
     options.downloadPoller ??
     new DownloadPoller({
@@ -160,6 +189,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       qbittorrent,
       fileSystem,
       jellyfin,
+      subtitleInspection,
       notificationService: notifications,
       logger: {
         info: (msg: string) => app.log.info(msg),
@@ -191,6 +221,28 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     cleanupCron.start();
   }
 
+  const transcriptionCron =
+    options.transcriptionCron ??
+    new TranscriptionCron({
+      db,
+      subgen,
+      isTranscriptionEnabled: () => isFeatureEnabled(db, 'transcription_enabled'),
+      logger: {
+        info: (msg: string) => app.log.info(msg),
+        warn: (msg: string) => app.log.warn(msg),
+        error: (msg: string, err?: unknown) => app.log.error(err, msg),
+      },
+      broadcast: (msg) => {
+        if (typeof app.broadcast === 'function') {
+          app.broadcast(msg);
+        }
+      },
+    });
+
+  if (options.startTranscriptionCron) {
+    transcriptionCron.start();
+  }
+
   const cachedPrivateLibrary = db
     .select()
     .from(systemConfig)
@@ -208,11 +260,14 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.decorate('cleanup', cleanup);
   app.decorate('notifications', notifications);
   app.decorate('cleanupCron', cleanupCron);
+  app.decorate('transcriptionCron', transcriptionCron);
   app.decorate('fileSystem', fileSystem);
   app.decorate('prowlarr', prowlarr);
   app.decorate('discovery', discovery);
   app.decorate('upNext', upNext);
   app.decorate('poller', poller);
+  app.decorate('subtitleInspection', subtitleInspection);
+  app.decorate('subgen', subgen);
 
   app.decorate('serviceApiKey', serviceApiKey);
   app.decorate('watcherUrl', watcherUrl);
@@ -221,6 +276,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.addHook('onClose', async () => {
     poller.stop();
     cleanupCron.stop();
+    transcriptionCron.stop();
     sqlite.close();
   });
 
@@ -332,6 +388,8 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.register(streamsRoutes, { prefix: '/api/streams' });
   app.register(libraryRoutes, { prefix: '/library' });
   app.register(libraryRoutes, { prefix: '/api/library' });
+  app.register(internalRoutes, { prefix: '/internal' });
+  app.register(internalRoutes, { prefix: '/api/internal' });
   app.register(wsRoutes);
 
   return app;

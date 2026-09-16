@@ -55,6 +55,8 @@ export function useProgressSocket() {
             requestsStore.handleProgressMessage(data);
           } else if (data.type === 'status') {
             requestsStore.handleStatusMessage(data);
+          } else if (data.type === 'transcription_updated') {
+            requestsStore.handleTranscriptionMessage(data);
           } else if (data.type === 'feature_flags_updated') {
             handleFeatureFlagsWsMessage(event);
           }

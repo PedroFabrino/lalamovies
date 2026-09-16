@@ -38,6 +38,8 @@ export interface DownloadRequest {
   isPrimaryRequester?: boolean;
   coRequesters?: string[];
   isFullyConsumed?: boolean;
+  transcriptionStatus?: 'none' | 'pending' | 'transcribing' | 'completed' | 'failed' | null;
+  transcriptionError?: string | null;
 }
 
 export interface ProgressData {
@@ -138,13 +140,42 @@ export const useRequestsStore = defineStore('requests', () => {
   function handleStatusMessage(payload: {
     requestId: string;
     status: RequestStatus;
+    transcriptionStatus?: 'none' | 'pending' | 'transcribing' | 'completed' | 'failed' | null;
   }): void {
     const item = requests.value.find((r) => r.id === payload.requestId);
     if (item) {
       item.status = payload.status;
+      if (payload.transcriptionStatus !== undefined) {
+        item.transcriptionStatus = payload.transcriptionStatus;
+      }
     }
     if (payload.status !== 'downloading') {
       delete progressMap.value[payload.requestId];
+    }
+  }
+
+  function handleTranscriptionMessage(payload: {
+    requestId: string;
+    status: 'none' | 'pending' | 'transcribing' | 'completed' | 'failed';
+    error?: string | null;
+  }): void {
+    const item = requests.value.find((r) => r.id === payload.requestId);
+    if (item) {
+      item.transcriptionStatus = payload.status;
+      if (payload.error !== undefined) {
+        item.transcriptionError = payload.error;
+      } else if (payload.status === 'completed' || payload.status === 'pending') {
+        item.transcriptionError = null;
+      }
+    }
+  }
+
+  function updateRequest(updated: DownloadRequest): void {
+    const index = requests.value.findIndex((r) => r.id === updated.id);
+    if (index !== -1) {
+      requests.value[index] = { ...requests.value[index], ...updated };
+    } else {
+      requests.value.unshift(updated);
     }
   }
 
@@ -155,12 +186,15 @@ export const useRequestsStore = defineStore('requests', () => {
     progressMap,
     toast,
     showToast,
+    setToast: showToast,
     clearToast,
     fetchAll,
     deleteRequest,
     toggleKeep,
     retryRequest,
+    updateRequest,
     handleProgressMessage,
     handleStatusMessage,
+    handleTranscriptionMessage,
   };
 });

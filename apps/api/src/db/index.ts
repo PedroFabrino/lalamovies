@@ -70,6 +70,9 @@ export function seedDefaultConfig(db: AppDatabase) {
     disk_warn_threshold: '20',
     disk_reject_threshold: '15',
     storage_quota_gb: process.env.STORAGE_QUOTA_GB || '150',
+    transcription_window_start: '02:00',
+    transcription_window_end: '07:00',
+    transcription_timezone: process.env.TZ || 'America/Sao_Paulo',
   };
 
   for (const [key, value] of Object.entries(defaults)) {
@@ -159,6 +162,13 @@ export const DEFAULT_FEATURE_FLAGS: Array<{
     id: 'user_invites',
     name: 'User Invites',
     description: 'Registration of new accounts and generation of invite links',
+    category: 'automation',
+    enabled: true,
+  },
+  {
+    id: 'transcription_enabled',
+    name: 'Subtitle Transcription',
+    description: 'Background GPU Whisper subtitle translation for Private Library',
     category: 'automation',
     enabled: true,
   },

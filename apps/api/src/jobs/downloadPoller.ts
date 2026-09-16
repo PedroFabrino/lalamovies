@@ -6,6 +6,7 @@ import { IQBittorrentService } from '../services/qbittorrent';
 import { IFileSystemService } from '../services/fileSystem';
 import { IJellyfinService } from '../services/jellyfin';
 import { INotificationService } from '../services/notifications';
+import { ISubtitleInspectionService } from '../services/subtitleInspection';
 
 export interface PollerLogger {
   info: (msg: string) => void;
@@ -17,6 +18,7 @@ export interface DownloadPollerOptions {
   qbittorrent: IQBittorrentService;
   fileSystem: IFileSystemService;
   jellyfin: IJellyfinService;
+  subtitleInspection?: ISubtitleInspectionService;
   notificationService?: INotificationService;
   stagingPath?: string;
   intervalMs?: number;
@@ -31,6 +33,7 @@ export class DownloadPoller {
   private qbittorrent: IQBittorrentService;
   private fileSystem: IFileSystemService;
   private jellyfin: IJellyfinService;
+  private subtitleInspection?: ISubtitleInspectionService;
   private notificationService?: INotificationService;
   private stagingPath: string;
   private intervalMs: number;
@@ -42,6 +45,7 @@ export class DownloadPoller {
     this.qbittorrent = options.qbittorrent;
     this.fileSystem = options.fileSystem;
     this.jellyfin = options.jellyfin;
+    this.subtitleInspection = options.subtitleInspection;
     this.notificationService = options.notificationService;
     this.stagingPath = options.stagingPath || process.env.STAGING_PATH || path.resolve(process.cwd(), 'downloads/staging');
     this.intervalMs = options.intervalMs || 5000;
@@ -138,7 +142,7 @@ export class DownloadPoller {
               const firstSegment = files[0].name.split('/')[0];
               const rootDir = path.join(this.stagingPath, firstSegment);
 
-              if (req.mediaType === 'movie') {
+              if (req.mediaType === 'movie' || (req.mediaType === 'private' && req.seasonNumber == null && req.episodeNumber == null)) {
                 if (videoFiles.length > 0) {
                   sourceItem = path.join(this.stagingPath, videoFiles[0].name);
                   ext = path.extname(videoFiles[0].name) || '.mkv';
@@ -254,6 +258,22 @@ export class DownloadPoller {
               }
             }
 
+            // Subtitle inspection for private library
+            let transcriptionStatus: 'none' | 'pending' = 'none';
+            if (req.mediaType === 'private') {
+              if (this.subtitleInspection) {
+                try {
+                  const inspection = await this.subtitleInspection.inspect(destPath);
+                  transcriptionStatus = inspection.hasSubtitles ? 'none' : 'pending';
+                } catch (err) {
+                  this.logger?.error(`Subtitle inspection failed for ${destPath}`, err);
+                  transcriptionStatus = 'pending';
+                }
+              } else {
+                transcriptionStatus = 'pending';
+              }
+            }
+
             // Refresh Jellyfin library
             if (this.jellyfin.refreshLibrary) {
               await this.jellyfin.refreshLibrary();
@@ -267,6 +287,7 @@ export class DownloadPoller {
                 jellyfinPath: destPath,
                 downloadedAt: new Date().toISOString(),
                 sizeBytes: torrentStatus.size,
+                transcriptionStatus,
               })
               .where(eq(downloadRequests.id, req.id))
               .run();
@@ -275,17 +296,20 @@ export class DownloadPoller {
               type: 'status',
               requestId: req.id,
               status: 'seeding',
+              transcriptionStatus,
             });
 
             if (this.notificationService) {
               let requestedBy: string | undefined;
+              let reqUserEmail: string | null | undefined;
               if (req.userId) {
                 const reqUser = this.db
-                  .select({ username: users.username })
+                  .select({ username: users.username, email: users.email })
                   .from(users)
                   .where(eq(users.id, req.userId))
                   .get();
                 requestedBy = reqUser?.username;
+                reqUserEmail = reqUser?.email;
               }
 
               let recipientEmails: string[] | undefined;
@@ -298,8 +322,8 @@ export class DownloadPoller {
                 const allEmails = recipients
                   .map((r) => r.email)
                   .filter((e): e is string => Boolean(e));
-                if (reqUser?.email && !allEmails.includes(reqUser.email)) {
-                  allEmails.push(reqUser.email);
+                if (reqUserEmail && !allEmails.includes(reqUserEmail)) {
+                  allEmails.push(reqUserEmail);
                 }
                 recipientEmails = allEmails;
               }
