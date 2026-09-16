@@ -193,7 +193,7 @@
 
       <!-- Empty state -->
       <div
-        v-else-if="requestsStore.requests.length === 0"
+        v-else-if="publicRequests.length === 0 && (!authStore.isTrusted || privateRequests.length === 0)"
         class="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-12 text-center my-8"
       >
         <div class="w-14 h-14 mx-auto rounded-full bg-zinc-800/60 border border-zinc-700/60 flex items-center justify-center text-zinc-400 mb-4">
@@ -227,7 +227,7 @@
 
       <!-- Requests List / Table -->
       <div
-        v-else
+        v-else-if="publicRequests.length > 0"
         class="bg-zinc-900/60 border border-zinc-800 rounded-xl overflow-hidden shadow-xl"
       >
         <div class="overflow-x-auto">
@@ -265,7 +265,7 @@
             </thead>
             <tbody class="divide-y divide-zinc-800/70 text-zinc-200">
               <tr
-                v-for="item in requestsStore.requests"
+                v-for="item in publicRequests"
                 :key="item.id"
                 class="hover:bg-zinc-800/30 transition group"
               >
@@ -500,6 +500,156 @@
           </table>
         </div>
       </div>
+
+      <!-- Private Downloads Section (Trusted & Admin only) -->
+      <div
+        v-if="authStore.isTrusted && privateRequests.length > 0"
+        class="space-y-4 pt-6 border-t border-zinc-800"
+      >
+        <div class="flex items-center gap-2">
+          <span class="text-xl">🔒</span>
+          <h2 class="text-lg font-semibold text-white">
+            Private Downloads
+          </h2>
+          <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+            {{ privateRequests.length }}
+          </span>
+        </div>
+
+        <div class="bg-zinc-900/60 border border-zinc-800 rounded-xl overflow-hidden shadow-xl">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-zinc-800 bg-zinc-900/80 text-zinc-400 text-xs font-semibold uppercase tracking-wider">
+                  <th class="py-3.5 px-4 sm:px-6">Media</th>
+                  <th class="py-3.5 px-4">Type</th>
+                  <th class="py-3.5 px-4">Status</th>
+                  <th class="py-3.5 px-4 min-w-[200px]">Progress / Details</th>
+                  <th v-if="authStore.isAdmin" class="py-3.5 px-4">Requester</th>
+                  <th class="py-3.5 px-4">Requested</th>
+                  <th class="py-3.5 px-4 text-center">Keep</th>
+                  <th class="py-3.5 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-zinc-800/70 text-zinc-200">
+                <tr
+                  v-for="item in privateRequests"
+                  :key="item.id"
+                  class="hover:bg-zinc-800/30 transition group"
+                >
+                  <td class="py-4 px-4 sm:px-6">
+                    <div class="font-medium text-white text-base">
+                      {{ item.title }}
+                    </div>
+                    <div class="text-xs text-zinc-400 mt-0.5 flex items-center gap-2">
+                      <span v-if="formatMediaSubtitle(item)">{{ formatMediaSubtitle(item) }}</span>
+                    </div>
+                  </td>
+                  <td class="py-4 px-4 whitespace-nowrap">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      <span>🔒</span>
+                      <span>Private</span>
+                    </span>
+                  </td>
+                  <td class="py-4 px-4 whitespace-nowrap">
+                    <span
+                      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border"
+                      :class="getStatusBadgeClass(item)"
+                    >
+                      <span
+                        v-if="item.status === 'downloading'"
+                        class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping"
+                      />
+                      {{ formatStatusLabel(item) }}
+                    </span>
+                  </td>
+                  <td class="py-4 px-4">
+                    <div
+                      v-if="item.status === 'downloading'"
+                      class="space-y-1.5"
+                    >
+                      <div class="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                        <div
+                          class="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                          :style="{ width: `${getProgressPercent(item.id)}%` }"
+                        />
+                      </div>
+                      <div class="flex justify-between items-center text-[11px] text-zinc-400 font-mono">
+                        <span>{{ getProgressPercent(item.id) }}%</span>
+                        <span>{{ getProgressSpeedEta(item.id) }}</span>
+                      </div>
+                    </div>
+                    <div
+                      v-else-if="item.status === 'queued'"
+                      class="text-xs flex items-center gap-1.5"
+                      :class="item.deferredReason === 'waiting_for_space' ? 'text-amber-400/90' : 'text-blue-400/90'"
+                    >
+                      <span>
+                        {{ item.deferredReason === 'waiting_for_space' ? 'Waiting for storage quota headroom' : 'Waiting for available download slot' }}
+                      </span>
+                    </div>
+                    <div
+                      v-else-if="item.status === 'error'"
+                      class="text-xs text-red-400 max-w-xs truncate"
+                      :title="item.errorMessage || 'Unknown error occurred'"
+                    >
+                      {{ item.errorMessage || 'Download error' }}
+                    </div>
+                    <div
+                      v-else-if="item.status === 'seeding'"
+                      class="text-xs text-emerald-400/90 flex items-center gap-1"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span>In Jellyfin private library</span>
+                    </div>
+                    <div v-else class="text-xs text-zinc-500">—</div>
+                  </td>
+                  <td v-if="authStore.isAdmin" class="py-4 px-4 text-xs text-zinc-400 whitespace-nowrap">
+                    {{ item.requesterUsername || item.userId.slice(0, 8) }}
+                  </td>
+                  <td class="py-4 px-4 whitespace-nowrap text-xs text-zinc-400">
+                    {{ formatDate(item.requestedAt) }}
+                  </td>
+                  <td class="py-4 px-4 whitespace-nowrap text-center">
+                    <span class="text-amber-400 text-xs font-medium inline-flex items-center gap-1" title="Private downloads are permanently kept and immune to auto-cleanup">
+                      <span>🔒</span> Permanent
+                    </span>
+                  </td>
+                  <td class="py-4 px-4 whitespace-nowrap text-right">
+                    <div class="flex items-center justify-end gap-1.5">
+                      <button
+                        v-if="authStore.isAdmin && item.status === 'error'"
+                        type="button"
+                        :disabled="retryingId === item.id"
+                        class="p-1.5 text-zinc-400 hover:text-indigo-400 hover:bg-indigo-950/40 rounded-lg transition cursor-pointer disabled:opacity-50"
+                        title="Retry processing / refresh Jellyfin"
+                        @click="handleRetry(item)"
+                      >
+                        <svg class="w-4 h-4" :class="{ 'animate-spin': retryingId === item.id }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </button>
+                      <button
+                        v-if="canDelete(item)"
+                        type="button"
+                        class="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-950/40 rounded-lg transition cursor-pointer"
+                        title="Delete Request"
+                        @click="promptDelete(item)"
+                      >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </main>
 
     <!-- Delete Confirmation Modal -->
@@ -606,7 +756,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import Navbar from '../components/Navbar.vue';
 import UpNextShelf from '../components/UpNextShelf.vue';
 import DiscoveryFeed from '../components/DiscoveryFeed.vue';
@@ -638,6 +788,9 @@ interface DiskInfo {
 const authStore = useAuthStore();
 const requestsStore = useRequestsStore();
 const featureFlags = useFeatureFlags();
+
+const publicRequests = computed(() => requestsStore.requests.filter((r) => r.mediaType !== 'private'));
+const privateRequests = computed(() => requestsStore.requests.filter((r) => r.mediaType === 'private'));
 
 const itemToDelete = ref<DownloadRequest | null>(null);
 const isDeleting = ref(false);
@@ -816,6 +969,7 @@ async function executeDelete() {
 }
 
 async function handleToggleKeep(item: DownloadRequest) {
+  if (item.mediaType === 'private') return;
   try {
     await requestsStore.toggleKeep(item.id);
   } catch {

@@ -22,7 +22,7 @@ const searchMetadataSchema = z
   .object({
     magnetLink: z.string().optional(),
     torrentFileBase64: z.string().optional(),
-    mediaType: z.enum(['movie', 'tv_show', 'anime']),
+    mediaType: z.enum(['movie', 'tv_show', 'anime', 'private']),
     query: z.string().optional(),
   })
   .refine(
@@ -42,7 +42,7 @@ const createRequestSchema = z
     magnetLink: z.string().optional(),
     torrentFileBase64: z.string().optional(),
     torrentFileName: z.string().optional(),
-    mediaType: z.enum(['movie', 'tv_show', 'anime']),
+    mediaType: z.enum(['movie', 'tv_show', 'anime', 'private']),
     metadataId: z.string().min(1, 'Metadata ID is required'),
     metadataSource: z.enum(['tmdb', 'anilist']),
     title: z.string().min(1, 'Title is required'),
@@ -56,7 +56,7 @@ const createRequestSchema = z
 const existsRequestSchema = z.object({
   metadataId: z.string().min(1, 'Metadata ID is required'),
   metadataSource: z.enum(['tmdb', 'anilist']),
-  mediaType: z.enum(['movie', 'tv_show', 'anime']).optional(),
+  mediaType: z.enum(['movie', 'tv_show', 'anime', 'private']).optional(),
   seasonNumber: z.coerce.number().int().optional(),
   episodeNumber: z.coerce.number().int().optional(),
 });
@@ -66,7 +66,7 @@ const batchItemSchema = z
     magnetLink: z.string().optional(),
     torrentFileBase64: z.string().optional(),
     torrentFileName: z.string().optional(),
-    mediaType: z.enum(['movie', 'tv_show', 'anime']).optional(),
+    mediaType: z.enum(['movie', 'tv_show', 'anime', 'private']).optional(),
     metadataId: z.string().optional(),
     metadataSource: z.enum(['tmdb', 'anilist']).optional(),
     title: z.string().optional(),
@@ -82,7 +82,7 @@ const batchItemSchema = z
   );
 
 const batchRequestSchema = z.object({
-  mediaType: z.enum(['movie', 'tv_show', 'anime']).optional(),
+  mediaType: z.enum(['movie', 'tv_show', 'anime', 'private']).optional(),
   metadataId: z.string().optional(),
   metadataSource: z.enum(['tmdb', 'anilist']).optional(),
   title: z.string().optional(),
@@ -94,7 +94,7 @@ const batchRequestSchema = z.object({
 const searchReleasesSchema = z.object({
   metadataId: z.string().min(1, 'Metadata ID is required'),
   metadataSource: z.enum(['tmdb', 'anilist']),
-  mediaType: z.enum(['movie', 'tv_show', 'anime']),
+  mediaType: z.enum(['movie', 'tv_show', 'anime', 'private']),
   title: z.string().min(1, 'Title is required'),
   year: z.number().int().optional().nullable(),
   seasonNumber: z.number().int().optional().nullable(),
@@ -441,6 +441,30 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
 
       const apiKey = configRow?.value || process.env.TMDB_API_KEY;
 
+      if (mediaType === 'private') {
+        const movieCandidates = await app.metadata.searchTMDB(searchQuery, 'movie', apiKey);
+        let tvCandidates: MetadataCandidate[] = [];
+        try {
+          tvCandidates = await app.metadata.searchTMDB(searchQuery, 'tv_show', apiKey);
+        } catch {
+          // Ignore tv search failure if movie succeeded
+        }
+        const combined = [...movieCandidates, ...tvCandidates];
+        const seen = new Set<string>();
+        const uniqueCandidates: MetadataCandidate[] = [];
+        for (const c of combined) {
+          if (!seen.has(c.id)) {
+            seen.add(c.id);
+            uniqueCandidates.push(c);
+          }
+        }
+        return reply.send({
+          query: searchQuery,
+          mediaType,
+          candidates: uniqueCandidates,
+        });
+      }
+
       const candidates = await app.metadata.searchTMDB(searchQuery, mediaType, apiKey);
       return reply.send({
         query: searchQuery,
@@ -487,6 +511,22 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       waitlistNextSeason,
       coRequesterUserIds,
     } = parseResult.data;
+
+    if (mediaType === 'private') {
+      const callerRole = request.currentUser!.role;
+      if (callerRole !== 'trusted' && callerRole !== 'admin') {
+        return reply.status(401).send({
+          error: 'Unauthorized',
+          message: 'Only trusted or admin users can submit private requests',
+        });
+      }
+      if (metadataSource !== 'tmdb') {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'Private requests only support TMDB metadata source',
+        });
+      }
+    }
 
     const triggerNextSeasonWaitlist = async () => {
       if (
@@ -691,7 +731,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         seasonNumber: seasonNumber ?? null,
         episodeNumber: episodeNumber ?? null,
         jellyfinPath: null,
-        keepFlag: false,
+        keepFlag: mediaType === 'private' ? true : false,
         qbTorrentHash,
         errorMessage: null,
         requestedAt: new Date().toISOString(),
@@ -756,6 +796,22 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
           error: 'Bad Request',
           message: `Item #${i + 1} is missing required metadata (mediaType, metadataId, metadataSource, or title)`,
         });
+      }
+
+      if (mType === 'private') {
+        const callerRole = request.currentUser!.role;
+        if (callerRole !== 'trusted' && callerRole !== 'admin') {
+          return reply.status(401).send({
+            error: 'Unauthorized',
+            message: 'Only trusted or admin users can submit private requests',
+          });
+        }
+        if (mSource !== 'tmdb') {
+          return reply.status(400).send({
+            error: 'Bad Request',
+            message: 'Private requests only support TMDB metadata source',
+          });
+        }
       }
     }
 
@@ -889,7 +945,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         seasonNumber,
         episodeNumber,
         jellyfinPath: null,
-        keepFlag: false,
+        keepFlag: mediaType === 'private' ? true : false,
         qbTorrentHash,
         errorMessage: null,
         requestedAt: new Date().toISOString(),
@@ -1050,7 +1106,15 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         (a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime()
       );
 
-      return reply.send({ requests: combined });
+      const callerRole = request.currentUser!.role;
+      const filtered = combined.filter((item) => {
+        if (item.mediaType === 'private') {
+          return callerRole === 'trusted' && item.userId === currentUserId;
+        }
+        return true;
+      });
+
+      return reply.send({ requests: filtered });
     }
   });
  
@@ -1106,6 +1170,15 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       return reply.send({ exists: false });
     }
 
+    if (match.mediaType === 'private') {
+      const callerRole = request.currentUser!.role;
+      const isAdmin = callerRole === 'admin';
+      const isPrimary = match.userId === request.currentUser!.id;
+      if (!isAdmin && !(callerRole === 'trusted' && isPrimary)) {
+        return reply.send({ exists: false });
+      }
+    }
+
     return reply.send({
       exists: true,
       request: {
@@ -1137,8 +1210,19 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const isAdmin = request.currentUser!.role === 'admin';
+    const callerRole = request.currentUser!.role;
+    const isAdmin = callerRole === 'admin';
     const isPrimary = item.userId === request.currentUser!.id;
+
+    if (item.mediaType === 'private') {
+      if (!isAdmin && !(callerRole === 'trusted' && isPrimary)) {
+        return reply.status(404).send({
+          error: 'Not Found',
+          message: 'Download request not found',
+        });
+      }
+    }
+
     let isCoRequester = false;
 
     if (!isAdmin && !isPrimary) {
@@ -1184,6 +1268,13 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({
         error: 'Not Found',
         message: 'Download request not found',
+      });
+    }
+
+    if (item.mediaType === 'private') {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Cannot toggle keep flag for private media requests; private requests have a permanent keep flag.',
       });
     }
 

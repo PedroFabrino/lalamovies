@@ -27,6 +27,10 @@ export interface IJellyfinService {
   getPlayHistory?(userId?: string): Promise<Record<string, string>>;
   ensureStreamLibrary?(): Promise<string>;
   checkStatus?(): Promise<{ reachable: boolean; authenticated: boolean; error?: string; serverName?: string; version?: string }>;
+  discoverPrivateLibraryId?(): Promise<string | null>;
+  setUserLibraryAccess?(jellyfinUserId: string, role: 'user' | 'trusted' | 'admin'): Promise<void>;
+  getPrivateLibraryId?(): string | null;
+  setPrivateLibraryId?(id: string | null): void;
 }
 
 export class JellyfinService implements IJellyfinService {
@@ -36,6 +40,7 @@ export class JellyfinService implements IJellyfinService {
   private deviceName = 'WebServer';
   private deviceId = 'mdm-server';
   private version = '1.0.0';
+  private privateLibraryId: string | null = null;
 
   constructor(
     baseUrl?: string,
@@ -328,6 +333,123 @@ export class JellyfinService implements IJellyfinService {
         throw err;
       }
       throw new JellyfinApiError(`Failed to ensure Stream library: ${(err as Error).message}`);
+    }
+  }
+
+  getPrivateLibraryId(): string | null {
+    return this.privateLibraryId;
+  }
+
+  setPrivateLibraryId(id: string | null): void {
+    this.privateLibraryId = id;
+  }
+
+  async discoverPrivateLibraryId(): Promise<string | null> {
+    const listUrl = `${this.baseUrl}/Library/VirtualFolders`;
+    try {
+      const response = await fetch(listUrl, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const folders = (await response.json()) as Array<{
+        Name?: string;
+        Locations?: string[];
+        ItemId?: string;
+      }>;
+
+      const match = folders.find((f) =>
+        f.Locations?.some((loc) => {
+          const normalized = loc.replace(/\\/g, '/').toLowerCase();
+          return normalized.includes('/media/private') || normalized.endsWith('/private');
+        })
+      );
+
+      if (match?.ItemId) {
+        this.privateLibraryId = match.ItemId;
+        return match.ItemId;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  async setUserLibraryAccess(jellyfinUserId: string, role: 'user' | 'trusted' | 'admin'): Promise<void> {
+    let privateId = this.privateLibraryId;
+    if (!privateId) {
+      privateId = await this.discoverPrivateLibraryId();
+    }
+
+    if (!privateId) {
+      console.warn('Private Library not found in Jellyfin — create a library pointing at /media/private to enable access control');
+      return;
+    }
+
+    const listUrl = `${this.baseUrl}/Library/VirtualFolders`;
+    let allFolderIds: string[] = [];
+    try {
+      const foldersRes = await fetch(listUrl, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+      if (foldersRes.ok) {
+        const folders = (await foldersRes.json()) as Array<{ ItemId?: string }>;
+        allFolderIds = folders.map((f) => f.ItemId).filter((id): id is string => Boolean(id));
+      }
+    } catch {
+      // Best-effort retrieval of folder list
+    }
+
+    const userUrl = `${this.baseUrl}/Users/${jellyfinUserId}`;
+    const userRes = await fetch(userUrl, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    });
+
+    if (!userRes.ok) {
+      throw new JellyfinApiError(`Failed to fetch Jellyfin user ${jellyfinUserId}: HTTP ${userRes.status}`, userRes.status);
+    }
+
+    const userData = (await userRes.json()) as {
+      Policy?: {
+        EnableAllFolders?: boolean;
+        EnabledFolders?: string[];
+        [key: string]: unknown;
+      };
+    };
+
+    const policy = { ...(userData.Policy || {}) };
+    let enabledFolders = Array.isArray(policy.EnabledFolders) ? [...policy.EnabledFolders] : [];
+
+    if (policy.EnableAllFolders) {
+      enabledFolders = Array.from(new Set([...enabledFolders, ...allFolderIds]));
+    }
+
+    policy.EnableAllFolders = false;
+    if (role === 'user') {
+      policy.EnabledFolders = enabledFolders.filter((id) => id !== privateId);
+    } else {
+      // role is 'trusted' or 'admin'
+      if (!enabledFolders.includes(privateId)) {
+        enabledFolders.push(privateId);
+      }
+      policy.EnabledFolders = enabledFolders;
+    }
+
+    const policyUrl = `${this.baseUrl}/Users/${jellyfinUserId}/Policy`;
+    const updateRes = await fetch(policyUrl, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(policy),
+    });
+
+    if (!updateRes.ok) {
+      throw new JellyfinApiError(`Failed to update Jellyfin user policy for ${jellyfinUserId}: HTTP ${updateRes.status}`, updateRes.status);
     }
   }
 }

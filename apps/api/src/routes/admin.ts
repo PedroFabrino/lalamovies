@@ -5,7 +5,7 @@ import { authMiddleware, adminGuard } from '../middleware/auth';
 import { users, systemConfig, downloadRequests, featureFlags } from '../db/schema';
 
 const updateRoleSchema = z.object({
-  role: z.enum(['user', 'admin']),
+  role: z.enum(['user', 'trusted', 'admin']),
 });
 
 export const adminRoutes: FastifyPluginAsync = async (app) => {
@@ -61,6 +61,18 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         error: 'Not Found',
         message: 'User not found',
       });
+    }
+
+    if (role !== targetUser.role && targetUser.jellyfinUserId && app.jellyfin.setUserLibraryAccess) {
+      try {
+        await app.jellyfin.setUserLibraryAccess(targetUser.jellyfinUserId, role);
+      } catch (err) {
+        request.log.error(err, 'Failed to update Jellyfin user library access');
+        return reply.status(502).send({
+          error: 'Bad Gateway',
+          message: 'Failed to update user library access on media server',
+        });
+      }
     }
 
     app.db

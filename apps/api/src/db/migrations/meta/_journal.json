@@ -57,6 +57,13 @@
       "when": 1789413004213,
       "tag": "0007_square_nehzno",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1789539569044,
+      "tag": "0008_woozy_justice",
+      "breakpoints": true
     }
   ]
 }

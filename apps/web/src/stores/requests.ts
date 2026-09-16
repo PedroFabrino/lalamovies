@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { api, ApiError } from '../lib/api';
 
-export type MediaType = 'movie' | 'tv_show' | 'anime';
+export type MediaType = 'movie' | 'tv_show' | 'anime' | 'private';
 export type RequestStatus =
   | 'queued'
   | 'downloading'

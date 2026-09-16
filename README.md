@@ -259,10 +259,35 @@ The application includes an invite system that provisionally links new users dir
 1. Log in to the dashboard as an Admin.
 2. Navigate to **Admin** (`/admin`) in the top navigation bar.
 3. On the **Users & Invites** tab, click **Invite Friend**.
-4. Choose the invite expiration window (12h, 24h, 48h, or 7 days).
-5. Click **Generate Invite Link** and click **Copy Link**.
-6. Send the generated link (`https://your-domain.vercel.app/invite/<token>`) to your friend.
-7. When your friend opens the link, they choose their username and password. The backend atomically creates their account on Jellyfin and registers them in the app database!
+4. Select the user role (**User** for standard access, or **Trusted** for private media privileges).
+5. Choose the invite expiration window (24h, 48h, or 7 days).
+6. Click **Create Invite Link** and click **Copy Link**.
+7. Send the generated link (`https://your-domain.vercel.app/invite/<token>`) to your friend.
+8. When your friend opens the link, they choose their username and password. The backend atomically creates their account on Jellyfin, configures their library access permissions, and registers them in the app database!
+
+---
+
+## Private Library Setup
+
+The system supports a `private` media type and a `trusted` user role for sensitive content that is completely isolated and invisible to standard users across both the web app and Jellyfin.
+
+### Activation Steps
+
+1. **Create Library in Jellyfin**:
+   - In Jellyfin's admin dashboard, navigate to **Administration** → **Dashboard** → **Libraries** → **Add Media Library**.
+   - Content type: `Movies` or `Mixed Content`.
+   - Display name: Name it anything you prefer (e.g. `Private`).
+   - Folders: Add folder path `/media/private` (or `/media_data/media/private`).
+   - Click **OK** to save.
+
+2. **Auto-Discovery at Startup**:
+   - Restart the API container (`docker compose restart api`).
+   - On startup, the backend automatically scans Jellyfin's virtual folders, locates the library mapped to `/media/private`, and caches the library ID in `system_config`.
+   - *Note*: The startup log warning `Private Library not found in Jellyfin — create a library pointing at /media/private to enable access control` is expected and harmless until this step is completed.
+
+3. **User Access Configuration**:
+   - **New Users**: Generate an invite with the **Trusted** role under **Admin** → **Users & Invites**. Jellyfin library access policies are automatically configured on acceptance.
+   - **Existing Users**: Existing accounts can be promoted to (or demoted from) the `trusted` role at any time via the role selector in the **Admin** → **Registered Users** table. Role changes synchronize instantly with Jellyfin. Standard `user` accounts have zero visibility or access to private content.
 
 ---
 

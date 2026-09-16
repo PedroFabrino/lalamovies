@@ -5,7 +5,7 @@ import { users, User } from '../db/schema';
 export interface JwtPayload {
   id: string;
   username: string;
-  role: 'user' | 'admin';
+  role: 'user' | 'trusted' | 'admin';
   jellyfinUserId: string;
 }
 

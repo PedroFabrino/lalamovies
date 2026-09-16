@@ -53,7 +53,7 @@ export interface SearchReleasesResult {
 }
 
 export interface SearchReleasesOptions {
-  mediaType: 'movie' | 'tv_show' | 'anime';
+  mediaType: 'movie' | 'tv_show' | 'anime' | 'private';
   title: string;
   year?: number | null;
   seasonNumber?: number | null;
@@ -63,7 +63,7 @@ export interface SearchReleasesOptions {
 }
 
 export interface ScoreOptions {
-  mediaType?: 'movie' | 'tv_show' | 'anime';
+  mediaType?: 'movie' | 'tv_show' | 'anime' | 'private';
   isSingleEpisode?: boolean;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
@@ -362,7 +362,7 @@ export class ProwlarrService implements IProwlarrService {
       } else if (candidate.sizeBytes < 100 * MB) {
         score -= 50;
       }
-    } else if (options?.mediaType === 'tv_show' || options?.mediaType === 'anime') {
+    } else if (options?.mediaType === 'tv_show' || options?.mediaType === 'anime' || (options?.mediaType === 'private' && (options.seasonNumber != null && options.episodeNumber == null))) {
       // Season Pack sizing: max 25 GB cap
       if (candidate.sizeBytes >= 3 * GB && candidate.sizeBytes <= 20 * GB) {
         score += 20;
@@ -467,7 +467,7 @@ export class ProwlarrService implements IProwlarrService {
       const seeders = typeof item.seeders === 'number' ? Math.max(0, item.seeders) : 0;
       const leechers = typeof item.leechers === 'number' ? Math.max(0, item.leechers) : 0;
       const indexer = item.indexer || 'Tracker';
-      const indexerId = (item as any).indexerId;
+      const indexerId = (item as { indexerId?: number }).indexerId;
       const guid = item.guid || downloadUrl;
 
       let isPrivateTracker = false;
@@ -566,7 +566,7 @@ export class ProwlarrService implements IProwlarrService {
       }
     };
 
-    if (mediaType === 'movie') {
+    if (mediaType === 'movie' || (mediaType === 'private' && !seasonNumber && !episodeNumber)) {
       let primaryTitle = title.trim();
       let altTitle = englishTitle && englishTitle.trim();
       if (hasCjkCharacters(primaryTitle) && altTitle && !hasCjkCharacters(altTitle)) {
@@ -596,7 +596,7 @@ export class ProwlarrService implements IProwlarrService {
         const fallbackRes = await this.executeSearch(altParts.join(' '), [2000], scoreOptions);
         mergeCandidates(fallbackRes.candidates);
       }
-    } else if (mediaType === 'tv_show') {
+    } else if (mediaType === 'tv_show' || (mediaType === 'private' && (seasonNumber || episodeNumber))) {
       const sNum = seasonNumber && seasonNumber > 0 ? seasonNumber : 1;
       const sPad = String(sNum).padStart(2, '0');
 

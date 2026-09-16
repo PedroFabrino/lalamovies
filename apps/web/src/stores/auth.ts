@@ -6,7 +6,7 @@ export interface User {
   id: string;
   username: string;
   email: string | null;
-  role: 'user' | 'admin';
+  role: 'user' | 'trusted' | 'admin';
   createdAt?: string;
 }
 
@@ -23,6 +23,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!user.value);
   const isAdmin = computed(() => user.value?.role === 'admin');
+  const isTrusted = computed(() => user.value?.role === 'trusted' || user.value?.role === 'admin');
 
   async function fetchMe(): Promise<User | null> {
     loading.value = true;
@@ -117,6 +118,7 @@ export const useAuthStore = defineStore('auth', () => {
     error,
     isAuthenticated,
     isAdmin,
+    isTrusted,
     fetchMe,
     login,
     logout,

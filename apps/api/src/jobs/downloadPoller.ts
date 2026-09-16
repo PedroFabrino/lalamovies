@@ -288,6 +288,22 @@ export class DownloadPoller {
                 requestedBy = reqUser?.username;
               }
 
+              let recipientEmails: string[] | undefined;
+              if (req.mediaType === 'private') {
+                const recipients = this.db
+                  .select({ email: users.email })
+                  .from(users)
+                  .where(inArray(users.role, ['admin', 'trusted']))
+                  .all();
+                const allEmails = recipients
+                  .map((r) => r.email)
+                  .filter((e): e is string => Boolean(e));
+                if (reqUser?.email && !allEmails.includes(reqUser.email)) {
+                  allEmails.push(reqUser.email);
+                }
+                recipientEmails = allEmails;
+              }
+
               await this.notificationService.send('download.completed', {
                 title: req.title,
                 requestId: req.id,
@@ -296,6 +312,7 @@ export class DownloadPoller {
                 seasonNumber: req.seasonNumber,
                 episodeNumber: req.episodeNumber,
                 requestedBy,
+                recipientEmails,
                 path: destPath,
                 jellyfinUrl:
                   process.env.JELLYFIN_PUBLIC_URL ||

@@ -1,0 +1,1 @@
+ALTER TABLE `invites` ADD `role` text DEFAULT 'user' NOT NULL;

@@ -158,6 +158,21 @@
             </button>
           </div>
 
+          <!-- User Action Error Alert -->
+          <div
+            v-if="userActionError"
+            class="mb-4 p-3.5 bg-red-950/50 border border-red-800 rounded-lg text-xs text-red-200 flex items-center justify-between"
+          >
+            <span>{{ userActionError }}</span>
+            <button
+              type="button"
+              class="text-zinc-400 hover:text-white"
+              @click="userActionError = null"
+            >
+              ✕
+            </button>
+          </div>
+
           <!-- Loading Users -->
           <div
             v-if="isLoadingUsers"
@@ -211,7 +226,9 @@
                       class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wider border"
                       :class="user.role === 'admin'
                         ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
-                        : 'bg-zinc-800 text-zinc-300 border-zinc-700'"
+                        : user.role === 'trusted'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                          : 'bg-zinc-800 text-zinc-300 border-zinc-700'"
                     >
                       {{ user.role }}
                     </span>
@@ -221,19 +238,24 @@
                   </td>
                   <td class="py-3.5 px-4 whitespace-nowrap text-right">
                     <div class="flex items-center justify-end gap-2">
-                      <!-- Role Toggle -->
-                      <button
+                      <!-- Role Select -->
+                      <select
                         v-if="user.id !== authStore.user?.id"
-                        type="button"
-                        class="px-2.5 py-1 text-xs font-medium rounded-lg border transition cursor-pointer disabled:opacity-50"
-                        :class="user.role === 'admin'
-                          ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-zinc-700'
-                          : 'bg-indigo-950/40 hover:bg-indigo-900/50 text-indigo-300 border-indigo-800'"
+                        :value="user.role"
                         :disabled="isTogglingRole === user.id"
-                        @click="handleToggleRole(user)"
+                        class="px-2.5 py-1 text-xs font-medium rounded-lg border bg-zinc-950 border-zinc-800 text-zinc-300 hover:border-zinc-700 transition cursor-pointer disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        @change="handleRoleChange(user, ($event.target as HTMLSelectElement).value as 'user' | 'trusted' | 'admin')"
                       >
-                        {{ user.role === 'admin' ? 'Demote to User' : 'Promote to Admin' }}
-                      </button>
+                        <option value="user">
+                          User
+                        </option>
+                        <option value="trusted">
+                          Trusted
+                        </option>
+                        <option value="admin">
+                          Admin
+                        </option>
+                      </select>
 
                       <!-- Delete User -->
                       <button
@@ -299,6 +321,9 @@
                     Invite Token
                   </th>
                   <th class="py-3 px-4">
+                    Role
+                  </th>
+                  <th class="py-3 px-4">
                     Status
                   </th>
                   <th class="py-3 px-4">
@@ -317,6 +342,16 @@
                 >
                   <td class="py-3 px-4 sm:px-6 font-mono text-xs text-zinc-300">
                     {{ inv.token.slice(0, 16) }}...
+                  </td>
+                  <td class="py-3 px-4 whitespace-nowrap">
+                    <span
+                      class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wider border"
+                      :class="inv.role === 'trusted'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                        : 'bg-zinc-800 text-zinc-300 border-zinc-700'"
+                    >
+                      {{ inv.role || 'user' }}
+                    </span>
                   </td>
                   <td class="py-3 px-4 whitespace-nowrap">
                     <span
@@ -1106,6 +1141,30 @@
         >
           <div>
             <label
+              for="inviteRole"
+              class="block text-xs font-medium text-zinc-300 mb-1.5"
+            >
+              Role
+            </label>
+            <select
+              id="inviteRole"
+              v-model="inviteRole"
+              class="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="user">
+                User
+              </option>
+              <option value="trusted">
+                Trusted
+              </option>
+            </select>
+            <p class="text-[11px] text-zinc-500 mt-1">
+              Trusted users can view and request sensitive private media.
+            </p>
+          </div>
+
+          <div>
+            <label
               for="expiryHours"
               class="block text-xs font-medium text-zinc-300 mb-1.5"
             >
@@ -1605,13 +1664,14 @@ interface AdminUser {
   id: string;
   username: string;
   email: string | null;
-  role: 'user' | 'admin';
+  role: 'user' | 'trusted' | 'admin';
   createdAt: string;
 }
 
 interface InviteItem {
   id: string;
   token: string;
+  role?: 'user' | 'trusted';
   createdByUserId: string;
   creatorUsername: string | null;
   expiresAt: string;
@@ -1682,12 +1742,14 @@ const automationFlags = computed(() =>
 const usersList = ref<AdminUser[]>([]);
 const isLoadingUsers = ref(false);
 const isTogglingRole = ref<string | null>(null);
+const userActionError = ref<string | null>(null);
 
 const invitesList = ref<InviteItem[]>([]);
 const isLoadingInvites = ref(false);
 
 const showInviteModal = ref(false);
 const inviteExpiryHours = ref(24);
+const inviteRole = ref<'user' | 'trusted'>('user');
 const isGeneratingInvite = ref(false);
 const generatedInviteUrl = ref<string | null>(null);
 const hasCopiedInvite = ref(false);
@@ -1862,16 +1924,22 @@ async function loadInvites() {
   }
 }
 
-async function handleToggleRole(targetUser: AdminUser) {
-  const newRole = targetUser.role === 'admin' ? 'user' : 'admin';
+async function handleRoleChange(targetUser: AdminUser, newRole: 'user' | 'trusted' | 'admin') {
+  if (targetUser.role === newRole) return;
+  const prevRole = targetUser.role;
   isTogglingRole.value = targetUser.id;
+  userActionError.value = null;
   try {
     const data = await api.patch<{ user: AdminUser }>(`/admin/users/${targetUser.id}/role`, {
       role: newRole,
     });
     targetUser.role = data.user.role;
-  } catch {
-    // handled
+  } catch (err: any) {
+    userActionError.value = err.message || 'Failed to update user role';
+    targetUser.role = prevRole;
+    setTimeout(() => {
+      userActionError.value = null;
+    }, 5000);
   } finally {
     isTogglingRole.value = null;
   }
@@ -1902,6 +1970,7 @@ function openInviteModal() {
   generatedInviteUrl.value = null;
   hasCopiedInvite.value = false;
   inviteExpiryHours.value = 24;
+  inviteRole.value = 'user';
   showInviteModal.value = true;
 }
 
@@ -1910,6 +1979,7 @@ async function handleCreateInvite() {
   try {
     const data = await api.post<{ invite: InviteItem; url: string }>('/invites', {
       expiresInHours: inviteExpiryHours.value,
+      role: inviteRole.value,
     });
     // Build public invite URL using current origin
     generatedInviteUrl.value = `${window.location.origin}/invite/${data.invite.token}`;

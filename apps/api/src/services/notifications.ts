@@ -12,6 +12,7 @@ export interface NotificationPayload {
   path?: string;
   reason?: string;
   jellyfinUrl?: string;
+  recipientEmails?: string[];
 }
 
 export function formatNotificationMediaTitle(payload: NotificationPayload): string {
@@ -61,6 +62,10 @@ export class DiscordNotifier implements INotificationService {
   ) {}
 
   async send(event: NotificationEvent, payload: NotificationPayload): Promise<void> {
+    if (payload.mediaType === 'private') {
+      return; // Suppress private notifications from Discord webhook to preserve invisibility
+    }
+
     if (this.isDiscordEnabled) {
       const enabled = await this.isDiscordEnabled();
       if (!enabled) {
@@ -238,8 +243,11 @@ export class ResendNotifier implements INotificationService {
     if (!key || !key.trim()) {
       return; // Silent when key not set
     }
+    const recipients = payload.recipientEmails?.length
+      ? ` to [${payload.recipientEmails.join(', ')}]`
+      : '';
     console.log(
-      `[ResendNotifier] ${event}: ${payload.title} (email sending is not yet implemented)`
+      `[ResendNotifier] ${event}: ${payload.title}${recipients} (email sending is not yet implemented)`
     );
   }
 }

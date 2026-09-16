@@ -191,6 +191,15 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     cleanupCron.start();
   }
 
+  const cachedPrivateLibrary = db
+    .select()
+    .from(systemConfig)
+    .where(eq(systemConfig.key, 'jellyfin_private_library_id'))
+    .get();
+  if (cachedPrivateLibrary?.value && jellyfin.setPrivateLibraryId) {
+    jellyfin.setPrivateLibraryId(cachedPrivateLibrary.value);
+  }
+
   app.decorate('db', db);
   app.decorate('sqlite', sqlite);
   app.decorate('jellyfin', jellyfin);
@@ -239,6 +248,34 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
         }
       } catch (err) {
         app.log.warn(`Could not ensure Stream library in Jellyfin on startup: ${(err as Error).message}`);
+      }
+    }
+
+    if (jellyfin.discoverPrivateLibraryId) {
+      try {
+        const libraryId = await jellyfin.discoverPrivateLibraryId();
+        if (libraryId) {
+          const existing = db
+            .select()
+            .from(systemConfig)
+            .where(eq(systemConfig.key, 'jellyfin_private_library_id'))
+            .get();
+          if (existing) {
+            db.update(systemConfig)
+              .set({ value: libraryId })
+              .where(eq(systemConfig.key, 'jellyfin_private_library_id'))
+              .run();
+          } else {
+            db.insert(systemConfig)
+              .values({ key: 'jellyfin_private_library_id', value: libraryId })
+              .run();
+          }
+          app.log.info(`Private library discovered in Jellyfin with ID ${libraryId}`);
+        } else {
+          app.log.warn('Private Library not found in Jellyfin — create a library pointing at /media/private to enable access control');
+        }
+      } catch (err) {
+        app.log.warn(`Could not discover Private library in Jellyfin on startup: ${(err as Error).message}`);
       }
     }
   });

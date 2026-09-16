@@ -36,6 +36,14 @@ class MockJellyfinService implements IJellyfinService {
   async getPlayHistory(): Promise<Record<string, string>> {
     return {};
   }
+  public setUserLibraryAccessCalls: { userId: string; role: string }[] = [];
+  public failSetUserLibraryAccess = false;
+  async setUserLibraryAccess(userId: string, role: 'user' | 'trusted' | 'admin'): Promise<void> {
+    if (this.failSetUserLibraryAccess) {
+      throw new Error('Jellyfin policy update failed: HTTP 500');
+    }
+    this.setUserLibraryAccessCalls.push({ userId, role });
+  }
 }
 
 class MockQBittorrentService implements IQBittorrentService {
@@ -576,6 +584,96 @@ describe('Admin REST Endpoints (Ticket 10)', () => {
 
       expect(res.statusCode).toBe(502);
       mockJellyfin.failRefresh = false;
+    });
+
+    it('PATCH /admin/users/:id/role updates role to trusted and syncs Jellyfin', async () => {
+      // Create regular user with jellyfinUserId
+      const regularUser = {
+        id: 'user_bob',
+        username: 'bob',
+        email: null,
+        role: 'user' as const,
+        jellyfinUserId: 'jf_bob_123',
+        createdAt: new Date().toISOString(),
+      };
+      app.db.insert(users).values(regularUser).run();
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/admin/users/${regularUser.id}/role`,
+        cookies: { token: adminCookie },
+        payload: { role: 'trusted' },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().user.role).toBe('trusted');
+
+      const dbUser = app.db.select().from(users).where(eq(users.id, regularUser.id)).get();
+      expect(dbUser?.role).toBe('trusted');
+
+      expect(mockJellyfin.setUserLibraryAccessCalls).toContainEqual({
+        userId: 'jf_bob_123',
+        role: 'trusted',
+      });
+    });
+
+    it('PATCH /admin/users/:id/role demotes trusted to user and revokes Jellyfin private access', async () => {
+      const trustedUser = {
+        id: 'user_david',
+        username: 'david',
+        email: null,
+        role: 'trusted' as const,
+        jellyfinUserId: 'jf_david_123',
+        createdAt: new Date().toISOString(),
+      };
+      app.db.insert(users).values(trustedUser).run();
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/admin/users/${trustedUser.id}/role`,
+        cookies: { token: adminCookie },
+        payload: { role: 'user' },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().user.role).toBe('user');
+
+      const dbUser = app.db.select().from(users).where(eq(users.id, trustedUser.id)).get();
+      expect(dbUser?.role).toBe('user');
+
+      expect(mockJellyfin.setUserLibraryAccessCalls).toContainEqual({
+        userId: 'jf_david_123',
+        role: 'user',
+      });
+    });
+
+    it('PATCH /admin/users/:id/role returns 502 and leaves DB unchanged if Jellyfin fails', async () => {
+      const regularUser = {
+        id: 'user_charlie',
+        username: 'charlie',
+        email: null,
+        role: 'user' as const,
+        jellyfinUserId: 'jf_charlie_123',
+        createdAt: new Date().toISOString(),
+      };
+      app.db.insert(users).values(regularUser).run();
+
+      mockJellyfin.failSetUserLibraryAccess = true;
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/admin/users/${regularUser.id}/role`,
+        cookies: { token: adminCookie },
+        payload: { role: 'trusted' },
+      });
+
+      expect(res.statusCode).toBe(502);
+
+      // Verify DB was NOT updated
+      const dbUser = app.db.select().from(users).where(eq(users.id, regularUser.id)).get();
+      expect(dbUser?.role).toBe('user');
+
+      mockJellyfin.failSetUserLibraryAccess = false;
     });
   });
 });

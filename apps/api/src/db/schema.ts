@@ -6,13 +6,14 @@ export const users = sqliteTable('users', {
   jellyfinUserId: text('jellyfin_user_id').notNull(),
   username: text('username').notNull(),
   email: text('email'),
-  role: text('role', { enum: ['user', 'admin'] }).notNull().default('user'),
+  role: text('role', { enum: ['user', 'trusted', 'admin'] }).notNull().default('user'),
   createdAt: text('created_at').notNull(),
 });
 
 export const invites = sqliteTable('invites', {
   id: text('id').primaryKey(),
   token: text('token').notNull().unique(),
+  role: text('role', { enum: ['user', 'trusted'] }).notNull().default('user'),
   createdByUserId: text('created_by_user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
@@ -28,7 +29,7 @@ export const downloadRequests = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     magnetLink: text('magnet_link').notNull(),
-    mediaType: text('media_type', { enum: ['movie', 'tv_show', 'anime'] }).notNull(),
+    mediaType: text('media_type', { enum: ['movie', 'tv_show', 'anime', 'private'] }).notNull(),
     status: text('status', {
       enum: ['queued', 'downloading', 'hardlinking', 'seeding', 'done', 'error', 'deleted'],
     }).notNull().default('queued'),
@@ -106,3 +107,7 @@ export type SystemConfig = typeof systemConfig.$inferSelect;
 export type NewSystemConfig = typeof systemConfig.$inferInsert;
 export type FeatureFlag = typeof featureFlags.$inferSelect;
 export type NewFeatureFlag = typeof featureFlags.$inferInsert;
+
+export type UserRole = 'user' | 'trusted' | 'admin';
+export type InviteRole = 'user' | 'trusted';
+export type MediaType = 'movie' | 'tv_show' | 'anime' | 'private';

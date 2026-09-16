@@ -407,5 +407,32 @@ describe('DiscordNotifier & ResendNotifier (Ticket 15)', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(consoleLogSpy).toHaveBeenCalledTimes(1);
     });
+
+    it('suppresses Discord webhook for private mediaType', async () => {
+      fetchMock.mockResolvedValueOnce({ ok: true, status: 204 });
+
+      const notifier = new DiscordNotifier('https://discord.com/api/webhooks/test/123');
+      await notifier.send('download.completed', {
+        title: 'Secret Video',
+        mediaType: 'private',
+      });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('includes recipient emails in ResendNotifier log', async () => {
+      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const notifier = new ResendNotifier('test_key');
+      await notifier.send('download.completed', {
+        title: 'Secret Video',
+        mediaType: 'private',
+        recipientEmails: ['admin@example.com', 'trusted@example.com'],
+      });
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[ResendNotifier] download.completed: Secret Video to [admin@example.com, trusted@example.com]')
+      );
+    });
   });
 });

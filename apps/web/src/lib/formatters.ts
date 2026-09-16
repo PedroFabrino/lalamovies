@@ -33,6 +33,8 @@ export function formatMediaType(type: string): string {
       return 'TV Show';
     case 'anime':
       return 'Anime';
+    case 'private':
+      return 'Private';
     default:
       return type;
   }

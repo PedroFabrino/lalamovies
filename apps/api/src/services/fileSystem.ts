@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export interface BuildLibraryPathParams {
-  mediaType: 'movie' | 'tv_show' | 'anime';
+  mediaType: 'movie' | 'tv_show' | 'anime' | 'private';
   title: string;
   year?: number | null;
   seasonNumber?: number | null;
@@ -39,6 +39,7 @@ export class FileSystemService implements IFileSystemService {
       path.join(media, 'movies'),
       path.join(media, 'shows'),
       path.join(media, 'anime'),
+      path.join(media, 'private'),
     ];
     for (const dir of dirs) {
       if (!fs.existsSync(dir)) {
@@ -69,6 +70,18 @@ export class FileSystemService implements IFileSystemService {
       const folderName = `${cleanTitle}${yearStr}`;
       const fileName = `${cleanTitle}${yearStr}.${ext}`;
       return path.join(root, 'movies', folderName, fileName);
+    }
+
+    if (params.mediaType === 'private') {
+      const folderName = `${cleanTitle}${yearStr}`;
+      if (params.seasonNumber != null && params.episodeNumber != null) {
+        const seasonFolder = `Season ${this.padNumber(params.seasonNumber, 2)}`;
+        const epCode = `S${this.padNumber(params.seasonNumber, 2)}E${this.padNumber(params.episodeNumber, 2)}`;
+        const fileName = `${cleanTitle} ${epCode}.${ext}`;
+        return path.join(root, 'private', folderName, seasonFolder, fileName);
+      }
+      const fileName = `${cleanTitle}${yearStr}.${ext}`;
+      return path.join(root, 'private', folderName, fileName);
     }
 
     const subDir = params.mediaType === 'anime' ? 'anime' : 'shows';

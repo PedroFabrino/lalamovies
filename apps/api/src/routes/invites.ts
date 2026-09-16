@@ -6,6 +6,10 @@ import { invites, users, User } from '../db/schema';
 import { authMiddleware, adminGuard } from '../middleware/auth';
 import { requireFeature } from '../middleware/featureFlags';
 
+const createInviteSchema = z.object({
+  role: z.enum(['user', 'trusted']).optional().default('user'),
+});
+
 const acceptInviteSchema = z.object({
   username: z.string().min(2, 'Username must be at least 2 characters'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
@@ -17,12 +21,16 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
     '/',
     { preHandler: [authMiddleware, adminGuard, requireFeature('user_invites')] },
     async (request, reply) => {
+    const parseResult = createInviteSchema.safeParse(request.body || {});
+    const role = parseResult.success ? parseResult.data.role : 'user';
+
     const token = randomBytes(24).toString('hex');
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
 
     const newInvite = {
       id: randomUUID(),
       token,
+      role,
       createdByUserId: request.currentUser!.id,
       expiresAt,
       usedAt: null,
@@ -45,6 +53,7 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
       .select({
         id: invites.id,
         token: invites.token,
+        role: invites.role,
         createdByUserId: invites.createdByUserId,
         creatorUsername: users.username,
         expiresAt: invites.expiresAt,
@@ -170,6 +179,8 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
+    const userRole = (invite.role as 'user' | 'trusted') || 'user';
+
     // 1. Create Jellyfin user
     let jellyfinUserId: string;
     try {
@@ -182,13 +193,30 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
+    if (app.jellyfin.setUserLibraryAccess) {
+      try {
+        await app.jellyfin.setUserLibraryAccess(jellyfinUserId, userRole);
+      } catch (err) {
+        request.log.error(err, 'Failed to configure library access on media server');
+        try {
+          await app.jellyfin.deleteUser(jellyfinUserId);
+        } catch (rollbackErr) {
+          request.log.error(rollbackErr, 'Failed to rollback Jellyfin user');
+        }
+        return reply.status(502).send({
+          error: 'Bad Gateway',
+          message: 'Failed to configure library access on media server',
+        });
+      }
+    }
+
     // 2. Create local DB user and mark invite used (with rollback if DB fails)
     const newUser: User = {
       id: randomUUID(),
       jellyfinUserId,
       username,
       email: null,
-      role: 'user',
+      role: userRole,
       createdAt: new Date().toISOString(),
     };
 

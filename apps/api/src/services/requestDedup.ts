@@ -1,9 +1,9 @@
-﻿import { and, eq, ne, isNull } from 'drizzle-orm';
+import { and, eq, ne, isNull } from 'drizzle-orm';
 import { AppDatabase } from '../db';
 import { downloadRequests, DownloadRequest, requestCoRequesters } from '../db/schema';
 
 export interface DedupMatchParams {
-  mediaType: 'movie' | 'tv_show' | 'anime';
+  mediaType: 'movie' | 'tv_show' | 'anime' | 'private';
   metadataId: string;
   metadataSource: 'tmdb' | 'anilist';
   seasonNumber?: number | null;
@@ -16,8 +16,12 @@ export function findMatchingCanonicalRequest(
 ): DownloadRequest | null {
   const metaId = String(params.metadataId);
   const source = params.metadataSource;
+  const isPrivate = params.mediaType === 'private';
+  const mediaTypeCondition = isPrivate
+    ? eq(downloadRequests.mediaType, 'private')
+    : ne(downloadRequests.mediaType, 'private');
 
-  if (params.mediaType === 'movie') {
+  if (params.mediaType === 'movie' || (isPrivate && params.seasonNumber == null && params.episodeNumber == null)) {
     const match = db
       .select()
       .from(downloadRequests)
@@ -26,14 +30,14 @@ export function findMatchingCanonicalRequest(
           ne(downloadRequests.status, 'deleted'),
           eq(downloadRequests.metadataId, metaId),
           eq(downloadRequests.metadataSource, source),
-          eq(downloadRequests.mediaType, 'movie')
+          mediaTypeCondition
         )
       )
       .get();
     return match || null;
   }
 
-  // TV Show or Anime
+  // TV Show or Anime or Episodic Private
   const isSingleEpisode = params.seasonNumber != null && params.episodeNumber != null;
   const isSeasonPack = params.seasonNumber != null && params.episodeNumber == null;
 
@@ -48,7 +52,8 @@ export function findMatchingCanonicalRequest(
           eq(downloadRequests.metadataId, metaId),
           eq(downloadRequests.metadataSource, source),
           eq(downloadRequests.seasonNumber, params.seasonNumber!),
-          isNull(downloadRequests.episodeNumber)
+          isNull(downloadRequests.episodeNumber),
+          mediaTypeCondition
         )
       )
       .get();
@@ -67,7 +72,8 @@ export function findMatchingCanonicalRequest(
           eq(downloadRequests.metadataId, metaId),
           eq(downloadRequests.metadataSource, source),
           eq(downloadRequests.seasonNumber, params.seasonNumber!),
-          eq(downloadRequests.episodeNumber, params.episodeNumber!)
+          eq(downloadRequests.episodeNumber, params.episodeNumber!),
+          mediaTypeCondition
         )
       )
       .get();
@@ -87,7 +93,8 @@ export function findMatchingCanonicalRequest(
           eq(downloadRequests.metadataId, metaId),
           eq(downloadRequests.metadataSource, source),
           eq(downloadRequests.seasonNumber, params.seasonNumber!),
-          isNull(downloadRequests.episodeNumber)
+          isNull(downloadRequests.episodeNumber),
+          mediaTypeCondition
         )
       )
       .get();
@@ -105,7 +112,8 @@ export function findMatchingCanonicalRequest(
         eq(downloadRequests.metadataId, metaId),
         eq(downloadRequests.metadataSource, source),
         isNull(downloadRequests.seasonNumber),
-        isNull(downloadRequests.episodeNumber)
+        isNull(downloadRequests.episodeNumber),
+        mediaTypeCondition
       )
     )
     .get();

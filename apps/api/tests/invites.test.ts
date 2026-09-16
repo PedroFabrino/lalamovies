@@ -9,6 +9,7 @@ class MockJellyfinService implements IJellyfinService {
   public createdUsers: { username: string; id: string }[] = [];
   public deletedUsers: string[] = [];
   public shouldFailCreate = false;
+  public setUserLibraryAccessCalls: { userId: string; role: string }[] = [];
 
   async authenticateUser(username: string) {
     return {
@@ -30,6 +31,10 @@ class MockJellyfinService implements IJellyfinService {
 
   async deleteUser(userId: string) {
     this.deletedUsers.push(userId);
+  }
+
+  async setUserLibraryAccess(userId: string, role: 'user' | 'trusted' | 'admin') {
+    this.setUserLibraryAccessCalls.push({ userId, role });
   }
 }
 
@@ -187,6 +192,10 @@ describe('Invite Flow Integration', () => {
 
     // Jellyfin user created
     expect(mockJellyfin.createdUsers.some((u) => u.username === 'friend_bob')).toBe(true);
+    expect(mockJellyfin.setUserLibraryAccessCalls).toContainEqual({
+      userId: expect.any(String),
+      role: 'user',
+    });
 
     // Database user exists
     const dbUser = app.db
@@ -285,5 +294,53 @@ describe('Invite Flow Integration', () => {
       url: `/invites/${token}`,
     });
     expect(getRes.statusCode).toBe(404);
+  });
+
+  it('admin can create trusted invite, and accepting it creates trusted user with library access configured', async () => {
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/invites',
+      cookies: { token: adminCookie },
+      payload: { role: 'trusted' },
+    });
+    expect(createRes.statusCode).toBe(201);
+    const token = createRes.json().invite.token;
+    expect(createRes.json().invite.role).toBe('trusted');
+
+    // GET /invites returns role
+    const listRes = await app.inject({
+      method: 'GET',
+      url: '/invites',
+      cookies: { token: adminCookie },
+    });
+    expect(listRes.statusCode).toBe(200);
+    const found = listRes.json().invites.find((i: any) => i.token === token);
+    expect(found?.role).toBe('trusted');
+
+    // Accept invite
+    const acceptRes = await app.inject({
+      method: 'POST',
+      url: `/invites/${token}/accept`,
+      payload: {
+        username: 'trusted_friend',
+        password: 'password123',
+      },
+    });
+    expect(acceptRes.statusCode).toBe(201);
+    expect(acceptRes.json().user.role).toBe('trusted');
+
+    // Verify DB user role
+    const dbUser = app.db
+      .select()
+      .from(users)
+      .where(eq(users.username, 'trusted_friend'))
+      .get();
+    expect(dbUser?.role).toBe('trusted');
+
+    // Verify setUserLibraryAccess was called with trusted
+    expect(mockJellyfin.setUserLibraryAccessCalls).toContainEqual({
+      userId: dbUser!.jellyfinUserId!,
+      role: 'trusted',
+    });
   });
 });

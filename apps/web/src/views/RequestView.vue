@@ -420,9 +420,28 @@
             </div>
           </div>
 
-          <!-- Scope & Season / Episode Inputs (Step 1 - TV Show & Anime) -->
+          <!-- Private Episodic Checkbox -->
           <div
-            v-if="mediaType === 'tv_show' || mediaType === 'anime'"
+            v-if="mediaType === 'private'"
+            class="flex items-center gap-2 p-3 bg-zinc-950/40 border border-zinc-800/80 rounded-xl"
+          >
+            <input
+              id="privateEpisodicToggle"
+              v-model="isPrivateEpisodic"
+              type="checkbox"
+              class="w-4 h-4 rounded border-zinc-700 bg-zinc-900 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-zinc-950 cursor-pointer"
+            >
+            <label
+              for="privateEpisodicToggle"
+              class="text-xs text-zinc-300 cursor-pointer select-none"
+            >
+              This is an episodic series (organize into Season / Episode folders)
+            </label>
+          </div>
+
+          <!-- Scope & Season / Episode Inputs (Step 1 - TV Show, Anime, & Episodic Private) -->
+          <div
+            v-if="mediaType === 'tv_show' || mediaType === 'anime' || (mediaType === 'private' && isPrivateEpisodic)"
             class="space-y-3 p-4 bg-zinc-950/40 border border-zinc-800/80 rounded-xl"
           >
             <div class="flex items-center justify-between">
@@ -527,41 +546,53 @@
             </p>
           </div>
 
-          <button
-            type="submit"
-            :disabled="isSearching || !customQuery.trim() || (inputMode === 'magnet' && !magnetLink.trim()) || (inputMode === 'file' && validBatchItems.length === 0)"
-            class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg shadow transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-          >
-            <svg
-              v-if="isSearching"
-              class="animate-spin h-4 w-4 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
+          <div class="flex flex-col sm:flex-row items-center gap-3">
+            <button
+              type="submit"
+              :disabled="isSearching || !customQuery.trim() || (inputMode === 'magnet' && !magnetLink.trim()) || (inputMode === 'file' && validBatchItems.length === 0)"
+              class="w-full sm:flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg shadow transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
-              <circle
-                class="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                stroke-width="4"
-              />
-              <path
-                class="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8v8H4z"
-              />
-            </svg>
-            <span>
-              {{
-                isSearching
-                  ? 'Searching Metadata...'
-                  : validBatchItems.length > 1
-                    ? `Find Matches & Continue (${validBatchItems.length} torrents)`
-                    : 'Find Matches & Continue'
-              }}
-            </span>
-          </button>
+              <svg
+                v-if="isSearching"
+                class="animate-spin h-4 w-4 text-white"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                />
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v8H4z"
+                />
+              </svg>
+              <span>
+                {{
+                  isSearching
+                    ? 'Searching Metadata...'
+                    : validBatchItems.length > 1
+                      ? `Find Matches & Continue (${validBatchItems.length} torrents)`
+                      : 'Find Matches & Continue'
+                }}
+              </span>
+            </button>
+
+            <button
+              v-if="mediaType === 'private'"
+              type="button"
+              :disabled="isSearching || !customQuery.trim() || (inputMode === 'magnet' && !magnetLink.trim()) || (inputMode === 'file' && validBatchItems.length === 0)"
+              class="w-full sm:w-auto py-2.5 px-4 bg-amber-950/40 hover:bg-amber-900/50 text-amber-300 border border-amber-800/60 text-sm font-medium rounded-lg shadow transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
+              @click="skipMetadata"
+            >
+              <span>Skip Metadata</span>
+            </button>
+          </div>
         </form>
       </div>
 
@@ -579,13 +610,23 @@
               Choose the correct match for your media to ensure proper naming in Jellyfin.
             </p>
           </div>
-          <button
-            type="button"
-            class="px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-zinc-900 border border-zinc-800 rounded-lg hover:bg-zinc-800 transition cursor-pointer"
-            @click="currentStep = 1; step2Error = null"
-          >
-            Back to Step 1
-          </button>
+          <div class="flex items-center gap-2">
+            <button
+              v-if="mediaType === 'private'"
+              type="button"
+              class="px-3 py-1.5 text-xs font-medium text-amber-300 hover:text-amber-200 bg-amber-950/40 border border-amber-800/60 rounded-lg hover:bg-amber-900/50 transition cursor-pointer flex items-center gap-1.5"
+              @click="skipMetadata"
+            >
+              <span>Skip Metadata</span>
+            </button>
+            <button
+              type="button"
+              class="px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-zinc-900 border border-zinc-800 rounded-lg hover:bg-zinc-800 transition cursor-pointer"
+              @click="currentStep = 1; step2Error = null"
+            >
+              Back to Step 1
+            </button>
+          </div>
         </div>
 
         <!-- In-Place Search Bar -->
@@ -1772,6 +1813,7 @@ import Navbar from '../components/Navbar.vue';
 import StreamProgressModal from '../components/StreamProgressModal.vue';
 import { api, ApiError } from '../lib/api';
 import { useRequestsStore, MediaType, DownloadRequest } from '../stores/requests';
+import { useAuthStore } from '../stores/auth';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { formatMediaType, formatBytes } from '../lib/formatters';
 import { parseTorrentFile, fileToBase64, ParsedTorrentClient } from '../lib/torrentParser';
@@ -2008,16 +2050,36 @@ const totalBatchSize = computed(() =>
   validBatchItems.value.reduce((acc, i) => acc + (i.parsed?.totalSize || i.fileSizeBytes), 0)
 );
 
+const authStore = useAuthStore();
 const mediaType = ref<MediaType>('movie');
 const customQuery = ref('');
 const isSearching = ref(false);
 const step1Error = ref<string | null>(null);
 
-const mediaTypeOptions: { value: MediaType; label: string; icon: string }[] = [
-  { value: 'movie', label: 'Movie', icon: '🎬' },
-  { value: 'tv_show', label: 'TV Show', icon: '📺' },
-  { value: 'anime', label: 'Anime', icon: '⛩️' },
-];
+const mediaTypeOptions = computed<{ value: MediaType; label: string; icon: string }[]>(() => {
+  const options: { value: MediaType; label: string; icon: string }[] = [
+    { value: 'movie', label: 'Movie', icon: '🎬' },
+    { value: 'tv_show', label: 'TV Show', icon: '📺' },
+    { value: 'anime', label: 'Anime', icon: '⛩️' },
+  ];
+  if (authStore.isTrusted) {
+    options.push({ value: 'private', label: 'Private', icon: '🔒' });
+  }
+  return options;
+});
+
+function skipMetadata() {
+  const title = customQuery.value.trim() || 'Private Video';
+  const dummyCandidate: MetadataCandidate = {
+    id: `custom_${Date.now()}`,
+    source: 'tmdb',
+    title,
+    year: new Date().getFullYear(),
+    posterUrl: null,
+    overview: 'Private media submission without TMDB match.',
+  };
+  selectCandidate(dummyCandidate);
+}
 
 // Step 2 State
 const candidates = ref<MetadataCandidate[]>([]);
@@ -2077,11 +2139,33 @@ async function checkDuplicateExists(candidate: MetadataCandidate): Promise<Canon
   }
 }
 
+const isPrivateEpisodic = ref(false);
+
+watch(isPrivateEpisodic, (val) => {
+  if (mediaType.value === 'private') {
+    if (val) {
+      if (!seasonNumber.value) seasonNumber.value = 1;
+      if (downloadGranularity.value === 'episode' && !episodeNumber.value) episodeNumber.value = 1;
+    } else {
+      seasonNumber.value = null;
+      episodeNumber.value = null;
+    }
+  }
+});
+
 watch(mediaType, (newType) => {
   if (newType === 'movie') {
     seasonNumber.value = null;
     episodeNumber.value = null;
     downloadGranularity.value = 'season';
+  } else if (newType === 'private') {
+    if (isPrivateEpisodic.value) {
+      if (!seasonNumber.value) seasonNumber.value = 1;
+      if (downloadGranularity.value === 'episode' && !episodeNumber.value) episodeNumber.value = 1;
+    } else {
+      seasonNumber.value = null;
+      episodeNumber.value = null;
+    }
   } else {
     if (!seasonNumber.value) {
       seasonNumber.value = 1;
@@ -2142,7 +2226,7 @@ function initFastTrackFromRoute(): boolean {
     return false;
   }
 
-  const validMediaTypes: MediaType[] = ['movie', 'tv_show', 'anime'];
+  const validMediaTypes: MediaType[] = ['movie', 'tv_show', 'anime', 'private'];
   if (!validMediaTypes.includes(rawMediaType as MediaType)) {
     step1Error.value = 'Invalid media type for fast-track request.';
     return false;
