@@ -71,9 +71,7 @@ class MockJellyfin implements IJellyfinService {
         err.statusCode = 404;
         throw err;
       }
-      if (this.userPlayHistories[userId]) {
-        return this.userPlayHistories[userId];
-      }
+      return this.userPlayHistories[userId] || {};
     }
     return this.playHistory;
   }
@@ -1135,7 +1133,6 @@ describe('CleanupService, Notifiers & Cron (Ticket 09)', () => {
       expect(candidates).toHaveLength(1);
       expect(candidates[0].id).toBe(reqId);
       expect(candidates[0].isFullyConsumed).toBe(true);
-      expect(cleanup.isFullyConsumed!(reqId)).toBe(true);
       expect(candidates[0].lastPlayedAt).toBe('2026-04-01T12:00:00Z');
     });
 
@@ -1175,7 +1172,6 @@ describe('CleanupService, Notifiers & Cron (Ticket 09)', () => {
       expect(candidates).toHaveLength(1);
       expect(candidates[0].id).toBe(reqId);
       expect(candidates[0].isFullyConsumed).toBe(false);
-      expect(cleanup.isFullyConsumed!(reqId)).toBe(false);
       expect(candidates[0].lastPlayedAt).toBeNull();
     });
 
@@ -1221,7 +1217,6 @@ describe('CleanupService, Notifiers & Cron (Ticket 09)', () => {
 
       let candidates = await cleanup.getCandidates!();
       expect(candidates[0].isFullyConsumed).toBe(false);
-      expect(cleanup.isFullyConsumed!(reqId)).toBe(false);
 
       // Scenario B: Bob also watched -> NOW fully consumed!
       mockJf.userPlayHistories = {
@@ -1235,7 +1230,6 @@ describe('CleanupService, Notifiers & Cron (Ticket 09)', () => {
 
       candidates = await cleanup.getCandidates!();
       expect(candidates[0].isFullyConsumed).toBe(true);
-      expect(cleanup.isFullyConsumed!(reqId)).toBe(true);
       // Canonical row lastPlayedAt updated to latest play timestamp
       expect(candidates[0].lastPlayedAt).toBe('2026-02-05T15:00:00Z');
     });
@@ -1286,7 +1280,6 @@ describe('CleanupService, Notifiers & Cron (Ticket 09)', () => {
       expect(candidates).toHaveLength(1);
       // Treated as fully consumed because Charlie has no account (no access, no objection to deletion)
       expect(candidates[0].isFullyConsumed).toBe(true);
-      expect(cleanup.isFullyConsumed!(reqId)).toBe(true);
     });
 
     it('orders Fully Consumed (Tier 1) candidates ahead of unwatched (Tier 2) candidates', async () => {
@@ -1512,12 +1505,215 @@ describe('CleanupService, Notifiers & Cron (Ticket 09)', () => {
         tempDir
       );
 
-      await cleanup.getCandidates!();
-      expect(cleanup.isFullyConsumed!(reqId)).toBe(true);
+      let candidates = await cleanup.getCandidates!();
+      expect(candidates).toHaveLength(1);
+      expect(candidates[0].isFullyConsumed).toBe(true);
 
       // Clean item
       await cleanup.cleanItem(reqId);
-      expect(cleanup.isFullyConsumed!(reqId)).toBe(false);
+      candidates = await cleanup.getCandidates!();
+      expect(candidates.find((c) => c.id === reqId)).toBeUndefined();
+    });
+
+    it('quota-bounded scheduling only schedules Tier 1 when deficit is satisfied, sparing Tier 2', async () => {
+      const consumedPath = path.join(tempDir, 'Watched Big Movie');
+      const unwatchedPath = path.join(tempDir, 'Unwatched Movie');
+      fs.mkdirSync(consumedPath, { recursive: true });
+      fs.mkdirSync(unwatchedPath, { recursive: true });
+
+      // Tier 1 item: 10 GB
+      const reqConsumed = 'req_tier1_10gb';
+      dbInstance.db.insert(downloadRequests).values({
+        id: reqConsumed,
+        userId,
+        magnetLink: 'magnet:consumed',
+        mediaType: 'movie',
+        status: 'seeding',
+        metadataId: '5001',
+        metadataSource: 'tmdb',
+        title: 'Watched Big Movie',
+        jellyfinPath: consumedPath,
+        sizeBytes: 10 * 1024 * 1024 * 1024,
+        requestedAt: '2026-01-01T00:00:00Z',
+        lastPlayedAt: null,
+        keepFlag: false,
+      }).run();
+
+      // Tier 2 item: 5 GB
+      const reqUnwatched = 'req_tier2_5gb';
+      dbInstance.db.insert(downloadRequests).values({
+        id: reqUnwatched,
+        userId,
+        magnetLink: 'magnet:unwatched',
+        mediaType: 'movie',
+        status: 'seeding',
+        metadataId: '5002',
+        metadataSource: 'tmdb',
+        title: 'Unwatched Movie',
+        jellyfinPath: unwatchedPath,
+        sizeBytes: 5 * 1024 * 1024 * 1024,
+        requestedAt: '2025-12-01T00:00:00Z',
+        lastPlayedAt: null,
+        keepFlag: false,
+      }).run();
+
+      mockJf.userPlayHistories = {
+        jf_alice: {
+          [path.join(consumedPath, 'movie.mkv')]: '2026-01-20T12:00:00Z',
+        },
+      };
+
+      // Set storage quota to 100 GB. Footprint at 85 GB (85% > 80% warn threshold).
+      // Deficit: 85 - 80 + 1 = 6 GB.
+      // Candidate 1 (Tier 1) reclaims 10 GB >= 6 GB deficit, so Candidate 2 (Tier 2) must be spared!
+      const cleanup = new CleanupService(
+        dbInstance.db,
+        mockQb,
+        mockJf,
+        mockNotifications,
+        tempDir,
+        () => 50, // 50% physical free (healthy disk)
+        () => 500 * 1024 * 1024 * 1024, // plenty of free bytes
+        {
+          buildLibraryPath: () => '',
+          hardlink: () => {},
+          hardlinkDirectory: () => {},
+          getStorageFootprintBytes: () => 85 * 1024 * 1024 * 1024, // 85 GB footprint
+        }
+      );
+
+      // Configure storage_quota_gb = 100 in DB
+      dbInstance.db
+        .insert(systemConfig)
+        .values({
+          key: 'storage_quota_gb',
+          value: '100',
+        })
+        .onConflictDoUpdate({ target: systemConfig.key, set: { value: '100' } })
+        .run();
+
+      const scheduled = await cleanup.checkDiskAndClean!();
+      expect(scheduled).toHaveLength(1);
+      expect(scheduled[0].id).toBe(reqConsumed);
+
+      // Verify Tier 2 item was NOT scheduled
+      const unwatchedRow = dbInstance.db.select().from(downloadRequests).where(eq(downloadRequests.id, reqUnwatched)).get();
+      expect(unwatchedRow?.scheduledDeleteAt).toBeNull();
+    });
+
+    it('server-wide play history updates lastPlayedAt for non-requester viewer', async () => {
+      const moviePath = path.join(tempDir, 'Shared Movie');
+      fs.mkdirSync(moviePath, { recursive: true });
+
+      const reqId = 'req_non_requester_view';
+      dbInstance.db.insert(downloadRequests).values({
+        id: reqId,
+        userId, // Alice requested
+        magnetLink: 'magnet:shared',
+        mediaType: 'movie',
+        status: 'seeding',
+        metadataId: '6001',
+        metadataSource: 'tmdb',
+        title: 'Shared Movie',
+        jellyfinPath: moviePath,
+        requestedAt: '2026-01-01T00:00:00Z',
+        lastPlayedAt: null,
+        keepFlag: false,
+      }).run();
+
+      // Dave (not a requester) watched the movie on Jellyfin
+      mockJf.playHistory = {
+        [path.join(moviePath, 'movie.mkv')]: '2026-05-15T20:00:00Z',
+      };
+      // Alice (requester) has NOT watched it
+      mockJf.userPlayHistories = {
+        jf_alice: {},
+      };
+
+      const cleanup = new CleanupService(
+        dbInstance.db,
+        mockQb,
+        mockJf,
+        mockNotifications,
+        tempDir
+      );
+
+      const candidates = await cleanup.getCandidates!();
+      expect(candidates).toHaveLength(1);
+      expect(candidates[0].id).toBe(reqId);
+      // Not fully consumed because Alice (requester) hasn't watched
+      expect(candidates[0].isFullyConsumed).toBe(false);
+      // But lastPlayedAt is updated from server-wide play history
+      expect(candidates[0].lastPlayedAt).toBe('2026-05-15T20:00:00Z');
+
+      const updatedRow = dbInstance.db.select().from(downloadRequests).where(eq(downloadRequests.id, reqId)).get();
+      expect(updatedRow?.lastPlayedAt).toBe('2026-05-15T20:00:00Z');
+    });
+
+    it('executePendingCleanups deletes expired items in priority order (Tier 1 before Tier 2)', async () => {
+      const consumedPath = path.join(tempDir, 'Delete Tier 1');
+      const unwatchedPath = path.join(tempDir, 'Delete Tier 2');
+      fs.mkdirSync(consumedPath, { recursive: true });
+      fs.mkdirSync(unwatchedPath, { recursive: true });
+
+      const pastDate = new Date(Date.now() - 3600 * 1000).toISOString();
+
+      const reqTier1 = 'req_del_tier1';
+      dbInstance.db.insert(downloadRequests).values({
+        id: reqTier1,
+        userId,
+        magnetLink: 'magnet:d1',
+        mediaType: 'movie',
+        status: 'seeding',
+        metadataId: '7001',
+        metadataSource: 'tmdb',
+        title: 'Delete Tier 1',
+        jellyfinPath: consumedPath,
+        requestedAt: '2026-01-01T00:00:00Z',
+        lastPlayedAt: '2026-02-01T00:00:00Z',
+        scheduledDeleteAt: pastDate,
+        keepFlag: false,
+      }).run();
+
+      const reqTier2 = 'req_del_tier2';
+      dbInstance.db.insert(downloadRequests).values({
+        id: reqTier2,
+        userId,
+        magnetLink: 'magnet:d2',
+        mediaType: 'movie',
+        status: 'seeding',
+        metadataId: '7002',
+        metadataSource: 'tmdb',
+        title: 'Delete Tier 2',
+        jellyfinPath: unwatchedPath,
+        requestedAt: '2025-12-01T00:00:00Z',
+        lastPlayedAt: null,
+        scheduledDeleteAt: pastDate,
+        keepFlag: false,
+      }).run();
+
+      mockJf.userPlayHistories = {
+        jf_alice: {
+          [path.join(consumedPath, 'movie.mkv')]: '2026-02-01T00:00:00Z',
+        },
+      };
+
+      const cleanup = new CleanupService(
+        dbInstance.db,
+        mockQb,
+        mockJf,
+        mockNotifications,
+        tempDir
+      );
+
+      // Populate fullyConsumedRequestIds cache first
+      await cleanup.getCandidates!();
+
+      const deleted = await cleanup.executePendingCleanups!();
+      expect(deleted).toHaveLength(2);
+      // Tier 1 deleted first, Tier 2 second
+      expect(deleted[0].id).toBe(reqTier1);
+      expect(deleted[1].id).toBe(reqTier2);
     });
   });
 });

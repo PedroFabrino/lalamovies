@@ -1010,7 +1010,7 @@
                       <span
                         v-if="cand.isFullyConsumed"
                         class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-800"
-                        title="Watched by all requesters"
+                        title="Fully Consumed"
                       >
                         Fully Consumed
                       </span>
