@@ -37,6 +37,7 @@ export interface DownloadRequest {
   requesterUsername?: string | null;
   isPrimaryRequester?: boolean;
   coRequesters?: string[];
+  isFullyConsumed?: boolean;
 }
 
 export interface ProgressData {

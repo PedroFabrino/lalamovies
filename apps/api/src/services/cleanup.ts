@@ -21,10 +21,13 @@ export interface ICleanupService {
   checkDiskAndClean?(targetPath?: string): Promise<DownloadRequest[]>;
   executePendingCleanups?(): Promise<DownloadRequest[]>;
   cleanItem(requestId: string): Promise<void>;
-  getCandidates?(): Promise<DownloadRequest[]>;
+  getCandidates?(): Promise<(DownloadRequest & { isFullyConsumed?: boolean })[]>;
+  isFullyConsumed?(requestId: string): boolean;
 }
 
 export class CleanupService implements ICleanupService {
+  private fullyConsumedRequestIds = new Set<string>();
+
   constructor(
     private db: AppDatabase,
     private qbittorrent: IQBittorrentService,
@@ -92,27 +95,175 @@ export class CleanupService implements ICleanupService {
     };
   }
 
+  isFullyConsumed(requestId: string): boolean {
+    return this.fullyConsumedRequestIds.has(requestId);
+  }
+
+  private sortCandidates(candidates: DownloadRequest[]): DownloadRequest[] {
+    const tier1: DownloadRequest[] = [];
+    const tier2: DownloadRequest[] = [];
+
+    for (const item of candidates) {
+      if (this.fullyConsumedRequestIds.has(item.id)) {
+        tier1.push(item);
+      } else {
+        tier2.push(item);
+      }
+    }
+
+    const comparator = (a: DownloadRequest, b: DownloadRequest): number => {
+      if (a.lastPlayedAt && b.lastPlayedAt) {
+        const timeDiff = new Date(a.lastPlayedAt).getTime() - new Date(b.lastPlayedAt).getTime();
+        if (timeDiff !== 0) return timeDiff;
+      } else if (!a.lastPlayedAt && b.lastPlayedAt) {
+        return -1;
+      } else if (a.lastPlayedAt && !b.lastPlayedAt) {
+        return 1;
+      }
+
+      return new Date(a.requestedAt).getTime() - new Date(b.requestedAt).getTime();
+    };
+
+    tier1.sort(comparator);
+    tier2.sort(comparator);
+
+    return [...tier1, ...tier2];
+  }
+
   async refreshPlayHistory(): Promise<void> {
     if (!this.jellyfin?.getPlayHistory) return;
 
     try {
-      const history = await this.jellyfin.getPlayHistory();
       const seedingRequests = this.db
         .select()
         .from(downloadRequests)
         .where(eq(downloadRequests.status, 'seeding'))
         .all();
 
+      if (seedingRequests.length === 0) {
+        this.fullyConsumedRequestIds.clear();
+        return;
+      }
+
+      const allCoReqs = this.db.select().from(requestCoRequesters).all();
+      const coReqMap = new Map<string, string[]>();
+      for (const cr of allCoReqs) {
+        if (!coReqMap.has(cr.requestId)) {
+          coReqMap.set(cr.requestId, []);
+        }
+        coReqMap.get(cr.requestId)!.push(cr.userId);
+      }
+
+      const allUserIds = new Set<string>();
+      for (const req of seedingRequests) {
+        if (req.userId) allUserIds.add(req.userId);
+        const coReqs = coReqMap.get(req.id) || [];
+        for (const uid of coReqs) {
+          allUserIds.add(uid);
+        }
+      }
+
+      const allUsers = this.db.select().from(users).all();
+      const userMap = new Map(allUsers.map((u) => [u.id, u]));
+
+      type UserHistoryResult = { accountExists: boolean; history: Record<string, string> };
+      const historyCache = new Map<string, UserHistoryResult>();
+
+      for (const uid of allUserIds) {
+        const u = userMap.get(uid);
+        if (!u || !u.jellyfinUserId) {
+          historyCache.set(uid, { accountExists: false, history: {} });
+          continue;
+        }
+
+        const jfUid = u.jellyfinUserId;
+        const cached = historyCache.get(jfUid);
+        if (cached) {
+          historyCache.set(uid, cached);
+          continue;
+        }
+
+        try {
+          const userHistory = await this.jellyfin.getPlayHistory(jfUid);
+          const res: UserHistoryResult = {
+            accountExists: true,
+            history: userHistory || {},
+          };
+          historyCache.set(jfUid, res);
+          historyCache.set(uid, res);
+        } catch (err: any) {
+          const statusCode = err?.statusCode || err?.status;
+          const msg = String(err?.message || err).toLowerCase();
+          const isNotFound = statusCode === 404 || msg.includes('404') || msg.includes('not found');
+          if (isNotFound) {
+            const res: UserHistoryResult = { accountExists: false, history: {} };
+            historyCache.set(jfUid, res);
+            historyCache.set(uid, res);
+          } else {
+            const res: UserHistoryResult = { accountExists: true, history: {} };
+            historyCache.set(jfUid, res);
+            historyCache.set(uid, res);
+          }
+        }
+      }
+
+      if (allUserIds.size === 0) {
+        try {
+          const globalHistory = await this.jellyfin.getPlayHistory();
+          historyCache.set('__global__', { accountExists: true, history: globalHistory || {} });
+        } catch {
+          // ignore
+        }
+      }
+
+      const newFullyConsumed = new Set<string>();
+
       for (const req of seedingRequests) {
         if (!req.jellyfinPath) continue;
-        let latestPlayed: string | null = null;
-        const normReq = req.jellyfinPath.replace(/\\/g, '/').toLowerCase();
 
-        for (const [itemPath, playedDate] of Object.entries(history)) {
-          const normItem = itemPath.replace(/\\/g, '/').toLowerCase();
-          if (normItem === normReq || normItem.startsWith(normReq.endsWith('/') ? normReq : normReq + '/')) {
-            if (!latestPlayed || new Date(playedDate) > new Date(latestPlayed)) {
-              latestPlayed = playedDate;
+        const normReq = req.jellyfinPath.replace(/\\/g, '/').toLowerCase();
+        const reqUserIds = new Set<string>();
+        if (req.userId) reqUserIds.add(req.userId);
+        const coReqs = coReqMap.get(req.id) || [];
+        for (const c of coReqs) reqUserIds.add(c);
+
+        let allRequestersWatched = reqUserIds.size > 0;
+        let latestPlayed: string | null = null;
+
+        for (const rUid of reqUserIds) {
+          const userRes = historyCache.get(rUid);
+          if (!userRes || !userRes.accountExists) {
+            continue;
+          }
+
+          let requesterWatched = false;
+          for (const [itemPath, playedDate] of Object.entries(userRes.history)) {
+            const normItem = itemPath.replace(/\\/g, '/').toLowerCase();
+            if (normItem === normReq || normItem.startsWith(normReq.endsWith('/') ? normReq : normReq + '/')) {
+              requesterWatched = true;
+              if (!latestPlayed || new Date(playedDate) > new Date(latestPlayed)) {
+                latestPlayed = playedDate;
+              }
+            }
+          }
+
+          if (!requesterWatched) {
+            allRequestersWatched = false;
+          }
+        }
+
+        if (allRequestersWatched) {
+          newFullyConsumed.add(req.id);
+        }
+
+        for (const userRes of historyCache.values()) {
+          if (!userRes.accountExists) continue;
+          for (const [itemPath, playedDate] of Object.entries(userRes.history)) {
+            const normItem = itemPath.replace(/\\/g, '/').toLowerCase();
+            if (normItem === normReq || normItem.startsWith(normReq.endsWith('/') ? normReq : normReq + '/')) {
+              if (!latestPlayed || new Date(playedDate) > new Date(latestPlayed)) {
+                latestPlayed = playedDate;
+              }
             }
           }
         }
@@ -126,15 +277,17 @@ export class CleanupService implements ICleanupService {
           req.lastPlayedAt = latestPlayed;
         }
       }
+
+      this.fullyConsumedRequestIds = newFullyConsumed;
     } catch {
       // Silently continue if Jellyfin call fails
     }
   }
 
-  async getCandidates(): Promise<DownloadRequest[]> {
+  async getCandidates(): Promise<(DownloadRequest & { isFullyConsumed?: boolean })[]> {
     await this.refreshPlayHistory();
 
-    return this.db
+    const candidates = this.db
       .select()
       .from(downloadRequests)
       .where(
@@ -143,8 +296,13 @@ export class CleanupService implements ICleanupService {
           eq(downloadRequests.keepFlag, false)
         )
       )
-      .orderBy(asc(downloadRequests.lastPlayedAt), asc(downloadRequests.requestedAt))
       .all();
+
+    const sorted = this.sortCandidates(candidates);
+    return sorted.map((c) => ({
+      ...c,
+      isFullyConsumed: this.fullyConsumedRequestIds.has(c.id),
+    }));
   }
 
   async checkDiskAndClean(customPath?: string): Promise<DownloadRequest[]> {
@@ -184,11 +342,11 @@ export class CleanupService implements ICleanupService {
     }
 
     // Free space is below warn threshold or storage quota >= 80%!
-    // 1. Refresh play history from Jellyfin
+    // 1. Refresh play history from Jellyfin and evaluate Fully Consumed tier
     await this.refreshPlayHistory();
 
     // 2. Select candidates (status='seeding', keepFlag=false, scheduledDeleteAt is null)
-    // Priority: least-recently-played first (nulls first in SQLite ASC), then oldest request
+    // Priority: Tier 1 (Fully Consumed) first, then Tier 2 (remaining requests).
     const candidates = this.db
       .select()
       .from(downloadRequests)
@@ -199,13 +357,14 @@ export class CleanupService implements ICleanupService {
           isNull(downloadRequests.scheduledDeleteAt)
         )
       )
-      .orderBy(asc(downloadRequests.lastPlayedAt), asc(downloadRequests.requestedAt))
       .all();
+
+    const sortedCandidates = this.sortCandidates(candidates);
 
     const scheduledDeleteAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     const scheduled: DownloadRequest[] = [];
 
-    for (const item of candidates) {
+    for (const item of sortedCandidates) {
       this.db
         .update(downloadRequests)
         .set({ scheduledDeleteAt })
@@ -301,6 +460,7 @@ export class CleanupService implements ICleanupService {
         .where(eq(requestCoRequesters.requestId, item.id))
         .run();
 
+      this.fullyConsumedRequestIds.delete(item.id);
       item.status = 'deleted';
       item.scheduledDeleteAt = null;
       deleted.push(item);
@@ -417,6 +577,8 @@ export class CleanupService implements ICleanupService {
       .delete(requestCoRequesters)
       .where(eq(requestCoRequesters.requestId, requestId))
       .run();
+
+    this.fullyConsumedRequestIds.delete(requestId);
 
     let requestedBy: string | undefined;
     if (request.userId) {

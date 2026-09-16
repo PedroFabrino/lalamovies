@@ -485,6 +485,7 @@ describe('Admin REST Endpoints (Ticket 10)', () => {
           errorMessage: null,
           downloadedAt: null,
           sizeBytes: 100,
+          isFullyConsumed: true,
         },
       ];
 
@@ -499,6 +500,7 @@ describe('Admin REST Endpoints (Ticket 10)', () => {
       expect(data.candidates).toBeInstanceOf(Array);
       expect(data.candidates.length).toBe(1);
       expect(data.candidates[0].title).toBe('Candidate Movie');
+      expect(data.candidates[0].isFullyConsumed).toBe(true);
     });
 
     it('GET /admin/disk returns disk statistics, storage quota, and footprint gauge data', async () => {

@@ -953,10 +953,10 @@
         <div>
           <div class="mb-4">
             <h2 class="text-lg font-semibold text-white">
-              Cleanup Candidates (LRU Order)
+              Cleanup Candidates (Priority Order)
             </h2>
             <p class="text-xs text-zinc-400">
-              Ranked in deletion priority: least recently played first, then oldest request. Items marked Keep are excluded.
+              Ranked in deletion priority: Fully Consumed content first (oldest watched first), then least recently played / oldest requests. Items marked Keep are excluded.
             </p>
           </div>
 
@@ -1003,8 +1003,17 @@
                   class="hover:bg-zinc-800/30 transition"
                 >
                   <td class="py-3.5 px-4 sm:px-6">
-                    <div class="font-medium text-white">
-                      {{ cand.title }}
+                    <div class="flex items-center gap-2">
+                      <div class="font-medium text-white">
+                        {{ cand.title }}
+                      </div>
+                      <span
+                        v-if="cand.isFullyConsumed"
+                        class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-800"
+                        title="Watched by all requesters"
+                      >
+                        Fully Consumed
+                      </span>
                     </div>
                     <div class="text-xs text-zinc-500">
                       <span v-if="formatMediaSubtitle(cand)">{{ formatMediaSubtitle(cand) }}</span>

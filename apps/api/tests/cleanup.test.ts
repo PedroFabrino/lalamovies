@@ -45,6 +45,9 @@ class MockQBittorrent implements IQBittorrentService {
 class MockJellyfin implements IJellyfinService {
   public refreshed = false;
   public playHistory: Record<string, string> = {};
+  public userPlayHistories: Record<string, Record<string, string>> = {};
+  public deletedUserIds: Set<string> = new Set();
+  public queriedUserIds: string[] = [];
 
   async authenticateUser() {
     return { accessToken: 'token', userId: 'jf_u1', username: 'alice', isAdmin: true };
@@ -52,13 +55,26 @@ class MockJellyfin implements IJellyfinService {
   async createUser() {
     return 'jf_u2';
   }
-  async deleteUser() {}
+  async deleteUser(userId: string) {
+    this.deletedUserIds.add(userId);
+  }
 
   async refreshLibrary(): Promise<void> {
     this.refreshed = true;
   }
 
-  async getPlayHistory(): Promise<Record<string, string>> {
+  async getPlayHistory(userId?: string): Promise<Record<string, string>> {
+    if (userId) {
+      this.queriedUserIds.push(userId);
+      if (this.deletedUserIds.has(userId)) {
+        const err: any = new Error('User not found (HTTP 404)');
+        err.statusCode = 404;
+        throw err;
+      }
+      if (this.userPlayHistories[userId]) {
+        return this.userPlayHistories[userId];
+      }
+    }
     return this.playHistory;
   }
 }
@@ -1010,6 +1026,10 @@ describe('CleanupService, Notifiers & Cron (Ticket 09)', () => {
         keepFlag: false,
       }).run();
 
+      dbInstance.db.insert(requestCoRequesters).values([
+        { requestId: req1Id, userId: otherUser1, addedAt: '2026-01-01T01:00:00Z' },
+      ]).run();
+
       // req2 requested later, but never played
       const req2Id = 'req_show_b';
       dbInstance.db.insert(downloadRequests).values({
@@ -1027,9 +1047,12 @@ describe('CleanupService, Notifiers & Cron (Ticket 09)', () => {
         keepFlag: false,
       }).run();
 
-      // Co-requester watched Show A recently
-      mockJf.playHistory = {
-        [path1]: '2026-02-01T12:00:00Z',
+      // Co-requester watched Show A recently, but primary requester did not (partially consumed -> Tier 2)
+      mockJf.userPlayHistories = {
+        jf_alice: {},
+        jf_bob: {
+          [path1]: '2026-02-01T12:00:00Z',
+        },
       };
 
       const cleanup = new CleanupService(
@@ -1045,6 +1068,456 @@ describe('CleanupService, Notifiers & Cron (Ticket 09)', () => {
       // req2 (never played) should be candidate #1 for deletion before req1 (played recently)
       expect(candidates[0].id).toBe(req2Id);
       expect(candidates[1].id).toBe(req1Id);
+    });
+  });
+
+  describe('ADR 0014 — Fully Consumed Tier in Cleanup Priority', () => {
+    let userBob: string;
+    let userCharlie: string;
+
+    beforeEach(() => {
+      userBob = 'user_bob_fc';
+      userCharlie = 'user_charlie_fc';
+
+      dbInstance.db.insert(users).values([
+        {
+          id: userBob,
+          jellyfinUserId: 'jf_bob_fc',
+          username: 'bob_fc',
+          role: 'user',
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: userCharlie,
+          jellyfinUserId: 'jf_charlie_fc',
+          username: 'charlie_fc',
+          role: 'user',
+          createdAt: new Date().toISOString(),
+        },
+      ]).run();
+    });
+
+    it('identifies single requester watched media as fully consumed (Tier 1)', async () => {
+      const moviePath = path.join(tempDir, 'Inception (2010)');
+      fs.mkdirSync(moviePath, { recursive: true });
+
+      const reqId = 'req_fc_single_watched';
+      dbInstance.db.insert(downloadRequests).values({
+        id: reqId,
+        userId,
+        magnetLink: 'magnet:inception',
+        mediaType: 'movie',
+        status: 'seeding',
+        metadataId: '27205',
+        metadataSource: 'tmdb',
+        title: 'Inception',
+        jellyfinPath: moviePath,
+        requestedAt: '2026-01-01T00:00:00Z',
+        lastPlayedAt: null,
+        keepFlag: false,
+      }).run();
+
+      mockJf.userPlayHistories = {
+        jf_alice: {
+          [path.join(moviePath, 'Inception.mkv')]: '2026-04-01T12:00:00Z',
+        },
+      };
+
+      const cleanup = new CleanupService(
+        dbInstance.db,
+        mockQb,
+        mockJf,
+        mockNotifications,
+        tempDir
+      );
+
+      const candidates = await cleanup.getCandidates!();
+      expect(candidates).toHaveLength(1);
+      expect(candidates[0].id).toBe(reqId);
+      expect(candidates[0].isFullyConsumed).toBe(true);
+      expect(cleanup.isFullyConsumed!(reqId)).toBe(true);
+      expect(candidates[0].lastPlayedAt).toBe('2026-04-01T12:00:00Z');
+    });
+
+    it('identifies single requester unwatched media as not fully consumed (Tier 2)', async () => {
+      const moviePath = path.join(tempDir, 'Tenet (2020)');
+      fs.mkdirSync(moviePath, { recursive: true });
+
+      const reqId = 'req_fc_single_unwatched';
+      dbInstance.db.insert(downloadRequests).values({
+        id: reqId,
+        userId,
+        magnetLink: 'magnet:tenet',
+        mediaType: 'movie',
+        status: 'seeding',
+        metadataId: '577922',
+        metadataSource: 'tmdb',
+        title: 'Tenet',
+        jellyfinPath: moviePath,
+        requestedAt: '2026-01-01T00:00:00Z',
+        lastPlayedAt: null,
+        keepFlag: false,
+      }).run();
+
+      mockJf.userPlayHistories = {
+        jf_alice: {},
+      };
+
+      const cleanup = new CleanupService(
+        dbInstance.db,
+        mockQb,
+        mockJf,
+        mockNotifications,
+        tempDir
+      );
+
+      const candidates = await cleanup.getCandidates!();
+      expect(candidates).toHaveLength(1);
+      expect(candidates[0].id).toBe(reqId);
+      expect(candidates[0].isFullyConsumed).toBe(false);
+      expect(cleanup.isFullyConsumed!(reqId)).toBe(false);
+      expect(candidates[0].lastPlayedAt).toBeNull();
+    });
+
+    it('requires all requesters (primary + co-requesters) to have watched for fully consumed status', async () => {
+      const showPath = path.join(tempDir, 'Breaking Bad');
+      fs.mkdirSync(showPath, { recursive: true });
+
+      const reqId = 'req_bb';
+      dbInstance.db.insert(downloadRequests).values({
+        id: reqId,
+        userId, // Alice
+        magnetLink: 'magnet:bb',
+        mediaType: 'tv',
+        status: 'seeding',
+        metadataId: '1396',
+        metadataSource: 'tmdb',
+        title: 'Breaking Bad',
+        jellyfinPath: showPath,
+        requestedAt: '2026-01-01T00:00:00Z',
+        lastPlayedAt: null,
+        keepFlag: false,
+      }).run();
+
+      dbInstance.db.insert(requestCoRequesters).values([
+        { requestId: reqId, userId: userBob, addedAt: '2026-01-01T01:00:00Z' },
+      ]).run();
+
+      const cleanup = new CleanupService(
+        dbInstance.db,
+        mockQb,
+        mockJf,
+        mockNotifications,
+        tempDir
+      );
+
+      // Scenario A: Only Alice has watched -> NOT fully consumed
+      mockJf.userPlayHistories = {
+        jf_alice: {
+          [path.join(showPath, 'Season 1', 'bb_s01e01.mkv')]: '2026-02-01T10:00:00Z',
+        },
+        jf_bob_fc: {},
+      };
+
+      let candidates = await cleanup.getCandidates!();
+      expect(candidates[0].isFullyConsumed).toBe(false);
+      expect(cleanup.isFullyConsumed!(reqId)).toBe(false);
+
+      // Scenario B: Bob also watched -> NOW fully consumed!
+      mockJf.userPlayHistories = {
+        jf_alice: {
+          [path.join(showPath, 'Season 1', 'bb_s01e01.mkv')]: '2026-02-01T10:00:00Z',
+        },
+        jf_bob_fc: {
+          [path.join(showPath, 'Season 1', 'bb_s01e02.mkv')]: '2026-02-05T15:00:00Z',
+        },
+      };
+
+      candidates = await cleanup.getCandidates!();
+      expect(candidates[0].isFullyConsumed).toBe(true);
+      expect(cleanup.isFullyConsumed!(reqId)).toBe(true);
+      // Canonical row lastPlayedAt updated to latest play timestamp
+      expect(candidates[0].lastPlayedAt).toBe('2026-02-05T15:00:00Z');
+    });
+
+    it('treats requester whose Jellyfin account no longer exists (404) as having watched', async () => {
+      const moviePath = path.join(tempDir, 'Oppenheimer (2023)');
+      fs.mkdirSync(moviePath, { recursive: true });
+
+      const reqId = 'req_oppenheimer';
+      dbInstance.db.insert(downloadRequests).values({
+        id: reqId,
+        userId, // Alice
+        magnetLink: 'magnet:oppenheimer',
+        mediaType: 'movie',
+        status: 'seeding',
+        metadataId: '872585',
+        metadataSource: 'tmdb',
+        title: 'Oppenheimer',
+        jellyfinPath: moviePath,
+        requestedAt: '2026-01-01T00:00:00Z',
+        lastPlayedAt: null,
+        keepFlag: false,
+      }).run();
+
+      dbInstance.db.insert(requestCoRequesters).values([
+        { requestId: reqId, userId: userCharlie, addedAt: '2026-01-01T01:00:00Z' },
+      ]).run();
+
+      // Alice watched it
+      mockJf.userPlayHistories = {
+        jf_alice: {
+          [path.join(moviePath, 'Oppenheimer.mkv')]: '2026-03-01T12:00:00Z',
+        },
+      };
+
+      // Charlie's Jellyfin account was deleted (returns 404)
+      mockJf.deletedUserIds.add('jf_charlie_fc');
+
+      const cleanup = new CleanupService(
+        dbInstance.db,
+        mockQb,
+        mockJf,
+        mockNotifications,
+        tempDir
+      );
+
+      const candidates = await cleanup.getCandidates!();
+      expect(candidates).toHaveLength(1);
+      // Treated as fully consumed because Charlie has no account (no access, no objection to deletion)
+      expect(candidates[0].isFullyConsumed).toBe(true);
+      expect(cleanup.isFullyConsumed!(reqId)).toBe(true);
+    });
+
+    it('orders Fully Consumed (Tier 1) candidates ahead of unwatched (Tier 2) candidates', async () => {
+      const consumedPath = path.join(tempDir, 'Watched Movie');
+      const unwatchedPath = path.join(tempDir, 'Unwatched Movie');
+      fs.mkdirSync(consumedPath, { recursive: true });
+      fs.mkdirSync(unwatchedPath, { recursive: true });
+
+      // Item 1: Fully consumed (watched Jan 20)
+      const reqConsumed = 'req_tier1_consumed';
+      dbInstance.db.insert(downloadRequests).values({
+        id: reqConsumed,
+        userId,
+        magnetLink: 'magnet:consumed',
+        mediaType: 'movie',
+        status: 'seeding',
+        metadataId: '1001',
+        metadataSource: 'tmdb',
+        title: 'Watched Movie',
+        jellyfinPath: consumedPath,
+        requestedAt: '2026-01-01T00:00:00Z',
+        lastPlayedAt: null,
+        keepFlag: false,
+      }).run();
+
+      // Item 2: Unwatched, requested even earlier (Dec 2025)
+      const reqUnwatched = 'req_tier2_unwatched';
+      dbInstance.db.insert(downloadRequests).values({
+        id: reqUnwatched,
+        userId,
+        magnetLink: 'magnet:unwatched',
+        mediaType: 'movie',
+        status: 'seeding',
+        metadataId: '1002',
+        metadataSource: 'tmdb',
+        title: 'Unwatched Movie',
+        jellyfinPath: unwatchedPath,
+        requestedAt: '2025-12-01T00:00:00Z',
+        lastPlayedAt: null,
+        keepFlag: false,
+      }).run();
+
+      mockJf.userPlayHistories = {
+        jf_alice: {
+          [path.join(consumedPath, 'movie.mkv')]: '2026-01-20T12:00:00Z',
+        },
+      };
+
+      const cleanup = new CleanupService(
+        dbInstance.db,
+        mockQb,
+        mockJf,
+        mockNotifications,
+        tempDir,
+        () => 10 // Low disk space triggers auto-cleanup
+      );
+
+      // Check candidate ordering via getCandidates()
+      const candidates = await cleanup.getCandidates!();
+      expect(candidates).toHaveLength(2);
+      expect(candidates[0].id).toBe(reqConsumed);
+      expect(candidates[0].isFullyConsumed).toBe(true);
+      expect(candidates[1].id).toBe(reqUnwatched);
+      expect(candidates[1].isFullyConsumed).toBe(false);
+
+      // Check candidate scheduling via checkDiskAndClean()
+      const scheduled = await cleanup.checkDiskAndClean!();
+      expect(scheduled).toHaveLength(2);
+      expect(scheduled[0].id).toBe(reqConsumed);
+      expect(scheduled[1].id).toBe(reqUnwatched);
+    });
+
+    it('orders candidates within Tier 1 by lastPlayedAt ASC (oldest watched first)', async () => {
+      const pathOld = path.join(tempDir, 'Old Consumed');
+      const pathNew = path.join(tempDir, 'Recent Consumed');
+      fs.mkdirSync(pathOld, { recursive: true });
+      fs.mkdirSync(pathNew, { recursive: true });
+
+      const reqOld = 'req_fc_old';
+      dbInstance.db.insert(downloadRequests).values({
+        id: reqOld,
+        userId,
+        magnetLink: 'magnet:old',
+        mediaType: 'movie',
+        status: 'seeding',
+        metadataId: '2001',
+        metadataSource: 'tmdb',
+        title: 'Old Consumed',
+        jellyfinPath: pathOld,
+        requestedAt: '2026-01-01T00:00:00Z',
+        lastPlayedAt: null,
+        keepFlag: false,
+      }).run();
+
+      const reqNew = 'req_fc_new';
+      dbInstance.db.insert(downloadRequests).values({
+        id: reqNew,
+        userId,
+        magnetLink: 'magnet:new',
+        mediaType: 'movie',
+        status: 'seeding',
+        metadataId: '2002',
+        metadataSource: 'tmdb',
+        title: 'Recent Consumed',
+        jellyfinPath: pathNew,
+        requestedAt: '2026-01-02T00:00:00Z',
+        lastPlayedAt: null,
+        keepFlag: false,
+      }).run();
+
+      mockJf.userPlayHistories = {
+        jf_alice: {
+          [path.join(pathOld, 'old.mkv')]: '2026-02-01T00:00:00Z', // Played earlier
+          [path.join(pathNew, 'new.mkv')]: '2026-08-01T00:00:00Z', // Played later
+        },
+      };
+
+      const cleanup = new CleanupService(
+        dbInstance.db,
+        mockQb,
+        mockJf,
+        mockNotifications,
+        tempDir
+      );
+
+      const candidates = await cleanup.getCandidates!();
+      expect(candidates).toHaveLength(2);
+      expect(candidates[0].id).toBe(reqOld);
+      expect(candidates[1].id).toBe(reqNew);
+    });
+
+    it('queries getPlayHistory(jellyfinUserId) once per unique requester during refreshPlayHistory', async () => {
+      const pathA = path.join(tempDir, 'Item A');
+      const pathB = path.join(tempDir, 'Item B');
+      fs.mkdirSync(pathA, { recursive: true });
+      fs.mkdirSync(pathB, { recursive: true });
+
+      // Request 1 has Alice & Bob
+      dbInstance.db.insert(downloadRequests).values({
+        id: 'req_multi_1',
+        userId, // Alice
+        magnetLink: 'magnet:m1',
+        mediaType: 'movie',
+        status: 'seeding',
+        metadataId: '3001',
+        metadataSource: 'tmdb',
+        title: 'Item A',
+        jellyfinPath: pathA,
+        requestedAt: '2026-01-01T00:00:00Z',
+        keepFlag: false,
+      }).run();
+
+      dbInstance.db.insert(requestCoRequesters).values([
+        { requestId: 'req_multi_1', userId: userBob, addedAt: '2026-01-01T01:00:00Z' },
+      ]).run();
+
+      // Request 2 also has Alice & Bob
+      dbInstance.db.insert(downloadRequests).values({
+        id: 'req_multi_2',
+        userId, // Alice
+        magnetLink: 'magnet:m2',
+        mediaType: 'movie',
+        status: 'seeding',
+        metadataId: '3002',
+        metadataSource: 'tmdb',
+        title: 'Item B',
+        jellyfinPath: pathB,
+        requestedAt: '2026-01-02T00:00:00Z',
+        keepFlag: false,
+      }).run();
+
+      dbInstance.db.insert(requestCoRequesters).values([
+        { requestId: 'req_multi_2', userId: userBob, addedAt: '2026-01-02T01:00:00Z' },
+      ]).run();
+
+      mockJf.queriedUserIds = [];
+
+      const cleanup = new CleanupService(
+        dbInstance.db,
+        mockQb,
+        mockJf,
+        mockNotifications,
+        tempDir
+      );
+
+      await cleanup.getCandidates!();
+
+      // Exactly 1 call for jf_alice and 1 call for jf_bob_fc, despite appearing on multiple requests
+      expect(mockJf.queriedUserIds.filter((id) => id === 'jf_alice')).toHaveLength(1);
+      expect(mockJf.queriedUserIds.filter((id) => id === 'jf_bob_fc')).toHaveLength(1);
+    });
+
+    it('clears isFullyConsumed status when item is manually cleaned or auto-deleted', async () => {
+      const moviePath = path.join(tempDir, 'Clean Target');
+      fs.mkdirSync(moviePath, { recursive: true });
+
+      const reqId = 'req_clean_target';
+      dbInstance.db.insert(downloadRequests).values({
+        id: reqId,
+        userId,
+        magnetLink: 'magnet:cleantarget',
+        mediaType: 'movie',
+        status: 'seeding',
+        metadataId: '4001',
+        metadataSource: 'tmdb',
+        title: 'Clean Target',
+        jellyfinPath: moviePath,
+        requestedAt: '2026-01-01T00:00:00Z',
+        keepFlag: false,
+      }).run();
+
+      mockJf.userPlayHistories = {
+        jf_alice: {
+          [path.join(moviePath, 'movie.mkv')]: '2026-05-01T00:00:00Z',
+        },
+      };
+
+      const cleanup = new CleanupService(
+        dbInstance.db,
+        mockQb,
+        mockJf,
+        mockNotifications,
+        tempDir
+      );
+
+      await cleanup.getCandidates!();
+      expect(cleanup.isFullyConsumed!(reqId)).toBe(true);
+
+      // Clean item
+      await cleanup.cleanItem(reqId);
+      expect(cleanup.isFullyConsumed!(reqId)).toBe(false);
     });
   });
 });
