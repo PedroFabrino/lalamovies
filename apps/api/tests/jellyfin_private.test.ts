@@ -197,4 +197,21 @@ describe('Jellyfin Private Library Management & Access Control', () => {
 
     await app.close();
   });
+
+  it('syncs permissions for all provided users using setUserLibraryAccess', async () => {
+    const service = new JellyfinService('http://localhost:8096', 'test-api-key');
+    service.setPrivateLibraryId('lib-private-456');
+
+    const setUserLibraryAccessSpy = vi.spyOn(service, 'setUserLibraryAccess').mockResolvedValue();
+
+    await service.syncAllUserPermissions([
+      { jellyfinUserId: 'jf-user-1', role: 'user' },
+      { jellyfinUserId: 'jf-user-2', role: 'trusted' },
+      { jellyfinUserId: null, role: 'user' },
+    ]);
+
+    expect(setUserLibraryAccessSpy).toHaveBeenCalledTimes(2);
+    expect(setUserLibraryAccessSpy).toHaveBeenCalledWith('jf-user-1', 'user');
+    expect(setUserLibraryAccessSpy).toHaveBeenCalledWith('jf-user-2', 'trusted');
+  });
 });

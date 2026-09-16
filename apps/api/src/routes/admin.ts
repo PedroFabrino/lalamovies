@@ -380,6 +380,13 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       if (app.jellyfin.refreshLibrary) {
         await app.jellyfin.refreshLibrary();
       }
+      if (app.jellyfin.syncAllUserPermissions) {
+        const allUsers = app.db
+          .select({ jellyfinUserId: users.jellyfinUserId, role: users.role })
+          .from(users)
+          .all();
+        await app.jellyfin.syncAllUserPermissions(allUsers as any);
+      }
       return reply.send({ success: true, message: 'Jellyfin library refresh triggered successfully' });
     } catch (err: unknown) {
       const msg = (err as Error).message || 'Failed to refresh Jellyfin library';

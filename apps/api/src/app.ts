@@ -5,7 +5,7 @@ import fastifyJwt from '@fastify/jwt';
 import fastifyWebsocket from '@fastify/websocket';
 import Database from 'better-sqlite3';
 import { eq } from 'drizzle-orm';
-import { initDatabase, AppDatabase, systemConfig, featureFlags } from './db';
+import { initDatabase, AppDatabase, systemConfig, featureFlags, users } from './db';
 import { IJellyfinService, JellyfinService } from './services/jellyfin';
 import { IMetadataService, MetadataService } from './services/metadata';
 import { IQBittorrentService, QBittorrentService } from './services/qbittorrent';
@@ -327,6 +327,15 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
               .run();
           }
           app.log.info(`Private library discovered in Jellyfin with ID ${libraryId}`);
+
+          if (jellyfin.syncAllUserPermissions) {
+            const allUsers = db
+              .select({ jellyfinUserId: users.jellyfinUserId, role: users.role })
+              .from(users)
+              .all();
+            await jellyfin.syncAllUserPermissions(allUsers as any);
+            app.log.info(`Enforced private library access control for ${allUsers.length} users`);
+          }
         } else {
           app.log.warn('Private Library not found in Jellyfin — create a library pointing at /media/private to enable access control');
         }

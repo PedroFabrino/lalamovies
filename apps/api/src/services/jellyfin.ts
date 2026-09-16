@@ -29,6 +29,7 @@ export interface IJellyfinService {
   checkStatus?(): Promise<{ reachable: boolean; authenticated: boolean; error?: string; serverName?: string; version?: string }>;
   discoverPrivateLibraryId?(): Promise<string | null>;
   setUserLibraryAccess?(jellyfinUserId: string, role: 'user' | 'trusted' | 'admin'): Promise<void>;
+  syncAllUserPermissions?(users: Array<{ jellyfinUserId: string | null; role: 'user' | 'trusted' | 'admin' }>): Promise<void>;
   getPrivateLibraryId?(): string | null;
   setPrivateLibraryId?(id: string | null): void;
 }
@@ -450,6 +451,25 @@ export class JellyfinService implements IJellyfinService {
 
     if (!updateRes.ok) {
       throw new JellyfinApiError(`Failed to update Jellyfin user policy for ${jellyfinUserId}: HTTP ${updateRes.status}`, updateRes.status);
+    }
+  }
+
+  async syncAllUserPermissions(userList: Array<{ jellyfinUserId: string | null; role: 'user' | 'trusted' | 'admin' }>): Promise<void> {
+    let privateId = this.privateLibraryId;
+    if (!privateId) {
+      privateId = await this.discoverPrivateLibraryId();
+    }
+    if (!privateId) {
+      return;
+    }
+
+    for (const u of userList) {
+      if (!u.jellyfinUserId) continue;
+      try {
+        await this.setUserLibraryAccess(u.jellyfinUserId, u.role);
+      } catch (err) {
+        console.warn(`Failed to sync library access for Jellyfin user ${u.jellyfinUserId}: ${(err as Error).message}`);
+      }
     }
   }
 }
