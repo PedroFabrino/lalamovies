@@ -463,6 +463,36 @@ export class JellyfinService implements IJellyfinService {
       return;
     }
 
+    const roleMap = new Map<string, 'user' | 'trusted' | 'admin'>();
+    for (const u of userList) {
+      if (u.jellyfinUserId) {
+        roleMap.set(u.jellyfinUserId, u.role);
+      }
+    }
+
+    // Query Jellyfin to catch all users, including any created directly in Jellyfin
+    try {
+      const usersUrl = `${this.baseUrl}/Users`;
+      const response = await fetch(usersUrl, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+      if (response.ok) {
+        const jfUsers = (await response.json()) as Array<{ Id: string; Policy?: { IsAdministrator?: boolean } }>;
+        for (const jfUser of jfUsers) {
+          const role = roleMap.get(jfUser.Id) ?? (jfUser.Policy?.IsAdministrator ? 'admin' : 'user');
+          try {
+            await this.setUserLibraryAccess(jfUser.Id, role);
+          } catch (err) {
+            console.warn(`Failed to sync library access for Jellyfin user ${jfUser.Id}: ${(err as Error).message}`);
+          }
+        }
+        return;
+      }
+    } catch {
+      // fallback to provided userList
+    }
+
     for (const u of userList) {
       if (!u.jellyfinUserId) continue;
       try {
