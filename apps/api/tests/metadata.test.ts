@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import crypto from 'node:crypto';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app';
-import { MetadataService, IMetadataService, rankMetadataCandidates } from '../src/services/metadata';
+import { MetadataService, BaseMetadataService, IMetadataService, rankMetadataCandidates } from '../src/services/metadata';
 import { IJellyfinService } from '../src/services/jellyfin';
 import { systemConfig } from '../src/db/schema';
 import { cleanTorrentTitle } from '../src/utils/torrentTitleCleaner';
@@ -89,7 +89,11 @@ describe('Metadata Service - Unit Tests', () => {
         'TMDB API key is not configured'
       );
 
-      process.env.TMDB_API_KEY = originalEnv;
+      if (originalEnv !== undefined) {
+        process.env.TMDB_API_KEY = originalEnv;
+      } else {
+        delete process.env.TMDB_API_KEY;
+      }
     });
 
     it('searches and normalizes movie results from TMDB', async () => {
@@ -316,35 +320,82 @@ describe('Metadata Service - Unit Tests', () => {
       });
     });
   });
+
+  describe('domain methods', () => {
+    it('searchMovies delegates to searchTMDB movie', async () => {
+      const spy = vi.spyOn(service, 'searchTMDB').mockResolvedValueOnce([]);
+      await service.searchMovies('Inception', { year: 2010 });
+      expect(spy).toHaveBeenCalledWith('Inception', 'movie', undefined, 2010);
+    });
+
+    it('searchSeries delegates to searchTMDB tv_show', async () => {
+      const spy = vi.spyOn(service, 'searchTMDB').mockResolvedValueOnce([]);
+      await service.searchSeries('Breaking Bad', { year: 2008 });
+      expect(spy).toHaveBeenCalledWith('Breaking Bad', 'tv_show', undefined, 2008);
+    });
+
+    it('searchAnime prioritizes TMDB and falls back to AniList', async () => {
+      const tmdbSpy = vi.spyOn(service, 'searchTMDB').mockRejectedValueOnce(new Error('TMDB error'));
+      const aniSpy = vi.spyOn(service, 'searchAniList').mockResolvedValueOnce([
+        {
+          id: '123',
+          source: 'anilist',
+          title: 'Frieren',
+          year: 2023,
+          posterUrl: null,
+          overview: null,
+        },
+      ]);
+
+      const results = await service.searchAnime('Frieren');
+      expect(tmdbSpy).toHaveBeenCalled();
+      expect(aniSpy).toHaveBeenCalledWith('Frieren', undefined);
+      expect(results).toHaveLength(1);
+      expect(results[0].source).toBe('anilist');
+    });
+
+    it('searchMedia dispatches based on mediaType', async () => {
+      const movieSpy = vi.spyOn(service, 'searchMovies').mockResolvedValueOnce([]);
+      const animeSpy = vi.spyOn(service, 'searchAnime').mockResolvedValueOnce([]);
+
+      await service.searchMedia('Movie Title', 'movie');
+      expect(movieSpy).toHaveBeenCalledWith('Movie Title', undefined);
+
+      await service.searchMedia('Anime Title', 'anime');
+      expect(animeSpy).toHaveBeenCalledWith('Anime Title', undefined);
+    });
+  });
 });
 
 describe('POST /requests/search-metadata - Route Integration', () => {
   let app: FastifyInstance;
   let userCookie: string;
 
-  const mockMetadataService: IMetadataService = {
-    extractTitleFromMagnet: vi.fn((link: string) => cleanTorrentTitle(link).title),
-    searchTMDB: vi.fn(async (query) => [
+  class MockRouteMetadataService extends BaseMetadataService {
+    extractTitleFromMagnet = vi.fn((link: string) => cleanTorrentTitle(link).title);
+    searchTMDB = vi.fn(async (query: string, _mediaType?: string) => [
       {
         id: '101',
-        source: 'tmdb',
+        source: 'tmdb' as const,
         title: query,
         year: 2022,
         posterUrl: 'https://example.com/batman.jpg',
         overview: 'Batman description',
       },
-    ]),
-    searchAniList: vi.fn(async (query) => [
+    ]);
+    searchAniList = vi.fn(async (query: string) => [
       {
         id: '202',
-        source: 'anilist',
+        source: 'anilist' as const,
         title: query,
         year: 2023,
         posterUrl: 'https://example.com/frieren.jpg',
         overview: 'Frieren description',
       },
-    ]),
-  };
+    ]);
+  }
+
+  const mockMetadataService = new MockRouteMetadataService();
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -412,7 +463,7 @@ describe('POST /requests/search-metadata - Route Integration', () => {
     expect(body.candidates[0].source).toBe('tmdb');
   });
 
-  it('searches AniList for anime mediaType and returns candidates', async () => {
+  it('searches TMDB for anime mediaType as primary and returns candidates', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/requests/search-metadata',
@@ -428,28 +479,11 @@ describe('POST /requests/search-metadata - Route Integration', () => {
     expect(body.query).toBe('Frieren');
     expect(body.mediaType).toBe('anime');
     expect(body.candidates).toHaveLength(1);
-    expect(body.candidates[0].source).toBe('anilist');
+    expect(body.candidates[0].source).toBe('tmdb');
   });
 
-  it('falls back to TMDB for anime mediaType when AniList fails or is unavailable', async () => {
-    mockMetadataService.searchAniList.mockRejectedValueOnce(new Error('AniList API disabled'));
-    mockMetadataService.searchTMDB.mockImplementation(async (_query, mediaType) => {
-      if (mediaType === 'tv_show') {
-        return [
-          {
-            id: '94664',
-            source: 'tmdb',
-            title: 'Mushoku Tensei: Jobless Reincarnation',
-            year: 2021,
-            posterUrl: null,
-            overview: 'Reincarnated in a new world...',
-            romajiTitle: '無職転生 ～異世界行ったら本気だす～',
-            englishTitle: 'Mushoku Tensei: Jobless Reincarnation',
-          },
-        ];
-      }
-      return [];
-    });
+  it('falls back to AniList for anime mediaType when TMDB fails or is unavailable', async () => {
+    mockMetadataService.searchTMDB.mockRejectedValueOnce(new Error('TMDB API disabled'));
 
     const res = await app.inject({
       method: 'POST',
@@ -466,8 +500,7 @@ describe('POST /requests/search-metadata - Route Integration', () => {
     expect(body.query).toBe('Mushoku Tensei');
     expect(body.mediaType).toBe('anime');
     expect(body.candidates).toHaveLength(1);
-    expect(body.candidates[0].title).toBe('Mushoku Tensei: Jobless Reincarnation');
-    expect(body.candidates[0].source).toBe('tmdb');
+    expect(body.candidates[0].source).toBe('anilist');
   });
 
   it('reads tmdb_api_key from system_config when querying TMDB', async () => {
@@ -513,7 +546,7 @@ describe('POST /requests/search-metadata - Route Integration', () => {
     expect(mockMetadataService.searchTMDB).toHaveBeenCalledWith(
       'Inception 2010',
       'movie',
-      expect.anything()
+      undefined
     );
   });
 
@@ -534,7 +567,7 @@ describe('POST /requests/search-metadata - Route Integration', () => {
     expect(mockMetadataService.searchTMDB).toHaveBeenCalledWith(
       'Crowned in a Hundred Days',
       'tv_show',
-      expect.anything()
+      undefined
     );
   });
 });

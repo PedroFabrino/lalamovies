@@ -4,7 +4,7 @@ import { initDatabase, downloadRequests, users } from '../src/db';
 import { FastifyInstance } from 'fastify';
 import { buildWatcherApp } from '../../watcher/src/app';
 import { IProwlarrService } from '../src/services/prowlarr';
-import { IMetadataService } from '../src/services/metadata';
+import { BaseMetadataService, IMetadataService } from '../src/services/metadata';
 
 describe('UpNextService active-episodic suppression', () => {
   let watcherApp: FastifyInstance;
@@ -35,10 +35,18 @@ describe('UpNextService active-episodic suppression', () => {
     searchLatestByCategory: async () => [],
   };
 
-  const mockMetadata: IMetadataService = {
-    searchTMDB: async () => [],
-    searchAniList: async () => [],
-  };
+  class MockMetadataService extends BaseMetadataService {
+    extractTitleFromMagnet(magnetLink: string) {
+      return magnetLink;
+    }
+    async searchTMDB() {
+      return [];
+    }
+    async searchAniList() {
+      return [];
+    }
+  }
+  const mockMetadata: IMetadataService = new MockMetadataService();
 
   beforeEach(async () => {
     watcherApp = buildWatcherApp({ dbPath: ':memory:', serviceApiKey: SERVICE_KEY });

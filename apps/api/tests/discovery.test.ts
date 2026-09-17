@@ -3,7 +3,7 @@ import { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app';
 import { DiscoveryService, IDiscoveryService } from '../src/services/discovery';
 import { IProwlarrService, ReleaseCandidate, SearchReleasesResult } from '../src/services/prowlarr';
-import { IMetadataService, MetadataCandidate } from '../src/services/metadata';
+import { BaseMetadataService, IMetadataService, MetadataCandidate } from '../src/services/metadata';
 import { IJellyfinService } from '../src/services/jellyfin';
 
 class DummyJellyfinService implements IJellyfinService {
@@ -16,12 +16,18 @@ class DummyJellyfinService implements IJellyfinService {
   async deleteUser() {}
 }
 
+interface TorrentParsed {
+  title: string;
+  year?: number;
+  season?: number;
+  episode?: number;
+}
+
 class MockProwlarrService implements IProwlarrService {
   configured = true;
   reachable = true;
   candidates: ReleaseCandidate[] = [];
   lastCategoriesSearched: number[] = [];
-
   isConfigured(): boolean {
     return this.configured;
   }
@@ -49,7 +55,7 @@ class MockProwlarrService implements IProwlarrService {
   }
 }
 
-class MockMetadataService implements IMetadataService {
+class MockMetadataService extends BaseMetadataService {
   extractTitleFromMagnet(magnetLink: string): string {
     return magnetLink;
   }
@@ -468,6 +474,35 @@ describe('DiscoveryService - Unit Tests', () => {
   });
 
   it('enriches items with metadata and rating from TMDB or AniList', async () => {
+    prowlarr.candidates = [
+      {
+        guid: 'anime-1',
+        title: '[SubsPlease] Frieren - Beyond Journeys End - 28 (1080p)',
+        sizeBytes: 1400000000,
+        formattedSize: '1.4 GB',
+        seeders: 55,
+        leechers: 2,
+        downloadUrl: 'magnet:?xt=urn:btih:ani1',
+        indexer: 'Nyaa',
+        resolution: '1080p',
+        codec: 'x264',
+        source: 'web',
+        score: 120,
+        isLowHealth: false,
+      },
+    ];
+
+    const result = await service.getFeed('anime');
+    expect(result.items).toHaveLength(1);
+    const item = result.items[0];
+    // TMDB is checked first
+    expect(item.posterUrl).toBe('https://image.tmdb.org/t/p/w500/poster.jpg');
+    expect(item.rating).toBe(8.5);
+    expect(item.metadataSource).toBe('tmdb');
+  });
+
+  it('falls back to AniList for anime discovery when TMDB search yields no results', async () => {
+    metadata.searchTMDB = vi.fn(async () => []);
     prowlarr.candidates = [
       {
         guid: 'anime-1',

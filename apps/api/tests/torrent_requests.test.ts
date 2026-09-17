@@ -6,7 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { buildApp } from '../src/app';
 import { IJellyfinService } from '../src/services/jellyfin';
-import { IMetadataService } from '../src/services/metadata';
+import { BaseMetadataService, IMetadataService } from '../src/services/metadata';
 import { IQBittorrentService, TorrentInfo } from '../src/services/qbittorrent';
 import { ICleanupService, SpaceCheckResult } from '../src/services/cleanup';
 import { downloadRequests, systemConfig, users } from '../src/db/schema';
@@ -56,7 +56,7 @@ class MockQBittorrent implements IQBittorrentService {
   async removeTorrent() {}
 }
 
-class MockMetadata implements IMetadataService {
+class MockMetadata extends BaseMetadataService {
   async searchTMDB(query: string, mediaType: string) {
     return [
       { id: 'tmdb_1', source: 'tmdb' as const, title: query, year: 2024, posterUrl: null, overview: 'Overview' },

@@ -514,29 +514,18 @@ export class UpNextService implements IUpNextService {
         let year: number | null = rep.year ?? null;
 
         try {
-          if (mediaType === 'anime') {
-            const aniRes = await this.metadata.searchAniList(showTitle, year);
-            if (aniRes && aniRes.length > 0) {
-              posterUrl = aniRes[0].posterUrl;
-              rating = aniRes[0].rating ?? null;
-              overview = aniRes[0].overview;
-              if (!year && aniRes[0].year) year = aniRes[0].year;
-              if (!metadataId) {
-                metadataId = aniRes[0].id;
-                metadataSource = 'anilist';
-              }
-            }
-          } else {
-            const tmdbRes = await this.metadata.searchTMDB(showTitle, 'tv_show', tmdbApiKey, year);
-            if (tmdbRes && tmdbRes.length > 0) {
-              posterUrl = tmdbRes[0].posterUrl;
-              rating = tmdbRes[0].rating ?? null;
-              overview = tmdbRes[0].overview;
-              if (!year && tmdbRes[0].year) year = tmdbRes[0].year;
-              if (!metadataId) {
-                metadataId = tmdbRes[0].id;
-                metadataSource = 'tmdb';
-              }
+          const results = await this.metadata.searchMedia(showTitle, mediaType, {
+            year,
+            apiKey: tmdbApiKey,
+          });
+          if (results && results.length > 0) {
+            posterUrl = results[0].posterUrl;
+            rating = results[0].rating ?? null;
+            overview = results[0].overview;
+            if (!year && results[0].year) year = results[0].year;
+            if (!metadataId) {
+              metadataId = results[0].id;
+              metadataSource = results[0].source;
             }
           }
         } catch {

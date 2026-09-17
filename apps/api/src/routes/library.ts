@@ -118,16 +118,9 @@ async function resolveArtwork(
   // Fallback to searching if still null and metadataService is provided
   if (!result.posterUrl && !result.backdropUrl && metadataService) {
     try {
-      if (mediaType === 'anime') {
-        const candidates = await metadataService.searchAniList(title);
-        if (candidates.length > 0 && candidates[0].posterUrl) {
-          result = { posterUrl: candidates[0].posterUrl, backdropUrl: null };
-        }
-      } else if (tmdbApiKey) {
-        const candidates = await metadataService.searchTMDB(title, mediaType, tmdbApiKey);
-        if (candidates.length > 0 && candidates[0].posterUrl) {
-          result = { posterUrl: candidates[0].posterUrl, backdropUrl: null };
-        }
+      const candidates = await metadataService.searchMedia(title, mediaType, { apiKey: tmdbApiKey });
+      if (candidates.length > 0 && candidates[0].posterUrl) {
+        result = { posterUrl: candidates[0].posterUrl, backdropUrl: null };
       }
     } catch {
       // Non-fatal

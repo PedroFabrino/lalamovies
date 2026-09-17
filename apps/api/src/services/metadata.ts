@@ -20,6 +20,11 @@ export class MetadataApiError extends Error {
   }
 }
 
+export interface MetadataSearchOptions {
+  apiKey?: string;
+  year?: number | null;
+}
+
 export interface IMetadataService {
   extractTitleFromMagnet(magnetLink: string): string;
   searchTMDB(
@@ -29,6 +34,15 @@ export interface IMetadataService {
     year?: number | null
   ): Promise<MetadataCandidate[]>;
   searchAniList(query: string, year?: number | null): Promise<MetadataCandidate[]>;
+  searchMovies(query: string, opts?: MetadataSearchOptions): Promise<MetadataCandidate[]>;
+  searchSeries(query: string, opts?: MetadataSearchOptions): Promise<MetadataCandidate[]>;
+  searchAnime(query: string, opts?: MetadataSearchOptions): Promise<MetadataCandidate[]>;
+  searchPrivate(query: string, opts?: MetadataSearchOptions): Promise<MetadataCandidate[]>;
+  searchMedia(
+    query: string,
+    mediaType: 'movie' | 'tv_show' | 'anime' | 'private',
+    opts?: MetadataSearchOptions
+  ): Promise<MetadataCandidate[]>;
 }
 
 export function rankMetadataCandidates<T extends { title: string; year: number | null; romajiTitle?: string | null; englishTitle?: string | null }>(
@@ -99,10 +113,116 @@ export function rankMetadataCandidates<T extends { title: string; year: number |
   });
 }
 
-export class MetadataService implements IMetadataService {
+export abstract class BaseMetadataService implements IMetadataService {
+  abstract extractTitleFromMagnet(magnetLink: string): string;
+  abstract searchTMDB(
+    query: string,
+    mediaType: 'movie' | 'tv_show',
+    apiKey?: string,
+    year?: number | null
+  ): Promise<MetadataCandidate[]>;
+  abstract searchAniList(query: string, year?: number | null): Promise<MetadataCandidate[]>;
+
+  async searchMovies(query: string, opts?: MetadataSearchOptions): Promise<MetadataCandidate[]> {
+    if (opts?.year !== undefined && opts?.year !== null) {
+      return this.searchTMDB(query, 'movie', opts?.apiKey, opts?.year);
+    }
+    return this.searchTMDB(query, 'movie', opts?.apiKey);
+  }
+
+  async searchSeries(query: string, opts?: MetadataSearchOptions): Promise<MetadataCandidate[]> {
+    if (opts?.year !== undefined && opts?.year !== null) {
+      return this.searchTMDB(query, 'tv_show', opts?.apiKey, opts?.year);
+    }
+    return this.searchTMDB(query, 'tv_show', opts?.apiKey);
+  }
+
+  async searchAnime(query: string, opts?: MetadataSearchOptions): Promise<MetadataCandidate[]> {
+    // 1. Try TMDB first (search TV shows, and if fewer than 3 results, also search movies)
+    try {
+      const tvCandidates =
+        opts?.year !== undefined && opts?.year !== null
+          ? await this.searchTMDB(query, 'tv_show', opts?.apiKey, opts?.year)
+          : await this.searchTMDB(query, 'tv_show', opts?.apiKey);
+      const movieCandidates =
+        tvCandidates.length < 3
+          ? opts?.year !== undefined && opts?.year !== null
+            ? await this.searchTMDB(query, 'movie', opts?.apiKey, opts?.year).catch(() => [])
+            : await this.searchTMDB(query, 'movie', opts?.apiKey).catch(() => [])
+          : [];
+      const combined = [...tvCandidates, ...movieCandidates];
+      const seen = new Set<string>();
+      const uniqueCandidates: MetadataCandidate[] = [];
+      for (const c of combined) {
+        if (!seen.has(c.id)) {
+          seen.add(c.id);
+          uniqueCandidates.push(c);
+        }
+      }
+      if (uniqueCandidates.length > 0) {
+        return rankMetadataCandidates(uniqueCandidates, query, opts?.year);
+      }
+    } catch {
+      // TMDB failed, unconfigured, or error -> fall through to AniList
+    }
+
+    // 2. Fallback to AniList
+    try {
+      return await this.searchAniList(query, opts?.year);
+    } catch {
+      return [];
+    }
+  }
+
+  async searchPrivate(query: string, opts?: MetadataSearchOptions): Promise<MetadataCandidate[]> {
+    const movieCandidates =
+      opts?.year !== undefined && opts?.year !== null
+        ? await this.searchTMDB(query, 'movie', opts?.apiKey, opts?.year)
+        : await this.searchTMDB(query, 'movie', opts?.apiKey);
+    let tvCandidates: MetadataCandidate[] = [];
+    try {
+      tvCandidates =
+        opts?.year !== undefined && opts?.year !== null
+          ? await this.searchTMDB(query, 'tv_show', opts?.apiKey, opts?.year)
+          : await this.searchTMDB(query, 'tv_show', opts?.apiKey);
+    } catch {
+      // Ignore tv search failure if movie succeeded
+    }
+    const combined = [...movieCandidates, ...tvCandidates];
+    const seen = new Set<string>();
+    const uniqueCandidates: MetadataCandidate[] = [];
+    for (const c of combined) {
+      if (!seen.has(c.id)) {
+        seen.add(c.id);
+        uniqueCandidates.push(c);
+      }
+    }
+    return rankMetadataCandidates(uniqueCandidates, query, opts?.year);
+  }
+
+  async searchMedia(
+    query: string,
+    mediaType: 'movie' | 'tv_show' | 'anime' | 'private',
+    opts?: MetadataSearchOptions
+  ): Promise<MetadataCandidate[]> {
+    switch (mediaType) {
+      case 'movie':
+        return this.searchMovies(query, opts);
+      case 'tv_show':
+        return this.searchSeries(query, opts);
+      case 'anime':
+        return this.searchAnime(query, opts);
+      case 'private':
+        return this.searchPrivate(query, opts);
+    }
+  }
+}
+
+export class MetadataService extends BaseMetadataService {
   private defaultTmdbKey?: string;
 
   constructor(defaultTmdbKey?: string) {
+    super();
     this.defaultTmdbKey = defaultTmdbKey || process.env.TMDB_API_KEY;
   }
 

@@ -280,59 +280,19 @@ export class DiscoveryService implements IDiscoveryService {
         let resolvedYear = year;
 
         try {
-          if (mediaType === 'anime') {
-            let aniMatch: any = null;
-            try {
-              const aniResults = await this.metadata.searchAniList(cleanTitle, year);
-              if (aniResults && aniResults.length > 0) {
-                aniMatch = aniResults[0];
-              }
-            } catch {
-              // AniList error, will fallback to TMDB
-            }
-
-            if (aniMatch) {
-              posterUrl = aniMatch.posterUrl;
-              rating = aniMatch.rating ?? null;
-              overview = aniMatch.overview;
-              metadataId = aniMatch.id;
-              metadataSource = 'anilist';
-              if (!resolvedYear && aniMatch.year) {
-                resolvedYear = aniMatch.year;
-              }
-            } else {
-              // Fallback to TMDB for anime
-              try {
-                const tmdbResults = await this.metadata.searchTMDB(cleanTitle, 'tv_show', tmdbApiKey, year);
-                if (tmdbResults && tmdbResults.length > 0) {
-                  const tmdbMatch = tmdbResults[0];
-                  posterUrl = tmdbMatch.posterUrl;
-                  rating = tmdbMatch.rating ?? null;
-                  overview = tmdbMatch.overview;
-                  metadataId = tmdbMatch.id;
-                  metadataSource = 'tmdb';
-                  if (!resolvedYear && tmdbMatch.year) {
-                    resolvedYear = tmdbMatch.year;
-                  }
-                }
-              } catch {
-                // Ignore fallback error
-              }
-            }
-          } else {
-            // Movie or TV Show
-            const tmdbType = mediaType === 'movie' ? 'movie' : 'tv_show';
-            const tmdbResults = await this.metadata.searchTMDB(cleanTitle, tmdbType, tmdbApiKey, year);
-            if (tmdbResults && tmdbResults.length > 0) {
-              const tmdbMatch = tmdbResults[0];
-              posterUrl = tmdbMatch.posterUrl;
-              rating = tmdbMatch.rating ?? null;
-              overview = tmdbMatch.overview;
-              metadataId = tmdbMatch.id;
-              metadataSource = 'tmdb';
-              if (!resolvedYear && tmdbMatch.year) {
-                resolvedYear = tmdbMatch.year;
-              }
+          const results = await this.metadata.searchMedia(cleanTitle, mediaType, {
+            year,
+            apiKey: tmdbApiKey,
+          });
+          if (results && results.length > 0) {
+            const match = results[0];
+            posterUrl = match.posterUrl;
+            rating = match.rating ?? null;
+            overview = match.overview;
+            metadataId = match.id;
+            metadataSource = match.source;
+            if (!resolvedYear && match.year) {
+              resolvedYear = match.year;
             }
           }
         } catch {

@@ -3,7 +3,7 @@ import { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app';
 import { UpNextService, matchesTarget, groupShowRequests, normalizeShowTitle } from '../src/services/upNext';
 import { IProwlarrService, ReleaseCandidate, SearchReleasesOptions, SearchReleasesResult } from '../src/services/prowlarr';
-import { IMetadataService, MetadataCandidate } from '../src/services/metadata';
+import { BaseMetadataService, IMetadataService, MetadataCandidate } from '../src/services/metadata';
 import { IJellyfinService } from '../src/services/jellyfin';
 import { downloadRequests, users, requestCoRequesters } from '../src/db/schema';
 import { initDatabase, AppDatabase } from '../src/db';
@@ -73,7 +73,7 @@ class MockProwlarrService implements IProwlarrService {
   }
 }
 
-class MockMetadataService implements IMetadataService {
+class MockMetadataService extends BaseMetadataService {
   extractTitleFromMagnet(magnetLink: string): string {
     return magnetLink;
   }
@@ -178,7 +178,7 @@ describe('UpNextService - Unit Tests', () => {
     expect(item.seasonNumber).toBe(1);
     expect(item.episodeNumber).toBe(11);
     expect(item.seeders).toBe(35);
-    expect(item.posterUrl).toBe('https://anilist.co/cover_anime.jpg');
+    expect(item.posterUrl).toBe('https://image.tmdb.org/t/p/w500/show.jpg');
 
     // Verify Prowlarr queried with episode 11
     expect(prowlarr.lastSearchOptions).toMatchObject({
