@@ -113,7 +113,7 @@ describe('DashboardView - Co-Requester Action Gating (Ticket 03)', () => {
     expect(row2DeleteBtn.exists()).toBe(false);
   });
 
-  it('hides keep toggle button for admin when isPrimaryRequester is false', async () => {
+  it('allows keep toggle button and delete button for admin even when isPrimaryRequester is false', async () => {
     const authStore = useAuthStore();
     authStore.user = { id: 'usr_admin', username: 'admin', role: 'admin', jellyfinUserId: 'jf_admin' };
 
@@ -163,13 +163,17 @@ describe('DashboardView - Co-Requester Action Gating (Ticket 03)', () => {
     const rows = wrapper.findAll('tbody tr');
     expect(rows.length).toBe(2);
 
-    // Row 1 has keep toggle button
+    // Row 1 has keep toggle button and delete button
     const row1KeepBtn = rows[0].find('button[title*="Keep"]');
     expect(row1KeepBtn.exists()).toBe(true);
+    const row1DeleteBtn = rows[0].find('button[title="Delete Request"]');
+    expect(row1DeleteBtn.exists()).toBe(true);
 
-    // Row 2 (isPrimaryRequester: false) does NOT have keep toggle button
+    // Row 2 (isPrimaryRequester: false) ALSO has keep toggle button and delete button for admin
     const row2KeepBtn = rows[1].find('button[title*="Keep"]');
-    expect(row2KeepBtn.exists()).toBe(false);
+    expect(row2KeepBtn.exists()).toBe(true);
+    const row2DeleteBtn = rows[1].find('button[title="Delete Request"]');
+    expect(row2DeleteBtn.exists()).toBe(true);
   });
 
   describe('Admin Dashboard Co-Requesters Grouping (Ticket 05)', () => {

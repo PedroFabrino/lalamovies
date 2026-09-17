@@ -408,7 +408,7 @@
                 <!-- Keep Flag Toggle (Admin Only) -->
                 <td class="py-4 px-4 whitespace-nowrap text-center">
                   <button
-                    v-if="authStore.isAdmin && item.isPrimaryRequester !== false"
+                    v-if="authStore.isAdmin"
                     type="button"
                     class="p-1.5 rounded-lg border transition cursor-pointer disabled:opacity-50"
                     :class="item.keepFlag
@@ -990,8 +990,8 @@ onMounted(async () => {
 });
 
 function canDelete(item: DownloadRequest): boolean {
-  if (item.isPrimaryRequester === false) return false;
   if (authStore.isAdmin) return true;
+  if (item.isPrimaryRequester === false) return false;
   return item.userId === authStore.user?.id;
 }
 
