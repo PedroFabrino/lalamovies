@@ -37,6 +37,7 @@ services:
       - WAITLIST_DISCORD_WEBHOOK_URL=${WAITLIST_DISCORD_WEBHOOK_URL}
       - PREFERRED_INDEXER_REGEX=${PREFERRED_INDEXER_REGEX:-}
       - SUBGEN_URL=${SUBGEN_URL:-http://subgen:9000}
+      - OPENSUBTITLES_API_KEY=${OPENSUBTITLES_API_KEY}
     volumes:
       - app_db:/data
       - ${MEDIA_DATA_PATH:-D:/MediaServer/media_data}:/media_data
