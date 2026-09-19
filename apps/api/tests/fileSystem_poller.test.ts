@@ -113,6 +113,21 @@ describe('FileSystemService', () => {
     expect(animePack.replace(/\\/g, '/')).toBe('/media/anime/Attack on Titan/Season 04');
   });
 
+  it('buildLibraryPath reuses established show folder and derives episode filename prefix from it (#106)', () => {
+    const epPath = fsService.buildLibraryPath({
+      mediaType: 'anime',
+      title: 'The Exiled Heavy Knight Knows How to Game the System',
+      year: 2026,
+      seasonNumber: 1,
+      episodeNumber: 12,
+      mediaBasePath: '/media',
+      existingShowFolder: 'Tsuihou sareta Tensei Juukishi wa Game Chishiki de Musou suru (2026)',
+    });
+    expect(epPath.replace(/\\/g, '/')).toBe(
+      '/media/anime/Tsuihou sareta Tensei Juukishi wa Game Chishiki de Musou suru (2026)/Season 01/Tsuihou sareta Tensei Juukishi wa Game Chishiki de Musou suru S01E12.mkv'
+    );
+  });
+
   it('sanitizes illegal path characters from titles', () => {
     const sanitized = fsService.buildLibraryPath({
       mediaType: 'movie',
@@ -453,5 +468,88 @@ describe('DownloadPoller & Hardlink Integration', () => {
       requestId: 'q_small',
       status: 'downloading',
     });
+  });
+
+  it('locates established series directory across anime/shows and reuses directory and filename prefix (#106)', async () => {
+    // 1. Establish existing episode in DB under anime
+    const establishedDir = path.join(
+      mediaDir,
+      'anime',
+      'Tsuihou sareta Tensei Juukishi wa Game Chishiki de Musou suru (2026)',
+      'Season 01'
+    );
+    fs.mkdirSync(establishedDir, { recursive: true });
+    const existingEpPath = path.join(
+      establishedDir,
+      'Tsuihou sareta Tensei Juukishi wa Game Chishiki de Musou suru S01E11.mkv'
+    );
+    fs.writeFileSync(existingEpPath, 'existing episode content');
+
+    dbInstance.db.insert(downloadRequests).values({
+      id: 'req_ep11',
+      userId: 'usr_1',
+      magnetLink: 'magnet:?xt=urn:btih:hash_ep11',
+      mediaType: 'anime',
+      status: 'completed',
+      metadataId: '270603',
+      metadataSource: 'tmdb',
+      title: 'Tsuihou sareta Tensei Juukishi wa Game Chishiki de Musou suru',
+      year: 2026,
+      seasonNumber: 1,
+      episodeNumber: 11,
+      jellyfinPath: existingEpPath,
+      requestedAt: '2026-09-01T10:00:00.000Z',
+    }).run();
+
+    // 2. Add incoming request with different title and mediaType: 'tv_show'
+    const downloadedFileName = 'Heavy.Knight.S01E12.mkv';
+    const stagingFilePath = path.join(stagingDir, downloadedFileName);
+    fs.writeFileSync(stagingFilePath, 'episode 12 content');
+
+    const hash = 'hk_hash_12';
+    mockQb.torrents.set(hash, {
+      hash,
+      name: downloadedFileName,
+      progress: 1.0,
+      dlspeed: 0,
+      eta: 0,
+      state: 'uploading',
+      size: 500000,
+    });
+
+    dbInstance.db.insert(downloadRequests).values({
+      id: 'req_ep12',
+      userId: 'usr_1',
+      magnetLink: 'magnet:?xt=urn:btih:hash_ep12',
+      mediaType: 'tv_show',
+      status: 'downloading',
+      qbTorrentHash: hash,
+      metadataId: '270603',
+      metadataSource: 'tmdb',
+      title: 'The Exiled Heavy Knight Knows How to Game the System',
+      year: 2026,
+      seasonNumber: 1,
+      episodeNumber: 12,
+      requestedAt: '2026-09-01T12:00:00.000Z',
+    }).run();
+
+    await poller.pollOnce();
+
+    const updatedReq = dbInstance.db
+      .select()
+      .from(downloadRequests)
+      .where(eq(downloadRequests.id, 'req_ep12'))
+      .get();
+
+    expect(updatedReq?.status).toBe('seeding');
+    expect(updatedReq?.mediaType).toBe('anime');
+    expect(updatedReq?.title).toBe('Tsuihou sareta Tensei Juukishi wa Game Chishiki de Musou suru');
+
+    const expectedDest = path.join(
+      establishedDir,
+      'Tsuihou sareta Tensei Juukishi wa Game Chishiki de Musou suru S01E12.mkv'
+    );
+    expect(updatedReq?.jellyfinPath).toBe(expectedDest);
+    expect(fs.existsSync(expectedDest)).toBe(true);
   });
 });

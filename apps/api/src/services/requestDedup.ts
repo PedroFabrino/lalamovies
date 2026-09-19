@@ -1,4 +1,4 @@
-import { and, eq, ne, isNull } from 'drizzle-orm';
+import { and, eq, ne, isNull, inArray } from 'drizzle-orm';
 import { AppDatabase } from '../db';
 import { downloadRequests, DownloadRequest, requestCoRequesters } from '../db/schema';
 
@@ -187,4 +187,42 @@ export function getDedupLockKey(params: DedupMatchParams): string {
   return `series:${source}:${metaId}`;
 }
 
+export function findCanonicalSeriesInfo(
+  db: AppDatabase,
+  params: {
+    metadataId?: string | null;
+    metadataSource?: 'tmdb' | 'anilist' | null;
+    mediaType?: 'movie' | 'tv_show' | 'anime' | 'private' | null;
+  }
+): { title: string; mediaType: 'tv_show' | 'anime' } | null {
+  if (!params.metadataId || !params.metadataSource || !params.mediaType) {
+    return null;
+  }
+  if (!['tv_show', 'anime'].includes(params.mediaType)) {
+    return null;
+  }
+
+  const match = db
+    .select({
+      title: downloadRequests.title,
+      mediaType: downloadRequests.mediaType,
+    })
+    .from(downloadRequests)
+    .where(
+      and(
+        ne(downloadRequests.status, 'deleted'),
+        eq(downloadRequests.metadataId, String(params.metadataId)),
+        eq(downloadRequests.metadataSource, params.metadataSource),
+        inArray(downloadRequests.mediaType, ['tv_show', 'anime'])
+      )
+    )
+    .get();
+
+  if (match && (match.mediaType === 'tv_show' || match.mediaType === 'anime')) {
+    return { title: match.title, mediaType: match.mediaType };
+  }
+  return null;
+}
+
 export const globalRequestMutex = new KeyedMutex();
+

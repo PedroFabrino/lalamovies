@@ -19,6 +19,7 @@ export interface IFileSystemService {
   hardlinkDirectory(srcDir: string, destDir: string): void;
   getStorageFootprintBytes(targetPath?: string | string[], forceRefresh?: boolean): number;
   invalidateFootprintCache?(): void;
+  getMediaBasePath?(): string;
 }
 
 export class FileSystemService implements IFileSystemService {
@@ -29,6 +30,10 @@ export class FileSystemService implements IFileSystemService {
   constructor(mediaBasePath?: string) {
     this.defaultMediaBasePath = mediaBasePath || process.env.MEDIA_PATH || path.resolve(process.cwd(), 'media');
     this.ensureDirectories();
+  }
+
+  getMediaBasePath(): string {
+    return this.defaultMediaBasePath;
   }
 
   private ensureDirectories(): void {
@@ -97,7 +102,10 @@ export class FileSystemService implements IFileSystemService {
 
     const epNum = params.episodeNumber ?? 1;
     const epCode = `S${this.padNumber(seasonNum, 2)}E${this.padNumber(epNum, 2)}`;
-    const fileName = `${cleanTitle} ${epCode}.${ext}`;
+    const effectiveTitle = params.existingShowFolder
+      ? params.existingShowFolder.replace(/\s*\(\d{4}\)$/, '').trim()
+      : cleanTitle;
+    const fileName = `${effectiveTitle} ${epCode}.${ext}`;
     return path.join(root, subDir, showFolderName, seasonFolder, fileName);
   }
 
@@ -108,7 +116,8 @@ export class FileSystemService implements IFileSystemService {
 
     const destDir = path.dirname(destPath);
     if (!fs.existsSync(destDir)) {
-      fs.mkdirSync(destDir, { recursive: true });
+      fs.mkdirSync(destDir, { recursive: true, mode: 0o777 });
+      try { fs.chmodSync(destDir, 0o777); } catch { /* ignore */ }
     }
 
     if (fs.existsSync(destPath)) {
@@ -124,7 +133,8 @@ export class FileSystemService implements IFileSystemService {
     }
 
     if (!fs.existsSync(destDir)) {
-      fs.mkdirSync(destDir, { recursive: true });
+      fs.mkdirSync(destDir, { recursive: true, mode: 0o777 });
+      try { fs.chmodSync(destDir, 0o777); } catch { /* ignore */ }
     }
 
     const entries = fs.readdirSync(srcDir, { withFileTypes: true });

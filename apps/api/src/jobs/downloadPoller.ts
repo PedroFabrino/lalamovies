@@ -183,6 +183,9 @@ export class DownloadPoller {
 
             // Check if existing requests for this series already established a show directory
             let existingShowFolder: string | undefined;
+            let targetMediaType = req.mediaType;
+            let effectiveTitle = req.title;
+
             if (['tv_show', 'anime'].includes(req.mediaType)) {
               try {
                 const conditions = [
@@ -196,31 +199,67 @@ export class DownloadPoller {
                 }
 
                 const existingSeries = this.db
-                  .select({ jellyfinPath: downloadRequests.jellyfinPath })
+                  .select({
+                    jellyfinPath: downloadRequests.jellyfinPath,
+                    mediaType: downloadRequests.mediaType,
+                    title: downloadRequests.title,
+                  })
                   .from(downloadRequests)
                   .where(and(...conditions))
                   .get();
 
                 if (existingSeries?.jellyfinPath) {
-                  const subDir = req.mediaType === 'anime' ? 'anime' : 'shows';
                   const parts = existingSeries.jellyfinPath.split(/[\\/]/);
-                  const subDirIdx = parts.indexOf(subDir);
-                  if (subDirIdx !== -1 && parts[subDirIdx + 1]) {
-                    existingShowFolder = parts[subDirIdx + 1];
+                  const animeIdx = parts.indexOf('anime');
+                  const showsIdx = parts.indexOf('shows');
+                  const targetIdx = animeIdx !== -1 ? animeIdx : showsIdx;
+                  if (targetIdx !== -1 && parts[targetIdx + 1]) {
+                    existingShowFolder = parts[targetIdx + 1];
+                    targetMediaType = (animeIdx !== -1 ? 'anime' : 'tv_show') as 'anime' | 'tv_show';
+                    effectiveTitle = existingSeries.title || existingShowFolder.replace(/\s*\(\d{4}\)$/, '').trim();
                   }
                 }
               } catch {
                 // Non-fatal
               }
+
+              // If no existing series found in DB, check on disk across anime and shows
+              if (!existingShowFolder) {
+                try {
+                  const mediaBase =
+                    (this.fileSystem.getMediaBasePath ? this.fileSystem.getMediaBasePath() : null) ||
+                    process.env.MEDIA_PATH ||
+                    path.resolve(process.cwd(), 'media');
+                  const cleanReqTitle = req.title.replace(/[<>:"/\\|?*]/g, '').trim();
+                  const baseClean = cleanReqTitle.replace(/\s*-\s*\d+$/, '').trim() || cleanReqTitle;
+                  const candidates = [req.year ? `${baseClean} (${req.year})` : baseClean, baseClean];
+                  for (const folder of candidates) {
+                    if (fs.existsSync(path.join(mediaBase, 'anime', folder))) {
+                      existingShowFolder = folder;
+                      targetMediaType = 'anime';
+                      effectiveTitle = folder.replace(/\s*\(\d{4}\)$/, '').trim();
+                      break;
+                    }
+                    if (fs.existsSync(path.join(mediaBase, 'shows', folder))) {
+                      existingShowFolder = folder;
+                      targetMediaType = 'tv_show';
+                      effectiveTitle = folder.replace(/\s*\(\d{4}\)$/, '').trim();
+                      break;
+                    }
+                  }
+                } catch {
+                  // Non-fatal
+                }
+              }
             }
 
             const destPath = this.fileSystem.buildLibraryPath({
-              mediaType: req.mediaType,
-              title: req.title,
+              mediaType: targetMediaType,
+              title: effectiveTitle,
               year: req.year,
               seasonNumber: req.seasonNumber,
               episodeNumber: req.episodeNumber,
-              isSeasonPack: isDirectory || (req.mediaType !== 'movie' && !ext),
+              isSeasonPack: isDirectory || (targetMediaType !== 'movie' && !ext),
               ext,
               existingShowFolder,
             });
@@ -288,6 +327,8 @@ export class DownloadPoller {
                 downloadedAt: new Date().toISOString(),
                 sizeBytes: torrentStatus.size,
                 transcriptionStatus,
+                mediaType: targetMediaType,
+                title: effectiveTitle,
               })
               .where(eq(downloadRequests.id, req.id))
               .run();
@@ -329,9 +370,9 @@ export class DownloadPoller {
               }
 
               await this.notificationService.send('download.completed', {
-                title: req.title,
+                title: effectiveTitle,
                 requestId: req.id,
-                mediaType: req.mediaType,
+                mediaType: targetMediaType,
                 year: req.year,
                 seasonNumber: req.seasonNumber,
                 episodeNumber: req.episodeNumber,

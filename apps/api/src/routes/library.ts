@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { inArray, and, ne, eq } from 'drizzle-orm';
+import { inArray, and, ne, eq, isNotNull } from 'drizzle-orm';
 import path from 'node:path';
 import fs from 'node:fs';
 import { authMiddleware } from '../middleware/auth';
@@ -395,23 +395,80 @@ export const libraryRoutes: FastifyPluginAsync = async (app) => {
 
       const currentPath = req.jellyfinPath;
       let newJellyfinPath = currentPath;
+      let effectiveTitle = req.title;
 
       if (currentPath) {
         const isDir = fs.existsSync(currentPath) && fs.statSync(currentPath).isDirectory();
         const ext = isDir ? undefined : path.extname(currentPath) || '.mkv';
 
+        let existingShowFolder: string | undefined;
+
+        if (['tv_show', 'anime'].includes(targetMediaType)) {
+          try {
+            const targetSubDir = targetMediaType === 'anime' ? 'anime' : 'shows';
+            const conditions = [
+              ne(downloadRequests.id, req.id),
+              ne(downloadRequests.status, 'deleted'),
+              eq(downloadRequests.mediaType, targetMediaType),
+              isNotNull(downloadRequests.jellyfinPath),
+            ];
+            if (req.metadataId) {
+              conditions.push(eq(downloadRequests.metadataId, req.metadataId));
+            }
+
+            const existingTargetSeries = app.db
+              .select({
+                jellyfinPath: downloadRequests.jellyfinPath,
+                title: downloadRequests.title,
+              })
+              .from(downloadRequests)
+              .where(and(...conditions))
+              .get();
+
+            if (existingTargetSeries?.jellyfinPath) {
+              const parts = existingTargetSeries.jellyfinPath.split(/[\\/]/);
+              const idx = parts.indexOf(targetSubDir);
+              if (idx !== -1 && parts[idx + 1]) {
+                existingShowFolder = parts[idx + 1];
+                effectiveTitle = existingTargetSeries.title || existingShowFolder.replace(/\s*\(\d{4}\)$/, '').trim();
+              }
+            }
+
+            // If not found in DB, check target library directory on disk
+            if (!existingShowFolder) {
+              const mediaBase =
+                (app.fileSystem.getMediaBasePath ? app.fileSystem.getMediaBasePath() : null) ||
+                process.env.MEDIA_PATH ||
+                path.resolve(process.cwd(), 'media');
+              const cleanReqTitle = req.title.replace(/[<>:"/\\|?*]/g, '').trim();
+              const baseClean = cleanReqTitle.replace(/\s*-\s*\d+$/, '').trim() || cleanReqTitle;
+              const candidates = [req.year ? `${baseClean} (${req.year})` : baseClean, baseClean];
+              for (const folder of candidates) {
+                if (fs.existsSync(path.join(mediaBase, targetSubDir, folder))) {
+                  existingShowFolder = folder;
+                  effectiveTitle = folder.replace(/\s*\(\d{4}\)$/, '').trim();
+                  break;
+                }
+              }
+            }
+          } catch {
+            // Non-fatal
+          }
+        }
+
         const destPath = app.fileSystem.buildLibraryPath({
           mediaType: targetMediaType,
-          title: req.title,
+          title: effectiveTitle,
           year: req.year,
           seasonNumber: req.seasonNumber,
           episodeNumber: req.episodeNumber,
           isSeasonPack: isDir || (targetMediaType !== 'movie' && !ext),
           ext,
+          existingShowFolder,
         });
 
         if (fs.existsSync(currentPath)) {
-          const destDir = isDir ? path.dirname(destPath) : path.dirname(destPath);
+          const destDir = path.dirname(destPath);
           if (!fs.existsSync(destDir)) {
             fs.mkdirSync(destDir, { recursive: true });
           }
@@ -441,6 +498,7 @@ export const libraryRoutes: FastifyPluginAsync = async (app) => {
         .update(downloadRequests)
         .set({
           mediaType: targetMediaType,
+          title: effectiveTitle,
           jellyfinPath: newJellyfinPath,
         })
         .where(eq(downloadRequests.id, req.id))

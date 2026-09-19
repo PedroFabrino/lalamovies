@@ -847,6 +847,14 @@ async function checkCandidateGuards() {
 
     if (['tv_show', 'anime'].includes(selectedMediaType.value)) {
       seriesProgress.value = data;
+      if (data?.hasExisting) {
+        if (data.existingMediaType && ['tv_show', 'anime'].includes(data.existingMediaType)) {
+          selectedMediaType.value = data.existingMediaType;
+        }
+        if (data.existingTitle && selectedCandidate.value) {
+          selectedCandidate.value.title = data.existingTitle;
+        }
+      }
       if (selectedEpisodeNumber.value === null) {
         selectedEpisodeNumber.value = data?.hasExisting ? (data.suggestedEpisode || 1) : 1;
       }

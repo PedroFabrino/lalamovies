@@ -522,6 +522,103 @@ describe('WaitlistView - Dedicated Waitlist Page', () => {
     });
   });
 
+  it('auto-syncs existingMediaType and existingTitle from series-progress into waitlist entry (#108)', async () => {
+    vi.mocked(api.get).mockImplementation(async (endpoint: string) => {
+      if (endpoint === '/waitlist') {
+        return { entries: [] } as any;
+      }
+      if (endpoint.startsWith('/requests/series-progress')) {
+        return {
+          highestSeason: 1,
+          highestEpisode: 11,
+          existingEpisodes: [11],
+          suggestedSeason: 1,
+          suggestedEpisode: 12,
+          existingTitle: 'Tsuihou sareta Tensei Juukishi wa Game Chishiki de Musou suru',
+          existingMediaType: 'anime',
+          hasExisting: true,
+          airDate: '2026-09-20',
+        } as any;
+      }
+      return {} as any;
+    });
+
+    vi.mocked(api.post).mockImplementation(async (endpoint: string, body?: any) => {
+      if (endpoint === '/requests/search-metadata') {
+        return {
+          candidates: [
+            {
+              id: '270603',
+              source: 'tmdb',
+              title: 'The Exiled Heavy Knight Knows How to Game the System',
+              year: 2026,
+              overview: 'Tsuihou sareta...',
+              posterUrl: 'https://image.tmdb.org/t/p/w500/heavyknight.jpg',
+            },
+          ],
+        } as any;
+      }
+      if (endpoint === '/waitlist') {
+        return {
+          entry: {
+            id: 'heavy-knight-entry',
+            userId: 'user-1',
+            ...body,
+            status: 'pending_release',
+            createdAt: new Date().toISOString(),
+          },
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const wrapper = mount(WaitlistView);
+    await flushPromises();
+
+    // Open modal
+    await wrapper.find('[data-testid="open-add-waitlist-modal"]').trigger('click');
+    await flushPromises();
+
+    // Search Heavy Knight as tv_show
+    const tvShowRadio = wrapper.find('input[name="modalMediaType"][value="tv_show"]');
+    await tvShowRadio.setValue();
+
+    const searchInput = wrapper.find('[data-testid="search-waitlist-input"]');
+    await searchInput.setValue('Heavy Knight');
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+
+    // Select candidate
+    await wrapper.find('[data-testid="search-candidate-item"]').trigger('click');
+    await flushPromises();
+
+    // Title displayed should be canonical title
+    expect(wrapper.find('[data-testid="confirm-candidate-title"]').text()).toBe(
+      'Tsuihou sareta Tensei Juukishi wa Game Chishiki de Musou suru'
+    );
+
+    // Episode 12 auto-selected
+    const epInput = wrapper.find('[data-testid="waitlist-episode-input"]');
+    expect((epInput.element as HTMLInputElement).value).toBe('12');
+
+    // Confirm submission
+    await wrapper.find('[data-testid="confirm-add-waitlist-btn"]').trigger('click');
+    await flushPromises();
+
+    // Verify submitted with synchronized mediaType 'anime' and canonical title
+    expect(api.post).toHaveBeenCalledWith('/waitlist', {
+      mediaType: 'anime',
+      metadataId: '270603',
+      metadataSource: 'tmdb',
+      title: 'Tsuihou sareta Tensei Juukishi wa Game Chishiki de Musou suru',
+      year: 2026,
+      seasonNumber: 1,
+      targetEpisode: 12,
+      tmdbReleaseDate: '2026-09-20',
+      posterUrl: 'https://image.tmdb.org/t/p/w500/heavyknight.jpg',
+    });
+  });
+
   it('renders Approve Now button for notified releases and triggers immediate download approval', async () => {
     const mockEntries = [
       {

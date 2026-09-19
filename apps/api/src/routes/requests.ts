@@ -13,6 +13,7 @@ import { parseTorrentBuffer } from '../services/torrentParser';
 import { cleanTorrentTitle } from '../utils/torrentTitleCleaner';
 import {
   findMatchingCanonicalRequest,
+  findCanonicalSeriesInfo,
   addCoRequester,
   globalRequestMutex,
   getDedupLockKey,
@@ -184,6 +185,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         suggestedEpisode: 1,
         airDate: null,
         existingTitle: matched?.title || null,
+        existingMediaType: matched?.mediaType || null,
         hasExisting: Boolean(matched),
         inLibrary,
         status: matched?.status || null,
@@ -247,6 +249,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         suggestedSeason: targetSeason,
         suggestedEpisode: targetEp,
         existingTitle: null,
+        existingMediaType: null,
         hasExisting: false,
         inLibrary: false,
         airDate,
@@ -293,6 +296,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const existingTitle = matching[0]?.title || null;
+    const existingMediaType = matching[0]?.mediaType || null;
 
     return reply.send({
       highestSeason,
@@ -302,6 +306,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       suggestedEpisode: suggestedEp,
       airDate,
       existingTitle,
+      existingMediaType,
       hasExisting: true,
       inLibrary: seasonEpisodes.includes(lookupEp),
     });
@@ -461,10 +466,18 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
+    const canonicalSeries = findCanonicalSeriesInfo(app.db, {
+      metadataId,
+      metadataSource,
+      mediaType,
+    });
+    const effectiveTitle = canonicalSeries?.title || title;
+    const effectiveMediaType = canonicalSeries?.mediaType || mediaType;
+
     const triggerNextSeasonWaitlist = async () => {
       if (
         waitlistNextSeason &&
-        ['tv_show', 'anime'].includes(mediaType) &&
+        ['tv_show', 'anime'].includes(effectiveMediaType) &&
         seasonNumber !== undefined &&
         seasonNumber !== null &&
         (episodeNumber === undefined || episodeNumber === null)
@@ -484,10 +497,10 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
               },
               body: JSON.stringify({
                 userId: request.currentUser!.id,
-                mediaType,
+                mediaType: effectiveMediaType,
                 metadataId,
                 metadataSource,
-                title,
+                title: effectiveTitle,
                 year,
                 seasonNumber: targetSeason,
                 isNextSeason: true,
@@ -504,7 +517,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
     };
 
     const lockKey = getDedupLockKey({
-      mediaType,
+      mediaType: effectiveMediaType,
       metadataId,
       metadataSource,
       seasonNumber,
@@ -514,7 +527,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
     return globalRequestMutex.runExclusive(lockKey, async () => {
       // 1. Check for existing canonical request
       const existing = findMatchingCanonicalRequest(app.db, {
-        mediaType,
+        mediaType: effectiveMediaType,
         metadataId,
         metadataSource,
         seasonNumber,
@@ -655,16 +668,16 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         id: requestId,
         userId: request.currentUser!.id,
         magnetLink: effectiveMagnetLink,
-        mediaType,
+        mediaType: effectiveMediaType,
         status,
         metadataId,
         metadataSource,
-        title,
+        title: effectiveTitle,
         year: year ?? null,
         seasonNumber: seasonNumber ?? null,
         episodeNumber: episodeNumber ?? null,
         jellyfinPath: null,
-        keepFlag: mediaType === 'private' ? true : false,
+        keepFlag: effectiveMediaType === 'private' ? true : false,
         qbTorrentHash,
         errorMessage: null,
         requestedAt: new Date().toISOString(),
@@ -791,10 +804,19 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
     const newRequests: DownloadRequest[] = [];
 
     for (const item of items) {
-      const mediaType = (item.mediaType || topMediaType)!;
+      const rawMediaType = (item.mediaType || topMediaType)!;
       const metadataId = (item.metadataId || topMetadataId)!;
       const metadataSource = (item.metadataSource || topMetadataSource)!;
-      const title = (item.title || topTitle)!;
+      const rawTitle = (item.title || topTitle)!;
+
+      const canonicalSeries = findCanonicalSeriesInfo(app.db, {
+        metadataId,
+        metadataSource,
+        mediaType: rawMediaType,
+      });
+      const mediaType = canonicalSeries?.mediaType || rawMediaType;
+      const title = canonicalSeries?.title || rawTitle;
+
       const year = item.year ?? topYear ?? null;
       const seasonNumber = item.seasonNumber ?? topSeasonNumber ?? null;
       const episodeNumber = item.episodeNumber ?? null;
@@ -956,6 +978,8 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       scheduledDeleteAt: downloadRequests.scheduledDeleteAt,
       sizeBytes: downloadRequests.sizeBytes,
       deferredReason: downloadRequests.deferredReason,
+      transcriptionStatus: downloadRequests.transcriptionStatus,
+      transcriptionError: downloadRequests.transcriptionError,
       requesterUsername: users.username,
     };
 
@@ -1510,6 +1534,11 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       type: 'transcription_updated',
       requestId: id,
       status: 'pending',
+    });
+
+    // Trigger transcription immediately if admin or within off-peak window
+    app.transcriptionCron?.runOnce({ force: isAdmin, targetRequestId: id }).catch((err) => {
+      request.log.error(err, `Failed to run immediate transcription for request ${id}`);
     });
 
     return reply.send({ request: updated });
