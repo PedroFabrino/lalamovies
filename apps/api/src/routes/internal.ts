@@ -104,6 +104,11 @@ export const internalRoutes: FastifyPluginAsync = async (app) => {
       status: 'completed',
     });
 
+    // Run next queued transcription if available
+    app.transcriptionCron?.runOnce().catch((err) => {
+      request.log.error(err, 'Failed to run next queued transcription from webhook');
+    });
+
     return reply.send({
       ok: true,
       matched: true,

@@ -82,7 +82,75 @@ export class TranscriptionCron {
     this.nowProvider = options.nowProvider || (() => new Date());
   }
 
-  async runOnce(): Promise<void> {
+  async dispatchRequest(candidate: {
+    id: string;
+    title: string;
+    jellyfinPath: string | null;
+  }): Promise<void> {
+    if (!candidate.jellyfinPath) {
+      const errorMsg = 'Media file path not found for transcription';
+      this.logger?.warn(`Candidate request ${candidate.id} has no jellyfinPath. Marking failed.`);
+      this.db
+        .update(downloadRequests)
+        .set({
+          transcriptionStatus: 'failed',
+          transcriptionError: errorMsg,
+        })
+        .where(eq(downloadRequests.id, candidate.id))
+        .run();
+
+      this.broadcast?.({
+        type: 'transcription_updated',
+        requestId: candidate.id,
+        status: 'failed',
+        error: errorMsg,
+      });
+      return;
+    }
+
+    this.db
+      .update(downloadRequests)
+      .set({
+        transcriptionStatus: 'transcribing',
+        transcriptionError: null,
+      })
+      .where(eq(downloadRequests.id, candidate.id))
+      .run();
+
+    this.broadcast?.({
+      type: 'transcription_updated',
+      requestId: candidate.id,
+      status: 'transcribing',
+    });
+
+    try {
+      await this.subgen.triggerBatch(candidate.jellyfinPath);
+      this.logger?.info(
+        `Dispatched transcription batch to Subgen for request ${candidate.id} (${candidate.title})`
+      );
+    } catch (err) {
+      const errorMsg = (err as Error).message || 'Failed to dispatch to Subgen';
+      this.logger?.error(`Failed to dispatch transcription for ${candidate.id}:`, err);
+
+      this.db
+        .update(downloadRequests)
+        .set({
+          transcriptionStatus: 'failed',
+          transcriptionError: errorMsg,
+        })
+        .where(eq(downloadRequests.id, candidate.id))
+        .run();
+
+      this.broadcast?.({
+        type: 'transcription_updated',
+        requestId: candidate.id,
+        status: 'failed',
+        error: errorMsg,
+      });
+    }
+  }
+
+  async runOnce(options?: { force?: boolean; targetRequestId?: string }): Promise<void> {
     if (this.isRunning) return;
     this.isRunning = true;
 
@@ -107,12 +175,12 @@ export class TranscriptionCron {
       const windowEnd = configMap['transcription_window_end'] || '07:00';
       const timezone = configMap['transcription_timezone'] || process.env.TZ || 'America/Sao_Paulo';
 
-      // 3. Evaluate if current time falls within window
+      // 3. Evaluate if current time falls within window (unless forced)
       const now = this.nowProvider();
       const localTime = getLocalTimeInTimezone(now, timezone);
       const inWindow = isInsideWindow(localTime, windowStart, windowEnd);
 
-      if (!inWindow) {
+      if (!options?.force && !inWindow) {
         this.logger?.info(
           `Current time ${localTime.hour.toString().padStart(2, '0')}:${localTime.minute
             .toString()
@@ -140,70 +208,42 @@ export class TranscriptionCron {
         return;
       }
 
-      // 5. Select oldest pending private request
-      const candidate = this.db
-        .select()
-        .from(downloadRequests)
-        .where(
-          and(
-            eq(downloadRequests.transcriptionStatus, 'pending'),
-            eq(downloadRequests.mediaType, 'private'),
-            ne(downloadRequests.status, 'deleted')
+      // 5. Select target request if specified, or oldest pending private request
+      let candidate = options?.targetRequestId
+        ? this.db
+            .select()
+            .from(downloadRequests)
+            .where(
+              and(
+                eq(downloadRequests.id, options.targetRequestId),
+                eq(downloadRequests.transcriptionStatus, 'pending'),
+                ne(downloadRequests.status, 'deleted')
+              )
+            )
+            .get()
+        : null;
+
+      if (!candidate) {
+        candidate = this.db
+          .select()
+          .from(downloadRequests)
+          .where(
+            and(
+              eq(downloadRequests.transcriptionStatus, 'pending'),
+              eq(downloadRequests.mediaType, 'private'),
+              ne(downloadRequests.status, 'deleted')
+            )
           )
-        )
-        .orderBy(asc(downloadRequests.requestedAt))
-        .get();
+          .orderBy(asc(downloadRequests.requestedAt))
+          .get();
+      }
 
       if (!candidate) {
         return;
       }
 
-      if (!candidate.jellyfinPath) {
-        this.logger?.warn(`Candidate request ${candidate.id} has no jellyfinPath. Skipping.`);
-        return;
-      }
-
-      // 6. Transition to transcribing and dispatch
-      this.db
-        .update(downloadRequests)
-        .set({
-          transcriptionStatus: 'transcribing',
-          transcriptionError: null,
-        })
-        .where(eq(downloadRequests.id, candidate.id))
-        .run();
-
-      this.broadcast?.({
-        type: 'transcription_updated',
-        requestId: candidate.id,
-        status: 'transcribing',
-      });
-
-      try {
-        await this.subgen.triggerBatch(candidate.jellyfinPath);
-        this.logger?.info(
-          `Dispatched transcription batch to Subgen for request ${candidate.id} (${candidate.title})`
-        );
-      } catch (err) {
-        const errorMsg = (err as Error).message || 'Failed to dispatch to Subgen';
-        this.logger?.error(`Failed to dispatch transcription for ${candidate.id}:`, err);
-
-        this.db
-          .update(downloadRequests)
-          .set({
-            transcriptionStatus: 'failed',
-            transcriptionError: errorMsg,
-          })
-          .where(eq(downloadRequests.id, candidate.id))
-          .run();
-
-        this.broadcast?.({
-          type: 'transcription_updated',
-          requestId: candidate.id,
-          status: 'failed',
-          error: errorMsg,
-        });
-      }
+      // 6. Dispatch candidate
+      await this.dispatchRequest(candidate);
     } catch (err) {
       this.logger?.error('Error in TranscriptionCron.runOnce:', err);
     } finally {

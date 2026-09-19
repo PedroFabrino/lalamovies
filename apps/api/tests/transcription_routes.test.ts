@@ -295,4 +295,34 @@ describe('Transcription Routes & Detection Hook (Subtask #100)', () => {
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
+
+  it('includes transcriptionStatus and transcriptionError in GET /requests across page reloads', async () => {
+    app.db.insert(downloadRequests).values({
+      id: 'req_list_trans_test',
+      userId: 'usr_trusted',
+      magnetLink: 'magnet:?xt=urn:btih:5555',
+      mediaType: 'private',
+      status: 'seeding',
+      metadataId: 'priv_5',
+      metadataSource: 'tmdb',
+      title: 'Persistent Status Movie',
+      requestedAt: new Date().toISOString(),
+      transcriptionStatus: 'transcribing',
+      transcriptionError: null,
+    }).run();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/requests',
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    const target = body.requests.find((r: any) => r.id === 'req_list_trans_test');
+    expect(target).toBeDefined();
+    expect(target.transcriptionStatus).toBe('transcribing');
+    expect(target.transcriptionError).toBeNull();
+  });
 });
+

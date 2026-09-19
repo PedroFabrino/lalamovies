@@ -24,6 +24,7 @@ for (const p of envPaths) {
 const app = buildApp({
   startPoller: true,
   startCleanupCron: true,
+  startTranscriptionCron: true,
 });
 const port = Number(process.env.PORT) || 3000;
 const host = process.env.HOST || '0.0.0.0';

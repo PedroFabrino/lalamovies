@@ -108,6 +108,42 @@ describe('Timezone-Aware Transcription Window Scheduler (Subtask #102)', () => {
       expect(item?.transcriptionStatus).toBe('pending');
     });
 
+    it('dispatches when outside window if options.force is true', async () => {
+      // Configure window: 02:00 to 07:00 America/Sao_Paulo
+      app.db.update(systemConfig).set({ value: '02:00' }).where(eq(systemConfig.key, 'transcription_window_start')).run();
+      app.db.update(systemConfig).set({ value: '07:00' }).where(eq(systemConfig.key, 'transcription_window_end')).run();
+      app.db.update(systemConfig).set({ value: 'America/Sao_Paulo' }).where(eq(systemConfig.key, 'transcription_timezone')).run();
+
+      app.db.insert(downloadRequests).values({
+        id: 'req_pending_forced',
+        userId: 'usr_cron_test',
+        magnetLink: 'magnet:?xt=urn:btih:forced1',
+        mediaType: 'private',
+        status: 'seeding',
+        metadataId: 'm_forced',
+        metadataSource: 'tmdb',
+        title: 'Forced Movie',
+        jellyfinPath: '/media/private/Forced/Forced.mkv',
+        transcriptionStatus: 'pending',
+        requestedAt: new Date().toISOString(),
+      }).run();
+
+      // Current time is 15:00 in America/Sao_Paulo (18:00 UTC) -> OUTSIDE window
+      const mockNow = new Date('2026-09-16T18:00:00.000Z');
+
+      const cronJob = new TranscriptionCron({
+        db: app.db,
+        subgen: { triggerBatch: mockTriggerBatch },
+        nowProvider: () => mockNow,
+      });
+
+      await cronJob.runOnce({ force: true, targetRequestId: 'req_pending_forced' });
+
+      expect(mockTriggerBatch).toHaveBeenCalledWith('/media/private/Forced/Forced.mkv');
+      const item = app.db.select().from(downloadRequests).where(eq(downloadRequests.id, 'req_pending_forced')).get();
+      expect(item?.transcriptionStatus).toBe('transcribing');
+    });
+
     it('halts and does not dispatch when transcription_enabled feature flag is toggled off', async () => {
       // Set inside window: 02:00 to 07:00, mock time is 03:00
       app.db.update(systemConfig).set({ value: '02:00' }).where(eq(systemConfig.key, 'transcription_window_start')).run();

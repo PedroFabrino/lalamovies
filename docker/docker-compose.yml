@@ -36,6 +36,7 @@ services:
       - MAGIC_LINK_SECRET=${MAGIC_LINK_SECRET}
       - WAITLIST_DISCORD_WEBHOOK_URL=${WAITLIST_DISCORD_WEBHOOK_URL}
       - PREFERRED_INDEXER_REGEX=${PREFERRED_INDEXER_REGEX:-}
+      - SUBGEN_URL=${SUBGEN_URL:-http://subgen:9000}
     volumes:
       - app_db:/data
       - ${MEDIA_DATA_PATH:-D:/MediaServer/media_data}:/media_data
@@ -231,6 +232,8 @@ services:
     container_name: mdm-subgen
     restart: unless-stopped
     environment:
+      - PUID=0
+      - PGID=0
       - TRANSCRIBE_DEVICE=cuda
       - WHISPER_MODEL=large-v3
       - TRANSCRIBE_OR_TRANSLATE=translate
