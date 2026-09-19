@@ -254,6 +254,18 @@
                 <h3 class="font-semibold text-white text-base leading-snug line-clamp-2" :title="item.title">
                   {{ item.title }}
                 </h3>
+                <button
+                  v-if="item.mediaType === 'movie'"
+                  type="button"
+                  data-testid="library-subtitles-btn"
+                  class="p-1 text-zinc-400 hover:text-indigo-400 hover:bg-zinc-800/80 rounded transition cursor-pointer shrink-0"
+                  title="Manage Subtitles (pt-BR)"
+                  @click.stop="openSubtitlePicker(item.id, item.title)"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                </button>
               </div>
 
               <div class="flex items-center gap-2 text-xs text-zinc-400 mb-3">
@@ -313,7 +325,20 @@
                       <span class="truncate pr-2">
                         {{ ep.episodeNumber ? `E${ep.episodeNumber}: ` : '' }}{{ ep.title }}
                       </span>
-                      <span class="font-mono whitespace-nowrap">{{ formatBytes(ep.sizeBytes) }}</span>
+                      <div class="flex items-center gap-1.5 shrink-0">
+                        <span class="font-mono whitespace-nowrap">{{ formatBytes(ep.sizeBytes) }}</span>
+                        <button
+                          type="button"
+                          data-testid="episode-subtitles-btn"
+                          class="p-0.5 text-zinc-400 hover:text-indigo-400 rounded transition cursor-pointer"
+                          :title="`Subtitles for ${ep.title}`"
+                          @click.stop="openSubtitlePicker(ep.id, `${item.title} - ${ep.title}`)"
+                        >
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -541,12 +566,21 @@
         </div>
       </div>
     </div>
+
+    <!-- Subtitle Picker Modal -->
+    <SubtitlePickerModal
+      :show="showSubtitleModal"
+      :request-id="subtitleTarget?.id || ''"
+      :title="subtitleTarget?.title"
+      @close="showSubtitleModal = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import Navbar from '../components/Navbar.vue';
+import SubtitlePickerModal from '../components/SubtitlePickerModal.vue';
 import { useAuthStore } from '../stores/auth';
 import { useRequestsStore } from '../stores/requests';
 import { api } from '../lib/api';
@@ -613,6 +647,14 @@ const expandedCardIds = ref<string[]>([]);
 const showMoveModal = ref(false);
 const targetMoveCategory = ref<'movie' | 'tv_show' | 'anime'>('movie');
 const isMoving = ref(false);
+
+const showSubtitleModal = ref(false);
+const subtitleTarget = ref<{ id: string; title: string } | null>(null);
+
+function openSubtitlePicker(id: string, title: string): void {
+  subtitleTarget.value = { id, title };
+  showSubtitleModal.value = true;
+}
 
 const showDeleteModal = ref(false);
 const isDeleting = ref(false);

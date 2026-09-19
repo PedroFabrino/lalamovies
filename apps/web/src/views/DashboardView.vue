@@ -449,6 +449,19 @@
                 <td class="py-4 px-4 whitespace-nowrap text-right">
                   <div class="flex items-center justify-end gap-1.5">
                     <button
+                      v-if="item.status === 'seeding' || item.status === 'done'"
+                      type="button"
+                      data-testid="open-subtitles-btn"
+                      class="p-1.5 text-zinc-400 hover:text-indigo-400 hover:bg-indigo-950/40 rounded-lg transition cursor-pointer"
+                      title="Manage Subtitles (pt-BR)"
+                      @click="openSubtitlePicker(item)"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                    </button>
+
+                    <button
                       v-if="authStore.isAdmin && item.status === 'error'"
                       type="button"
                       :disabled="retryingId === item.id"
@@ -815,6 +828,14 @@
       @close="showPromotionModal = false"
       @promoted="handleStreamPromoted"
     />
+
+    <!-- Subtitle Picker Modal -->
+    <SubtitlePickerModal
+      :show="showSubtitleModal"
+      :request-id="subtitleTarget?.id || ''"
+      :title="subtitleTarget?.title"
+      @close="showSubtitleModal = false"
+    />
   </div>
 </template>
 
@@ -825,6 +846,7 @@ import UpNextShelf from '../components/UpNextShelf.vue';
 import DiscoveryFeed from '../components/DiscoveryFeed.vue';
 import StreamProgressModal from '../components/StreamProgressModal.vue';
 import PromotionModal from '../components/PromotionModal.vue';
+import SubtitlePickerModal from '../components/SubtitlePickerModal.vue';
 import ActiveStreamsShelf from '../components/ActiveStreamsShelf.vue';
 import type { DiscoveryItem } from '../components/DiscoveryFeed.vue';
 import { useAuthStore } from '../stores/auth';
@@ -871,6 +893,14 @@ const activeStreamsShelfRef = ref<InstanceType<typeof ActiveStreamsShelf> | null
 const discoveryFeedRef = ref<InstanceType<typeof DiscoveryFeed> | null>(null);
 const activeStreamingItem = ref<DiscoveryItem | null>(null);
 const isAddingToWaitlistFromModal = ref(false);
+
+const showSubtitleModal = ref(false);
+const subtitleTarget = ref<{ id: string; title: string } | null>(null);
+
+function openSubtitlePicker(item: DownloadRequest): void {
+  subtitleTarget.value = { id: item.id, title: item.title };
+  showSubtitleModal.value = true;
+}
 const hasAddedToWaitlistFromModal = ref(false);
 
 async function handleInstantStream(item: DiscoveryItem) {

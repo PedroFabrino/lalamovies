@@ -7,11 +7,13 @@ import { IFileSystemService } from '../services/fileSystem';
 import { IJellyfinService } from '../services/jellyfin';
 import { INotificationService } from '../services/notifications';
 import { ISubtitleInspectionService } from '../services/subtitleInspection';
+import { OpenSubtitlesService } from '../services/openSubtitles';
 
-export interface PollerLogger {
+export type PollerLogger = {
   info: (msg: string) => void;
+  warn?: (msg: string) => void;
   error: (msg: string, err?: unknown) => void;
-}
+};
 
 export interface DownloadPollerOptions {
   db: AppDatabase;
@@ -19,6 +21,7 @@ export interface DownloadPollerOptions {
   fileSystem: IFileSystemService;
   jellyfin: IJellyfinService;
   subtitleInspection?: ISubtitleInspectionService;
+  openSubtitles?: OpenSubtitlesService;
   notificationService?: INotificationService;
   stagingPath?: string;
   intervalMs?: number;
@@ -34,6 +37,7 @@ export class DownloadPoller {
   private fileSystem: IFileSystemService;
   private jellyfin: IJellyfinService;
   private subtitleInspection?: ISubtitleInspectionService;
+  private openSubtitles?: OpenSubtitlesService;
   private notificationService?: INotificationService;
   private stagingPath: string;
   private intervalMs: number;
@@ -46,6 +50,7 @@ export class DownloadPoller {
     this.fileSystem = options.fileSystem;
     this.jellyfin = options.jellyfin;
     this.subtitleInspection = options.subtitleInspection;
+    this.openSubtitles = options.openSubtitles;
     this.notificationService = options.notificationService;
     this.stagingPath = options.stagingPath || process.env.STAGING_PATH || path.resolve(process.cwd(), 'downloads/staging');
     this.intervalMs = options.intervalMs || 5000;
@@ -316,6 +321,37 @@ export class DownloadPoller {
             // Refresh Jellyfin library
             if (this.jellyfin.refreshLibrary) {
               await this.jellyfin.refreshLibrary();
+            }
+
+            // Auto-fetch subtitle from OpenSubtitles (fire-and-forget)
+            if (
+              this.openSubtitles &&
+              this.openSubtitles.isConfigured() &&
+              req.mediaType !== 'private' &&
+              !isDirectory
+            ) {
+              const subtitleDestPath = destPath.replace(/\.[a-zA-Z0-9]{2,4}$/, '.pt-BR.srt');
+              this.openSubtitles
+                .fetchBest(
+                  {
+                    tmdbId: req.metadataSource === 'tmdb' ? req.metadataId : undefined,
+                    title: effectiveTitle,
+                    year: req.year,
+                    seasonNumber: req.seasonNumber,
+                    episodeNumber: req.episodeNumber,
+                  },
+                  subtitleDestPath
+                )
+                .then(async (fetched) => {
+                  if (fetched && this.jellyfin.refreshLibrary) {
+                    await this.jellyfin.refreshLibrary();
+                  }
+                })
+                .catch((err) => {
+                  this.logger?.warn?.(
+                    `Auto-fetch subtitle failed for ${req.id}: ${(err as Error).message}`
+                  );
+                });
             }
 
             // Mark status as seeding

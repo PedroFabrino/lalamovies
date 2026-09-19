@@ -31,6 +31,7 @@ import { internalRoutes } from './routes/internal';
 import { isFeatureEnabled } from './middleware/featureFlags';
 import { ISubtitleInspectionService, SubtitleInspectionService } from './services/subtitleInspection';
 import { ISubgenService, SubgenService } from './services/subgen';
+import { OpenSubtitlesService } from './services/openSubtitles';
 
 export interface AppOptions {
   dbPath?: string;
@@ -56,6 +57,8 @@ export interface AppOptions {
   streamerUrl?: string;
   subtitleInspectionService?: ISubtitleInspectionService;
   subgenService?: ISubgenService;
+  openSubtitlesService?: OpenSubtitlesService;
+  openSubtitlesApiKey?: string;
 }
 
 declare module 'fastify' {
@@ -80,6 +83,7 @@ declare module 'fastify' {
     streamerUrl?: string;
     subtitleInspection: ISubtitleInspectionService;
     subgen: ISubgenService;
+    openSubtitles: OpenSubtitlesService;
   }
 }
 
@@ -182,6 +186,28 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       },
     });
 
+  const openSubtitlesApiKey =
+    options.openSubtitlesApiKey ??
+    (() => {
+      const row = db
+        .select()
+        .from(systemConfig)
+        .where(eq(systemConfig.key, 'opensubtitles_api_key'))
+        .get();
+      return row?.value || process.env.OPENSUBTITLES_API_KEY || '';
+    })();
+
+  const openSubtitles =
+    options.openSubtitlesService ??
+    new OpenSubtitlesService({
+      apiKey: openSubtitlesApiKey,
+      logger: {
+        info: (msg: string) => app.log.info(msg),
+        warn: (msg: string) => app.log.warn(msg),
+        error: (msg: string, err?: unknown) => app.log.error(err, msg),
+      },
+    });
+
   const poller =
     options.downloadPoller ??
     new DownloadPoller({
@@ -190,6 +216,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       fileSystem,
       jellyfin,
       subtitleInspection,
+      openSubtitles,
       notificationService: notifications,
       logger: {
         info: (msg: string) => app.log.info(msg),
@@ -268,6 +295,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.decorate('poller', poller);
   app.decorate('subtitleInspection', subtitleInspection);
   app.decorate('subgen', subgen);
+  app.decorate('openSubtitles', openSubtitles);
 
   app.decorate('serviceApiKey', serviceApiKey);
   app.decorate('watcherUrl', watcherUrl);

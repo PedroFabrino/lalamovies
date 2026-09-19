@@ -38,6 +38,7 @@ Before starting, ensure you have the following installed and set up:
 3. **Cloudflare Account** (Free tier) — for exposing the backend API securely via Cloudflare Tunnel
 4. **TMDB API Key** (Free) — create an account at [themoviedb.org](https://www.themoviedb.org/) and generate an API key under Settings > API
 5. **Discord Server** — with an incoming webhook URL for download and cleanup notifications
+6. **OpenSubtitles API Key** (Free, Optional) — register an account at [OpenSubtitles.com](https://www.opensubtitles.com/) and create a consumer app at [opensubtitles.com/en/consumers](https://www.opensubtitles.com/en/consumers) to enable automatic and manual `pt-BR` subtitle downloads
 
 ---
 
@@ -291,6 +292,24 @@ The system supports a `private` media type and a `trusted` user role for sensiti
 
 ---
 
+## OpenSubtitles Subtitle Setup
+
+MDM automatically fetches `pt-BR` subtitles upon download completion and provides a manual subtitle picker modal across both the Dashboard and Media Library (`/library`).
+
+### Configuration Steps
+
+1. Create a free account at [OpenSubtitles.com](https://www.opensubtitles.com/) (note: this uses the new `opensubtitles.com` REST API v1, not legacy `opensubtitles.org`).
+2. Navigate to [Consumer API Applications](https://www.opensubtitles.com/en/consumers) and register a new consumer application to generate an API key.
+3. Add your key to `.env`:
+   ```ini
+   OPENSUBTITLES_API_KEY=your_consumer_api_key_here
+   ```
+4. Restart the API container (`docker compose restart api`).
+
+*Note*: If `OPENSUBTITLES_API_KEY` is not provided, automatic subtitle fetching silently skips without error, and manual subtitle endpoints return a clean `503 Service Unavailable` status with helpful UI guidance.
+
+---
+
 ## Environment Variable Reference
 
 | Variable | Required | Default | Description |
@@ -308,6 +327,7 @@ The system supports a `private` media type and a `trusted` user role for sensiti
 | `QBITTORRENT_USER` | No | `admin` | qBittorrent Web UI username |
 | `QBITTORRENT_PASSWORD`| No | `adminadmin` | qBittorrent Web UI password |
 | `TMDB_API_KEY` | **Yes** | — | Developer API Key from The Movie Database (v3 auth) |
+| `OPENSUBTITLES_API_KEY` | No | — | Consumer API Key from OpenSubtitles.com for pt-BR subtitle fetching |
 | `DISCORD_WEBHOOK_URL`| No | — | Discord Webhook URL for download and cleanup alerts |
 | `RESEND_API_KEY` | No | — | Resend API key (stubbed for future email notifications) |
 | `SERVICE_API_KEY` | **Yes** | — | Shared cryptographic secret between Main API and Watcher |

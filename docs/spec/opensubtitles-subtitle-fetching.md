@@ -6,12 +6,12 @@ Torrents frequently do not include subtitle files for non-English content. Users
 
 ## Solution
 
-Integrate with the OpenSubtitles REST API to automatically fetch `pt-BR` subtitle files for every completed download and surface a subtitle picker on the dashboard so users can manually browse, select, and apply alternative subtitles when the auto-fetched one is missing or out of sync.
+Integrate with the OpenSubtitles REST API to automatically fetch `pt-BR` subtitle files for every completed download and surface a subtitle picker on the dashboard and in the Media Library view (`/library`) so users can manually browse, select, and apply alternative subtitles when the auto-fetched one is missing, out of sync, or when browsing catalog media later.
 
 The feature has two modes:
 
 1. **Auto-fetch on completion** — immediately after a download is hardlinked to the Library and Jellyfin is refreshed, the system queries OpenSubtitles for the best `pt-BR` subtitle and writes a `.srt` file alongside the media file using Jellyfin's naming convention (`Title (Year).pt-BR.srt`). Silent skip if nothing is found.
-2. **Manual picker** — a subtitle button on each completed download card opens a modal listing the top 5 OpenSubtitles results (sorted by download count). Any authenticated user can browse results and apply a specific one, replacing whatever subtitle is currently present.
+2. **Manual picker (Dashboard & Library)** — subtitle action buttons on completed dashboard cards and in the Media Library view (`/library`) (for movies and series/anime episode rows) open a modal listing the top 5 OpenSubtitles results (sorted by download count). Any authenticated user can browse results and apply a specific subtitle, select multiple subtitles to download at once (providing immediate alternative tracks in Jellyfin if one is out of sync), or hit "Re-fetch best".
 
 ---
 
@@ -30,16 +30,18 @@ The feature has two modes:
 6. As a User, I want the subtitle picker to show the top 5 `pt-BR` results from OpenSubtitles sorted by download count, so that the most popular (most likely correct) subtitle appears first.
 7. As a User, I want each result in the picker to show the uploader name, download count, upload date, and file size, so that I have enough context to choose the right subtitle without having to leave the dashboard.
 8. As a User, I want to click an "Apply" button next to any result in the picker to download and install that specific subtitle, replacing any existing one, so that I can switch to a better-synced alternative.
-9. As a User, I want a "Re-fetch best" button in the picker that automatically applies the top-ranked result, so that I can quickly refresh the subtitle without manually picking from the list.
-10. As a User, I want the subtitle button to be visible on every completed download card I can see, so that I can manage subtitles for content I watch regardless of who originally requested it.
-11. As a User, I want the picker to show a clear "No subtitles found" state when OpenSubtitles returns no results, so that I know to look for a subtitle manually outside the app.
-12. As an Admin, I want the subtitle picker to be available on all completed requests (not just my own), so that I can fix subtitle issues for any user.
+9. As a User, I want to select multiple subtitles using checkboxes and download them simultaneously with an "Apply Selected" button, so that multiple alternative subtitle tracks are immediately available in Jellyfin to switch between during playback.
+10. As a User, I want a "Re-fetch best" button in the picker that automatically applies the top-ranked result, so that I can quickly refresh the subtitle without manually picking from the list.
+11. As a User, I want the subtitle button to be visible on every completed download card I can see, so that I can manage subtitles for content I watch regardless of who originally requested it.
+12. As a User, I want the picker to show a clear "No subtitles found" state when OpenSubtitles returns no results, so that I know to look for a subtitle manually outside the app.
+13. As an Admin, I want the subtitle picker to be available on all completed requests (not just my own), so that I can fix subtitle issues for any user.
+14. As a User, I want to open the subtitle picker directly from the Media Library view (`/library`) for any movie card or series/anime episode row, so that I can download, replace, or add alternative subtitles at any time while browsing the catalog (even if the initial subtitle didn't work or was never fetched).
 
 ### Infrastructure & Configuration
 
-13. As an Admin, I want to configure the OpenSubtitles API key via a single environment variable (`OPENSUBTITLES_API_KEY`), so that setup requires minimal changes to the deployment.
-14. As an Admin, I want subtitle fetching to degrade gracefully when the OpenSubtitles API key is not configured, so that the app continues to function normally without the feature enabled.
-15. As an Admin, I want subtitle fetch failures to be logged (not surfaced to users), so that I can diagnose API quota or network issues without affecting the user experience.
+15. As an Admin, I want to configure the OpenSubtitles API key via a single environment variable (`OPENSUBTITLES_API_KEY`), so that setup requires minimal changes to the deployment.
+16. As an Admin, I want subtitle fetching to degrade gracefully when the OpenSubtitles API key is not configured, so that the app continues to function normally without the feature enabled.
+17. As an Admin, I want subtitle fetch failures to be logged (not surfaced to users), so that I can diagnose API quota or network issues without affecting the user experience.
 
 ---
 
@@ -59,8 +61,11 @@ A new service encapsulates all OpenSubtitles interactions:
 - **`searchSubtitles(params)`** — calls `GET /subtitles` with TMDB ID (preferred) or title + year, language `pt-BR`. Returns the raw top-N results.
 - **`fetchBest(params, destPath)`** — calls `searchSubtitles`, picks the result with the highest download count, calls `GET /download` to get a temporary download URL, fetches the file, and writes it to `destPath`.
 - **`downloadAndWrite(fileId, destPath)`** — downloads a specific subtitle by its OpenSubtitles file ID and writes it to `destPath`.
+- **`downloadAndWriteMultiple(fileIds, baseDestPath)`** — downloads multiple subtitles by file ID and writes them alongside the media file with indexed tags (e.g. `.pt-BR.srt`, `.pt-BR.2.srt`, `.pt-BR.3.srt`) so Jellyfin exposes all of them as distinct selectable tracks.
 
-The destination path is derived from the media file's Library path: the extension is replaced and a language suffix appended — e.g. `/media/movies/Inception (2010)/Inception (2010).mkv` → `/media/movies/Inception (2010)/Inception (2010).pt-BR.srt`. This follows Jellyfin's auto-detection naming convention; no Jellyfin configuration change is needed.
+The destination path is derived from the media file's Library path:
+- Single / Primary subtitle: extension is replaced and language suffix appended — e.g. `/media/movies/Inception (2010)/Inception (2010).pt-BR.srt`.
+- Multiple subtitles: first subtitle uses `.pt-BR.srt`, subsequent ones use indexed suffixes — e.g. `Inception (2010).pt-BR.2.srt`, `Inception (2010).pt-BR.3.srt`. This follows Jellyfin's multi-track external subtitle naming convention; Jellyfin detects each as a distinct subtitle track.
 
 The service is registered on the Fastify app instance alongside the existing services (`app.openSubtitles`).
 
@@ -73,16 +78,30 @@ After the existing hardlink and Jellyfin library refresh step in `DownloadPoller
 Two new endpoints under the existing `/requests` router:
 
 - **`GET /requests/:id/subtitles`** — requires authentication; returns 404 for requests the caller cannot see (follows the same visibility rules as `GET /requests/:id`). Calls `openSubtitlesService.searchSubtitles()` live and returns the top 5 results with: `fileId`, `uploaderName`, `downloadCount`, `uploadDate`, `fileSizeBytes`, `releaseName`.
-- **`POST /requests/:id/subtitles/fetch`** — requires authentication; same visibility scoping. Accepts an optional `fileId` in the request body. If `fileId` is provided, downloads that specific subtitle; if absent, fetches the best result (highest download count). Writes the `.srt` file to the Library path, triggers a Jellyfin library refresh, and returns `{ success: true }`.
+- **`POST /requests/:id/subtitles/fetch`** — requires authentication; same visibility scoping. Accepts an optional body with `{ fileId?: string, fileIds?: string[] }`:
+  - If `fileIds` is provided: downloads all specified subtitles using indexed filenames (`.pt-BR.srt`, `.pt-BR.2.srt`, etc.).
+  - If `fileId` is provided: downloads that single specific subtitle.
+  - If absent: fetches the single best result (highest download count).
+  Writes the `.srt` files to the Library path, triggers a single Jellyfin library refresh, and returns `{ success: true, count: number }`.
 
 ### Frontend
 
-- Completed download cards on the dashboard get a small subtitle icon button (visible regardless of whether a subtitle currently exists).
-- Clicking it opens a modal/side panel showing the top 5 results from `GET /requests/:id/subtitles`. While loading, a spinner is shown.
-- Each result row shows: uploader name, download count (formatted, e.g. "12.4k"), upload date (relative), file size.
-- Each row has an "Apply" button → calls `POST /requests/:id/subtitles/fetch` with that `fileId`.
-- A "Re-fetch best" button at the top of the modal calls `POST /requests/:id/subtitles/fetch` with no `fileId`.
-- The modal is available for all completed requests visible to the current user (no additional permission gate beyond existing visibility).
+- **Reusable Subtitle Picker Modal (`SubtitlePickerModal.vue`)**:
+  - Reusable modal shared across both the **Dashboard** and the **Media Library (`/library`)** view.
+  - Props: `requestId: string` (and media/episode title for modal header context).
+  - While loading results from `GET /requests/:id/subtitles`, a spinner is displayed.
+  - If no subtitles are found, shows a clean empty state ("No subtitles found").
+  - If API key is not configured (503), shows "Service not configured".
+  - Each of the top 5 results shows: a selection checkbox, uploader name, download count (formatted, e.g. "12.4k"), upload date (relative), file size, and an individual "Apply" button.
+  - An "Apply Selected" action button enables in the modal header/footer when 1 or more checkboxes are checked (e.g. "Apply Selected (2)"), calling `POST /requests/:id/subtitles/fetch` with `{ fileIds: [...] }`.
+  - A "Re-fetch best" button at the top calls `POST /requests/:id/subtitles/fetch` with no `fileId` (automatically applying the top-ranked result).
+  - Inline error feedback displays inside the modal if fetching or applying fails without closing the modal.
+- **Dashboard Integration (`DashboardView.vue`)**:
+  - Completed download cards display a subtitle icon button, opening the modal for that request.
+- **Media Library Integration (`LibraryView.vue`)**:
+  - **Movie Cards**: A subtitle icon button is displayed on movie cards, opening the modal using the movie's underlying request ID (`item.id`).
+  - **Series / Anime Cards**: In the expanded seasons/episodes accordion, each individual episode row includes a subtitle icon button opening the modal for that specific episode's request ID (`ep.id`).
+  - Subtitle management is available to all authenticated users who have visibility of that media item in the library.
 
 ---
 

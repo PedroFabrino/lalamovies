@@ -305,6 +305,62 @@ describe('DownloadPoller & Hardlink Integration', () => {
     expect(mockJf.refreshCalled).toBe(1);
   });
 
+  it('triggers openSubtitles.fetchBest on download completion', async () => {
+    const fetchBestMock = vi.fn().mockResolvedValue(true);
+    const mockOpenSubtitles = {
+      isConfigured: () => true,
+      fetchBest: fetchBestMock,
+    } as any;
+
+    const pollerWithSubs = new DownloadPoller({
+      db: dbInstance.db,
+      qbittorrent: mockQb,
+      fileSystem: fsService,
+      jellyfin: mockJf,
+      openSubtitles: mockOpenSubtitles,
+      stagingPath: stagingDir,
+    });
+
+    const downloadedFileName = 'Matrix.1999.mkv';
+    const stagingFilePath = path.join(stagingDir, downloadedFileName);
+    fs.writeFileSync(stagingFilePath, 'matrix content');
+
+    const hash = 'matrix_123';
+    mockQb.torrents.set(hash, {
+      hash,
+      name: downloadedFileName,
+      progress: 1.0,
+      dlspeed: 0,
+      eta: 0,
+      state: 'uploading',
+      size: 600000,
+    });
+
+    dbInstance.db
+      .insert(downloadRequests)
+      .values({
+        id: 'req_matrix',
+        userId: 'usr_1',
+        magnetLink: 'magnet:?xt=urn:btih:matrix_123',
+        mediaType: 'movie',
+        status: 'downloading',
+        metadataId: '603',
+        metadataSource: 'tmdb',
+        title: 'The Matrix',
+        year: 1999,
+        qbTorrentHash: hash,
+        requestedAt: new Date().toISOString(),
+      })
+      .run();
+
+    await pollerWithSubs.pollOnce();
+
+    expect(fetchBestMock).toHaveBeenCalledTimes(1);
+    const [params, dest] = fetchBestMock.mock.calls[0];
+    expect(params.title).toBe('The Matrix');
+    expect(dest).toContain('.pt-BR.srt');
+  });
+
   it('promotes queued requests to downloading when slot opens under concurrent_limit', async () => {
     mockQb.activeCount = 1; // 1 active, limit is 2 -> 1 slot available
 
