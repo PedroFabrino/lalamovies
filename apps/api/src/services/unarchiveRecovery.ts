@@ -80,7 +80,7 @@ export async function runCompressedDownloadsRecovery(options: RecoveryOptions): 
       if (fs.existsSync(dir)) {
         if (fs.statSync(dir).isDirectory()) {
           const files = fs.readdirSync(dir);
-          const rar = files.find((f) => unarchiveService.isArchiveFile(f));
+          const rar = unarchiveService.findHeadArchive(files);
           if (rar) {
             archivePath = path.join(dir, rar);
             break;
@@ -99,7 +99,7 @@ export async function runCompressedDownloadsRecovery(options: RecoveryOptions): 
         const full = path.join(stagingPath, matched);
         if (fs.statSync(full).isDirectory()) {
           const subFiles = fs.readdirSync(full);
-          const rar = subFiles.find((f) => unarchiveService.isArchiveFile(f));
+          const rar = unarchiveService.findHeadArchive(subFiles);
           if (rar) archivePath = path.join(full, rar);
         } else if (unarchiveService.isArchiveFile(full)) {
           archivePath = full;
@@ -215,9 +215,13 @@ export async function runCompressedDownloadsRecovery(options: RecoveryOptions): 
     }
   }
 
-  // Trigger Jellyfin library refresh
-  if (jellyfin.refreshLibrary) {
-    await jellyfin.refreshLibrary();
+  // Trigger Jellyfin library refresh (non-fatal, only if changes were made)
+  if (jellyfin.refreshLibrary && (recoveredPaths.length > 0 || removedInvalidPath)) {
+    try {
+      await jellyfin.refreshLibrary();
+    } catch (jellyErr) {
+      logger?.error?.('Jellyfin library refresh failed during recovery:', jellyErr);
+    }
   }
 
   return {

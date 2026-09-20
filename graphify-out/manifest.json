@@ -1584,9 +1584,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/jobs/unarchiveDaemon.ts": {
-    "mtime": 1789882978.538187,
-    "seen": 1789883740.525547,
-    "ast_hash": "ee5ba9980e64d49ab24a06b3c0b3239f",
+    "mtime": 1789884115.3270366,
+    "seen": 1789884207.8600202,
+    "ast_hash": "2cf51a4aa5328d7b4cc1dfdae44a0d0e",
     "semantic_hash": ""
   },
   "apps/api/src/scripts/runRecovery.ts": {
@@ -1596,15 +1596,15 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/unarchive.ts": {
-    "mtime": 1789882893.887703,
-    "seen": 1789883740.5322635,
-    "ast_hash": "2e8c05ab4e78ea414369ad14121a3777",
+    "mtime": 1789884094.5442843,
+    "seen": 1789884207.870952,
+    "ast_hash": "2667dc1a606915fe2f93f8ddaa5dcef4",
     "semantic_hash": ""
   },
   "apps/api/src/services/unarchiveRecovery.ts": {
-    "mtime": 1789883129.7175484,
-    "seen": 1789883740.5322635,
-    "ast_hash": "62761f7fa0c68f8d5c5141124f43f266",
+    "mtime": 1789884144.3442142,
+    "seen": 1789884207.870952,
+    "ast_hash": "d8f86f539f3f6ff7c71ea98a41344ffb",
     "semantic_hash": ""
   },
   "apps/api/tests/library_pathing.test.ts": {
@@ -1614,9 +1614,9 @@
     "semantic_hash": ""
   },
   "apps/api/tests/unarchive.test.ts": {
-    "mtime": 1789882884.230564,
-    "seen": 1789883740.5437846,
-    "ast_hash": "b25cb803d55d434ffd1109da6516a12f",
+    "mtime": 1789884149.3754456,
+    "seen": 1789884207.883506,
+    "ast_hash": "466e2368445bfa4753c8a464ad5ad6d7",
     "semantic_hash": ""
   },
   "apps/api/tests/unarchiveDaemon.test.ts": {

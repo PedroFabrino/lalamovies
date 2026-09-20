@@ -30,6 +30,7 @@ export interface IUnarchiveService {
   isArchiveFile(fileNameOrPath: string): boolean;
   containsArchives(files: Array<{ name: string; size?: number } | string>): boolean;
   isArchiveOnly(files: Array<{ name: string; size: number }>): boolean;
+  findHeadArchive(files: string[]): string | undefined;
   extractArchive(options: ExtractArchiveOptions): Promise<void>;
   filterPlayableMedia(directory: string): ExtractedMedia;
 }
@@ -50,7 +51,7 @@ export class UnarchiveService implements IUnarchiveService {
           execFile(cmd, args, { maxBuffer: 100 * 1024 * 1024 }, (err, stdout, stderr) => {
             resolve({
               stdout: stdout ? stdout.toString() : '',
-              stderr: stderr ? stderr.toString() : '',
+              stderr: stderr ? stderr.toString() : (err ? err.message : ''),
               exitCode: err ? (typeof err.code === 'number' ? err.code : 1) : 0,
             });
           });
@@ -93,6 +94,28 @@ export class UnarchiveService implements IUnarchiveService {
     }
 
     return hasArchive && !hasVideo;
+  }
+
+  findHeadArchive(files: string[]): string | undefined {
+    const archives = files.filter((f) => this.isArchiveFile(f));
+    if (archives.length === 0) return undefined;
+
+    // Prioritize head archives (.part01.rar, .part1.rar, .rar)
+    archives.sort((a, b) => {
+      const aIsPart1 = /\.part0*1\.rar$/i.test(a);
+      const bIsPart1 = /\.part0*1\.rar$/i.test(b);
+      if (aIsPart1 && !bIsPart1) return -1;
+      if (!aIsPart1 && bIsPart1) return 1;
+
+      const aIsRar = /\.rar$/i.test(a);
+      const bIsRar = /\.rar$/i.test(b);
+      if (aIsRar && !bIsRar) return -1;
+      if (!aIsRar && bIsRar) return 1;
+
+      return a.localeCompare(b);
+    });
+
+    return archives[0];
   }
 
   private extractDomainCandidate(filePath: string): string | null {

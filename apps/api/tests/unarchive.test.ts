@@ -59,6 +59,13 @@ describe('UnarchiveService', () => {
       expect(service.containsArchives([{ name: 'file.mkv' }, { name: 'file.zip' }])).toBe(true);
       expect(service.containsArchives(['file.mp4', 'file.srt'])).toBe(false);
     });
+
+    it('findHeadArchive selects head volume or main rar regardless of order', () => {
+      expect(service.findHeadArchive(['track.nfo', 'movie.part02.rar', 'movie.part01.rar'])).toBe('movie.part01.rar');
+      expect(service.findHeadArchive(['movie.part2.rar', 'movie.part1.rar', 'sample.mp4'])).toBe('movie.part1.rar');
+      expect(service.findHeadArchive(['hhd800.com.url', 'hhd800.com@xb-3987.rar'])).toBe('hhd800.com@xb-3987.rar');
+      expect(service.findHeadArchive(['notes.txt', 'image.jpg'])).toBeUndefined();
+    });
   });
 
   describe('filterPlayableMedia', () => {

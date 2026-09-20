@@ -91,7 +91,7 @@ export class UnarchiveDaemon {
       if (fs.existsSync(torrentDir)) {
         if (fs.statSync(torrentDir).isDirectory()) {
           const files = fs.readdirSync(torrentDir);
-          const found = files.find((f) => this.unarchiveService.isArchiveFile(f));
+          const found = this.unarchiveService.findHeadArchive(files);
           if (found) {
             archiveFile = path.join(torrentDir, found);
           }
@@ -107,7 +107,7 @@ export class UnarchiveDaemon {
       if (fs.existsSync(candidateDir)) {
         if (fs.statSync(candidateDir).isDirectory()) {
           const files = fs.readdirSync(candidateDir);
-          const found = files.find((f) => this.unarchiveService.isArchiveFile(f));
+          const found = this.unarchiveService.findHeadArchive(files);
           if (found) {
             archiveFile = path.join(candidateDir, found);
           }
@@ -128,7 +128,7 @@ export class UnarchiveDaemon {
           const entryPath = path.join(this.stagingPath, entry);
           if (fs.statSync(entryPath).isDirectory()) {
             const subEntries = fs.readdirSync(entryPath);
-            const found = subEntries.find((f) => this.unarchiveService.isArchiveFile(f));
+            const found = this.unarchiveService.findHeadArchive(subEntries);
             if (found) {
               archiveFile = path.join(entryPath, found);
               break;
@@ -224,9 +224,13 @@ export class UnarchiveDaemon {
         }
       }
 
-      // Refresh Jellyfin library
+      // Refresh Jellyfin library (non-fatal)
       if (this.jellyfin.refreshLibrary) {
-        await this.jellyfin.refreshLibrary();
+        try {
+          await this.jellyfin.refreshLibrary();
+        } catch (jellyErr) {
+          this.logger?.error('Jellyfin library refresh failed after unarchive:', jellyErr);
+        }
       }
 
       // Update database record to seeding
