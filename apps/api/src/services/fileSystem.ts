@@ -498,7 +498,7 @@ export class FileSystemService implements IFileSystemService {
           const subExt = path.extname(sub.name);
           const destDir = path.dirname(destPath);
           const baseName = path.basename(destPath, path.extname(destPath));
-          const langMatch = sub.name.match(/\.([a-z]{2,3})\.(srt|vtt)$/i);
+          const langMatch = sub.name.match(/\.([a-z]{2,3}(?:-[a-z0-9]{2,4})?)\.(srt|vtt)$/i);
           const subDest = langMatch
             ? path.join(destDir, `${baseName}.${langMatch[1]}${subExt}`)
             : path.join(destDir, `${baseName}${subExt}`);

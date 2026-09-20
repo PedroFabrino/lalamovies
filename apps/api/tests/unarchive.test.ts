@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { UnarchiveService } from '../src/services/unarchive';
+import { FileSystemService } from '../src/services/fileSystem';
 
 describe('UnarchiveService', () => {
   let tempDir: string;
@@ -173,4 +174,192 @@ describe('UnarchiveService', () => {
       expect(hasPasswordArg).toBe(true);
     });
   });
+
+  describe('extractAndDeployMedia', () => {
+    it('successfully extracts archive and deploys media to collision-safe library path', async () => {
+      const stagingDir = path.join(tempDir, 'staging');
+      const mediaDir = path.join(tempDir, 'media');
+      fs.mkdirSync(stagingDir, { recursive: true });
+      fs.mkdirSync(mediaDir, { recursive: true });
+
+      const fakeArchive = path.join(stagingDir, 'Movie.Release.rar');
+      fs.writeFileSync(fakeArchive, 'dummy rar');
+
+      const customService = new UnarchiveService({
+        execCommand: async (_cmd, args) => {
+          // Last argument is destinationDir
+          const outDir = args[args.length - 1];
+          fs.mkdirSync(outDir, { recursive: true });
+          fs.writeFileSync(path.join(outDir, 'movie.1080p.mkv'), Buffer.alloc(1024 * 1024 * 60, 'v'));
+          return { stdout: 'OK', stderr: '', exitCode: 0 };
+        },
+      });
+
+      const fsService = new FileSystemService(mediaDir);
+      const scratchDir = path.join(stagingDir, '.scratch_unarchive', 'req_mov_1');
+
+      const destPath = await customService.extractAndDeployMedia(
+        fakeArchive,
+        {
+          id: 'req_mov_1',
+          mediaType: 'movie',
+          title: 'Dune Part Two',
+          year: 2024,
+        },
+        {
+          fileSystem: fsService,
+          stagingPath: stagingDir,
+          scratchDir,
+        }
+      );
+
+      // Verifies destination file exists at resolved library path
+      expect(fs.existsSync(destPath)).toBe(true);
+      expect(destPath.replace(/\\/g, '/')).toContain('/movies/Dune Part Two (2024)/Dune Part Two (2024).mkv');
+      // Verifies scratchDir is cleaned up
+      expect(fs.existsSync(scratchDir)).toBe(false);
+    });
+
+    it('moves subtitles with language tags alongside primary video', async () => {
+      const stagingDir = path.join(tempDir, 'staging');
+      const mediaDir = path.join(tempDir, 'media');
+      fs.mkdirSync(stagingDir, { recursive: true });
+      fs.mkdirSync(mediaDir, { recursive: true });
+
+      const fakeArchive = path.join(stagingDir, 'Show.S01E01.rar');
+      fs.writeFileSync(fakeArchive, 'dummy rar');
+
+      const customService = new UnarchiveService({
+        execCommand: async (_cmd, args) => {
+          const outDir = args[args.length - 1];
+          fs.mkdirSync(outDir, { recursive: true });
+          fs.writeFileSync(path.join(outDir, 'ep01.mkv'), Buffer.alloc(1024 * 1024 * 60, 'v'));
+          fs.writeFileSync(path.join(outDir, 'ep01.en.srt'), '1\n00:00:01 --> 00:00:02\nSub');
+          fs.writeFileSync(path.join(outDir, 'ep01.pt-BR.vtt'), 'WEBVTT\n1\n00:00:01 --> 00:00:02\nLegenda');
+          return { stdout: 'OK', stderr: '', exitCode: 0 };
+        },
+      });
+
+      const fsService = new FileSystemService(mediaDir);
+      const destPath = await customService.extractAndDeployMedia(
+        fakeArchive,
+        {
+          id: 'req_show_1',
+          mediaType: 'tv_show',
+          title: 'Severance',
+          seasonNumber: 1,
+          episodeNumber: 1,
+        },
+        {
+          fileSystem: fsService,
+          stagingPath: stagingDir,
+        }
+      );
+
+      expect(fs.existsSync(destPath)).toBe(true);
+      const destDir = path.dirname(destPath);
+      const baseName = path.basename(destPath, path.extname(destPath));
+
+      const enSub = path.join(destDir, `${baseName}.en.srt`);
+      const ptSub = path.join(destDir, `${baseName}.pt-BR.vtt`);
+
+      expect(fs.existsSync(enSub)).toBe(true);
+      expect(fs.readFileSync(enSub, 'utf-8')).toContain('Sub');
+      expect(fs.existsSync(ptSub)).toBe(true);
+      expect(fs.readFileSync(ptSub, 'utf-8')).toContain('Legenda');
+    });
+
+    it('cleans up scratch directory on extraction failure', async () => {
+      const stagingDir = path.join(tempDir, 'staging');
+      const mediaDir = path.join(tempDir, 'media');
+      fs.mkdirSync(stagingDir, { recursive: true });
+      fs.mkdirSync(mediaDir, { recursive: true });
+
+      const fakeArchive = path.join(stagingDir, 'Corrupt.rar');
+      fs.writeFileSync(fakeArchive, 'corrupt rar');
+
+      const customService = new UnarchiveService({
+        execCommand: async (_cmd, args) => {
+          const outDir = args[args.length - 1];
+          fs.mkdirSync(outDir, { recursive: true });
+          fs.writeFileSync(path.join(outDir, 'partial.tmp'), 'partial');
+          return { stdout: '', stderr: 'CRC failed', exitCode: 1 };
+        },
+      });
+
+      const fsService = new FileSystemService(mediaDir);
+      const scratchDir = path.join(stagingDir, '.scratch_unarchive', 'req_fail_1');
+
+      await expect(
+        customService.extractAndDeployMedia(
+          fakeArchive,
+          {
+            id: 'req_fail_1',
+            mediaType: 'movie',
+            title: 'Failed Movie',
+          },
+          {
+            fileSystem: fsService,
+            stagingPath: stagingDir,
+            scratchDir,
+          }
+        )
+      ).rejects.toThrow(/Extraction failed/);
+
+      // Verifies scratchDir was cleaned up despite failure!
+      expect(fs.existsSync(scratchDir)).toBe(false);
+    });
+
+    it('cleans up scratch directory when filterPlayableMedia finds no video', async () => {
+      const stagingDir = path.join(tempDir, 'staging');
+      const mediaDir = path.join(tempDir, 'media');
+      fs.mkdirSync(stagingDir, { recursive: true });
+      fs.mkdirSync(mediaDir, { recursive: true });
+
+      const fakeArchive = path.join(stagingDir, 'NoVideo.rar');
+      fs.writeFileSync(fakeArchive, 'rar with text only');
+
+      const customService = new UnarchiveService({
+        execCommand: async (_cmd, args) => {
+          const outDir = args[args.length - 1];
+          fs.mkdirSync(outDir, { recursive: true });
+          fs.writeFileSync(path.join(outDir, 'notes.txt'), 'no video here');
+          return { stdout: 'OK', stderr: '', exitCode: 0 };
+        },
+      });
+
+      const fsService = new FileSystemService(mediaDir);
+      const scratchDir = path.join(stagingDir, '.scratch_unarchive', 'req_novideo');
+
+      await expect(
+        customService.extractAndDeployMedia(
+          fakeArchive,
+          {
+            id: 'req_novideo',
+            mediaType: 'movie',
+            title: 'No Video Movie',
+          },
+          {
+            fileSystem: fsService,
+            stagingPath: stagingDir,
+            scratchDir,
+          }
+        )
+      ).rejects.toThrow(/No playable media file found/);
+
+      expect(fs.existsSync(scratchDir)).toBe(false);
+    });
+
+    it('throws error when archive file does not exist', async () => {
+      const fsService = new FileSystemService(tempDir);
+      await expect(
+        service.extractAndDeployMedia(
+          path.join(tempDir, 'non-existent.rar'),
+          { id: 'req_missing', mediaType: 'movie', title: 'Ghost' },
+          { fileSystem: fsService }
+        )
+      ).rejects.toThrow(/Archive file not found/);
+    });
+  });
 });
+

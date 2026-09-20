@@ -2,7 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { eq, inArray } from 'drizzle-orm';
 import { AppDatabase, downloadRequests, users } from '../db';
-import { IUnarchiveService } from '../services/unarchive';
+import { IUnarchiveService, UnarchiveService } from '../services/unarchive';
 import { IFileSystemService } from '../services/fileSystem';
 import { IJellyfinService } from '../services/jellyfin';
 import { IQBittorrentService } from '../services/qbittorrent';
@@ -157,156 +157,100 @@ export class UnarchiveDaemon {
       throw new Error(`Archive file not found in staging area for request ${req.title} (${req.id})`);
     }
 
-    const scratchDir = path.join(this.stagingPath, '.scratch_unarchive', req.id);
-    try {
-      this.logger?.info(`Extracting archive ${archiveFile} to scratchpad ${scratchDir}`);
-      await this.unarchiveService.extractArchive({
-        archivePath: archiveFile,
-        destinationDir: scratchDir,
-      });
+    const extractAndDeploy =
+      typeof this.unarchiveService.extractAndDeployMedia === 'function'
+        ? this.unarchiveService.extractAndDeployMedia.bind(this.unarchiveService)
+        : UnarchiveService.prototype.extractAndDeployMedia.bind(this.unarchiveService);
 
-      const media = this.unarchiveService.filterPlayableMedia(scratchDir);
-      const primaryVideo = media.primaryVideo;
-      const ext = path.extname(primaryVideo.name).replace(/^\./, '') || 'mkv';
+    const destPath = await extractAndDeploy(archiveFile, req, {
+      fileSystem: this.fileSystem,
+      stagingPath: this.stagingPath,
+      disambiguator:
+        req.mediaType === 'private' && req.seasonNumber == null && req.episodeNumber == null
+          ? disambiguatorCandidate
+          : undefined,
+      logger: this.logger,
+    });
 
-      const destPath = this.fileSystem.buildLibraryPath({
-        mediaType: req.mediaType,
-        title: req.title,
-        year: req.year,
-        seasonNumber: req.seasonNumber,
-        episodeNumber: req.episodeNumber,
-        ext,
-        disambiguator:
-          req.mediaType === 'private' && req.seasonNumber == null && req.episodeNumber == null
-            ? disambiguatorCandidate
-            : undefined,
-      });
+    const sizeBytes = fs.existsSync(destPath) ? fs.statSync(destPath).size : (req.sizeBytes ?? 0);
 
-      const destDir = path.dirname(destPath);
-      if (!fs.existsSync(destDir)) {
-        fs.mkdirSync(destDir, { recursive: true, mode: 0o777 });
-      }
-
-      if (fs.existsSync(destPath)) {
-        fs.unlinkSync(destPath);
-      }
-
-      // Move extracted video to destination
-      try {
-        fs.renameSync(primaryVideo.path, destPath);
-      } catch {
-        fs.copyFileSync(primaryVideo.path, destPath);
-        fs.unlinkSync(primaryVideo.path);
-      }
-
-      // Move subtitles
-      for (const sub of media.subtitles) {
-        const subExt = path.extname(sub.name);
-        const baseName = path.basename(destPath, path.extname(destPath));
-        const langMatch = sub.name.match(/\.([a-z]{2,3})\.(srt|vtt)$/i);
-        const subDest = langMatch
-          ? path.join(destDir, `${baseName}.${langMatch[1]}${subExt}`)
-          : path.join(destDir, `${baseName}${subExt}`);
+    // Subtitle inspection for private library
+    let transcriptionStatus: 'none' | 'pending' = 'none';
+    if (req.mediaType === 'private') {
+      if (this.subtitleInspection) {
         try {
-          if (fs.existsSync(subDest)) fs.unlinkSync(subDest);
-          fs.renameSync(sub.path, subDest);
-        } catch {
-          try {
-            fs.copyFileSync(sub.path, subDest);
-            fs.unlinkSync(sub.path);
-          } catch {
-            // non-fatal
-          }
-        }
-      }
-
-      // Subtitle inspection for private library
-      let transcriptionStatus: 'none' | 'pending' = 'none';
-      if (req.mediaType === 'private') {
-        if (this.subtitleInspection) {
-          try {
-            const inspection = await this.subtitleInspection.inspect(destPath);
-            transcriptionStatus = inspection.hasSubtitles ? 'none' : 'pending';
-          } catch (err) {
-            this.logger?.error(`Subtitle inspection failed for ${destPath}`, err);
-            transcriptionStatus = 'pending';
-          }
-        } else {
+          const inspection = await this.subtitleInspection.inspect(destPath);
+          transcriptionStatus = inspection.hasSubtitles ? 'none' : 'pending';
+        } catch (err) {
+          this.logger?.error(`Subtitle inspection failed for ${destPath}`, err);
           transcriptionStatus = 'pending';
         }
-      }
-
-      let requestedBy: string | undefined;
-      let reqUserEmail: string | null | undefined;
-      if (req.userId) {
-        const reqUser = this.db
-          .select({ username: users.username, email: users.email })
-          .from(users)
-          .where(eq(users.id, req.userId))
-          .get();
-        requestedBy = reqUser?.username;
-        reqUserEmail = reqUser?.email;
-      }
-
-      let recipientEmails: string[] | undefined;
-      if (req.mediaType === 'private') {
-        const recipients = this.db
-          .select({ email: users.email })
-          .from(users)
-          .where(inArray(users.role, ['admin', 'trusted']))
-          .all();
-        const allEmails = recipients
-          .map((r) => r.email)
-          .filter((e): e is string => Boolean(e));
-        if (reqUserEmail && !allEmails.includes(reqUserEmail)) {
-          allEmails.push(reqUserEmail);
-        }
-        recipientEmails = allEmails;
-      }
-
-      await this.stateMachine.transition(req.id, RequestStatus.SEEDING, {
-        refreshJellyfin: true,
-        extraFields: {
-          jellyfinPath: destPath,
-          downloadedAt: new Date().toISOString(),
-          sizeBytes: primaryVideo.size,
-          transcriptionStatus,
-          errorMessage: null,
-        },
-        extraBroadcastFields: {
-          transcriptionStatus,
-        },
-        sendNotification: this.notificationService ? 'download.completed' : undefined,
-        notificationPayload: this.notificationService
-          ? {
-              title: req.title,
-              requestId: req.id,
-              mediaType: req.mediaType,
-              year: req.year,
-              seasonNumber: req.seasonNumber,
-              episodeNumber: req.episodeNumber,
-              requestedBy,
-              recipientEmails,
-              path: destPath,
-              jellyfinUrl:
-                typeof this.jellyfin.getPublicJellyfinUrl === 'function'
-                  ? this.jellyfin.getPublicJellyfinUrl()
-                  : undefined,
-            }
-          : undefined,
-      });
-
-      this.logger?.info(`Successfully unarchived ${req.title} to ${destPath}`);
-    } finally {
-      // Clean up scratchpad
-      try {
-        if (fs.existsSync(scratchDir)) {
-          fs.rmSync(scratchDir, { recursive: true, force: true });
-        }
-      } catch {
-        // ignore cleanup error
+      } else {
+        transcriptionStatus = 'pending';
       }
     }
+
+    let requestedBy: string | undefined;
+    let reqUserEmail: string | null | undefined;
+    if (req.userId) {
+      const reqUser = this.db
+        .select({ username: users.username, email: users.email })
+        .from(users)
+        .where(eq(users.id, req.userId))
+        .get();
+      requestedBy = reqUser?.username;
+      reqUserEmail = reqUser?.email;
+    }
+
+    let recipientEmails: string[] | undefined;
+    if (req.mediaType === 'private') {
+      const recipients = this.db
+        .select({ email: users.email })
+        .from(users)
+        .where(inArray(users.role, ['admin', 'trusted']))
+        .all();
+      const allEmails = recipients
+        .map((r) => r.email)
+        .filter((e): e is string => Boolean(e));
+      if (reqUserEmail && !allEmails.includes(reqUserEmail)) {
+        allEmails.push(reqUserEmail);
+      }
+      recipientEmails = allEmails;
+    }
+
+    await this.stateMachine.transition(req.id, RequestStatus.SEEDING, {
+      refreshJellyfin: true,
+      extraFields: {
+        jellyfinPath: destPath,
+        downloadedAt: new Date().toISOString(),
+        sizeBytes,
+        transcriptionStatus,
+        errorMessage: null,
+      },
+      extraBroadcastFields: {
+        transcriptionStatus,
+      },
+      sendNotification: this.notificationService ? 'download.completed' : undefined,
+      notificationPayload: this.notificationService
+        ? {
+            title: req.title,
+            requestId: req.id,
+            mediaType: req.mediaType,
+            year: req.year,
+            seasonNumber: req.seasonNumber,
+            episodeNumber: req.episodeNumber,
+            requestedBy,
+            recipientEmails,
+            path: destPath,
+            jellyfinUrl:
+              typeof this.jellyfin.getPublicJellyfinUrl === 'function'
+                ? this.jellyfin.getPublicJellyfinUrl()
+                : undefined,
+          }
+        : undefined,
+    });
+
+    this.logger?.info(`Successfully unarchived ${req.title} to ${destPath}`);
   }
 
   async processOnce(): Promise<void> {

@@ -2,7 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { eq, like, or } from 'drizzle-orm';
 import { AppDatabase, downloadRequests } from '../db';
-import { IUnarchiveService } from './unarchive';
+import { IUnarchiveService, UnarchiveService } from './unarchive';
 import { IFileSystemService } from './fileSystem';
 import { IJellyfinService } from './jellyfin';
 import { IRequestStateMachine, RequestStatus } from './requestStateMachine';
@@ -114,93 +114,45 @@ export async function runCompressedDownloadsRecovery(options: RecoveryOptions): 
       continue;
     }
 
-    // Decompress into scratch directory
-    const scratchDir = path.join(stagingPath, '.scratch_recovery', req.id);
-    try {
-      logger?.info?.(`Recovery: extracting ${archivePath} for ${releaseCode}...`);
-      await unarchiveService.extractArchive({
-        archivePath,
-        destinationDir: scratchDir,
+    const extractAndDeploy =
+      typeof unarchiveService.extractAndDeployMedia === 'function'
+        ? unarchiveService.extractAndDeployMedia.bind(unarchiveService)
+        : UnarchiveService.prototype.extractAndDeployMedia.bind(unarchiveService);
+
+    const destPath = await extractAndDeploy(archivePath, req, {
+      fileSystem,
+      stagingPath,
+      disambiguator: releaseCode,
+      mediaBasePath,
+      logger,
+    });
+
+    const sizeBytes = fs.existsSync(destPath) ? fs.statSync(destPath).size : (req.sizeBytes ?? 0);
+
+    // Update database record
+    if (options.stateMachine) {
+      await options.stateMachine.transition(req.id, RequestStatus.SEEDING, {
+        broadcast: false,
+        extraFields: {
+          jellyfinPath: destPath,
+          sizeBytes,
+          errorMessage: null,
+        },
       });
-
-      const media = unarchiveService.filterPlayableMedia(scratchDir);
-      const primaryVideo = media.primaryVideo;
-      const ext = path.extname(primaryVideo.name).replace(/^\./, '') || 'mp4';
-
-      const destPath = fileSystem.buildLibraryPath({
-        mediaType: req.mediaType,
-        title: req.title,
-        year: req.year,
-        seasonNumber: req.seasonNumber,
-        episodeNumber: req.episodeNumber,
-        ext,
-        disambiguator: releaseCode,
-        mediaBasePath,
-      });
-
-      const destDir = path.dirname(destPath);
-      if (!fs.existsSync(destDir)) {
-        fs.mkdirSync(destDir, { recursive: true, mode: 0o777 });
-      }
-
-      if (fs.existsSync(destPath)) {
-        fs.unlinkSync(destPath);
-      }
-
-      try {
-        fs.renameSync(primaryVideo.path, destPath);
-      } catch {
-        fs.copyFileSync(primaryVideo.path, destPath);
-        fs.unlinkSync(primaryVideo.path);
-      }
-
-      // Move any subtitle files
-      for (const sub of media.subtitles) {
-        const subExt = path.extname(sub.name);
-        const baseName = path.basename(destPath, path.extname(destPath));
-        const subDest = path.join(destDir, `${baseName}${subExt}`);
-        try {
-          if (fs.existsSync(subDest)) fs.unlinkSync(subDest);
-          fs.copyFileSync(sub.path, subDest);
-          fs.unlinkSync(sub.path);
-        } catch {
-          // non-fatal
-        }
-      }
-
-      // Update database record
-      if (options.stateMachine) {
-        await options.stateMachine.transition(req.id, RequestStatus.SEEDING, {
-          broadcast: false,
-          extraFields: {
-            jellyfinPath: destPath,
-            sizeBytes: primaryVideo.size,
-            errorMessage: null,
-          },
-        });
-      } else {
-        db.update(downloadRequests)
-          .set({
-            jellyfinPath: destPath,
-            status: RequestStatus.SEEDING,
-            sizeBytes: primaryVideo.size,
-            errorMessage: null,
-          })
-          .where(eq(downloadRequests.id, req.id))
-          .run();
-      }
-
-      recoveredPaths.push(destPath);
-      logger?.info?.(`Recovery: restored ${releaseCode} to ${destPath}`);
-    } finally {
-      try {
-        if (fs.existsSync(scratchDir)) {
-          fs.rmSync(scratchDir, { recursive: true, force: true });
-        }
-      } catch {
-        // ignore
-      }
+    } else {
+      db.update(downloadRequests)
+        .set({
+          jellyfinPath: destPath,
+          status: RequestStatus.SEEDING,
+          sizeBytes,
+          errorMessage: null,
+        })
+        .where(eq(downloadRequests.id, req.id))
+        .run();
     }
+
+    recoveredPaths.push(destPath);
+    logger?.info?.(`Recovery: restored ${releaseCode} to ${destPath}`);
   }
 
   // Remove invalid directory /media/private/xb (2026)/xb (2026).mkv

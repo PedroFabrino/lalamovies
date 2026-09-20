@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
+import { IFileSystemService, FileSystemService } from './fileSystem';
 
 export interface ExtractedMedia {
   primaryVideo: { path: string; name: string; size: number };
@@ -12,6 +13,29 @@ export interface ExtractArchiveOptions {
   archivePath: string;
   destinationDir: string;
   password?: string;
+}
+
+export interface ExtractAndDeployMediaRequest {
+  id: string;
+  mediaType: 'movie' | 'tv_show' | 'anime' | 'private';
+  title: string;
+  year?: number | null;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
+}
+
+export interface ExtractAndDeployMediaOptions {
+  fileSystem?: IFileSystemService;
+  stagingPath?: string;
+  mediaBasePath?: string;
+  disambiguator?: string;
+  password?: string;
+  scratchDir?: string;
+  logger?: {
+    info?: (msg: string) => void;
+    warn?: (msg: string) => void;
+    error?: (msg: string, err?: unknown) => void;
+  };
 }
 
 export type CommandExecResult = {
@@ -33,6 +57,11 @@ export interface IUnarchiveService {
   findHeadArchive(files: string[]): string | undefined;
   extractArchive(options: ExtractArchiveOptions): Promise<void>;
   filterPlayableMedia(directory: string): ExtractedMedia;
+  extractAndDeployMedia(
+    archivePath: string,
+    request: ExtractAndDeployMediaRequest,
+    options?: ExtractAndDeployMediaOptions
+  ): Promise<string>;
 }
 
 export class UnarchiveService implements IUnarchiveService {
@@ -254,5 +283,104 @@ export class UnarchiveService implements IUnarchiveService {
       extraVideos,
       subtitles,
     };
+  }
+
+  async extractAndDeployMedia(
+    archivePath: string,
+    request: ExtractAndDeployMediaRequest,
+    options?: ExtractAndDeployMediaOptions
+  ): Promise<string> {
+    if (!archivePath || !fs.existsSync(archivePath)) {
+      throw new Error(`Archive file not found: ${archivePath}`);
+    }
+
+    const stagingPath =
+      options?.stagingPath ||
+      process.env.STAGING_PATH ||
+      path.resolve(process.cwd(), 'downloads', 'staging');
+
+    const scratchDir =
+      options?.scratchDir ||
+      path.join(stagingPath, '.scratch_unarchive', request.id);
+
+    const fileSystem =
+      options?.fileSystem ?? new FileSystemService(options?.mediaBasePath);
+
+    try {
+      options?.logger?.info?.(
+        `Extracting archive ${archivePath} to scratchpad ${scratchDir}`
+      );
+      await this.extractArchive({
+        archivePath,
+        destinationDir: scratchDir,
+        password: options?.password,
+      });
+
+      const media = this.filterPlayableMedia(scratchDir);
+      const primaryVideo = media.primaryVideo;
+      const ext = path.extname(primaryVideo.name).replace(/^\./, '') || 'mkv';
+
+      const destPath = fileSystem.buildLibraryPath({
+        mediaType: request.mediaType,
+        title: request.title,
+        year: request.year,
+        seasonNumber: request.seasonNumber,
+        episodeNumber: request.episodeNumber,
+        ext,
+        disambiguator: options?.disambiguator,
+        mediaBasePath: options?.mediaBasePath,
+      });
+
+      const destDir = path.dirname(destPath);
+      if (typeof fileSystem.ensureDirectory === 'function') {
+        fileSystem.ensureDirectory(destDir);
+      } else if (!fs.existsSync(destDir)) {
+        fs.mkdirSync(destDir, { recursive: true, mode: 0o777 });
+      }
+
+      if (fs.existsSync(destPath)) {
+        fs.unlinkSync(destPath);
+      }
+
+      // Move extracted video to destination
+      try {
+        fs.renameSync(primaryVideo.path, destPath);
+      } catch {
+        fs.copyFileSync(primaryVideo.path, destPath);
+        fs.unlinkSync(primaryVideo.path);
+      }
+
+      // Move subtitles
+      for (const sub of media.subtitles) {
+        const subExt = path.extname(sub.name);
+        const baseName = path.basename(destPath, path.extname(destPath));
+        const langMatch = sub.name.match(/\.([a-z]{2,3}(?:-[a-z0-9]{2,4})?)\.(srt|vtt|ass|sub)$/i);
+        const subDest = langMatch
+          ? path.join(destDir, `${baseName}.${langMatch[1]}${subExt}`)
+          : path.join(destDir, `${baseName}${subExt}`);
+        try {
+          if (fs.existsSync(subDest)) fs.unlinkSync(subDest);
+          fs.renameSync(sub.path, subDest);
+        } catch {
+          try {
+            fs.copyFileSync(sub.path, subDest);
+            fs.unlinkSync(sub.path);
+          } catch {
+            // non-fatal
+          }
+        }
+      }
+
+      return destPath;
+    } finally {
+      // Clean up scratchpad
+      try {
+        if (fs.existsSync(scratchDir)) {
+          fs.rmSync(scratchDir, { recursive: true, force: true });
+        }
+      } catch {
+        // ignore cleanup error
+      }
+    }
   }
 }
