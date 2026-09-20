@@ -1,6 +1,7 @@
 import { and, eq, ne, isNull, inArray } from 'drizzle-orm';
 import { AppDatabase } from '../db';
 import { downloadRequests, DownloadRequest, requestCoRequesters } from '../db/schema';
+import { RequestStatus } from './requestStateMachine';
 
 export interface DedupMatchParams {
   mediaType: 'movie' | 'tv_show' | 'anime' | 'private';
@@ -27,7 +28,7 @@ export function findMatchingCanonicalRequest(
       .from(downloadRequests)
       .where(
         and(
-          ne(downloadRequests.status, 'deleted'),
+          ne(downloadRequests.status, RequestStatus.DELETED),
           eq(downloadRequests.metadataId, metaId),
           eq(downloadRequests.metadataSource, source),
           mediaTypeCondition
@@ -48,7 +49,7 @@ export function findMatchingCanonicalRequest(
       .from(downloadRequests)
       .where(
         and(
-          ne(downloadRequests.status, 'deleted'),
+          ne(downloadRequests.status, RequestStatus.DELETED),
           eq(downloadRequests.metadataId, metaId),
           eq(downloadRequests.metadataSource, source),
           eq(downloadRequests.seasonNumber, params.seasonNumber!),
@@ -68,7 +69,7 @@ export function findMatchingCanonicalRequest(
       .from(downloadRequests)
       .where(
         and(
-          ne(downloadRequests.status, 'deleted'),
+          ne(downloadRequests.status, RequestStatus.DELETED),
           eq(downloadRequests.metadataId, metaId),
           eq(downloadRequests.metadataSource, source),
           eq(downloadRequests.seasonNumber, params.seasonNumber!),
@@ -89,7 +90,7 @@ export function findMatchingCanonicalRequest(
       .from(downloadRequests)
       .where(
         and(
-          ne(downloadRequests.status, 'deleted'),
+          ne(downloadRequests.status, RequestStatus.DELETED),
           eq(downloadRequests.metadataId, metaId),
           eq(downloadRequests.metadataSource, source),
           eq(downloadRequests.seasonNumber, params.seasonNumber!),
@@ -108,7 +109,7 @@ export function findMatchingCanonicalRequest(
     .from(downloadRequests)
     .where(
       and(
-        ne(downloadRequests.status, 'deleted'),
+        ne(downloadRequests.status, RequestStatus.DELETED),
         eq(downloadRequests.metadataId, metaId),
         eq(downloadRequests.metadataSource, source),
         isNull(downloadRequests.seasonNumber),
@@ -210,7 +211,7 @@ export function findCanonicalSeriesInfo(
     .from(downloadRequests)
     .where(
       and(
-        ne(downloadRequests.status, 'deleted'),
+        ne(downloadRequests.status, RequestStatus.DELETED),
         eq(downloadRequests.metadataId, String(params.metadataId)),
         eq(downloadRequests.metadataSource, params.metadataSource),
         inArray(downloadRequests.mediaType, ['tv_show', 'anime'])

@@ -8,6 +8,8 @@ import { IJellyfinService } from '../services/jellyfin';
 import { IQBittorrentService } from '../services/qbittorrent';
 import { ISubtitleInspectionService } from '../services/subtitleInspection';
 import { INotificationService } from '../services/notifications';
+import { IRequestStateMachine, RequestStateMachine, RequestStatus } from '../services/requestStateMachine';
+import { RequestsRepository } from '../services/requestsRepository';
 import { PollerLogger } from './downloadPoller';
 
 export interface UnarchiveDaemonOptions {
@@ -15,6 +17,7 @@ export interface UnarchiveDaemonOptions {
   unarchiveService: IUnarchiveService;
   fileSystem: IFileSystemService;
   jellyfin: IJellyfinService;
+  stateMachine?: IRequestStateMachine;
   qbittorrent?: IQBittorrentService;
   subtitleInspection?: ISubtitleInspectionService;
   notificationService?: INotificationService;
@@ -31,6 +34,7 @@ export class UnarchiveDaemon {
   private unarchiveService: IUnarchiveService;
   private fileSystem: IFileSystemService;
   private jellyfin: IJellyfinService;
+  private stateMachine: IRequestStateMachine;
   private qbittorrent?: IQBittorrentService;
   private subtitleInspection?: ISubtitleInspectionService;
   private notificationService?: INotificationService;
@@ -44,6 +48,14 @@ export class UnarchiveDaemon {
     this.unarchiveService = options.unarchiveService;
     this.fileSystem = options.fileSystem;
     this.jellyfin = options.jellyfin;
+    this.stateMachine =
+      options.stateMachine ||
+      new RequestStateMachine(
+        new RequestsRepository(options.db),
+        options.broadcast,
+        options.jellyfin,
+        options.notificationService
+      );
     this.qbittorrent = options.qbittorrent;
     this.subtitleInspection = options.subtitleInspection;
     this.notificationService = options.notificationService;
@@ -224,83 +236,65 @@ export class UnarchiveDaemon {
         }
       }
 
-      // Refresh Jellyfin library (non-fatal)
-      if (this.jellyfin.refreshLibrary) {
-        try {
-          await this.jellyfin.refreshLibrary();
-        } catch (jellyErr) {
-          this.logger?.error('Jellyfin library refresh failed after unarchive:', jellyErr);
-        }
+      let requestedBy: string | undefined;
+      let reqUserEmail: string | null | undefined;
+      if (req.userId) {
+        const reqUser = this.db
+          .select({ username: users.username, email: users.email })
+          .from(users)
+          .where(eq(users.id, req.userId))
+          .get();
+        requestedBy = reqUser?.username;
+        reqUserEmail = reqUser?.email;
       }
 
-      // Update database record to seeding
-      this.db
-        .update(downloadRequests)
-        .set({
-          status: 'seeding',
+      let recipientEmails: string[] | undefined;
+      if (req.mediaType === 'private') {
+        const recipients = this.db
+          .select({ email: users.email })
+          .from(users)
+          .where(inArray(users.role, ['admin', 'trusted']))
+          .all();
+        const allEmails = recipients
+          .map((r) => r.email)
+          .filter((e): e is string => Boolean(e));
+        if (reqUserEmail && !allEmails.includes(reqUserEmail)) {
+          allEmails.push(reqUserEmail);
+        }
+        recipientEmails = allEmails;
+      }
+
+      await this.stateMachine.transition(req.id, RequestStatus.SEEDING, {
+        refreshJellyfin: true,
+        extraFields: {
           jellyfinPath: destPath,
           downloadedAt: new Date().toISOString(),
           sizeBytes: primaryVideo.size,
           transcriptionStatus,
           errorMessage: null,
-        })
-        .where(eq(downloadRequests.id, req.id))
-        .run();
-
-      this.broadcast?.({
-        type: 'status',
-        requestId: req.id,
-        status: 'seeding',
-        transcriptionStatus,
+        },
+        extraBroadcastFields: {
+          transcriptionStatus,
+        },
+        sendNotification: this.notificationService ? 'download.completed' : undefined,
+        notificationPayload: this.notificationService
+          ? {
+              title: req.title,
+              requestId: req.id,
+              mediaType: req.mediaType,
+              year: req.year,
+              seasonNumber: req.seasonNumber,
+              episodeNumber: req.episodeNumber,
+              requestedBy,
+              recipientEmails,
+              path: destPath,
+              jellyfinUrl:
+                typeof this.jellyfin.getPublicJellyfinUrl === 'function'
+                  ? this.jellyfin.getPublicJellyfinUrl()
+                  : undefined,
+            }
+          : undefined,
       });
-
-      // Notification
-      if (this.notificationService) {
-        let requestedBy: string | undefined;
-        let reqUserEmail: string | null | undefined;
-        if (req.userId) {
-          const reqUser = this.db
-            .select({ username: users.username, email: users.email })
-            .from(users)
-            .where(eq(users.id, req.userId))
-            .get();
-          requestedBy = reqUser?.username;
-          reqUserEmail = reqUser?.email;
-        }
-
-        let recipientEmails: string[] | undefined;
-        if (req.mediaType === 'private') {
-          const recipients = this.db
-            .select({ email: users.email })
-            .from(users)
-            .where(inArray(users.role, ['admin', 'trusted']))
-            .all();
-          const allEmails = recipients
-            .map((r) => r.email)
-            .filter((e): e is string => Boolean(e));
-          if (reqUserEmail && !allEmails.includes(reqUserEmail)) {
-            allEmails.push(reqUserEmail);
-          }
-          recipientEmails = allEmails;
-        }
-
-        await this.notificationService.send('download.completed', {
-          title: req.title,
-          requestId: req.id,
-          mediaType: req.mediaType,
-          year: req.year,
-          seasonNumber: req.seasonNumber,
-          episodeNumber: req.episodeNumber,
-          requestedBy,
-          recipientEmails,
-          path: destPath,
-          jellyfinUrl:
-            process.env.JELLYFIN_PUBLIC_URL ||
-            (process.env.JELLYFIN_DOMAIN ? `https://${process.env.JELLYFIN_DOMAIN}` : undefined) ||
-            process.env.JELLYFIN_URL ||
-            undefined,
-        });
-      }
 
       this.logger?.info(`Successfully unarchived ${req.title} to ${destPath}`);
     } finally {
@@ -323,7 +317,7 @@ export class UnarchiveDaemon {
       const unarchivingRequests = this.db
         .select()
         .from(downloadRequests)
-        .where(eq(downloadRequests.status, 'unarchiving'))
+        .where(eq(downloadRequests.status, RequestStatus.UNARCHIVING))
         .all();
 
       for (const req of unarchivingRequests) {
@@ -331,19 +325,10 @@ export class UnarchiveDaemon {
           await this.processRequest(req.id);
         } catch (itemErr) {
           this.logger?.error(`Error unarchiving request ${req.title} (${req.id}):`, itemErr);
-          this.db
-            .update(downloadRequests)
-            .set({
-              status: 'error',
+          await this.stateMachine.transition(req.id, RequestStatus.ERROR, {
+            extraFields: {
               errorMessage: (itemErr as Error).message || 'Unarchiving failed',
-            })
-            .where(eq(downloadRequests.id, req.id))
-            .run();
-
-          this.broadcast?.({
-            type: 'status',
-            requestId: req.id,
-            status: 'error',
+            },
           });
         }
       }

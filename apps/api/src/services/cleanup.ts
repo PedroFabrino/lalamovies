@@ -6,6 +6,8 @@ import { IQBittorrentService } from './qbittorrent';
 import { IJellyfinService } from './jellyfin';
 import { INotificationService } from './notifications';
 import { IFileSystemService } from './fileSystem';
+import { IRequestStateMachine, RequestStateMachine, RequestStatus } from './requestStateMachine';
+import { RequestsRepository } from './requestsRepository';
 
 export interface SpaceCheckResult {
   sufficient: boolean;
@@ -32,6 +34,7 @@ export function matchesLibraryPath(itemPath: string, parentPath: string): boolea
 
 export class CleanupService implements ICleanupService {
   private fullyConsumedRequestIds = new Set<string>();
+  private stateMachine?: IRequestStateMachine;
 
   constructor(
     private db: AppDatabase,
@@ -42,8 +45,18 @@ export class CleanupService implements ICleanupService {
     private diskFreePercentProvider?: () => number,
     private diskFreeBytesProvider?: () => number,
     private fileSystemService?: IFileSystemService,
-    private storageFootprintProvider?: () => number
-  ) {}
+    private storageFootprintProvider?: () => number,
+    stateMachine?: IRequestStateMachine
+  ) {
+    this.stateMachine =
+      stateMachine ||
+      new RequestStateMachine(
+        new RequestsRepository(db),
+        undefined,
+        jellyfin,
+        notificationService
+      );
+  }
 
   getFreeDiskBytes(customPath?: string): number {
     if (this.diskFreeBytesProvider) {
@@ -155,7 +168,7 @@ export class CleanupService implements ICleanupService {
       const seedingRequests = this.db
         .select()
         .from(downloadRequests)
-        .where(eq(downloadRequests.status, 'seeding'))
+        .where(eq(downloadRequests.status, RequestStatus.SEEDING))
         .all();
 
       if (seedingRequests.length === 0) {
@@ -308,8 +321,9 @@ export class CleanupService implements ICleanupService {
       .from(downloadRequests)
       .where(
         and(
-          eq(downloadRequests.status, 'seeding'),
-          eq(downloadRequests.keepFlag, false)
+          eq(downloadRequests.status, RequestStatus.SEEDING),
+          eq(downloadRequests.keepFlag, false),
+          isNull(downloadRequests.scheduledDeleteAt)
         )
       )
       .all();
@@ -402,7 +416,7 @@ export class CleanupService implements ICleanupService {
       .from(downloadRequests)
       .where(
         and(
-          eq(downloadRequests.status, 'seeding'),
+          eq(downloadRequests.status, RequestStatus.SEEDING),
           eq(downloadRequests.keepFlag, false),
           isNull(downloadRequests.scheduledDeleteAt)
         )
@@ -455,7 +469,7 @@ export class CleanupService implements ICleanupService {
       .from(downloadRequests)
       .where(
         and(
-          eq(downloadRequests.status, 'seeding'),
+          eq(downloadRequests.status, RequestStatus.SEEDING),
           isNotNull(downloadRequests.scheduledDeleteAt),
           lte(downloadRequests.scheduledDeleteAt, nowIso)
         )
@@ -476,16 +490,16 @@ export class CleanupService implements ICleanupService {
         continue;
       }
 
-      // 1. Remove torrent from qBittorrent
+      // 1. Remove torrent from qBittorrent and delete files from staging
       if (item.qbTorrentHash) {
         try {
           await this.qbittorrent.removeTorrent(item.qbTorrentHash, true);
         } catch {
-          // Continue
+          // Continue even if qB removal fails
         }
       }
 
-      // 2. Remove files from Library
+      // 2. Delete media file/folder from Jellyfin library
       if (item.jellyfinPath && fs.existsSync(item.jellyfinPath)) {
         try {
           fs.rmSync(item.jellyfinPath, { recursive: true, force: true });
@@ -494,24 +508,33 @@ export class CleanupService implements ICleanupService {
         }
       }
 
-      // 3. Trigger Jellyfin refresh
-      if (this.jellyfin?.refreshLibrary) {
-        try {
-          await this.jellyfin.refreshLibrary();
-        } catch {
-          // Continue
+      // 3 & 4. Trigger Jellyfin refresh and update status to deleted
+      if (this.stateMachine) {
+        await this.stateMachine.transition(item.id, RequestStatus.DELETED, {
+          refreshJellyfin: true,
+          broadcast: false,
+          extraFields: { scheduledDeleteAt: null },
+        });
+      } else {
+        if (typeof this.jellyfin?.safeRefresh === 'function') {
+          await this.jellyfin.safeRefresh();
+        } else if (typeof this.jellyfin?.refreshLibrary === 'function') {
+          try {
+            await this.jellyfin.refreshLibrary();
+          } catch {
+            // Continue
+          }
         }
-      }
 
-      // 4. Update status in database
-      this.db
-        .update(downloadRequests)
-        .set({
-          status: 'deleted',
-          scheduledDeleteAt: null,
-        })
-        .where(eq(downloadRequests.id, item.id))
-        .run();
+        this.db
+          .update(downloadRequests)
+          .set({
+            status: RequestStatus.DELETED,
+            scheduledDeleteAt: null,
+          })
+          .where(eq(downloadRequests.id, item.id))
+          .run();
+      }
 
       this.db
         .delete(requestCoRequesters)
@@ -612,24 +635,33 @@ export class CleanupService implements ICleanupService {
       this.fileSystemService.invalidateFootprintCache();
     }
 
-    // 3. Trigger Jellyfin refresh
-    if (this.jellyfin?.refreshLibrary) {
-      try {
-        await this.jellyfin.refreshLibrary();
-      } catch {
-        // Continue
+    // 3 & 4. Trigger Jellyfin refresh and mark status deleted
+    if (this.stateMachine) {
+      await this.stateMachine.transition(requestId, RequestStatus.DELETED, {
+        refreshJellyfin: true,
+        broadcast: false,
+        extraFields: { scheduledDeleteAt: null },
+      });
+    } else {
+      if (typeof this.jellyfin?.safeRefresh === 'function') {
+        await this.jellyfin.safeRefresh();
+      } else if (typeof this.jellyfin?.refreshLibrary === 'function') {
+        try {
+          await this.jellyfin.refreshLibrary();
+        } catch {
+          // Continue
+        }
       }
-    }
 
-    // 4. Mark status deleted
-    this.db
-      .update(downloadRequests)
-      .set({
-        status: 'deleted',
-        scheduledDeleteAt: null,
-      })
-      .where(eq(downloadRequests.id, requestId))
-      .run();
+      this.db
+        .update(downloadRequests)
+        .set({
+          status: RequestStatus.DELETED,
+          scheduledDeleteAt: null,
+        })
+        .where(eq(downloadRequests.id, requestId))
+        .run();
+    }
 
     this.db
       .delete(requestCoRequesters)

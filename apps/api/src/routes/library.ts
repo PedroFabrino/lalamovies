@@ -3,9 +3,11 @@ import { z } from 'zod';
 import { inArray, and, ne, eq, isNotNull } from 'drizzle-orm';
 import path from 'node:path';
 import fs from 'node:fs';
-import { authMiddleware } from '../middleware/auth';
+import { downloadRequests, systemConfig, users } from '../db';
+import { adminGuard, authMiddleware } from '../middleware/auth';
+import { RequestStatus } from '../services/requestStateMachine';
 import { requireFeature } from '../middleware/featureFlags';
-import { downloadRequests, users, requestCoRequesters, systemConfig, DownloadRequest } from '../db/schema';
+import { requestCoRequesters, DownloadRequest } from '../db/schema';
 
 export interface MediaRequester {
   id: string;
@@ -167,8 +169,8 @@ export const libraryRoutes: FastifyPluginAsync = async (app) => {
       .from(downloadRequests)
       .where(
         and(
-          inArray(downloadRequests.status, ['done', 'seeding']),
-          ne(downloadRequests.status, 'deleted')
+          inArray(downloadRequests.status, [RequestStatus.DONE, RequestStatus.SEEDING]),
+          ne(downloadRequests.status, RequestStatus.DELETED)
         )
       )
       .all();
@@ -408,7 +410,7 @@ export const libraryRoutes: FastifyPluginAsync = async (app) => {
             const targetSubDir = targetMediaType === 'anime' ? 'anime' : 'shows';
             const conditions = [
               ne(downloadRequests.id, req.id),
-              ne(downloadRequests.status, 'deleted'),
+              ne(downloadRequests.status, RequestStatus.DELETED),
               eq(downloadRequests.mediaType, targetMediaType),
               isNotNull(downloadRequests.jellyfinPath),
             ];
@@ -509,7 +511,9 @@ export const libraryRoutes: FastifyPluginAsync = async (app) => {
       app.fileSystem.invalidateFootprintCache();
     }
 
-    if (app.jellyfin?.refreshLibrary) {
+    if (typeof app.jellyfin.safeRefresh === 'function') {
+      await app.jellyfin.safeRefresh();
+    } else if (app.jellyfin?.refreshLibrary) {
       try {
         await app.jellyfin.refreshLibrary();
       } catch {

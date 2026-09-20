@@ -18,6 +18,7 @@ import {
   globalRequestMutex,
   getDedupLockKey,
 } from '../services/requestDedup';
+import { RequestStatus } from '../services/requestStateMachine';
 
 const searchMetadataSchema = z
   .object({
@@ -152,7 +153,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
 
     if (query.mediaType === 'movie') {
       const movieConditions = [
-        ne(downloadRequests.status, 'deleted'),
+        ne(downloadRequests.status, RequestStatus.DELETED),
         eq(downloadRequests.mediaType, 'movie'),
       ];
 
@@ -194,7 +195,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
 
     const conditions = [
       eq(downloadRequests.userId, effectiveUserId),
-      ne(downloadRequests.status, 'deleted'),
+      ne(downloadRequests.status, RequestStatus.DELETED),
       inArray(downloadRequests.mediaType, ['tv_show', 'anime']),
     ];
 
@@ -607,7 +608,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       const currentFootprintBytes = app.fileSystem.getStorageFootprintBytes ? app.fileSystem.getStorageFootprintBytes() : 0;
       const isQuotaExceeded = storageQuotaBytes > 0 && (currentFootprintBytes / storageQuotaBytes) >= 0.85;
 
-      let status: 'queued' | 'downloading' = 'queued';
+      let status: typeof RequestStatus.QUEUED | typeof RequestStatus.DOWNLOADING = RequestStatus.QUEUED;
       let deferredReason: 'waiting_for_space' | 'waiting_for_slot' | null = null;
       let qbTorrentHash: string | null = null;
       let torrentFilePath: string | null = null;
@@ -616,7 +617,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
 
       if (isQuotaExceeded) {
         // Defer request into queued waiting for space
-        status = 'queued';
+        status = RequestStatus.QUEUED;
         deferredReason = 'waiting_for_space';
       } else {
         // Storage quota has headroom: check concurrent limit
@@ -640,21 +641,21 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
             } else {
               qbTorrentHash = await app.qbittorrent.addTorrent(effectiveMagnetLink, stagingPath);
             }
-            status = 'downloading';
+            status = RequestStatus.DOWNLOADING;
             deferredReason = null;
           } catch (err) {
             request.log.error(err, 'Could not add torrent to qBittorrent immediately, falling back to queued');
-            status = 'queued';
+            status = RequestStatus.QUEUED;
             deferredReason = 'waiting_for_slot';
           }
         } else {
-          status = 'queued';
+          status = RequestStatus.QUEUED;
           deferredReason = 'waiting_for_slot';
         }
       }
 
       // If queued and we have a torrent file, save it temporarily on disk for resumption
-      if (status === 'queued' && torrentBuffer) {
+      if (status === RequestStatus.QUEUED && torrentBuffer) {
         const torrentsDir = path.resolve(path.dirname(stagingPath), 'torrents');
         if (!fs.existsSync(torrentsDir)) {
           fs.mkdirSync(torrentsDir, { recursive: true });
@@ -849,13 +850,13 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const requestId = randomUUID();
-      let status: 'queued' | 'downloading' = 'queued';
+      let status: typeof RequestStatus.QUEUED | typeof RequestStatus.DOWNLOADING = RequestStatus.QUEUED;
       let deferredReason: 'waiting_for_space' | 'waiting_for_slot' | null = null;
       let qbTorrentHash: string | null = null;
       let torrentFilePath: string | null = null;
 
       if (isQuotaExceeded) {
-        status = 'queued';
+        status = RequestStatus.QUEUED;
         deferredReason = 'waiting_for_space';
       } else if (availableSlots > 0) {
         try {
@@ -868,20 +869,20 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
           } else {
             qbTorrentHash = await app.qbittorrent.addTorrent(effectiveMagnetLink, stagingPath);
           }
-          status = 'downloading';
+          status = RequestStatus.DOWNLOADING;
           deferredReason = null;
           availableSlots--;
         } catch (err) {
           request.log.error(err, `Failed to add batch item ${title} immediately, falling back to queued`);
-          status = 'queued';
+          status = RequestStatus.QUEUED;
           deferredReason = 'waiting_for_slot';
         }
       } else {
-        status = 'queued';
+        status = RequestStatus.QUEUED;
         deferredReason = 'waiting_for_slot';
       }
 
-      if (status === 'queued' && torrentBuffer) {
+      if (status === RequestStatus.QUEUED && torrentBuffer) {
         if (!fs.existsSync(torrentsDir)) {
           fs.mkdirSync(torrentsDir, { recursive: true });
         }
@@ -988,7 +989,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         .select(selectFields)
         .from(downloadRequests)
         .leftJoin(users, eq(downloadRequests.userId, users.id))
-        .where(ne(downloadRequests.status, 'deleted'))
+        .where(ne(downloadRequests.status, RequestStatus.DELETED))
         .orderBy(desc(downloadRequests.requestedAt))
         .all();
 
@@ -1027,7 +1028,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         .where(
           and(
             eq(downloadRequests.userId, currentUserId),
-            ne(downloadRequests.status, 'deleted')
+            ne(downloadRequests.status, RequestStatus.DELETED)
           )
         )
         .all();
@@ -1040,7 +1041,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         .where(
           and(
             eq(requestCoRequesters.userId, currentUserId),
-            ne(downloadRequests.status, 'deleted')
+            ne(downloadRequests.status, RequestStatus.DELETED)
           )
         )
         .all();
@@ -1371,86 +1372,53 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         }
       }
 
+      let requestedBy: string | undefined;
+      if (item.userId) {
+        const reqUser = app.db
+          .select({ username: users.username })
+          .from(users)
+          .where(eq(users.id, item.userId))
+          .get();
+        requestedBy = reqUser?.username;
+      }
+
       const downloadedAt = item.downloadedAt || new Date().toISOString();
-      app.db
-        .update(downloadRequests)
-        .set({
-          status: 'seeding',
+      const updated = await app.stateMachine.transition(id, RequestStatus.SEEDING, {
+        broadcast: true,
+        extraFields: {
           jellyfinPath: destPath,
           downloadedAt,
           errorMessage: null,
           sizeBytes: torrentSize,
-        })
-        .where(eq(downloadRequests.id, id))
-        .run();
-
-      app.broadcast?.({
-        type: 'status',
-        requestId: id,
-        status: 'seeding',
+        },
+        sendNotification: app.notifications ? 'download.completed' : undefined,
+        notificationPayload: app.notifications
+          ? {
+              title: item.title,
+              requestId: item.id,
+              mediaType: item.mediaType,
+              year: item.year,
+              seasonNumber: item.seasonNumber,
+              episodeNumber: item.episodeNumber,
+              requestedBy,
+              path: destPath,
+              jellyfinUrl:
+                typeof app.jellyfin.getPublicJellyfinUrl === 'function'
+                  ? app.jellyfin.getPublicJellyfinUrl()
+                  : undefined,
+            }
+          : undefined,
       });
-
-      if (app.notifications) {
-        try {
-          let requestedBy: string | undefined;
-          if (item.userId) {
-            const reqUser = app.db
-              .select({ username: users.username })
-              .from(users)
-              .where(eq(users.id, item.userId))
-              .get();
-            requestedBy = reqUser?.username;
-          }
-
-          await app.notifications.send('download.completed', {
-            title: item.title,
-            requestId: item.id,
-            mediaType: item.mediaType,
-            year: item.year,
-            seasonNumber: item.seasonNumber,
-            episodeNumber: item.episodeNumber,
-            requestedBy,
-            path: destPath,
-            jellyfinUrl:
-              process.env.JELLYFIN_PUBLIC_URL ||
-              (process.env.JELLYFIN_DOMAIN ? `https://${process.env.JELLYFIN_DOMAIN}` : undefined) ||
-              process.env.JELLYFIN_URL ||
-              undefined,
-          });
-        } catch {
-          // Non-fatal notification failure
-        }
-      }
-
-      const updated = app.db
-        .select()
-        .from(downloadRequests)
-        .where(eq(downloadRequests.id, id))
-        .get();
 
       return reply.send({ request: updated, message: 'Request successfully completed and synced to Jellyfin' });
     } else {
       // Torrent is incomplete or missing from disk; reset to downloading
-      app.db
-        .update(downloadRequests)
-        .set({
-          status: 'downloading',
+      const updated = await app.stateMachine.transition(id, RequestStatus.DOWNLOADING, {
+        broadcast: true,
+        extraFields: {
           errorMessage: null,
-        })
-        .where(eq(downloadRequests.id, id))
-        .run();
-
-      app.broadcast?.({
-        type: 'status',
-        requestId: id,
-        status: 'downloading',
+        },
       });
-
-      const updated = app.db
-        .select()
-        .from(downloadRequests)
-        .where(eq(downloadRequests.id, id))
-        .get();
 
       return reply.send({ request: updated, message: 'Request reset to downloading' });
     }
@@ -1765,7 +1733,7 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         userId: data.userId,
         magnetLink: 'promoted-from-stream',
         mediaType: data.mediaType,
-        status: 'done',
+        status: RequestStatus.DONE,
         metadataId: data.metadataId,
         metadataSource: data.metadataSource,
         title: data.title,
@@ -1780,7 +1748,9 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
       })
       .run();
 
-    if (app.jellyfin.refreshLibrary) {
+    if (typeof app.jellyfin.safeRefresh === 'function') {
+      app.jellyfin.safeRefresh().catch(() => {});
+    } else if (typeof app.jellyfin.refreshLibrary === 'function') {
       app.jellyfin.refreshLibrary().catch(() => {});
     }
 

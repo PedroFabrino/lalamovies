@@ -35,6 +35,9 @@ import { OpenSubtitlesService } from './services/openSubtitles';
 import { IUnarchiveService, UnarchiveService } from './services/unarchive';
 import { UnarchiveDaemon } from './jobs/unarchiveDaemon';
 import { runCompressedDownloadsRecovery } from './services/unarchiveRecovery';
+import { IRequestStateMachine, RequestStateMachine } from './services/requestStateMachine';
+import { RequestsRepository } from './services/requestsRepository';
+
 
 export interface AppOptions {
   dbPath?: string;
@@ -65,6 +68,7 @@ export interface AppOptions {
   subgenService?: ISubgenService;
   openSubtitlesService?: OpenSubtitlesService;
   openSubtitlesApiKey?: string;
+  stateMachine?: IRequestStateMachine;
 }
 
 declare module 'fastify' {
@@ -92,8 +96,10 @@ declare module 'fastify' {
     openSubtitles: OpenSubtitlesService;
     unarchive: IUnarchiveService;
     unarchiveDaemon: UnarchiveDaemon;
+    stateMachine: IRequestStateMachine;
   }
 }
+
 
 export function buildApp(options: AppOptions = {}): FastifyInstance {
   const app = Fastify({
@@ -118,6 +124,20 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       isDiscordEnabled: () => isFeatureEnabled(db, 'discord_notifications'),
     });
   const fileSystem = options.fileSystemService ?? new FileSystemService();
+  const requestsRepo = new RequestsRepository(db);
+  const stateMachine: IRequestStateMachine =
+    options.stateMachine ??
+    new RequestStateMachine(
+      requestsRepo,
+      (msg) => {
+        if (typeof app.broadcast === 'function') {
+          app.broadcast(msg);
+        }
+      },
+      jellyfin,
+      notifications
+    );
+
   const cleanup =
     options.cleanupService ??
     new CleanupService(
@@ -128,7 +148,9 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       undefined,
       undefined,
       undefined,
-      fileSystem
+      fileSystem,
+      undefined,
+      stateMachine
     );
   const metadata = options.metadataService ?? new MetadataService();
   const prowlarr = options.prowlarrService ?? new ProwlarrService();
@@ -225,6 +247,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       qbittorrent,
       fileSystem,
       jellyfin,
+      stateMachine,
       subtitleInspection,
       openSubtitles,
       unarchiveService: unarchive,
@@ -251,6 +274,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       unarchiveService: unarchive,
       fileSystem,
       jellyfin,
+      stateMachine,
       qbittorrent,
       subtitleInspection,
       notificationService: notifications,
@@ -334,6 +358,9 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.decorate('openSubtitles', openSubtitles);
   app.decorate('unarchive', unarchive);
   app.decorate('unarchiveDaemon', unarchiveDaemon);
+
+  app.decorate('stateMachine', stateMachine);
+
 
   app.decorate('serviceApiKey', serviceApiKey);
   app.decorate('watcherUrl', watcherUrl);

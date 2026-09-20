@@ -3,6 +3,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { WebSocket } from 'ws';
 import { eq } from 'drizzle-orm';
 import { downloadRequests } from '../db/schema';
+import { RequestStatus } from '../services/requestStateMachine';
 
 export type BroadcastFunction = (message: object) => void;
 
@@ -65,7 +66,7 @@ const wsRoutesPlugin: FastifyPluginAsync = async (app) => {
       const activeDownloads = app.db
         .select()
         .from(downloadRequests)
-        .where(eq(downloadRequests.status, 'downloading'))
+        .where(eq(downloadRequests.status, RequestStatus.DOWNLOADING))
         .all();
 
       for (const req of activeDownloads) {

@@ -4,6 +4,7 @@ import { IProwlarrService, ReleaseCandidate, Resolution, ScoreOptions } from './
 import { IMetadataService } from './metadata';
 import { cleanTorrentTitle, extractEpisodeInfo } from '../utils/torrentTitleCleaner';
 import { findMatchingCanonicalRequest } from './requestDedup';
+import { RequestStatus } from './requestStateMachine';
 
 export interface UpNextItem {
   id: string;
@@ -190,7 +191,7 @@ export function isCandidateAlreadyRequested(
       const allActive = db
         .select()
         .from(downloadRequests)
-        .where(ne(downloadRequests.status, 'deleted'))
+        .where(ne(downloadRequests.status, RequestStatus.DELETED))
         .all();
 
       const matchingTitleReqs = allActive.filter((r) => {
@@ -343,7 +344,7 @@ export class UpNextService implements IUpNextService {
         .where(
           and(
             or(...userFilters),
-            ne(downloadRequests.status, 'deleted'),
+            ne(downloadRequests.status, RequestStatus.DELETED),
             inArray(downloadRequests.mediaType, ['tv_show', 'anime']),
             gte(downloadRequests.requestedAt, cutoffDate)
           )

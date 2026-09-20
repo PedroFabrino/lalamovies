@@ -5,6 +5,7 @@ import { AppDatabase, downloadRequests } from '../db';
 import { IUnarchiveService } from './unarchive';
 import { IFileSystemService } from './fileSystem';
 import { IJellyfinService } from './jellyfin';
+import { IRequestStateMachine, RequestStatus } from './requestStateMachine';
 import { PollerLogger } from '../jobs/downloadPoller';
 
 export interface RecoveryOptions {
@@ -12,6 +13,7 @@ export interface RecoveryOptions {
   unarchiveService: IUnarchiveService;
   fileSystem: IFileSystemService;
   jellyfin: IJellyfinService;
+  stateMachine?: IRequestStateMachine;
   stagingPath?: string;
   mediaPath?: string;
   logger?: PollerLogger;
@@ -167,15 +169,26 @@ export async function runCompressedDownloadsRecovery(options: RecoveryOptions): 
       }
 
       // Update database record
-      db.update(downloadRequests)
-        .set({
-          jellyfinPath: destPath,
-          status: 'seeding',
-          sizeBytes: primaryVideo.size,
-          errorMessage: null,
-        })
-        .where(eq(downloadRequests.id, req.id))
-        .run();
+      if (options.stateMachine) {
+        await options.stateMachine.transition(req.id, RequestStatus.SEEDING, {
+          broadcast: false,
+          extraFields: {
+            jellyfinPath: destPath,
+            sizeBytes: primaryVideo.size,
+            errorMessage: null,
+          },
+        });
+      } else {
+        db.update(downloadRequests)
+          .set({
+            jellyfinPath: destPath,
+            status: RequestStatus.SEEDING,
+            sizeBytes: primaryVideo.size,
+            errorMessage: null,
+          })
+          .where(eq(downloadRequests.id, req.id))
+          .run();
+      }
 
       recoveredPaths.push(destPath);
       logger?.info?.(`Recovery: restored ${releaseCode} to ${destPath}`);
@@ -216,11 +229,15 @@ export async function runCompressedDownloadsRecovery(options: RecoveryOptions): 
   }
 
   // Trigger Jellyfin library refresh (non-fatal, only if changes were made)
-  if (jellyfin.refreshLibrary && (recoveredPaths.length > 0 || removedInvalidPath)) {
-    try {
-      await jellyfin.refreshLibrary();
-    } catch (jellyErr) {
-      logger?.error?.('Jellyfin library refresh failed during recovery:', jellyErr);
+  if (recoveredPaths.length > 0 || removedInvalidPath) {
+    if (typeof jellyfin.safeRefresh === 'function') {
+      await jellyfin.safeRefresh();
+    } else if (typeof jellyfin.refreshLibrary === 'function') {
+      try {
+        await jellyfin.refreshLibrary();
+      } catch (jellyErr) {
+        logger?.error?.('Jellyfin library refresh failed during recovery:', jellyErr);
+      }
     }
   }
 

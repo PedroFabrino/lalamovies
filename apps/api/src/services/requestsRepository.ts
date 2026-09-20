@@ -1,18 +1,23 @@
 import { eq, inArray } from 'drizzle-orm';
 import { AppDatabase, downloadRequests, DownloadRequest, NewDownloadRequest } from '../db';
+import { RequestStatus } from './requestStateMachine';
 
 // Statuses considered "pending" (in-flight, poller and daemon care about these)
 const PENDING_STATUSES = [
-  'queued',
-  'downloading',
-  'hardlinking',
-  'unarchiving',
+  RequestStatus.QUEUED,
+  RequestStatus.DOWNLOADING,
+  RequestStatus.HARDLINKING,
+  RequestStatus.UNARCHIVING,
 ] as const;
 
 export interface IRequestsRepository {
   findById(id: string): DownloadRequest | undefined;
   create(data: NewDownloadRequest): DownloadRequest;
-  setStatus(id: string, status: DownloadRequest['status']): void;
+  setStatus(
+    id: string,
+    status: DownloadRequest['status'],
+    extraFields?: Partial<Omit<DownloadRequest, 'id' | 'status'>>
+  ): void;
   findPending(): DownloadRequest[];
   markError(id: string, message: string): void;
 }
@@ -37,10 +42,14 @@ export class RequestsRepository implements IRequestsRepository {
     return created;
   }
 
-  setStatus(id: string, status: DownloadRequest['status']): void {
+  setStatus(
+    id: string,
+    status: DownloadRequest['status'],
+    extraFields?: Partial<Omit<DownloadRequest, 'id' | 'status'>>
+  ): void {
     this.db
       .update(downloadRequests)
-      .set({ status })
+      .set({ status, ...(extraFields || {}) })
       .where(eq(downloadRequests.id, id))
       .run();
   }
@@ -56,7 +65,7 @@ export class RequestsRepository implements IRequestsRepository {
   markError(id: string, message: string): void {
     this.db
       .update(downloadRequests)
-      .set({ status: 'error', errorMessage: message })
+      .set({ status: RequestStatus.ERROR, errorMessage: message })
       .where(eq(downloadRequests.id, id))
       .run();
   }

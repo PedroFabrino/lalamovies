@@ -4,6 +4,7 @@ import { users, downloadRequests } from '../db/schema';
 import { JwtPayload } from '../middleware/auth';
 import { requireFeature } from '../middleware/featureFlags';
 import { normalizeShowTitle } from '../services/upNext';
+import { RequestStatus } from '../services/requestStateMachine';
 
 async function waitlistAuth(request: FastifyRequest, reply: FastifyReply) {
   // Allow public access to reject and approve endpoints with magic-link token
@@ -95,7 +96,7 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
 
       try {
         const conditions = [
-          ne(downloadRequests.status, 'deleted'),
+          ne(downloadRequests.status, RequestStatus.DELETED),
           inArray(downloadRequests.mediaType, ['tv_show', 'anime']),
           eq(downloadRequests.seasonNumber, season),
         ];
@@ -145,7 +146,7 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
           .from(downloadRequests)
           .where(
             and(
-              ne(downloadRequests.status, 'deleted'),
+              ne(downloadRequests.status, RequestStatus.DELETED),
               eq(downloadRequests.mediaType, 'movie')
             )
           )
@@ -162,7 +163,17 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
           return false;
         });
 
-        if (matched && ['downloading', 'hardlinking', 'seeding', 'completed', 'queued'].includes(matched.status)) {
+        if (
+          matched &&
+          [
+            RequestStatus.DOWNLOADING,
+            RequestStatus.HARDLINKING,
+            RequestStatus.SEEDING,
+            RequestStatus.DONE,
+            'completed',
+            RequestStatus.QUEUED,
+          ].includes(matched.status as any)
+        ) {
           return reply.status(409).send({
             error: 'Already In Library',
             message: `"${outgoingBody.title || matched.title}" is already in your library or download queue.`,
@@ -177,7 +188,7 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
           .from(downloadRequests)
           .where(
             and(
-              ne(downloadRequests.status, 'deleted'),
+              ne(downloadRequests.status, RequestStatus.DELETED),
               inArray(downloadRequests.mediaType, ['tv_show', 'anime']),
               eq(downloadRequests.seasonNumber, season),
               eq(downloadRequests.episodeNumber, episode)
@@ -196,7 +207,17 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
           return false;
         });
 
-        if (matched && ['downloading', 'hardlinking', 'seeding', 'completed', 'queued'].includes(matched.status)) {
+        if (
+          matched &&
+          [
+            RequestStatus.DOWNLOADING,
+            RequestStatus.HARDLINKING,
+            RequestStatus.SEEDING,
+            RequestStatus.DONE,
+            'completed',
+            RequestStatus.QUEUED,
+          ].includes(matched.status as any)
+        ) {
           return reply.status(409).send({
             error: 'Already In Library',
             message: `"${outgoingBody.title || matched.title}" S${season}E${episode} is already in your library or download queue.`,

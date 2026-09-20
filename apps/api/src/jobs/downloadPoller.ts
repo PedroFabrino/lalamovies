@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { eq, asc, and, ne, isNotNull, inArray } from 'drizzle-orm';
-import { AppDatabase, downloadRequests, systemConfig, users } from '../db';
+import { AppDatabase, downloadRequests, DownloadRequest, systemConfig, users } from '../db';
 import { IQBittorrentService } from '../services/qbittorrent';
 import { IFileSystemService } from '../services/fileSystem';
 import { IJellyfinService } from '../services/jellyfin';
@@ -9,6 +9,8 @@ import { INotificationService } from '../services/notifications';
 import { ISubtitleInspectionService } from '../services/subtitleInspection';
 import { OpenSubtitlesService } from '../services/openSubtitles';
 import { IUnarchiveService, UnarchiveService } from '../services/unarchive';
+import { IRequestStateMachine, RequestStateMachine, RequestStatus } from '../services/requestStateMachine';
+import { RequestsRepository } from '../services/requestsRepository';
 
 export type PollerLogger = {
   info: (msg: string) => void;
@@ -21,6 +23,7 @@ export interface DownloadPollerOptions {
   qbittorrent: IQBittorrentService;
   fileSystem: IFileSystemService;
   jellyfin: IJellyfinService;
+  stateMachine?: IRequestStateMachine;
   subtitleInspection?: ISubtitleInspectionService;
   openSubtitles?: OpenSubtitlesService;
   notificationService?: INotificationService;
@@ -39,6 +42,7 @@ export class DownloadPoller {
   private fileSystem: IFileSystemService;
   private jellyfin: IJellyfinService;
   private unarchiveService: IUnarchiveService;
+  private stateMachine: IRequestStateMachine;
   private subtitleInspection?: ISubtitleInspectionService;
   private openSubtitles?: OpenSubtitlesService;
   private notificationService?: INotificationService;
@@ -53,6 +57,14 @@ export class DownloadPoller {
     this.fileSystem = options.fileSystem;
     this.jellyfin = options.jellyfin;
     this.unarchiveService = options.unarchiveService || new UnarchiveService();
+    this.stateMachine =
+      options.stateMachine ||
+      new RequestStateMachine(
+        new RequestsRepository(options.db),
+        options.broadcast,
+        options.jellyfin,
+        options.notificationService
+      );
     this.subtitleInspection = options.subtitleInspection;
     this.openSubtitles = options.openSubtitles;
     this.notificationService = options.notificationService;
@@ -71,7 +83,7 @@ export class DownloadPoller {
       const activeRequests = this.db
         .select()
         .from(downloadRequests)
-        .where(eq(downloadRequests.status, 'downloading'))
+        .where(eq(downloadRequests.status, RequestStatus.DOWNLOADING))
         .all();
 
       for (const req of activeRequests) {
@@ -152,19 +164,10 @@ export class DownloadPoller {
               this.logger?.info(
                 `Torrent ${req.title} (${req.id}) contains only compressed archives. Handing off to unarchive daemon.`
               );
-              this.db
-                .update(downloadRequests)
-                .set({
-                  status: 'unarchiving',
+              await this.stateMachine.transition(req.id, RequestStatus.UNARCHIVING, {
+                extraFields: {
                   sizeBytes: torrentStatus.size,
-                })
-                .where(eq(downloadRequests.id, req.id))
-                .run();
-
-              this.broadcast?.({
-                type: 'status',
-                requestId: req.id,
-                status: 'unarchiving',
+                },
               });
               continue;
             }
@@ -172,11 +175,7 @@ export class DownloadPoller {
             this.logger?.info(`Torrent ${req.title} completed downloading. Transitioning to hardlinking.`);
 
             // Transition status to hardlinking
-            this.db
-              .update(downloadRequests)
-              .set({ status: 'hardlinking' })
-              .where(eq(downloadRequests.id, req.id))
-              .run();
+            await this.stateMachine.transition(req.id, RequestStatus.HARDLINKING);
 
             let sourceItem = path.join(this.stagingPath, torrentStatus.name);
             let isDirectory = false;
@@ -239,7 +238,7 @@ export class DownloadPoller {
               try {
                 const conditions = [
                   ne(downloadRequests.id, req.id),
-                  ne(downloadRequests.status, 'deleted'),
+                  ne(downloadRequests.status, RequestStatus.DELETED),
                   inArray(downloadRequests.mediaType, ['tv_show', 'anime']),
                   isNotNull(downloadRequests.jellyfinPath),
                 ];
@@ -366,11 +365,6 @@ export class DownloadPoller {
               }
             }
 
-            // Refresh Jellyfin library
-            if (this.jellyfin.refreshLibrary) {
-              await this.jellyfin.refreshLibrary();
-            }
-
             // Auto-fetch subtitle from OpenSubtitles (fire-and-forget)
             if (
               this.openSubtitles &&
@@ -402,96 +396,79 @@ export class DownloadPoller {
                 });
             }
 
-            // Mark status as seeding
-            this.db
-              .update(downloadRequests)
-              .set({
-                status: 'seeding',
+            let requestedBy: string | undefined;
+            let reqUserEmail: string | null | undefined;
+            if (req.userId) {
+              const reqUser = this.db
+                .select({ username: users.username, email: users.email })
+                .from(users)
+                .where(eq(users.id, req.userId))
+                .get();
+              requestedBy = reqUser?.username;
+              reqUserEmail = reqUser?.email;
+            }
+
+            let recipientEmails: string[] | undefined;
+            if (req.mediaType === 'private') {
+              const recipients = this.db
+                .select({ email: users.email })
+                .from(users)
+                .where(inArray(users.role, ['admin', 'trusted']))
+                .all();
+              const allEmails = recipients
+                .map((r) => r.email)
+                .filter((e): e is string => Boolean(e));
+              if (reqUserEmail && !allEmails.includes(reqUserEmail)) {
+                allEmails.push(reqUserEmail);
+              }
+              recipientEmails = allEmails;
+            }
+
+            await this.stateMachine.transition(req.id, RequestStatus.SEEDING, {
+              refreshJellyfin: true,
+              extraFields: {
                 jellyfinPath: destPath,
                 downloadedAt: new Date().toISOString(),
                 sizeBytes: torrentStatus.size,
                 transcriptionStatus,
                 mediaType: targetMediaType,
                 title: effectiveTitle,
-              })
-              .where(eq(downloadRequests.id, req.id))
-              .run();
-
-            this.broadcast?.({
-              type: 'status',
-              requestId: req.id,
-              status: 'seeding',
-              transcriptionStatus,
+              },
+              extraBroadcastFields: {
+                transcriptionStatus,
+              },
+              sendNotification: this.notificationService ? 'download.completed' : undefined,
+              notificationPayload: this.notificationService
+                ? {
+                    title: effectiveTitle,
+                    requestId: req.id,
+                    mediaType: targetMediaType,
+                    year: req.year,
+                    seasonNumber: req.seasonNumber,
+                    episodeNumber: req.episodeNumber,
+                    requestedBy,
+                    recipientEmails,
+                    path: destPath,
+                    jellyfinUrl:
+                      typeof this.jellyfin.getPublicJellyfinUrl === 'function'
+                        ? this.jellyfin.getPublicJellyfinUrl()
+                        : undefined,
+                  }
+                : undefined,
             });
-
-            if (this.notificationService) {
-              let requestedBy: string | undefined;
-              let reqUserEmail: string | null | undefined;
-              if (req.userId) {
-                const reqUser = this.db
-                  .select({ username: users.username, email: users.email })
-                  .from(users)
-                  .where(eq(users.id, req.userId))
-                  .get();
-                requestedBy = reqUser?.username;
-                reqUserEmail = reqUser?.email;
-              }
-
-              let recipientEmails: string[] | undefined;
-              if (req.mediaType === 'private') {
-                const recipients = this.db
-                  .select({ email: users.email })
-                  .from(users)
-                  .where(inArray(users.role, ['admin', 'trusted']))
-                  .all();
-                const allEmails = recipients
-                  .map((r) => r.email)
-                  .filter((e): e is string => Boolean(e));
-                if (reqUserEmail && !allEmails.includes(reqUserEmail)) {
-                  allEmails.push(reqUserEmail);
-                }
-                recipientEmails = allEmails;
-              }
-
-              await this.notificationService.send('download.completed', {
-                title: effectiveTitle,
-                requestId: req.id,
-                mediaType: targetMediaType,
-                year: req.year,
-                seasonNumber: req.seasonNumber,
-                episodeNumber: req.episodeNumber,
-                requestedBy,
-                recipientEmails,
-                path: destPath,
-                jellyfinUrl:
-                  process.env.JELLYFIN_PUBLIC_URL ||
-                  (process.env.JELLYFIN_DOMAIN ? `https://${process.env.JELLYFIN_DOMAIN}` : undefined) ||
-                  process.env.JELLYFIN_URL ||
-                  undefined,
-              });
-            }
 
             this.logger?.info(`Torrent ${req.title} successfully hardlinked to ${destPath} and set to seeding.`);
           }
         } catch (itemErr) {
           this.logger?.error(`Error processing download completion for ${req.title}:`, itemErr);
-          const errorUpdate: Record<string, unknown> = {
-            status: 'error',
+          const errorUpdate: Partial<Omit<DownloadRequest, 'id' | 'status'>> = {
             errorMessage: (itemErr as Error).message || 'Failed to complete download processing',
           };
           if (completedDestPath && fs.existsSync(completedDestPath)) {
             errorUpdate.jellyfinPath = completedDestPath;
           }
-          this.db
-            .update(downloadRequests)
-            .set(errorUpdate)
-            .where(eq(downloadRequests.id, req.id))
-            .run();
-
-          this.broadcast?.({
-            type: 'status',
-            requestId: req.id,
-            status: 'error',
+          await this.stateMachine.transition(req.id, RequestStatus.ERROR, {
+            extraFields: errorUpdate,
           });
         }
       }
@@ -525,7 +502,7 @@ export class DownloadPoller {
         const queuedItems = this.db
           .select({ id: downloadRequests.id, deferredReason: downloadRequests.deferredReason })
           .from(downloadRequests)
-          .where(eq(downloadRequests.status, 'queued'))
+          .where(eq(downloadRequests.status, RequestStatus.QUEUED))
           .all();
 
         for (const item of queuedItems) {
@@ -542,7 +519,7 @@ export class DownloadPoller {
         const queuedRequests = this.db
           .select()
           .from(downloadRequests)
-          .where(eq(downloadRequests.status, 'queued'))
+          .where(eq(downloadRequests.status, RequestStatus.QUEUED))
           .orderBy(asc(downloadRequests.requestedAt))
           .all();
 
@@ -582,21 +559,12 @@ export class DownloadPoller {
               hash = await this.qbittorrent.addTorrent(queuedReq.magnetLink, this.stagingPath);
             }
 
-            this.db
-              .update(downloadRequests)
-              .set({
-                status: 'downloading',
+            await this.stateMachine.transition(queuedReq.id, RequestStatus.DOWNLOADING, {
+              extraFields: {
                 qbTorrentHash: hash,
                 torrentFilePath: null,
                 deferredReason: null,
-              })
-              .where(eq(downloadRequests.id, queuedReq.id))
-              .run();
-
-            this.broadcast?.({
-              type: 'status',
-              requestId: queuedReq.id,
-              status: 'downloading',
+              },
             });
 
             this.logger?.info(`Started queued request: ${queuedReq.title} (hash: ${hash})`);

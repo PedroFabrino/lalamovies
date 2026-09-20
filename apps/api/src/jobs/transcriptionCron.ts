@@ -2,6 +2,7 @@ import cron, { ScheduledTask } from 'node-cron';
 import { eq, and, ne, asc } from 'drizzle-orm';
 import { AppDatabase, downloadRequests, systemConfig } from '../db';
 import { ISubgenService } from '../services/subgen';
+import { RequestStatus } from '../services/requestStateMachine';
 
 export interface TranscriptionCronLogger {
   info: (msg: string) => void;
@@ -196,7 +197,7 @@ export class TranscriptionCron {
         .where(
           and(
             eq(downloadRequests.transcriptionStatus, 'transcribing'),
-            ne(downloadRequests.status, 'deleted')
+            ne(downloadRequests.status, RequestStatus.DELETED)
           )
         )
         .get();
@@ -217,7 +218,7 @@ export class TranscriptionCron {
               and(
                 eq(downloadRequests.id, options.targetRequestId),
                 eq(downloadRequests.transcriptionStatus, 'pending'),
-                ne(downloadRequests.status, 'deleted')
+                ne(downloadRequests.status, RequestStatus.DELETED)
               )
             )
             .get()
@@ -231,7 +232,7 @@ export class TranscriptionCron {
             and(
               eq(downloadRequests.transcriptionStatus, 'pending'),
               eq(downloadRequests.mediaType, 'private'),
-              ne(downloadRequests.status, 'deleted')
+              ne(downloadRequests.status, RequestStatus.DELETED)
             )
           )
           .orderBy(asc(downloadRequests.requestedAt))

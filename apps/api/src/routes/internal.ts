@@ -3,6 +3,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { eq, ne } from 'drizzle-orm';
 import { downloadRequests } from '../db/schema';
+import { RequestStatus } from '../services/requestStateMachine';
 
 const subgenWebhookSchema = z.object({
   file: z.string().min(1, 'File path is required'),
@@ -12,12 +13,11 @@ const subgenWebhookSchema = z.object({
   error: z.string().optional(),
 });
 
-function normalize(p: string): string {
-  return p.replace(/\\/g, '/').toLowerCase().trim();
-}
-
 export const internalRoutes: FastifyPluginAsync = async (app) => {
-  // POST /internal/subgen/webhook — Subgen completion or failure callback
+  // Helper to normalize paths for robust matching across OS separators
+  const normalize = (p: string) => p.replace(/\\/g, '/').toLowerCase();
+
+  // POST /internal/subgen/webhook — completion callback from subgen container
   app.post('/subgen/webhook', async (request, reply) => {
     const parseResult = subgenWebhookSchema.safeParse(request.body);
     if (!parseResult.success) {
@@ -35,7 +35,7 @@ export const internalRoutes: FastifyPluginAsync = async (app) => {
     const allRequests = app.db
       .select()
       .from(downloadRequests)
-      .where(ne(downloadRequests.status, 'deleted'))
+      .where(ne(downloadRequests.status, RequestStatus.DELETED))
       .all();
 
     const matched = allRequests.find((r) => {
@@ -44,18 +44,18 @@ export const internalRoutes: FastifyPluginAsync = async (app) => {
       if (normJellyfin === normFile) return true;
       if (normFile.includes(normJellyfin) || normJellyfin.includes(normFile)) return true;
       const jfBase = path.basename(normJellyfin, path.extname(normJellyfin));
-      return jfBase.length > 3 && fileBase.includes(jfBase);
+      return jfBase === fileBase;
     });
 
     if (!matched) {
-      request.log.warn(`Subgen webhook received for unmapped file: ${file}`);
-      return reply.status(200).send({ ok: true, matched: false });
+      request.log.warn(`Subgen webhook: no matching download request for file ${file}`);
+      return reply.send({ ok: true, matched: false });
     }
 
-    const isFailure = event === 'failed' || Boolean(error);
-
-    if (isFailure) {
+    if (event === 'failed') {
       const errorMsg = error || 'Subgen transcription failed';
+      request.log.error(`Subgen transcription failed for request ${matched.id}: ${errorMsg}`);
+
       app.db
         .update(downloadRequests)
         .set({
@@ -90,7 +90,9 @@ export const internalRoutes: FastifyPluginAsync = async (app) => {
       .where(eq(downloadRequests.id, matched.id))
       .run();
 
-    if (app.jellyfin.refreshLibrary) {
+    if (app.jellyfin.safeRefresh) {
+      await app.jellyfin.safeRefresh();
+    } else if (app.jellyfin.refreshLibrary) {
       try {
         await app.jellyfin.refreshLibrary();
       } catch (err) {
