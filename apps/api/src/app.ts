@@ -32,6 +32,9 @@ import { isFeatureEnabled } from './middleware/featureFlags';
 import { ISubtitleInspectionService, SubtitleInspectionService } from './services/subtitleInspection';
 import { ISubgenService, SubgenService } from './services/subgen';
 import { OpenSubtitlesService } from './services/openSubtitles';
+import { IUnarchiveService, UnarchiveService } from './services/unarchive';
+import { UnarchiveDaemon } from './jobs/unarchiveDaemon';
+import { runCompressedDownloadsRecovery } from './services/unarchiveRecovery';
 
 export interface AppOptions {
   dbPath?: string;
@@ -46,9 +49,12 @@ export interface AppOptions {
   discoveryService?: IDiscoveryService;
   upNextService?: IUpNextService;
   downloadPoller?: DownloadPoller;
+  unarchiveService?: IUnarchiveService;
+  unarchiveDaemon?: UnarchiveDaemon;
   cleanupCron?: CleanupCron;
   transcriptionCron?: TranscriptionCron;
   startPoller?: boolean;
+  startUnarchiveDaemon?: boolean;
   startCleanupCron?: boolean;
   startTranscriptionCron?: boolean;
   jwtSecret?: string;
@@ -84,6 +90,8 @@ declare module 'fastify' {
     subtitleInspection: ISubtitleInspectionService;
     subgen: ISubgenService;
     openSubtitles: OpenSubtitlesService;
+    unarchive: IUnarchiveService;
+    unarchiveDaemon: UnarchiveDaemon;
   }
 }
 
@@ -208,6 +216,8 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       },
     });
 
+  const unarchive = options.unarchiveService ?? new UnarchiveService();
+
   const poller =
     options.downloadPoller ??
     new DownloadPoller({
@@ -217,6 +227,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       jellyfin,
       subtitleInspection,
       openSubtitles,
+      unarchiveService: unarchive,
       notificationService: notifications,
       logger: {
         info: (msg: string) => app.log.info(msg),
@@ -231,6 +242,31 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
 
   if (options.startPoller) {
     poller.start();
+  }
+
+  const unarchiveDaemon =
+    options.unarchiveDaemon ??
+    new UnarchiveDaemon({
+      db,
+      unarchiveService: unarchive,
+      fileSystem,
+      jellyfin,
+      qbittorrent,
+      subtitleInspection,
+      notificationService: notifications,
+      logger: {
+        info: (msg: string) => app.log.info(msg),
+        error: (msg: string, err?: unknown) => app.log.error(err, msg),
+      },
+      broadcast: (msg) => {
+        if (typeof app.broadcast === 'function') {
+          app.broadcast(msg);
+        }
+      },
+    });
+
+  if (options.startUnarchiveDaemon ?? options.startPoller) {
+    unarchiveDaemon.start();
   }
 
   const cleanupCron =
@@ -296,6 +332,8 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.decorate('subtitleInspection', subtitleInspection);
   app.decorate('subgen', subgen);
   app.decorate('openSubtitles', openSubtitles);
+  app.decorate('unarchive', unarchive);
+  app.decorate('unarchiveDaemon', unarchiveDaemon);
 
   app.decorate('serviceApiKey', serviceApiKey);
   app.decorate('watcherUrl', watcherUrl);
@@ -303,6 +341,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
 
   app.addHook('onClose', async () => {
     poller.stop();
+    unarchiveDaemon.stop();
     cleanupCron.stop();
     transcriptionCron.stop();
     sqlite.close();
@@ -370,6 +409,32 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       } catch (err) {
         app.log.warn(`Could not discover Private library in Jellyfin on startup: ${(err as Error).message}`);
       }
+    }
+
+    if (options.startPoller) {
+      setImmediate(() => {
+        runCompressedDownloadsRecovery({
+          db,
+          unarchiveService: unarchive,
+          fileSystem,
+          jellyfin,
+          logger: {
+            info: (msg) => app.log.info(msg),
+            warn: (msg) => app.log.warn(msg),
+            error: (msg, err) => app.log.error(err, msg),
+          },
+        })
+          .then((recoveryRes) => {
+            if (recoveryRes.recoveredCount > 0 || recoveryRes.removedInvalidPath) {
+              app.log.info(
+                `Startup compressed downloads recovery finished: recovered ${recoveryRes.recoveredCount} items, removed invalid path: ${recoveryRes.removedInvalidPath}`
+              );
+            }
+          })
+          .catch((recErr) => {
+            app.log.warn(recErr, 'Non-fatal error in startup compressed downloads recovery');
+          });
+      });
     }
   });
 

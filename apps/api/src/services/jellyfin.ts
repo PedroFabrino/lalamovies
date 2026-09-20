@@ -245,8 +245,8 @@ export class JellyfinService implements IJellyfinService {
       const history: Record<string, string> = {};
       if (data.Items && Array.isArray(data.Items)) {
         for (const item of data.Items) {
-          if (item.Path && item.UserData?.LastPlayedDate) {
-            history[item.Path] = item.UserData.LastPlayedDate;
+          if (item.Path && (item.UserData?.LastPlayedDate || item.UserData?.Played)) {
+            history[item.Path] = item.UserData.LastPlayedDate || '1970-01-01T00:00:00.000Z';
           }
         }
       }

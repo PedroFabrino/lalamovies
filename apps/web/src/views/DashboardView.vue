@@ -1130,6 +1130,7 @@ function getStatusBadgeClass(item: DownloadRequest): string {
     case 'downloading':
       return 'bg-blue-950/60 text-blue-400 border-blue-800';
     case 'hardlinking':
+    case 'unarchiving':
       return 'bg-indigo-950/60 text-indigo-400 border-indigo-800';
     case 'seeding':
       return 'bg-emerald-950/60 text-emerald-400 border-emerald-800';

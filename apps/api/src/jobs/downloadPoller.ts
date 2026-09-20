@@ -8,6 +8,7 @@ import { IJellyfinService } from '../services/jellyfin';
 import { INotificationService } from '../services/notifications';
 import { ISubtitleInspectionService } from '../services/subtitleInspection';
 import { OpenSubtitlesService } from '../services/openSubtitles';
+import { IUnarchiveService, UnarchiveService } from '../services/unarchive';
 
 export type PollerLogger = {
   info: (msg: string) => void;
@@ -23,6 +24,7 @@ export interface DownloadPollerOptions {
   subtitleInspection?: ISubtitleInspectionService;
   openSubtitles?: OpenSubtitlesService;
   notificationService?: INotificationService;
+  unarchiveService?: IUnarchiveService;
   stagingPath?: string;
   intervalMs?: number;
   logger?: PollerLogger;
@@ -36,6 +38,7 @@ export class DownloadPoller {
   private qbittorrent: IQBittorrentService;
   private fileSystem: IFileSystemService;
   private jellyfin: IJellyfinService;
+  private unarchiveService: IUnarchiveService;
   private subtitleInspection?: ISubtitleInspectionService;
   private openSubtitles?: OpenSubtitlesService;
   private notificationService?: INotificationService;
@@ -49,6 +52,7 @@ export class DownloadPoller {
     this.qbittorrent = options.qbittorrent;
     this.fileSystem = options.fileSystem;
     this.jellyfin = options.jellyfin;
+    this.unarchiveService = options.unarchiveService || new UnarchiveService();
     this.subtitleInspection = options.subtitleInspection;
     this.openSubtitles = options.openSubtitles;
     this.notificationService = options.notificationService;
@@ -115,15 +119,6 @@ export class DownloadPoller {
             );
 
           if (isCompleted) {
-            this.logger?.info(`Torrent ${req.title} completed downloading. Transitioning to hardlinking.`);
-
-            // Transition status to hardlinking
-            this.db
-              .update(downloadRequests)
-              .set({ status: 'hardlinking' })
-              .where(eq(downloadRequests.id, req.id))
-              .run();
-
             // Locate source file or directory in Staging Area
             let files: Array<{ name: string; size: number }> = [];
             if (this.qbittorrent.getTorrentFiles) {
@@ -133,6 +128,55 @@ export class DownloadPoller {
                 this.logger?.error(`Failed to get files for torrent ${req.qbTorrentHash}`, err);
               }
             }
+
+            if (files.length === 0) {
+              const torrentDir = path.join(this.stagingPath, torrentStatus.name);
+              if (fs.existsSync(torrentDir)) {
+                if (fs.statSync(torrentDir).isDirectory()) {
+                  try {
+                    const entries = fs.readdirSync(torrentDir);
+                    files = entries.map((e) => ({
+                      name: path.join(torrentStatus.name, e),
+                      size: fs.statSync(path.join(torrentDir, e)).size,
+                    }));
+                  } catch {
+                    // ignore
+                  }
+                } else {
+                  files = [{ name: torrentStatus.name, size: torrentStatus.size }];
+                }
+              }
+            }
+
+            if (this.unarchiveService.isArchiveOnly(files)) {
+              this.logger?.info(
+                `Torrent ${req.title} (${req.id}) contains only compressed archives. Handing off to unarchive daemon.`
+              );
+              this.db
+                .update(downloadRequests)
+                .set({
+                  status: 'unarchiving',
+                  sizeBytes: torrentStatus.size,
+                })
+                .where(eq(downloadRequests.id, req.id))
+                .run();
+
+              this.broadcast?.({
+                type: 'status',
+                requestId: req.id,
+                status: 'unarchiving',
+              });
+              continue;
+            }
+
+            this.logger?.info(`Torrent ${req.title} completed downloading. Transitioning to hardlinking.`);
+
+            // Transition status to hardlinking
+            this.db
+              .update(downloadRequests)
+              .set({ status: 'hardlinking' })
+              .where(eq(downloadRequests.id, req.id))
+              .run();
 
             let sourceItem = path.join(this.stagingPath, torrentStatus.name);
             let isDirectory = false;
@@ -267,6 +311,10 @@ export class DownloadPoller {
               isSeasonPack: isDirectory || (targetMediaType !== 'movie' && !ext),
               ext,
               existingShowFolder,
+              disambiguator:
+                req.mediaType === 'private' && req.seasonNumber == null && req.episodeNumber == null
+                  ? torrentStatus.name
+                  : undefined,
             });
 
             // Perform Hardlink Move

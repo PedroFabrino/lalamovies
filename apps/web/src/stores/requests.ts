@@ -7,6 +7,7 @@ export type RequestStatus =
   | 'queued'
   | 'downloading'
   | 'hardlinking'
+  | 'unarchiving'
   | 'seeding'
   | 'done'
   | 'error'

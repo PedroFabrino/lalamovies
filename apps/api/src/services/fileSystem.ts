@@ -11,6 +11,7 @@ export interface BuildLibraryPathParams {
   isSeasonPack?: boolean;
   mediaBasePath?: string;
   existingShowFolder?: string;
+  disambiguator?: string;
 }
 
 export interface IFileSystemService {
@@ -84,6 +85,10 @@ export class FileSystemService implements IFileSystemService {
         const epCode = `S${this.padNumber(params.seasonNumber, 2)}E${this.padNumber(params.episodeNumber, 2)}`;
         const fileName = `${cleanTitle} ${epCode}.${ext}`;
         return path.join(root, 'private', folderName, seasonFolder, fileName);
+      }
+      if (params.disambiguator) {
+        const cleanDisambiguator = this.sanitize(params.disambiguator);
+        return path.join(root, 'private', cleanDisambiguator, `${cleanDisambiguator}.${ext}`);
       }
       const fileName = `${cleanTitle}${yearStr}.${ext}`;
       return path.join(root, 'private', folderName, fileName);

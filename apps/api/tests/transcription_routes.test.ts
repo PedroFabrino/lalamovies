@@ -22,6 +22,7 @@ describe('Transcription Routes & Detection Hook (Subtask #100)', () => {
       jwtSecret: 'test-jwt-secret-at-least-32-characters-long',
     });
     await app.ready();
+    vi.spyOn(app.transcriptionCron, 'runOnce').mockImplementation(async () => {});
 
     // Create users
     app.db.insert(users).values([

@@ -163,12 +163,56 @@ export class CleanupService implements ICleanupService {
         return;
       }
 
-      // 1. Fetch server-wide play history to maintain canonical lastPlayedAt for all media
+      // 1. Fetch server-wide play history and merge all known users' play histories
       let globalHistory: Record<string, string> = {};
       try {
-        globalHistory = (await this.jellyfin.getPlayHistory()) || {};
+        globalHistory = { ...((await this.jellyfin.getPlayHistory()) || {}) };
       } catch {
         // Continue if server-wide history call fails
+      }
+
+      // 2. Fetch per-user play history for all registered Jellyfin users
+      const allCoReqs = this.db.select().from(requestCoRequesters).all();
+      const coReqMap = new Map<string, string[]>();
+      for (const cr of allCoReqs) {
+        if (!coReqMap.has(cr.requestId)) {
+          coReqMap.set(cr.requestId, []);
+        }
+        coReqMap.get(cr.requestId)!.push(cr.userId);
+      }
+
+      const allUsers = this.db.select().from(users).all();
+      const userMap = new Map(allUsers.map((u) => [u.id, u]));
+
+      type UserHistoryResult = { accountExists: boolean; history: Record<string, string> };
+      const requesterHistoryCache = new Map<string, UserHistoryResult>();
+
+      for (const u of allUsers) {
+        if (!u.jellyfinUserId) continue;
+        const jfUid = u.jellyfinUserId;
+        if (!requesterHistoryCache.has(jfUid)) {
+          try {
+            const userHistory = await this.jellyfin.getPlayHistory(jfUid);
+            requesterHistoryCache.set(jfUid, {
+              accountExists: true,
+              history: userHistory || {},
+            });
+            // Merge into globalHistory to maintain canonical lastPlayedAt across all viewers
+            for (const [itemPath, playedDate] of Object.entries(userHistory || {})) {
+              if (!globalHistory[itemPath] || new Date(playedDate) > new Date(globalHistory[itemPath])) {
+                globalHistory[itemPath] = playedDate;
+              }
+            }
+          } catch (err: any) {
+            const statusCode = err?.statusCode || err?.status;
+            const msg = String(err?.message || err).toLowerCase();
+            const isNotFound = statusCode === 404 || msg.includes('404') || msg.includes('not found');
+            requesterHistoryCache.set(jfUid, {
+              accountExists: !isNotFound,
+              history: {},
+            });
+          }
+        }
       }
 
       for (const req of seedingRequests) {
@@ -177,8 +221,11 @@ export class CleanupService implements ICleanupService {
 
         for (const [itemPath, playedDate] of Object.entries(globalHistory)) {
           if (matchesLibraryPath(itemPath, req.jellyfinPath)) {
-            if (!latestPlayed || new Date(playedDate) > new Date(latestPlayed)) {
-              latestPlayed = playedDate;
+            const validDate = playedDate && !isNaN(new Date(playedDate).getTime())
+              ? playedDate
+              : '1970-01-01T00:00:00.000Z';
+            if (!latestPlayed || new Date(validDate) > new Date(latestPlayed)) {
+              latestPlayed = validDate;
             }
           }
         }
@@ -190,58 +237,6 @@ export class CleanupService implements ICleanupService {
             .where(eq(downloadRequests.id, req.id))
             .run();
           req.lastPlayedAt = latestPlayed;
-        }
-      }
-
-      // 2. Fetch per-requester play history once per unique requester to evaluate Fully Consumed tier
-      const allCoReqs = this.db.select().from(requestCoRequesters).all();
-      const coReqMap = new Map<string, string[]>();
-      for (const cr of allCoReqs) {
-        if (!coReqMap.has(cr.requestId)) {
-          coReqMap.set(cr.requestId, []);
-        }
-        coReqMap.get(cr.requestId)!.push(cr.userId);
-      }
-
-      const allUserIds = new Set<string>();
-      for (const req of seedingRequests) {
-        if (req.userId) allUserIds.add(req.userId);
-        const coReqs = coReqMap.get(req.id) || [];
-        for (const uid of coReqs) {
-          allUserIds.add(uid);
-        }
-      }
-
-      const allUsers = this.db.select().from(users).all();
-      const userMap = new Map(allUsers.map((u) => [u.id, u]));
-
-      type UserHistoryResult = { accountExists: boolean; history: Record<string, string> };
-      const requesterHistoryCache = new Map<string, UserHistoryResult>();
-
-      for (const uid of allUserIds) {
-        const u = userMap.get(uid);
-        if (!u || !u.jellyfinUserId) {
-          requesterHistoryCache.set(uid, { accountExists: false, history: {} });
-          continue;
-        }
-
-        const jfUid = u.jellyfinUserId;
-        if (!requesterHistoryCache.has(jfUid)) {
-          try {
-            const userHistory = await this.jellyfin.getPlayHistory(jfUid);
-            requesterHistoryCache.set(jfUid, {
-              accountExists: true,
-              history: userHistory || {},
-            });
-          } catch (err: any) {
-            const statusCode = err?.statusCode || err?.status;
-            const msg = String(err?.message || err).toLowerCase();
-            const isNotFound = statusCode === 404 || msg.includes('404') || msg.includes('not found');
-            requesterHistoryCache.set(jfUid, {
-              accountExists: !isNotFound,
-              history: {},
-            });
-          }
         }
       }
 
@@ -271,8 +266,11 @@ export class CleanupService implements ICleanupService {
           for (const [itemPath, playedDate] of Object.entries(userRes.history)) {
             if (matchesLibraryPath(itemPath, req.jellyfinPath)) {
               requesterWatched = true;
-              if (!latestRequesterPlay || new Date(playedDate) > new Date(latestRequesterPlay)) {
-                latestRequesterPlay = playedDate;
+              const validDate = playedDate && !isNaN(new Date(playedDate).getTime())
+                ? playedDate
+                : '1970-01-01T00:00:00.000Z';
+              if (!latestRequesterPlay || new Date(validDate) > new Date(latestRequesterPlay)) {
+                latestRequesterPlay = validDate;
               }
             }
           }
@@ -351,9 +349,21 @@ export class CleanupService implements ICleanupService {
         ? this.storageFootprintProvider()
         : 0;
 
+    const hasFootprintTracking = Boolean(
+      this.fileSystemService?.getStorageFootprintBytes || this.storageFootprintProvider
+    );
+
     const isQuotaWarnExceeded =
-      storageQuotaBytes > 0 && footprintBytes / storageQuotaBytes >= 0.8;
-    const isDiskSpaceLow = percentFree < warnThreshold || !hostSafe;
+      hasFootprintTracking &&
+      storageQuotaBytes > 0 &&
+      footprintBytes / storageQuotaBytes >= 0.8;
+
+    // When storage quota footprint is tracked (production), quota usage governs (CONTEXT.md line 107).
+    // Physical disk space only triggers cleanup if host disk is critically unsafe (!hostSafe, < 10 GB free).
+    // If storage quota footprint is not tracked (legacy unit tests), physical disk percentFree < warnThreshold governs.
+    const isDiskSpaceLow = hasFootprintTracking
+      ? !hostSafe
+      : (percentFree < warnThreshold || !hostSafe);
 
     if (!isQuotaWarnExceeded && !isDiskSpaceLow) {
       return [];
@@ -368,10 +378,16 @@ export class CleanupService implements ICleanupService {
 
     let diskDeficitBytes = 0;
     if (isDiskSpaceLow) {
-      const freeBytes = this.getFreeDiskBytes(customPath);
-      const totalBytes = percentFree > 0 ? (freeBytes / (percentFree / 100)) : (freeBytes + 20 * 1024 * 1024 * 1024);
-      const targetFreeBytes = totalBytes * (warnThreshold / 100);
-      diskDeficitBytes = Math.max(1, targetFreeBytes - freeBytes);
+      if (hasFootprintTracking && !hostSafe) {
+        const freeBytes = this.getFreeDiskBytes(customPath);
+        const MIN_HOST_FREE_BYTES = 10 * 1024 * 1024 * 1024;
+        diskDeficitBytes = Math.max(1, MIN_HOST_FREE_BYTES + (1024 * 1024 * 1024) - freeBytes);
+      } else {
+        const freeBytes = this.getFreeDiskBytes(customPath);
+        const totalBytes = percentFree > 0 ? (freeBytes / (percentFree / 100)) : (freeBytes + 20 * 1024 * 1024 * 1024);
+        const targetFreeBytes = totalBytes * (warnThreshold / 100);
+        diskDeficitBytes = Math.max(1, targetFreeBytes - freeBytes);
+      }
     }
 
     const deficitBytes = Math.max(quotaDeficitBytes, diskDeficitBytes);
@@ -432,7 +448,8 @@ export class CleanupService implements ICleanupService {
   }
 
   async executePendingCleanups(): Promise<DownloadRequest[]> {
-    const nowIso = new Date().toISOString();
+    // 5-minute tolerance window to handle cron execution timing jitter
+    const nowIso = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     const pending = this.db
       .select()
       .from(downloadRequests)

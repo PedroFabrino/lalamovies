@@ -23,6 +23,7 @@ for (const p of envPaths) {
 
 const app = buildApp({
   startPoller: true,
+  startUnarchiveDaemon: true,
   startCleanupCron: true,
   startTranscriptionCron: true,
 });

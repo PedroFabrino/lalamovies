@@ -31,7 +31,7 @@ export const downloadRequests = sqliteTable(
     magnetLink: text('magnet_link').notNull(),
     mediaType: text('media_type', { enum: ['movie', 'tv_show', 'anime', 'private'] }).notNull(),
     status: text('status', {
-      enum: ['queued', 'downloading', 'hardlinking', 'seeding', 'done', 'error', 'deleted'],
+      enum: ['queued', 'downloading', 'hardlinking', 'unarchiving', 'seeding', 'done', 'error', 'deleted'],
     }).notNull().default('queued'),
     metadataId: text('metadata_id').notNull(),
     metadataSource: text('metadata_source', { enum: ['tmdb', 'anilist'] }).notNull(),
