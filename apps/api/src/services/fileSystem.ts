@@ -19,6 +19,7 @@ export interface IFileSystemService {
   hardlink(srcPath: string, destPath: string): void;
   hardlinkDirectory(srcDir: string, destDir: string): void;
   getStorageFootprintBytes(targetPath?: string | string[], forceRefresh?: boolean): number;
+  ensureDirectory(dirPath: string): void;
   invalidateFootprintCache?(): void;
   getMediaBasePath?(): string;
 }
@@ -35,6 +36,17 @@ export class FileSystemService implements IFileSystemService {
 
   getMediaBasePath(): string {
     return this.defaultMediaBasePath;
+  }
+
+  /**
+   * Creates dirPath (and any missing parents) if it does not already exist.
+   * Uses mode 0o777 so the directory is writable by the media process.
+   * Errors are rethrown — callers decide how to handle a creation failure.
+   */
+  ensureDirectory(dirPath: string): void {
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true, mode: 0o777 });
+    }
   }
 
   private ensureDirectories(): void {
