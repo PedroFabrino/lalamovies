@@ -24,6 +24,8 @@ export interface IJellyfinService {
   createUser(username: string, password: string): Promise<string>;
   deleteUser(userId: string): Promise<void>;
   refreshLibrary?(): Promise<void>;
+  safeRefresh(): Promise<void>;
+  getPublicJellyfinUrl(): string | undefined;
   getPlayHistory?(userId?: string): Promise<Record<string, string>>;
   ensureStreamLibrary?(): Promise<string>;
   checkStatus?(): Promise<{ reachable: boolean; authenticated: boolean; error?: string; serverName?: string; version?: string }>;
@@ -156,6 +158,31 @@ export class JellyfinService implements IJellyfinService {
       }
       throw new JellyfinApiError(`Failed to connect to Jellyfin server: ${(err as Error).message}`);
     }
+  }
+
+  /**
+   * Best-effort library refresh. Swallows all errors so callers don't need
+   * the repetitive if-guard + catch boilerplate.
+   */
+  async safeRefresh(): Promise<void> {
+    try {
+      await this.refreshLibrary();
+    } catch {
+      // intentionally swallowed — refresh is best-effort
+    }
+  }
+
+  /**
+   * Resolves the public-facing Jellyfin URL from env vars in priority order:
+   *   JELLYFIN_PUBLIC_URL → https://JELLYFIN_DOMAIN → JELLYFIN_URL → undefined
+   */
+  getPublicJellyfinUrl(): string | undefined {
+    return (
+      process.env.JELLYFIN_PUBLIC_URL ||
+      (process.env.JELLYFIN_DOMAIN ? `https://${process.env.JELLYFIN_DOMAIN}` : undefined) ||
+      process.env.JELLYFIN_URL ||
+      undefined
+    );
   }
 
   async checkStatus(): Promise<{ reachable: boolean; authenticated: boolean; error?: string; serverName?: string; version?: string }> {
