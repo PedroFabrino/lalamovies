@@ -36,7 +36,7 @@ import { IUnarchiveService, UnarchiveService } from './services/unarchive';
 import { UnarchiveDaemon } from './jobs/unarchiveDaemon';
 import { runCompressedDownloadsRecovery } from './services/unarchiveRecovery';
 import { IRequestStateMachine, RequestStateMachine } from './services/requestStateMachine';
-import { RequestsRepository } from './services/requestsRepository';
+import { IRequestsRepository, RequestsRepository } from './services/requestsRepository';
 
 
 export interface AppOptions {
@@ -69,6 +69,7 @@ export interface AppOptions {
   openSubtitlesService?: OpenSubtitlesService;
   openSubtitlesApiKey?: string;
   stateMachine?: IRequestStateMachine;
+  requestsRepo?: IRequestsRepository;
 }
 
 declare module 'fastify' {
@@ -97,6 +98,7 @@ declare module 'fastify' {
     unarchive: IUnarchiveService;
     unarchiveDaemon: UnarchiveDaemon;
     stateMachine: IRequestStateMachine;
+    requestsRepo: IRequestsRepository;
   }
 }
 
@@ -124,7 +126,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       isDiscordEnabled: () => isFeatureEnabled(db, 'discord_notifications'),
     });
   const fileSystem = options.fileSystemService ?? new FileSystemService();
-  const requestsRepo = new RequestsRepository(db);
+  const requestsRepo = options.requestsRepo ?? new RequestsRepository(db);
   const stateMachine: IRequestStateMachine =
     options.stateMachine ??
     new RequestStateMachine(
@@ -360,6 +362,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.decorate('unarchiveDaemon', unarchiveDaemon);
 
   app.decorate('stateMachine', stateMachine);
+  app.decorate('requestsRepo', requestsRepo);
 
 
   app.decorate('serviceApiKey', serviceApiKey);

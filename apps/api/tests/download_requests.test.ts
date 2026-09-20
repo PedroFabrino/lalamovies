@@ -23,6 +23,16 @@ class MockQBittorrentService implements IQBittorrentService {
   public activeCount = 0;
   public addedTorrents: { magnetLink: string; savePath?: string }[] = [];
   public removedTorrents: { hash: string; deleteFiles?: boolean }[] = [];
+  public allTorrents: any[] = [];
+  public torrentFiles = new Map<string, Array<{ name: string; size: number }>>();
+
+  async getAllTorrents() {
+    return this.allTorrents;
+  }
+
+  async getTorrentFiles(hash: string) {
+    return this.torrentFiles.get(hash) || [];
+  }
 
   async addTorrent(magnetLink: string, savePath?: string) {
     this.addedTorrents.push({ magnetLink, savePath });
@@ -691,6 +701,111 @@ describe('Download Request Submission & Management', () => {
           fs.unlinkSync(tmpFile);
         }
       }
+    });
+
+    it('retries completed torrent from qBittorrent and delegates to processAndHardlinkTorrent', async () => {
+      const stagingDir = path.resolve(process.cwd(), 'downloads', 'staging');
+      fs.mkdirSync(stagingDir, { recursive: true });
+      const testMovieName = 'Retry.Movie.2024.mkv';
+      const stagingFile = path.join(stagingDir, testMovieName);
+      fs.writeFileSync(stagingFile, 'Retry movie media');
+
+      const torrentHash = 'hash_retry_qb_success';
+      mockQb.allTorrents = [
+        {
+          hash: torrentHash,
+          name: testMovieName,
+          size: 123456,
+          progress: 1.0,
+          state: 'uploading',
+        },
+      ];
+      mockQb.torrentFiles.set(torrentHash, [
+        { name: testMovieName, size: 123456 },
+      ]);
+
+      try {
+        app.db.insert(downloadRequests).values({
+          id: 'req_retry_qb_ok',
+          userId: testUserId,
+          magnetLink: `magnet:?xt=urn:btih:${torrentHash}`,
+          mediaType: 'movie',
+          status: 'error',
+          metadataId: '40',
+          metadataSource: 'tmdb',
+          title: 'Retry Movie Success',
+          year: 2024,
+          qbTorrentHash: torrentHash,
+          errorMessage: 'Old download error',
+          requestedAt: new Date().toISOString(),
+        }).run();
+
+        const res = await app.inject({
+          method: 'POST',
+          url: '/requests/req_retry_qb_ok/retry',
+          cookies: { token: adminCookie },
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.json().request.status).toBe('seeding');
+        expect(res.json().request.errorMessage).toBeNull();
+        expect(fs.existsSync(res.json().request.jellyfinPath)).toBe(true);
+      } finally {
+        if (fs.existsSync(stagingFile)) {
+          fs.unlinkSync(stagingFile);
+        }
+        const createdFolder = path.resolve(process.cwd(), 'media', 'movies', 'Retry Movie Success (2024)');
+        if (fs.existsSync(createdFolder)) {
+          fs.rmSync(createdFolder, { recursive: true, force: true });
+        }
+      }
+    });
+
+    it('returns 502 and marks error when processAndHardlinkTorrent throws during retry', async () => {
+      const torrentHash = 'hash_retry_qb_fail';
+      // Torrent is marked completed, but file does not exist on disk in staging!
+      mockQb.allTorrents = [
+        {
+          hash: torrentHash,
+          name: 'NonExistent.File.2024.mkv',
+          size: 500000,
+          progress: 1.0,
+          state: 'uploading',
+        },
+      ];
+      mockQb.torrentFiles.set(torrentHash, [
+        { name: 'NonExistent.File.2024.mkv', size: 500000 },
+      ]);
+
+      app.db.insert(downloadRequests).values({
+        id: 'req_retry_qb_fail',
+        userId: testUserId,
+        magnetLink: `magnet:?xt=urn:btih:${torrentHash}`,
+        mediaType: 'movie',
+        status: 'error',
+        metadataId: '50',
+        metadataSource: 'tmdb',
+        title: 'Retry Movie Fail',
+        year: 2024,
+        qbTorrentHash: torrentHash,
+        errorMessage: 'Initial error',
+        requestedAt: new Date().toISOString(),
+      }).run();
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/requests/req_retry_qb_fail/retry',
+        cookies: { token: adminCookie },
+      });
+
+      expect(res.statusCode).toBe(502);
+      expect(res.json().error).toBe('Bad Gateway');
+      expect(res.json().message).toContain('Failed to process and hardlink torrent');
+
+      // Verify errorMessage in DB via requestsRepo.markError()
+      const row = app.db.select().from(downloadRequests).where(eq(downloadRequests.id, 'req_retry_qb_fail')).get();
+      expect(row?.status).toBe('error');
+      expect(row?.errorMessage).toContain('Source file does not exist for hardlink');
     });
   });
 });

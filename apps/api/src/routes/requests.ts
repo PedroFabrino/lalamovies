@@ -1294,53 +1294,30 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
         if (found) {
           torrentSize = found.size;
           if (found.progress === 1 || found.state.includes('complete') || found.state.includes('upload') || found.state.includes('seed')) {
-            isComplete = true;
-
             // Attempt hardlink move
             let files: Array<{ name: string; size: number }> = [];
             if (app.qbittorrent.getTorrentFiles) {
               files = await app.qbittorrent.getTorrentFiles(item.qbTorrentHash);
             }
-            const videoExtensions = ['.mkv', '.mp4', '.avi', '.ts', '.mov', '.webm', '.m4v'];
-            const videoFiles = files
-              .filter((f) => videoExtensions.includes(path.extname(f.name).toLowerCase()))
-              .sort((a, b) => b.size - a.size);
 
-            let sourceItem = path.join(stagingPath, found.name);
-            let isDirectory = false;
-            let ext = path.extname(found.name) || '.mkv';
-
-            if (files.length > 0) {
-              const firstSegment = files[0].name.split('/')[0];
-              const rootDir = path.join(stagingPath, firstSegment);
-              if (item.episodeNumber != null && videoFiles.length === 1) {
-                sourceItem = path.join(stagingPath, videoFiles[0].name);
-                ext = path.extname(videoFiles[0].name) || '.mkv';
-                isDirectory = false;
-              } else if (fs.existsSync(rootDir) && fs.statSync(rootDir).isDirectory()) {
-                sourceItem = rootDir;
-                isDirectory = true;
-              }
-            } else if (fs.existsSync(sourceItem)) {
-              isDirectory = fs.statSync(sourceItem).isDirectory();
-            }
-
-            destPath = app.fileSystem.buildLibraryPath({
-              mediaType: item.mediaType as 'movie' | 'tv_show' | 'anime',
-              title: item.title,
-              year: item.year,
-              seasonNumber: item.seasonNumber,
-              episodeNumber: item.episodeNumber,
-              isSeasonPack: isDirectory || (item.mediaType !== 'movie' && !ext),
-              ext,
-            });
-
-            if (fs.existsSync(sourceItem)) {
-              if (isDirectory) {
-                app.fileSystem.hardlinkDirectory(sourceItem, destPath);
-              } else {
-                app.fileSystem.hardlink(sourceItem, destPath);
-              }
+            try {
+              const result = await app.fileSystem.processAndHardlinkTorrent({
+                request: item,
+                torrentStatus: { name: found.name },
+                files,
+                stagingPath,
+                db: app.db,
+                subtitleInspection: app.subtitleInspection,
+              });
+              destPath = result.destPath;
+              isComplete = true;
+            } catch (hardlinkErr) {
+              const errMsg = (hardlinkErr as Error).message || 'Failed to process and hardlink torrent';
+              app.requestsRepo.markError(id, errMsg);
+              return reply.status(502).send({
+                error: 'Bad Gateway',
+                message: `Failed to process and hardlink torrent: ${errMsg}`,
+              });
             }
           }
         }
