@@ -760,5 +760,52 @@ describe('Download Request Submission & Management', () => {
       expect(row?.status).toBe('error');
       expect(row?.errorMessage).toContain('Source file does not exist for hardlink');
     });
+
+    it('calls stateMachine.transition exactly once with refreshJellyfin: true and no direct jellyfin.refreshLibrary', async () => {
+      const tmpFile = path.resolve(process.cwd(), 'tests_retry_sm_sample.mkv');
+      fs.writeFileSync(tmpFile, 'test media');
+
+      const smSpy = vi.spyOn(app.stateMachine, 'transition').mockResolvedValue({
+        id: 'req_err_retry_sm',
+        status: 'seeding',
+      } as any);
+      const jfSpy = vi.spyOn(app.jellyfin, 'refreshLibrary');
+
+      try {
+        app.db.insert(downloadRequests).values({
+          id: 'req_err_retry_sm',
+          userId: testUserId,
+          magnetLink: 'magnet:?xt=urn:btih:4444',
+          mediaType: 'movie',
+          status: 'error',
+          metadataId: '35',
+          metadataSource: 'tmdb',
+          title: 'Retry Movie SM',
+          jellyfinPath: tmpFile,
+          requestedAt: new Date().toISOString(),
+        }).run();
+
+        const res = await app.inject({
+          method: 'POST',
+          url: '/requests/req_err_retry_sm/retry',
+          cookies: { token: adminCookie },
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(smSpy).toHaveBeenCalledTimes(1);
+        expect(smSpy).toHaveBeenCalledWith(
+          'req_err_retry_sm',
+          'seeding',
+          expect.objectContaining({ refreshJellyfin: true })
+        );
+        expect(jfSpy).not.toHaveBeenCalled();
+      } finally {
+        if (fs.existsSync(tmpFile)) {
+          fs.unlinkSync(tmpFile);
+        }
+        smSpy.mockRestore();
+        jfSpy.mockRestore();
+      }
+    });
   });
 });
