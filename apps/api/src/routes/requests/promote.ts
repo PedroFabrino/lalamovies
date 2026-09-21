@@ -59,7 +59,7 @@ export const promoteRoutes: FastifyPluginAsync = async (app) => {
       });
 
       if (fs.existsSync(data.stagingPath)) {
-        app.fileSystem.hardlink(data.stagingPath, destPath);
+        await app.fileSystem.hardlink(data.stagingPath, destPath);
       }
     } catch (err) {
       app.log.warn(err, 'Failed to hardlink stream promotion file');

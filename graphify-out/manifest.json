@@ -270,9 +270,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/fileSystem.ts": {
-    "mtime": 1790017082.048836,
-    "seen": 1790017200.3040025,
-    "ast_hash": "cbf9810db231603b0aff2a6860cee323",
+    "mtime": 1790021614.0598187,
+    "seen": 1790021729.5719578,
+    "ast_hash": "96425c0f23ac7fdbb6f229f82cf4b50d",
     "semantic_hash": ""
   },
   "apps/api/src/services/jellyfin.ts": {
@@ -1668,9 +1668,9 @@
     "semantic_hash": ""
   },
   "apps/api/tests/fileSystem_processAndHardlinkTorrent.test.ts": {
-    "mtime": 1789956056.73199,
-    "seen": 1789956580.6176558,
-    "ast_hash": "f9dcc84aef6b3addcc544ab92a6ce73e",
+    "mtime": 1790021657.7205403,
+    "seen": 1790021729.586171,
+    "ast_hash": "e2284e524bb7a28c048897b58f67b956",
     "semantic_hash": ""
   },
   "apps/api/src/config.ts": {
@@ -1854,9 +1854,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/promote.ts": {
-    "mtime": 1790009138.7167926,
-    "seen": 1790009382.077369,
-    "ast_hash": "fa2e573e52339122e1336c9f320c171e",
+    "mtime": 1790021636.2031791,
+    "seen": 1790021729.5677924,
+    "ast_hash": "ddd6a6f7114a90ba90b9d8c7e26117f1",
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/retry.ts": {
@@ -1989,6 +1989,18 @@
     "mtime": 1790020881.3813066,
     "seen": 1790021059.0348854,
     "ast_hash": "58c1af4233b6b413228d2914dd6d21bf",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/libraryPathBuilder.ts": {
+    "mtime": 1790021591.4611237,
+    "seen": 1790021729.5729945,
+    "ast_hash": "bd7ef17562ea12e1eb59854458ebb720",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/storageFootprint.ts": {
+    "mtime": 1790021599.8576078,
+    "seen": 1790021729.5767884,
+    "ast_hash": "6262e2f72fbf52ab34684e8b3b13e2cd",
     "semantic_hash": ""
   }
 }

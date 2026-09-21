@@ -369,4 +369,41 @@ describe('FileSystemService.processAndHardlinkTorrent', () => {
       })
     ).rejects.toThrow('Source file does not exist for hardlink');
   });
+
+  describe('hardlink and hardlinkDirectory asynchronous operations', () => {
+    it('hardlink: creates a hardlink to a destination file asynchronously', async () => {
+      const src = path.join(stagingDir, 'sample_async.mkv');
+      const dest = path.join(mediaDir, 'movies', 'Sample', 'Sample.mkv');
+      fs.writeFileSync(src, 'async content');
+
+      await fsService.hardlink(src, dest);
+
+      expect(fs.existsSync(dest)).toBe(true);
+      expect(fs.readFileSync(dest, 'utf-8')).toBe('async content');
+      expect(fs.statSync(dest).ino).toBe(fs.statSync(src).ino);
+    });
+
+    it('hardlinkDirectory: creates hardlinks recursively for directories asynchronously', async () => {
+      const srcDir = path.join(stagingDir, 'DirPack');
+      const subDir = path.join(srcDir, 'sub');
+      fs.mkdirSync(subDir, { recursive: true });
+      fs.writeFileSync(path.join(srcDir, 'file1.mkv'), 'f1');
+      fs.writeFileSync(path.join(subDir, 'file2.mkv'), 'f2');
+
+      const destDir = path.join(mediaDir, 'shows', 'DirPack', 'Season 01');
+      await fsService.hardlinkDirectory(srcDir, destDir);
+
+      expect(fs.existsSync(path.join(destDir, 'file1.mkv'))).toBe(true);
+      expect(fs.existsSync(path.join(destDir, 'sub', 'file2.mkv'))).toBe(true);
+      expect(fs.readFileSync(path.join(destDir, 'file1.mkv'), 'utf-8')).toBe('f1');
+      expect(fs.readFileSync(path.join(destDir, 'sub', 'file2.mkv'), 'utf-8')).toBe('f2');
+    });
+
+    it('hardlink: throws error if source file does not exist', async () => {
+      const src = path.join(stagingDir, 'nonexistent.mkv');
+      const dest = path.join(mediaDir, 'dest.mkv');
+
+      await expect(fsService.hardlink(src, dest)).rejects.toThrow('Source file does not exist for hardlink');
+    });
+  });
 });

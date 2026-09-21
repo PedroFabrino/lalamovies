@@ -3,21 +3,14 @@ import path from 'node:path';
 import type { ISubtitleInspectionService } from './subtitleInspection';
 import { extractEpisodeInfo } from '../utils/torrentTitleCleaner';
 import { reconstructFilesFromDisk } from '../utils/stagingScanner';
+import {
+  type BuildLibraryPathParams,
+  buildLibraryPath as buildLibraryPathHelper,
+} from './libraryPathBuilder';
+import { StorageFootprintService } from './storageFootprint';
 
 export { reconstructFilesFromDisk };
-
-export interface BuildLibraryPathParams {
-  mediaType: 'movie' | 'tv_show' | 'anime' | 'private';
-  title: string;
-  year?: number | null;
-  seasonNumber?: number | null;
-  episodeNumber?: number | null;
-  ext?: string;
-  isSeasonPack?: boolean;
-  mediaBasePath?: string;
-  existingShowFolder?: string;
-  disambiguator?: string;
-}
+export type { BuildLibraryPathParams };
 
 export interface ProcessAndHardlinkTorrentInput {
   request: {
@@ -57,8 +50,8 @@ export type ProcessAndHardlinkResult = ProcessAndHardlinkTorrentResult;
 
 export interface IFileSystemService {
   buildLibraryPath(params: BuildLibraryPathParams): string;
-  hardlink(srcPath: string, destPath: string): void;
-  hardlinkDirectory(srcDir: string, destDir: string): void;
+  hardlink(srcPath: string, destPath: string): Promise<void>;
+  hardlinkDirectory(srcDir: string, destDir: string): Promise<void>;
   getStorageFootprintBytes(targetPath?: string | string[], forceRefresh?: boolean): Promise<number>;
   ensureDirectory(dirPath: string): void;
   processAndHardlinkTorrent(input: ProcessAndHardlinkInput): Promise<ProcessAndHardlinkResult>;
@@ -72,12 +65,11 @@ export interface IFileSystemService {
 
 export class FileSystemService implements IFileSystemService {
   private defaultMediaBasePath: string;
-  private cachedFootprint: { bytes: number; timestamp: number } | null = null;
-  private pendingFootprintPromise: Promise<number> | null = null;
-  private readonly FOOTPRINT_CACHE_TTL_MS = 60_000;
+  private footprintService: StorageFootprintService;
 
   constructor(mediaBasePath?: string) {
     this.defaultMediaBasePath = mediaBasePath || process.env.MEDIA_PATH || path.resolve(process.cwd(), 'media');
+    this.footprintService = new StorageFootprintService(this.defaultMediaBasePath);
     this.ensureDirectories();
   }
 
@@ -92,11 +84,6 @@ export class FileSystemService implements IFileSystemService {
     return reconstructFilesFromDisk(stagingDir, subDir);
   }
 
-  /**
-   * Creates dirPath (and any missing parents) if it does not already exist.
-   * Uses mode 0o777 so the directory is writable by the media process.
-   * Errors are rethrown — callers decide how to handle a creation failure.
-   */
   ensureDirectory(dirPath: string): void {
     if (!fs.existsSync(dirPath)) {
       fs.mkdirSync(dirPath, { recursive: true, mode: 0o777 });
@@ -124,203 +111,70 @@ export class FileSystemService implements IFileSystemService {
     }
   }
 
-  private sanitize(name: string): string {
-    return name.replace(/[<>:"/\\|?*]/g, '').trim();
-  }
-
-  private padNumber(num: number, digits = 2): string {
-    return String(num).padStart(digits, '0');
-  }
-
   buildLibraryPath(params: BuildLibraryPathParams): string {
-    const root = (params.mediaBasePath || this.defaultMediaBasePath).replace(/[\\/]+$/, '');
-    const cleanTitle = this.sanitize(params.title);
-    const ext = (params.ext || 'mkv').replace(/^\./, '');
-    const yearStr = params.year ? ` (${params.year})` : '';
-
-    if (params.mediaType === 'movie') {
-      const folderName = `${cleanTitle}${yearStr}`;
-      const fileName = `${cleanTitle}${yearStr}.${ext}`;
-      return path.join(root, 'movies', folderName, fileName);
-    }
-
-    if (params.mediaType === 'private') {
-      const folderName = `${cleanTitle}${yearStr}`;
-      if (params.seasonNumber != null && params.episodeNumber != null) {
-        const seasonFolder = `Season ${this.padNumber(params.seasonNumber, 2)}`;
-        const epCode = `S${this.padNumber(params.seasonNumber, 2)}E${this.padNumber(params.episodeNumber, 2)}`;
-        const fileName = `${cleanTitle} ${epCode}.${ext}`;
-        return path.join(root, 'private', folderName, seasonFolder, fileName);
-      }
-      if (params.disambiguator) {
-        const cleanDisambiguator = this.sanitize(params.disambiguator);
-        return path.join(root, 'private', cleanDisambiguator, `${cleanDisambiguator}.${ext}`);
-      }
-      const fileName = `${cleanTitle}${yearStr}.${ext}`;
-      return path.join(root, 'private', folderName, fileName);
-    }
-
-    const subDir = params.mediaType === 'anime' ? 'anime' : 'shows';
-    const seasonNum = params.seasonNumber ?? 1;
-    const seasonFolder = `Season ${this.padNumber(seasonNum, 2)}`;
-    const baseCleanTitle = cleanTitle.replace(/\s*-\s*\d+$/, '').trim() || cleanTitle;
-    const defaultShowFolder = params.year ? `${baseCleanTitle} (${params.year})` : baseCleanTitle;
-    const showFolderName = params.existingShowFolder || defaultShowFolder;
-
-    if (params.isSeasonPack) {
-      return path.join(root, subDir, showFolderName, seasonFolder);
-    }
-
-    const epNum = params.episodeNumber ?? 1;
-    const epCode = `S${this.padNumber(seasonNum, 2)}E${this.padNumber(epNum, 2)}`;
-    const effectiveTitle = params.existingShowFolder
-      ? params.existingShowFolder.replace(/\s*\(\d{4}\)$/, '').trim()
-      : cleanTitle;
-    const fileName = `${effectiveTitle} ${epCode}.${ext}`;
-    return path.join(root, subDir, showFolderName, seasonFolder, fileName);
+    return buildLibraryPathHelper(params, this.defaultMediaBasePath);
   }
 
-  hardlink(srcPath: string, destPath: string): void {
-    if (!fs.existsSync(srcPath)) {
+  async hardlink(srcPath: string, destPath: string): Promise<void> {
+    try {
+      await fs.promises.access(srcPath);
+    } catch {
       throw new Error(`Source file does not exist for hardlink: ${srcPath}`);
     }
 
     const destDir = path.dirname(destPath);
     this.ensureDirectory(destDir);
-    try { fs.chmodSync(destDir, 0o777); } catch { /* ignore */ }
-
-    if (fs.existsSync(destPath)) {
-      fs.unlinkSync(destPath);
+    try {
+      await fs.promises.chmod(destDir, 0o777);
+    } catch {
+      /* ignore */
     }
 
-    fs.linkSync(srcPath, destPath);
+    try {
+      await fs.promises.unlink(destPath);
+    } catch {
+      // ignore if doesn't exist
+    }
+
+    await fs.promises.link(srcPath, destPath);
   }
 
-  hardlinkDirectory(srcDir: string, destDir: string): void {
-    if (!fs.existsSync(srcDir)) {
+  async hardlinkDirectory(srcDir: string, destDir: string): Promise<void> {
+    try {
+      await fs.promises.access(srcDir);
+    } catch {
       throw new Error(`Source directory does not exist: ${srcDir}`);
     }
 
     this.ensureDirectory(destDir);
-    try { fs.chmodSync(destDir, 0o777); } catch { /* ignore */ }
+    try {
+      await fs.promises.chmod(destDir, 0o777);
+    } catch {
+      /* ignore */
+    }
 
-    const entries = fs.readdirSync(srcDir, { withFileTypes: true });
+    const entries = await fs.promises.readdir(srcDir, { withFileTypes: true });
     for (const entry of entries) {
       const srcEntryPath = path.join(srcDir, entry.name);
       const destEntryPath = path.join(destDir, entry.name);
 
       if (entry.isDirectory()) {
-        this.hardlinkDirectory(srcEntryPath, destEntryPath);
+        await this.hardlinkDirectory(srcEntryPath, destEntryPath);
       } else if (entry.isFile()) {
-        this.hardlink(srcEntryPath, destEntryPath);
+        await this.hardlink(srcEntryPath, destEntryPath);
       }
     }
   }
 
   invalidateFootprintCache(): void {
-    this.cachedFootprint = null;
-    this.pendingFootprintPromise = null;
+    this.footprintService.invalidateFootprintCache();
   }
 
   async getStorageFootprintBytes(
     targetPath?: string | string[],
     forceRefresh = false
   ): Promise<number> {
-    if (
-      !targetPath &&
-      !forceRefresh &&
-      this.cachedFootprint &&
-      Date.now() - this.cachedFootprint.timestamp < this.FOOTPRINT_CACHE_TTL_MS
-    ) {
-      return this.cachedFootprint.bytes;
-    }
-
-    if (!targetPath && !forceRefresh && this.pendingFootprintPromise) {
-      return this.pendingFootprintPromise;
-    }
-
-    const calcPromise = (async () => {
-      let pathsToScan: string[] = [];
-      if (targetPath) {
-        pathsToScan = Array.isArray(targetPath) ? targetPath : [targetPath];
-      } else {
-        const candidates = [
-          fs.existsSync('/media_data/downloads') ? '/media_data/downloads' : null,
-          process.env.STAGING_PATH,
-          this.defaultMediaBasePath,
-        ].filter((p): p is string => Boolean(p && fs.existsSync(p)));
-
-        if (candidates.length > 0) {
-          pathsToScan = Array.from(new Set(candidates));
-        } else {
-          pathsToScan = [
-            path.resolve(process.cwd(), 'downloads', 'staging'),
-            this.defaultMediaBasePath,
-          ];
-        }
-      }
-
-      const seenInodes = new Set<string>();
-      let totalBytes = 0;
-      const stack: string[] = [...pathsToScan];
-
-      while (stack.length > 0) {
-        const current = stack.pop()!;
-        let stat: fs.Stats;
-        try {
-          stat = await fs.promises.lstat(current);
-        } catch {
-          continue;
-        }
-
-        if (stat.isSymbolicLink()) {
-          continue;
-        }
-
-        if (stat.isDirectory()) {
-          const baseName = path.basename(current);
-          // Exclude virtual cloud mounts (.zurg), ephemeral stream folders, and hidden directories
-          if (baseName.startsWith('.') || baseName === 'stream') {
-            continue;
-          }
-
-          try {
-            const entries = await fs.promises.readdir(current);
-            for (const entry of entries) {
-              if (entry.startsWith('.') || entry === 'stream') {
-                continue;
-              }
-              stack.push(path.join(current, entry));
-            }
-          } catch {
-            // ignore read errors
-          }
-        } else if (stat.isFile()) {
-          const inodeKey = `${stat.dev}:${stat.ino}`;
-          if (!seenInodes.has(inodeKey)) {
-            seenInodes.add(inodeKey);
-            totalBytes += stat.size;
-          }
-        }
-      }
-
-      if (!targetPath) {
-        this.cachedFootprint = { bytes: totalBytes, timestamp: Date.now() };
-      }
-
-      return totalBytes;
-    })();
-
-    if (!targetPath) {
-      this.pendingFootprintPromise = calcPromise;
-      try {
-        return await calcPromise;
-      } finally {
-        this.pendingFootprintPromise = null;
-      }
-    }
-
-    return await calcPromise;
+    return this.footprintService.getStorageFootprintBytes(targetPath, forceRefresh);
   }
 
   async processAndHardlinkTorrent(
@@ -421,13 +275,11 @@ export class FileSystemService implements IFileSystemService {
       isDirectory = fs.statSync(sourceItem).isDirectory();
     }
 
-    // Check if existing requests for this series already established a show directory
     let existingShowFolder: string | undefined = input.existingShowFolder;
     let targetMediaType = req.mediaType;
     let effectiveTitle = req.title;
 
     if (['tv_show', 'anime'].includes(req.mediaType)) {
-      // If no existing series passed by caller, check on disk across anime and shows
       if (!existingShowFolder) {
         try {
           const mediaBase =
@@ -456,7 +308,6 @@ export class FileSystemService implements IFileSystemService {
           logger?.warn?.(`Error scanning disk for existing series folder: ${(scanErr as Error).message}`);
         }
       } else {
-        // existingShowFolder was passed in; verify if folder exists in anime or shows
         try {
           const mediaBase =
             (this.getMediaBasePath ? this.getMediaBasePath() : null) ||
@@ -490,14 +341,12 @@ export class FileSystemService implements IFileSystemService {
           : undefined,
     });
 
-    // Perform Hardlink Move
     if (isDirectory) {
-      this.hardlinkDirectory(sourceItem, destPath);
+      await this.hardlinkDirectory(sourceItem, destPath);
     } else {
-      this.hardlink(sourceItem, destPath);
+      await this.hardlink(sourceItem, destPath);
     }
 
-    // Hardlink subtitles for movies if available
     if (req.mediaType === 'movie' && !isDirectory && files.length > 0) {
       const subFiles = files.filter((f) => {
         const subExt = path.extname(f.name).toLowerCase();
@@ -514,7 +363,7 @@ export class FileSystemService implements IFileSystemService {
             ? path.join(destDir, `${baseName}.${langMatch[1]}${subExt}`)
             : path.join(destDir, `${baseName}${subExt}`);
           try {
-            this.hardlink(subSrc, subDest);
+            await this.hardlink(subSrc, subDest);
           } catch (hlErr) {
             logger?.warn?.(`Failed to hardlink subtitle ${subSrc} to ${subDest}: ${(hlErr as Error).message}`);
           }
@@ -522,7 +371,6 @@ export class FileSystemService implements IFileSystemService {
       }
     }
 
-    // Subtitle inspection for private library
     let transcriptionStatus: 'none' | 'pending' = 'none';
     if (req.mediaType === 'private') {
       if (subtitleInspection) {
