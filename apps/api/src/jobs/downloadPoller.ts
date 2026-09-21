@@ -1,16 +1,16 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import { eq, asc, and, ne, isNotNull, inArray } from 'drizzle-orm';
-import { AppDatabase, downloadRequests, DownloadRequest, systemConfig, users } from '../db';
+import { eq, inArray } from 'drizzle-orm';
+import { AppDatabase, systemConfig, users, DownloadRequest } from '../db';
 import { IQBittorrentService } from '../services/qbittorrent';
-import { IFileSystemService, FileSystemService } from '../services/fileSystem';
+import { IFileSystemService } from '../services/fileSystem';
 import { IJellyfinService } from '../services/jellyfin';
 import { INotificationService } from '../services/notifications';
 import { ISubtitleInspectionService } from '../services/subtitleInspection';
 import { OpenSubtitlesService } from '../services/openSubtitles';
 import { IUnarchiveService, UnarchiveService } from '../services/unarchive';
 import { IRequestStateMachine, RequestStateMachine, RequestStatus } from '../services/requestStateMachine';
-import { RequestsRepository } from '../services/requestsRepository';
+import { IRequestsRepository, RequestsRepository } from '../services/requestsRepository';
 
 export type PollerLogger = {
   info: (msg: string) => void;
@@ -20,6 +20,7 @@ export type PollerLogger = {
 
 export interface DownloadPollerOptions {
   db: AppDatabase;
+  requestsRepo?: IRequestsRepository;
   qbittorrent: IQBittorrentService;
   fileSystem: IFileSystemService;
   jellyfin: IJellyfinService;
@@ -38,6 +39,7 @@ export class DownloadPoller {
   private timer: NodeJS.Timeout | null = null;
   private isPolling = false;
   private db: AppDatabase;
+  private requestsRepo: IRequestsRepository;
   private qbittorrent: IQBittorrentService;
   private fileSystem: IFileSystemService;
   private jellyfin: IJellyfinService;
@@ -53,6 +55,7 @@ export class DownloadPoller {
 
   constructor(options: DownloadPollerOptions) {
     this.db = options.db;
+    this.requestsRepo = options.requestsRepo || new RequestsRepository(options.db);
     this.qbittorrent = options.qbittorrent;
     this.fileSystem = options.fileSystem;
     this.jellyfin = options.jellyfin;
@@ -60,7 +63,7 @@ export class DownloadPoller {
     this.stateMachine =
       options.stateMachine ||
       new RequestStateMachine(
-        new RequestsRepository(options.db),
+        this.requestsRepo,
         options.broadcast,
         options.jellyfin,
         options.notificationService
@@ -80,11 +83,7 @@ export class DownloadPoller {
 
     try {
       // 1. Process active downloads
-      const activeRequests = this.db
-        .select()
-        .from(downloadRequests)
-        .where(eq(downloadRequests.status, RequestStatus.DOWNLOADING))
-        .all();
+      const activeRequests = this.requestsRepo.findByStatus(RequestStatus.DOWNLOADING);
 
       for (const req of activeRequests) {
         if (!req.qbTorrentHash) {
@@ -101,11 +100,7 @@ export class DownloadPoller {
                 this.logger?.info(
                   `Self-healed orphan download request ${req.title} (${req.id}) with hash ${matched.hash}`
                 );
-                this.db
-                  .update(downloadRequests)
-                  .set({ qbTorrentHash: matched.hash })
-                  .where(eq(downloadRequests.id, req.id))
-                  .run();
+                this.requestsRepo.update(req.id, { qbTorrentHash: matched.hash });
                 req.qbTorrentHash = matched.hash;
               } else {
                 continue;
@@ -151,8 +146,11 @@ export class DownloadPoller {
                       name: path.join(torrentStatus.name, e),
                       size: fs.statSync(path.join(torrentDir, e)).size,
                     }));
-                  } catch {
-                    // ignore
+                  } catch (readErr) {
+                    this.logger?.warn?.(
+                      `Failed to read staging directory ${torrentDir}: ${(readErr as Error).message}`
+                    );
+                    continue;
                   }
                 } else {
                   files = [{ name: torrentStatus.name, size: torrentStatus.size }];
@@ -177,17 +175,18 @@ export class DownloadPoller {
             // Transition status to hardlinking
             await this.stateMachine.transition(req.id, RequestStatus.HARDLINKING);
 
-            const processAndHardlink =
-              typeof this.fileSystem.processAndHardlinkTorrent === 'function'
-                ? this.fileSystem.processAndHardlinkTorrent.bind(this.fileSystem)
-                : FileSystemService.prototype.processAndHardlinkTorrent.bind(this.fileSystem);
+            const existingShowFolder = this.requestsRepo.findExistingSeriesFolder({
+              metadataId: req.metadataId,
+              mediaType: req.mediaType,
+              excludeRequestId: req.id,
+            });
 
-            const result = await processAndHardlink({
+            const result = await this.fileSystem.processAndHardlinkTorrent({
               request: req,
               torrentStatus,
               files,
               stagingPath: this.stagingPath,
-              db: this.db,
+              existingShowFolder,
               subtitleInspection: this.subtitleInspection,
               logger: this.logger,
             });
@@ -313,7 +312,7 @@ export class DownloadPoller {
 
       const storageQuotaGb = quotaRow ? parseInt(quotaRow.value, 10) : parseInt(process.env.STORAGE_QUOTA_GB || '150', 10);
       const storageQuotaBytes = storageQuotaGb * 1024 * 1024 * 1024;
-      const currentFootprintBytes = this.fileSystem.getStorageFootprintBytes ? this.fileSystem.getStorageFootprintBytes() : 0;
+      const currentFootprintBytes = this.fileSystem.getStorageFootprintBytes ? await this.fileSystem.getStorageFootprintBytes() : 0;
 
       const quotaCapBytes = storageQuotaBytes > 0 ? Math.floor(storageQuotaBytes * 0.85) : Infinity;
       let availableHeadroom = quotaCapBytes === Infinity ? Infinity : Math.max(0, quotaCapBytes - currentFootprintBytes);
@@ -330,29 +329,16 @@ export class DownloadPoller {
 
       if (availableHeadroom <= 0) {
         // Quota usage >= 85%, cannot promote any requests; mark non-deferred items as waiting_for_space
-        const queuedItems = this.db
-          .select({ id: downloadRequests.id, deferredReason: downloadRequests.deferredReason })
-          .from(downloadRequests)
-          .where(eq(downloadRequests.status, RequestStatus.QUEUED))
-          .all();
+        const queuedItems = this.requestsRepo.findByStatus(RequestStatus.QUEUED);
 
         for (const item of queuedItems) {
           if (item.deferredReason !== 'waiting_for_space') {
-            this.db
-              .update(downloadRequests)
-              .set({ deferredReason: 'waiting_for_space' })
-              .where(eq(downloadRequests.id, item.id))
-              .run();
+            this.requestsRepo.update(item.id, { deferredReason: 'waiting_for_space' });
           }
         }
       } else if (slotsAvailable > 0) {
         // Query all queued requests in FIFO order
-        const queuedRequests = this.db
-          .select()
-          .from(downloadRequests)
-          .where(eq(downloadRequests.status, RequestStatus.QUEUED))
-          .orderBy(asc(downloadRequests.requestedAt))
-          .all();
+        const queuedRequests = this.requestsRepo.findByStatus(RequestStatus.QUEUED, 'requestedAtAsc');
 
         for (const queuedReq of queuedRequests) {
           if (slotsAvailable <= 0) break;
@@ -362,11 +348,7 @@ export class DownloadPoller {
           // Greedy Best-Fit: if item exceeds remaining headroom, skip it and continue checking smaller items
           if (reqSize > availableHeadroom) {
             if (queuedReq.deferredReason !== 'waiting_for_space') {
-              this.db
-                .update(downloadRequests)
-                .set({ deferredReason: 'waiting_for_space' })
-                .where(eq(downloadRequests.id, queuedReq.id))
-                .run();
+              this.requestsRepo.update(queuedReq.id, { deferredReason: 'waiting_for_space' });
             }
             continue;
           }

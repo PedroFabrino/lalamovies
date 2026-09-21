@@ -176,7 +176,7 @@ export class DiscoveryService implements IDiscoveryService {
           seasonNumber !== null ||
           episodeNumber !== null ||
           cleaned.detectedMediaType === 'tv_show' ||
-          /(?:^|[\s._\-])(?:s\d{1,2}|season[\s._\-]*\d{1,2}|ep?[\s._\-]*\d{1,3}|episode[\s._\-]*\d{1,3})(?:$|[\s._\-])/i.test(candidate.title)
+          /(?:^|[\s._-])(?:s\d{1,2}|season[\s._-]*\d{1,2}|ep?[\s._-]*\d{1,3}|episode[\s._-]*\d{1,3})(?:$|[\s._-])/i.test(candidate.title)
         ) {
           continue;
         }

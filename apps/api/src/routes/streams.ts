@@ -136,7 +136,7 @@ async function forwardToStreamer(request: FastifyRequest, reply: FastifyReply, s
     });
 
     const contentType = res.headers.get('content-type') || '';
-    let responseData: any;
+    let responseData: unknown;
     if (contentType.includes('application/json')) {
       responseData = await res.json();
     } else {

@@ -162,14 +162,15 @@ export abstract class BaseMetadataService implements IMetadataService {
       if (uniqueCandidates.length > 0) {
         return rankMetadataCandidates(uniqueCandidates, query, opts?.year);
       }
-    } catch {
-      // TMDB failed, unconfigured, or error -> fall through to AniList
+    } catch (err) {
+      console.warn(`[MetadataService] TMDB anime search failed for query "${query}": ${(err as Error).message}`);
     }
 
     // 2. Fallback to AniList
     try {
       return await this.searchAniList(query, opts?.year);
-    } catch {
+    } catch (err) {
+      console.warn(`[MetadataService] AniList fallback search failed for query "${query}": ${(err as Error).message}`);
       return [];
     }
   }
@@ -185,8 +186,8 @@ export abstract class BaseMetadataService implements IMetadataService {
         opts?.year !== undefined && opts?.year !== null
           ? await this.searchTMDB(query, 'tv_show', opts?.apiKey, opts?.year)
           : await this.searchTMDB(query, 'tv_show', opts?.apiKey);
-    } catch {
-      // Ignore tv search failure if movie succeeded
+    } catch (err) {
+      console.warn(`[MetadataService] TMDB TV search failed in searchPrivate for query "${query}": ${(err as Error).message}`);
     }
     const combined = [...movieCandidates, ...tvCandidates];
     const seen = new Set<string>();
@@ -247,7 +248,20 @@ export class MetadataService extends BaseMetadataService {
       key
     )}&query=${encodeURIComponent(query)}&include_adult=false`;
 
-    const fetchResults = async (url: string) => {
+    type TmdbSearchResult = {
+      id: number;
+      title?: string;
+      name?: string;
+      original_title?: string;
+      original_name?: string;
+      release_date?: string;
+      first_air_date?: string;
+      poster_path?: string;
+      overview?: string;
+      vote_average?: number;
+    };
+
+    const fetchResults = async (url: string): Promise<TmdbSearchResult[]> => {
       let response: Response;
       try {
         response = await fetch(url, {
@@ -267,24 +281,13 @@ export class MetadataService extends BaseMetadataService {
       }
 
       const data = (await response.json()) as {
-        results?: Array<{
-          id: number;
-          title?: string;
-          name?: string;
-          original_title?: string;
-          original_name?: string;
-          release_date?: string;
-          first_air_date?: string;
-          poster_path?: string;
-          overview?: string;
-          vote_average?: number;
-        }>;
+        results?: TmdbSearchResult[];
       };
 
       return data.results || [];
     };
 
-    let rawResults: Array<any> = [];
+    let rawResults: TmdbSearchResult[] = [];
     if (year) {
       const yearParam = mediaType === 'movie' ? `&primary_release_year=${year}` : `&first_air_date_year=${year}`;
       rawResults = await fetchResults(baseUrl + yearParam);

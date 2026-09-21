@@ -1,4 +1,4 @@
-import { FastifyPluginAsync } from 'fastify';
+import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { eq, asc } from 'drizzle-orm';
 import { authMiddleware, adminGuard } from '../middleware/auth';
@@ -131,7 +131,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ config });
   });
 
-  const updateConfigHandler = async (request: any, reply: any) => {
+  const updateConfigHandler = async (request: FastifyRequest, reply: FastifyReply) => {
     const body = request.body as Record<string, unknown> | null;
     if (!body || typeof body !== 'object') {
       return reply.status(400).send({
@@ -267,7 +267,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
     const storageQuotaGb = quotaRow ? parseInt(quotaRow.value, 10) : parseInt(process.env.STORAGE_QUOTA_GB || '150', 10);
     const storageQuotaBytes = storageQuotaGb * 1024 * 1024 * 1024;
-    const footprintBytes = app.fileSystem.getStorageFootprintBytes ? app.fileSystem.getStorageFootprintBytes() : 0;
+    const footprintBytes = app.fileSystem.getStorageFootprintBytes ? await app.fileSystem.getStorageFootprintBytes() : 0;
     const storageFootprintGb = Number((footprintBytes / (1024 * 1024 * 1024)).toFixed(2));
     const quotaUsedPercent = storageQuotaGb > 0
       ? Math.min(100, Math.round((footprintBytes / storageQuotaBytes) * 1000) / 10)
@@ -385,7 +385,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           .select({ jellyfinUserId: users.jellyfinUserId, role: users.role })
           .from(users)
           .all();
-        await app.jellyfin.syncAllUserPermissions(allUsers as any);
+        await app.jellyfin.syncAllUserPermissions(
+          allUsers as Array<{ jellyfinUserId: string | null; role: 'user' | 'trusted' | 'admin' }>
+        );
       }
       return reply.send({ success: true, message: 'Jellyfin library refresh triggered successfully' });
     } catch (err: unknown) {

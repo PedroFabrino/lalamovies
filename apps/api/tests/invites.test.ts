@@ -5,38 +5,7 @@ import { buildApp } from '../src/app';
 import { IJellyfinService, JellyfinApiError } from '../src/services/jellyfin';
 import { users, invites } from '../src/db/schema';
 
-class MockJellyfinService implements IJellyfinService {
-  public createdUsers: { username: string; id: string }[] = [];
-  public deletedUsers: string[] = [];
-  public shouldFailCreate = false;
-  public setUserLibraryAccessCalls: { userId: string; role: string }[] = [];
-
-  async authenticateUser(username: string) {
-    return {
-      accessToken: `token_${username}`,
-      userId: `jf_${username}`,
-      username,
-      isAdmin: false,
-    };
-  }
-
-  async createUser(username: string) {
-    if (this.shouldFailCreate) {
-      throw new JellyfinApiError('Jellyfin user creation error', 500);
-    }
-    const id = `jf_${username}_${Date.now()}`;
-    this.createdUsers.push({ username, id });
-    return id;
-  }
-
-  async deleteUser(userId: string) {
-    this.deletedUsers.push(userId);
-  }
-
-  async setUserLibraryAccess(userId: string, role: 'user' | 'trusted' | 'admin') {
-    this.setUserLibraryAccessCalls.push({ userId, role });
-  }
-}
+import { MockJellyfinService } from './fixtures/mockJellyfin';
 
 describe('Invite Flow Integration', () => {
   let app: FastifyInstance;

@@ -4,7 +4,8 @@ import { inArray, and, ne, eq, isNotNull } from 'drizzle-orm';
 import path from 'node:path';
 import fs from 'node:fs';
 import { downloadRequests, systemConfig, users } from '../db';
-import { adminGuard, authMiddleware } from '../middleware/auth';
+import { authMiddleware } from '../middleware/auth';
+import { IMetadataService } from '../services/metadata';
 import { RequestStatus } from '../services/requestStateMachine';
 import { requireFeature } from '../middleware/featureFlags';
 import { requestCoRequesters, DownloadRequest } from '../db/schema';
@@ -60,7 +61,7 @@ async function resolveArtwork(
   mediaType: 'movie' | 'tv_show' | 'anime',
   title: string,
   tmdbApiKey?: string,
-  metadataService?: any
+  metadataService?: IMetadataService
 ): Promise<MediaArtwork> {
   const cacheKey = `${metadataSource || 'unknown'}:${metadataId || title}:${mediaType}`;
   if (artworkCache.has(cacheKey)) {

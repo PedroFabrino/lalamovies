@@ -10,55 +10,8 @@ import { IQBittorrentService, TorrentInfo } from '../src/services/qbittorrent';
 import { ICleanupService, SpaceCheckResult } from '../src/services/cleanup';
 import { downloadRequests, requestCoRequesters, users } from '../src/db/schema';
 
-class MockJellyfinService implements IJellyfinService {
-  async authenticateUser(username: string) {
-    return { accessToken: 'tk', userId: `uid_${username}`, username, isAdmin: false };
-  }
-  async createUser() { return 'new_id'; }
-  async deleteUser() {}
-  async refreshLibrary() {}
-}
-
-class MockQBittorrentService implements IQBittorrentService {
-  public activeCount = 0;
-  public addedTorrents: { magnetLink: string; savePath?: string }[] = [];
-  public removedTorrents: { hash: string; deleteFiles?: boolean }[] = [];
-  public allTorrents: any[] = [];
-  public torrentFiles = new Map<string, Array<{ name: string; size: number }>>();
-
-  async getAllTorrents() {
-    return this.allTorrents;
-  }
-
-  async getTorrentFiles(hash: string) {
-    return this.torrentFiles.get(hash) || [];
-  }
-
-  async addTorrent(magnetLink: string, savePath?: string) {
-    this.addedTorrents.push({ magnetLink, savePath });
-    return 'mock_hash_123';
-  }
-
-  async getActiveTorrentCount() {
-    return this.activeCount;
-  }
-
-  async getTorrentStatus(hash: string): Promise<TorrentInfo | null> {
-    return {
-      hash,
-      name: 'Test Torrent',
-      progress: 0.5,
-      dlspeed: 1024000,
-      eta: 120,
-      state: 'downloading',
-      size: 500000000,
-    };
-  }
-
-  async removeTorrent(hash: string, deleteFiles?: boolean) {
-    this.removedTorrents.push({ hash, deleteFiles });
-  }
-}
+import { MockJellyfinService } from './fixtures/mockJellyfin';
+import { MockQBittorrentService } from './fixtures/mockQBittorrent';
 
 class MockCleanupService implements ICleanupService {
   public spaceSufficient = true;
@@ -203,7 +156,7 @@ describe('Download Request Submission & Management', () => {
 
   it('adds torrent immediately when active count is below concurrent limit and quota is healthy', async () => {
     mockQb.activeCount = 0; // limit is 2
-    app.fileSystem.getStorageFootprintBytes = () => 0;
+    app.fileSystem.getStorageFootprintBytes = async () => 0;
 
     const res = await app.inject({
       method: 'POST',
@@ -230,7 +183,7 @@ describe('Download Request Submission & Management', () => {
 
   it('queues request with waiting_for_slot when active count reaches concurrent limit', async () => {
     mockQb.activeCount = 2; // limit is 2, so full
-    app.fileSystem.getStorageFootprintBytes = () => 0;
+    app.fileSystem.getStorageFootprintBytes = async () => 0;
 
     const res = await app.inject({
       method: 'POST',
@@ -256,7 +209,7 @@ describe('Download Request Submission & Management', () => {
 
   it('defers request to queued with deferredReason waiting_for_space when storage footprint exceeds 85% of quota', async () => {
     // Quota is 150 GB (150 * 1024^3). 85% is 127.5 GB. Mock footprint at 130 GB (86.6%)
-    app.fileSystem.getStorageFootprintBytes = () => 130 * 1024 * 1024 * 1024;
+    app.fileSystem.getStorageFootprintBytes = async () => 130 * 1024 * 1024 * 1024;
     mockQb.activeCount = 0; // Even with available slots!
 
     const res = await app.inject({
@@ -281,7 +234,7 @@ describe('Download Request Submission & Management', () => {
   });
 
   it('saves uploaded .torrent buffer to staging when deferred for space', async () => {
-    app.fileSystem.getStorageFootprintBytes = () => 135 * 1024 * 1024 * 1024; // >85%
+    app.fileSystem.getStorageFootprintBytes = async () => 135 * 1024 * 1024 * 1024; // >85%
 
     const name = 'sample.mkv';
     const infoDict = `d6:lengthi100000e4:name${name.length}:${name}e`;

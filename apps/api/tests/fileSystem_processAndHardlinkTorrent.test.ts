@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { FileSystemService } from '../src/services/fileSystem';
 import { initDatabase, users, downloadRequests } from '../src/db';
 import { RequestStatus } from '../src/services/requestStateMachine';
+import { RequestsRepository } from '../src/services/requestsRepository';
 import type { ISubtitleInspectionService } from '../src/services/subtitleInspection';
 
 describe('FileSystemService.processAndHardlinkTorrent', () => {
@@ -208,6 +209,13 @@ describe('FileSystemService.processAndHardlinkTorrent', () => {
     const ep2Src = path.join(stagingDir, 'Dungeon.Meshi.E02.mkv');
     fs.writeFileSync(ep2Src, 'Ep 2');
 
+    const repo = new RequestsRepository(dbInstance.db);
+    const existingShowFolder = repo.findExistingSeriesFolder({
+      metadataId: '12345',
+      mediaType: 'tv_show',
+      excludeRequestId: 'req_ep2_new',
+    });
+
     const result = await fsService.processAndHardlinkTorrent({
       request: {
         id: 'req_ep2_new',
@@ -221,7 +229,7 @@ describe('FileSystemService.processAndHardlinkTorrent', () => {
       torrentStatus: { name: 'Dungeon.Meshi.E02.mkv' },
       files: [{ name: 'Dungeon.Meshi.E02.mkv', size: 100 }],
       stagingPath: stagingDir,
-      db: dbInstance.db,
+      existingShowFolder,
     });
 
     expect(result.targetMediaType).toBe('anime'); // Adopted anime from prior request
@@ -249,7 +257,6 @@ describe('FileSystemService.processAndHardlinkTorrent', () => {
       torrentStatus: { name: 'Succession.S04E01.mkv' },
       files: [{ name: 'Succession.S04E01.mkv', size: 100 }],
       stagingPath: stagingDir,
-      db: dbInstance.db,
     });
 
     expect(result.targetMediaType).toBe('tv_show');

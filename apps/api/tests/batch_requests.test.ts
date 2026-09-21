@@ -18,40 +18,8 @@ function createDummyTorrentBuffer(name: string, length = 123456): { buffer: Buff
   return { buffer: Buffer.from(fullTorrent), infoHash };
 }
 
-class MockJellyfin implements IJellyfinService {
-  async authenticateUser(username: string) {
-    return { accessToken: 'tk', userId: `uid_${username}`, username, isAdmin: false };
-  }
-  async createUser() { return 'new_id'; }
-  async deleteUser() {}
-}
-
-class MockQBittorrent implements IQBittorrentService {
-  public activeCount = 0;
-  public addedTorrents: { magnetLink: string; savePath?: string }[] = [];
-  public addedTorrentFiles: { buffer: Buffer | Uint8Array; savePath?: string; fileName?: string }[] = [];
-
-  async addTorrent(magnetLink: string, savePath?: string) {
-    this.addedTorrents.push({ magnetLink, savePath });
-    return 'mock_hash_magnet';
-  }
-
-  async addTorrentFile(fileBuffer: Buffer | Uint8Array, savePath?: string, fileName?: string) {
-    this.addedTorrentFiles.push({ buffer: fileBuffer, savePath, fileName });
-    const { infoHash } = parseTorrentBuffer(fileBuffer);
-    return infoHash;
-  }
-
-  async getActiveTorrentCount() {
-    return this.activeCount;
-  }
-
-  async getTorrentStatus(hash: string): Promise<TorrentInfo | null> {
-    return null;
-  }
-
-  async removeTorrent() {}
-}
+import { MockJellyfin } from './fixtures/mockJellyfin';
+import { MockQBittorrent } from './fixtures/mockQBittorrent';
 
 class MockMetadata extends BaseMetadataService {
   async searchTMDB(query: string, mediaType: string) {
@@ -91,6 +59,7 @@ describe('Batch Requests & Directory Structure API (#8)', () => {
 
   beforeEach(async () => {
     qb = new MockQBittorrent();
+    qb.defaultHash = 'mock_hash_magnet';
     cleanup = new MockCleanup();
 
     app = buildApp({
@@ -289,7 +258,7 @@ describe('Batch Requests & Directory Structure API (#8)', () => {
         .run();
 
       // Override getStorageFootprintBytes
-      app.fileSystem.getStorageFootprintBytes = () => 90 * 1024 * 1024 * 1024;
+      app.fileSystem.getStorageFootprintBytes = async () => 90 * 1024 * 1024 * 1024;
 
       const { buffer } = createDummyTorrentBuffer('Frieren - 01.mkv');
 

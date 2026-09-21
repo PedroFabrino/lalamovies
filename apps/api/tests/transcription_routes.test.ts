@@ -8,6 +8,7 @@ import { downloadRequests, users } from '../src/db/schema';
 import { eq } from 'drizzle-orm';
 import { DownloadPoller } from '../src/jobs/downloadPoller';
 import { ISubtitleInspectionService } from '../src/services/subtitleInspection';
+import { FileSystemService } from '../src/services/fileSystem';
 
 describe('Transcription Routes & Detection Hook (Subtask #100)', () => {
   let app: FastifyInstance;
@@ -186,11 +187,10 @@ describe('Transcription Routes & Detection Hook (Subtask #100)', () => {
       ]),
     };
 
-    const mockFs: any = {
-      buildLibraryPath: vi.fn().mockReturnValue(path.join(mediaDir, 'private/movies/Movie (2024)/Movie (2024).mkv')),
-      hardlinkDirectory: vi.fn(),
-      hardlink: vi.fn(),
-    };
+    const mockFs: any = new FileSystemService(mediaDir);
+    mockFs.buildLibraryPath = vi.fn().mockReturnValue(path.join(mediaDir, 'private/movies/Movie (2024)/Movie (2024).mkv'));
+    mockFs.hardlinkDirectory = vi.fn();
+    mockFs.hardlink = vi.fn();
 
     const mockJellyfin: any = {
       refreshLibrary: vi.fn().mockResolvedValue(undefined),
@@ -260,11 +260,10 @@ describe('Transcription Routes & Detection Hook (Subtask #100)', () => {
       ]),
     };
 
-    const mockFs: any = {
-      buildLibraryPath: vi.fn().mockReturnValue(path.join(mediaDir, 'private/movies/Movie2 (2024)/Movie2 (2024).mkv')),
-      hardlinkDirectory: vi.fn(),
-      hardlink: vi.fn(),
-    };
+    const mockFs: any = new FileSystemService(mediaDir);
+    mockFs.buildLibraryPath = vi.fn().mockReturnValue(path.join(mediaDir, 'private/movies/Movie2 (2024)/Movie2 (2024).mkv'));
+    mockFs.hardlinkDirectory = vi.fn();
+    mockFs.hardlink = vi.fn();
 
     const poller = new DownloadPoller({
       db: app.db,

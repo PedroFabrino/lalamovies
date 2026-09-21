@@ -228,7 +228,9 @@ export class QBittorrentService implements IQBittorrentService {
           try {
             const existing = await this.getTorrentStatus(hash);
             if (existing) return hash;
-          } catch {}
+          } catch {
+            // Ignore failure when probing existing torrent status
+          }
         }
         throw new QBittorrentError('qBittorrent rejected the torrent magnet link');
       }
@@ -279,7 +281,9 @@ export class QBittorrentService implements IQBittorrentService {
           try {
             const existing = await this.getTorrentStatus(infoHash);
             if (existing) return infoHash;
-          } catch {}
+          } catch {
+            // Ignore failure when probing existing torrent status
+          }
         }
         throw new QBittorrentError('qBittorrent rejected the torrent file');
       }

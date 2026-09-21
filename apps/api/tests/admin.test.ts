@@ -8,68 +8,8 @@ import { IQBittorrentService, TorrentInfo } from '../src/services/qbittorrent';
 import { ICleanupService, SpaceCheckResult } from '../src/services/cleanup';
 import { DownloadRequest } from '../src/db/schema';
 
-class MockJellyfinService implements IJellyfinService {
-  async authenticateUser(username: string): Promise<JellyfinAuthResult> {
-    return {
-      accessToken: 'mock_token',
-      userId: `jf_${username}`,
-      username,
-      isAdmin: username === 'admin_alice',
-    };
-  }
-  async createUser(): Promise<string> {
-    return 'jf_mock_created';
-  }
-  async deleteUser(): Promise<void> {}
-  public failRefresh = false;
-  async refreshLibrary(): Promise<void> {
-    if (this.failRefresh) {
-      throw new Error('Jellyfin refresh failed: HTTP 401');
-    }
-  }
-  async checkStatus(): Promise<{ reachable: boolean; authenticated: boolean; error?: string; serverName?: string; version?: string }> {
-    if (this.failRefresh) {
-      return { reachable: true, authenticated: false, error: 'Authentication failed (HTTP 401)' };
-    }
-    return { reachable: true, authenticated: true, serverName: 'Test Jellyfin', version: '10.8.0' };
-  }
-  async getPlayHistory(): Promise<Record<string, string>> {
-    return {};
-  }
-  public setUserLibraryAccessCalls: { userId: string; role: string }[] = [];
-  public failSetUserLibraryAccess = false;
-  async setUserLibraryAccess(userId: string, role: 'user' | 'trusted' | 'admin'): Promise<void> {
-    if (this.failSetUserLibraryAccess) {
-      throw new Error('Jellyfin policy update failed: HTTP 500');
-    }
-    this.setUserLibraryAccessCalls.push({ userId, role });
-  }
-}
-
-class MockQBittorrentService implements IQBittorrentService {
-  public removedTorrents: { hash: string; deleteFiles?: boolean }[] = [];
-
-  async addTorrent(): Promise<string> {
-    return 'mock_hash';
-  }
-  async getActiveTorrentCount(): Promise<number> {
-    return 0;
-  }
-  async getTorrentStatus(hash: string): Promise<TorrentInfo | null> {
-    return {
-      hash,
-      name: 'Test Torrent',
-      progress: 1,
-      dlspeed: 0,
-      eta: 0,
-      state: 'seeding',
-      size: 1000,
-    };
-  }
-  async removeTorrent(hash: string, deleteFiles?: boolean): Promise<void> {
-    this.removedTorrents.push({ hash, deleteFiles });
-  }
-}
+import { MockJellyfinService } from './fixtures/mockJellyfin';
+import { MockQBittorrentService } from './fixtures/mockQBittorrent';
 
 class MockCleanupService implements ICleanupService {
   public cleanItemCalledWith: string[] = [];

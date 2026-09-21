@@ -6,29 +6,8 @@ import { users, downloadRequests } from '../src/db/schema';
 import { IJellyfinService } from '../src/services/jellyfin';
 import { IQBittorrentService } from '../src/services/qbittorrent';
 
-class MockJellyfinService implements IJellyfinService {
-  async authenticateUser(username: string) {
-    return {
-      accessToken: `token_${username}`,
-      userId: `jf_${username}`,
-      username,
-      isAdmin: username === 'admin_user',
-    };
-  }
-  async createUser(username: string) {
-    return `jf_${username}`;
-  }
-  async deleteUser() {}
-}
-
-class MockQBittorrentService implements IQBittorrentService {
-  async addTorrent() {
-    return 'mock_hash_123';
-  }
-  async getActiveTorrentCount() {
-    return 0;
-  }
-}
+import { MockJellyfinService } from './fixtures/mockJellyfin';
+import { MockQBittorrentService } from './fixtures/mockQBittorrent';
 
 class MockCleanupService {
   isSpaceSufficient() {

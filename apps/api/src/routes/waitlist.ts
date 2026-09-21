@@ -6,6 +6,28 @@ import { requireFeature } from '../middleware/featureFlags';
 import { normalizeShowTitle } from '../services/upNext';
 import { RequestStatus } from '../services/requestStateMachine';
 
+interface WaitlistRequestBody {
+  mediaType?: string;
+  targetEpisode?: number | null;
+  seasonNumber?: number | null;
+  title?: string;
+  metadataId?: string;
+  requesterUsername?: string;
+  requesterEmail?: string;
+  [key: string]: unknown;
+}
+
+interface WaitlistEntry {
+  userId?: string;
+  requesterUsername?: string | null;
+  [key: string]: unknown;
+}
+
+interface WaitlistResponse {
+  entries?: WaitlistEntry[];
+  [key: string]: unknown;
+}
+
 async function waitlistAuth(request: FastifyRequest, reply: FastifyReply) {
   // Allow public access to reject and approve endpoints with magic-link token
   if (request.method === 'GET' && /\/(reject|approve)(\?|$)/.test(request.url)) {
@@ -76,22 +98,22 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
     }
   }
 
-  let outgoingBody = request.body as any;
+  let outgoingBody = request.body as WaitlistRequestBody | null | undefined;
   if (request.method === 'POST' && outgoingBody && typeof outgoingBody === 'object') {
-    if (request.currentUser) {
-      outgoingBody = {
-        ...outgoingBody,
-        requesterUsername: outgoingBody.requesterUsername || request.currentUser.username,
-        requesterEmail: outgoingBody.requesterEmail || request.currentUser.email,
-      };
-    }
+    const postBody: WaitlistRequestBody = {
+      ...outgoingBody,
+      requesterUsername: outgoingBody.requesterUsername || request.currentUser?.username,
+      requesterEmail: outgoingBody.requesterEmail || request.currentUser?.email || undefined,
+    };
+    outgoingBody = postBody;
 
     // Auto-detect targetEpisode from download_requests if omitted for tv_show / anime
     if (
-      ['tv_show', 'anime'].includes(outgoingBody.mediaType) &&
-      (outgoingBody.targetEpisode === undefined || outgoingBody.targetEpisode === null)
+      postBody.mediaType &&
+      ['tv_show', 'anime'].includes(postBody.mediaType) &&
+      (postBody.targetEpisode === undefined || postBody.targetEpisode === null)
     ) {
-      const season = outgoingBody.seasonNumber ?? 1;
+      const season = postBody.seasonNumber ?? 1;
       const effectiveUserId = request.currentUser?.id || (request.headers['x-user-id'] as string | undefined);
 
       try {
@@ -111,9 +133,9 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
           .where(and(...conditions))
           .all();
 
-        const normBodyTitle = outgoingBody.title ? normalizeShowTitle(outgoingBody.title) : '';
+        const normBodyTitle = postBody.title ? normalizeShowTitle(postBody.title) : '';
         const matching = existingReqs.filter((r) => {
-          if (outgoingBody.metadataId && r.metadataId && String(r.metadataId) === String(outgoingBody.metadataId)) {
+          if (postBody.metadataId && r.metadataId && String(r.metadataId) === String(postBody.metadataId)) {
             return true;
           }
           if (normBodyTitle && r.title && normalizeShowTitle(r.title) === normBodyTitle) {
@@ -130,7 +152,7 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
             }
           }
           if (maxEp > 0) {
-            outgoingBody.targetEpisode = maxEp + 1;
+            postBody.targetEpisode = maxEp + 1;
           }
         }
       } catch (err) {
@@ -140,7 +162,7 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
 
     // Guard 1: Already In Library check
     if (subpath === '') {
-      if (outgoingBody.mediaType === 'movie') {
+      if (postBody.mediaType === 'movie') {
         const existingMovies = request.server.db
           .select()
           .from(downloadRequests)
@@ -152,9 +174,9 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
           )
           .all();
 
-        const normTitle = outgoingBody.title ? normalizeShowTitle(outgoingBody.title) : '';
+        const normTitle = postBody.title ? normalizeShowTitle(postBody.title) : '';
         const matched = existingMovies.find((r) => {
-          if (outgoingBody.metadataId && r.metadataId && String(r.metadataId) === String(outgoingBody.metadataId)) {
+          if (postBody.metadataId && r.metadataId && String(r.metadataId) === String(postBody.metadataId)) {
             return true;
           }
           if (normTitle && r.title && normalizeShowTitle(r.title) === normTitle) {
@@ -163,25 +185,24 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
           return false;
         });
 
-        if (
-          matched &&
-          [
-            RequestStatus.DOWNLOADING,
-            RequestStatus.HARDLINKING,
-            RequestStatus.SEEDING,
-            RequestStatus.DONE,
-            'completed',
-            RequestStatus.QUEUED,
-          ].includes(matched.status as any)
-        ) {
+        const finishedStatuses: string[] = [
+          RequestStatus.DOWNLOADING,
+          RequestStatus.HARDLINKING,
+          RequestStatus.SEEDING,
+          RequestStatus.DONE,
+          'completed',
+          RequestStatus.QUEUED,
+        ];
+
+        if (matched && finishedStatuses.includes(matched.status)) {
           return reply.status(409).send({
             error: 'Already In Library',
-            message: `"${outgoingBody.title || matched.title}" is already in your library or download queue.`,
+            message: `"${postBody.title || matched.title}" is already in your library or download queue.`,
           });
         }
-      } else if (['tv_show', 'anime'].includes(outgoingBody.mediaType)) {
-        const season = outgoingBody.seasonNumber ?? 1;
-        const episode = outgoingBody.targetEpisode ?? 1;
+      } else if (postBody.mediaType && ['tv_show', 'anime'].includes(postBody.mediaType)) {
+        const season = postBody.seasonNumber ?? 1;
+        const episode = postBody.targetEpisode ?? 1;
 
         const existingShows = request.server.db
           .select()
@@ -196,9 +217,9 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
           )
           .all();
 
-        const normTitle = outgoingBody.title ? normalizeShowTitle(outgoingBody.title) : '';
+        const normTitle = postBody.title ? normalizeShowTitle(postBody.title) : '';
         const matched = existingShows.find((r) => {
-          if (outgoingBody.metadataId && r.metadataId && String(r.metadataId) === String(outgoingBody.metadataId)) {
+          if (postBody.metadataId && r.metadataId && String(r.metadataId) === String(postBody.metadataId)) {
             return true;
           }
           if (normTitle && r.title && normalizeShowTitle(r.title) === normTitle) {
@@ -207,20 +228,19 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
           return false;
         });
 
-        if (
-          matched &&
-          [
-            RequestStatus.DOWNLOADING,
-            RequestStatus.HARDLINKING,
-            RequestStatus.SEEDING,
-            RequestStatus.DONE,
-            'completed',
-            RequestStatus.QUEUED,
-          ].includes(matched.status as any)
-        ) {
+        const finishedStatuses: string[] = [
+          RequestStatus.DOWNLOADING,
+          RequestStatus.HARDLINKING,
+          RequestStatus.SEEDING,
+          RequestStatus.DONE,
+          'completed',
+          RequestStatus.QUEUED,
+        ];
+
+        if (matched && finishedStatuses.includes(matched.status)) {
           return reply.status(409).send({
             error: 'Already In Library',
-            message: `"${outgoingBody.title || matched.title}" S${season}E${episode} is already in your library or download queue.`,
+            message: `"${postBody.title || matched.title}" S${season}E${episode} is already in your library or download queue.`,
           });
         }
       }
@@ -235,21 +255,22 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
     });
 
     const contentType = res.headers.get('content-type') || '';
-    let responseData: any;
+    let responseData: unknown;
     if (contentType.includes('application/json')) {
-      responseData = await res.json();
-      if (responseData && Array.isArray(responseData.entries)) {
+      const json = (await res.json()) as WaitlistResponse;
+      if (json && Array.isArray(json.entries)) {
         try {
           const allUsers = request.server.db.select({ id: users.id, username: users.username }).from(users).all();
           const userMap = new Map(allUsers.map((u) => [u.id, u.username]));
-          responseData.entries = responseData.entries.map((entry: any) => ({
+          json.entries = json.entries.map((entry: WaitlistEntry) => ({
             ...entry,
-            requesterUsername: entry.requesterUsername || userMap.get(entry.userId) || null,
+            requesterUsername: entry.requesterUsername || (entry.userId ? userMap.get(entry.userId) : null) || null,
           }));
         } catch {
           // Non-blocking fallback if DB lookup fails
         }
       }
+      responseData = json;
     } else {
       responseData = await res.text();
     }

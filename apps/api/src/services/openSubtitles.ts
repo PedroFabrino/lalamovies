@@ -95,7 +95,27 @@ export class OpenSubtitlesService {
         return [];
       }
 
-      const json = (await res.json()) as any;
+      interface OpenSubtitlesSearchResponse {
+        data?: Array<{
+          attributes?: {
+            files?: Array<{ file_id?: number; file_size?: number }>;
+            language?: string;
+            hearing_impaired?: boolean;
+            foreign_parts_only?: boolean;
+            ratings?: number;
+            votes?: number;
+            download_count?: number;
+            release?: string;
+            comments?: string;
+            uploader?: { name?: string };
+            upload_date?: string;
+            file_size?: number;
+            file_name?: string;
+          };
+        }>;
+      }
+
+      const json = (await res.json()) as OpenSubtitlesSearchResponse;
       if (!json || !Array.isArray(json.data)) {
         return [];
       }
@@ -199,7 +219,7 @@ export class OpenSubtitlesService {
     }
 
     // Determine base filename without extensions
-    let dir = path.dirname(baseDestPath);
+    const dir = path.dirname(baseDestPath);
     let baseName = path.basename(baseDestPath);
 
     // If baseDestPath has a video or srt extension, strip it

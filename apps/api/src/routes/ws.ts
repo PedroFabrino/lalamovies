@@ -37,7 +37,14 @@ const wsRoutesPlugin: FastifyPluginAsync = async (app) => {
     }
 
     if (request.body && typeof request.body === 'object') {
-      const body = request.body as Record<string, any>;
+      const body = request.body as {
+        type?: string;
+        title?: string;
+        jellyfinUrl?: string;
+        isInfringing?: boolean;
+        infoHash?: string;
+        [key: string]: unknown;
+      };
       broadcast(body);
 
       if (body.type === 'stream_ready' && body.title && app.notifications) {

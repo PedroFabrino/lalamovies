@@ -1,6 +1,6 @@
 import { and, eq, gte, inArray, ne, or } from 'drizzle-orm';
 import { AppDatabase, downloadRequests, requestCoRequesters } from '../db';
-import { IProwlarrService, ReleaseCandidate, Resolution, ScoreOptions } from './prowlarr';
+import { IProwlarrService, ReleaseCandidate, Resolution } from './prowlarr';
 import { IMetadataService } from './metadata';
 import { cleanTorrentTitle, extractEpisodeInfo } from '../utils/torrentTitleCleaner';
 import { findMatchingCanonicalRequest } from './requestDedup';

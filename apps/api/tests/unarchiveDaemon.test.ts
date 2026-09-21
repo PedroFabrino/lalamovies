@@ -12,20 +12,8 @@ import { IQBittorrentService, TorrentInfo } from '../src/services/qbittorrent';
 import { IJellyfinService } from '../src/services/jellyfin';
 import { INotificationService } from '../src/services/notifications';
 
-class MockQBService implements IQBittorrentService {
-  public torrents = new Map<string, TorrentInfo>();
-  public torrentFiles = new Map<string, Array<{ name: string; size: number }>>();
-
-  async addTorrent() { return 'dummy_hash'; }
-  async getActiveTorrentCount() { return 0; }
-  async getTorrentStatus(hash: string) { return this.torrents.get(hash) || null; }
-  async getTorrentFiles(hash: string) { return this.torrentFiles.get(hash) || []; }
-}
-
-class MockJellyfin implements IJellyfinService {
-  public refreshCalled = 0;
-  async refreshLibrary() { this.refreshCalled++; }
-}
+import { MockQBittorrent as MockQBService } from './fixtures/mockQBittorrent';
+import { MockJellyfin } from './fixtures/mockJellyfin';
 
 class MockNotificationService implements INotificationService {
   public sentEvents: Array<{ event: string; payload: any }> = [];

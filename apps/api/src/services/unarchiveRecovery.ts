@@ -1,11 +1,11 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import { eq, like, or } from 'drizzle-orm';
+import { like, or } from 'drizzle-orm';
 import { AppDatabase, downloadRequests } from '../db';
-import { IUnarchiveService, UnarchiveService } from './unarchive';
+import { IUnarchiveService } from './unarchive';
 import { IFileSystemService } from './fileSystem';
 import { IJellyfinService } from './jellyfin';
-import { IRequestStateMachine, RequestStatus } from './requestStateMachine';
+import { IRequestStateMachine, RequestStatus, RequestStatusValue } from './requestStateMachine';
 import { PollerLogger } from '../jobs/downloadPoller';
 
 export interface RecoveryOptions {
@@ -13,7 +13,7 @@ export interface RecoveryOptions {
   unarchiveService: IUnarchiveService;
   fileSystem: IFileSystemService;
   jellyfin: IJellyfinService;
-  stateMachine?: IRequestStateMachine;
+  stateMachine: IRequestStateMachine;
   stagingPath?: string;
   mediaPath?: string;
   logger?: PollerLogger;
@@ -31,8 +31,8 @@ export function extractDnFromMagnet(magnet?: string | null): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-export async function runCompressedDownloadsRecovery(options: RecoveryOptions): Promise<RecoveryResult> {
-  const { db, unarchiveService, fileSystem, jellyfin, logger } = options;
+export async function runCorruptedArchiveRecovery(options: RecoveryOptions): Promise<RecoveryResult> {
+  const { db, unarchiveService, fileSystem, jellyfin, stateMachine, logger } = options;
   const stagingPath = options.stagingPath || process.env.STAGING_PATH || path.resolve(process.cwd(), 'downloads/staging');
   const mediaBasePath =
     options.mediaPath ||
@@ -41,17 +41,18 @@ export async function runCompressedDownloadsRecovery(options: RecoveryOptions): 
     path.resolve(process.cwd(), 'media');
 
   const recoveredPaths: string[] = [];
-  let removedInvalidPath = false;
 
-  // Find candidate requests with corrupted/shared xb path or containing .rar
+  // Find candidate requests whose jellyfinPath ends in or contains an archive extension
   const candidates = db
     .select()
     .from(downloadRequests)
     .where(
       or(
-        like(downloadRequests.jellyfinPath, '%xb (2026).mkv%'),
-        like(downloadRequests.jellyfinPath, '%.rar%'),
-        eq(downloadRequests.title, 'xb')
+        like(downloadRequests.jellyfinPath, '%.rar'),
+        like(downloadRequests.jellyfinPath, '%.zip'),
+        like(downloadRequests.jellyfinPath, '%.7z'),
+        like(downloadRequests.jellyfinPath, '%.tar'),
+        like(downloadRequests.jellyfinPath, '%.rar%')
       )
     )
     .all();
@@ -65,8 +66,7 @@ export async function runCompressedDownloadsRecovery(options: RecoveryOptions): 
       req.jellyfinPath &&
       fs.existsSync(req.jellyfinPath) &&
       !fs.statSync(req.jellyfinPath).isDirectory() &&
-      !req.jellyfinPath.toLowerCase().endsWith('.rar') &&
-      !req.jellyfinPath.includes('xb (2026).mkv')
+      !unarchiveService.isArchiveFile(req.jellyfinPath)
     ) {
       continue;
     }
@@ -114,12 +114,7 @@ export async function runCompressedDownloadsRecovery(options: RecoveryOptions): 
       continue;
     }
 
-    const extractAndDeploy =
-      typeof unarchiveService.extractAndDeployMedia === 'function'
-        ? unarchiveService.extractAndDeployMedia.bind(unarchiveService)
-        : UnarchiveService.prototype.extractAndDeployMedia.bind(unarchiveService);
-
-    const destPath = await extractAndDeploy(archivePath, req, {
+    const destPath = await unarchiveService.extractAndDeployMedia(archivePath, req, {
       fileSystem,
       stagingPath,
       disambiguator: releaseCode,
@@ -129,59 +124,27 @@ export async function runCompressedDownloadsRecovery(options: RecoveryOptions): 
 
     const sizeBytes = fs.existsSync(destPath) ? fs.statSync(destPath).size : (req.sizeBytes ?? 0);
 
-    // Update database record
-    if (options.stateMachine) {
-      await options.stateMachine.transition(req.id, RequestStatus.SEEDING, {
-        broadcast: false,
-        extraFields: {
-          jellyfinPath: destPath,
-          sizeBytes,
-          errorMessage: null,
-        },
-      });
-    } else {
-      db.update(downloadRequests)
-        .set({
-          jellyfinPath: destPath,
-          status: RequestStatus.SEEDING,
-          sizeBytes,
-          errorMessage: null,
-        })
-        .where(eq(downloadRequests.id, req.id))
-        .run();
+    const currentStatus = req.status as RequestStatusValue;
+    if (currentStatus === RequestStatus.DOWNLOADING) {
+      await stateMachine.transition(req.id, RequestStatus.UNARCHIVING, { broadcast: false });
     }
+
+    // Transition state strictly through central RequestStateMachine
+    await stateMachine.transition(req.id, RequestStatus.SEEDING, {
+      broadcast: false,
+      extraFields: {
+        jellyfinPath: destPath,
+        sizeBytes,
+        errorMessage: null,
+      },
+    });
 
     recoveredPaths.push(destPath);
     logger?.info?.(`Recovery: restored ${releaseCode} to ${destPath}`);
   }
 
-  // Remove invalid directory /media/private/xb (2026)/xb (2026).mkv
-  const possibleInvalidDirs = [
-    path.join(mediaBasePath, 'private', 'xb (2026)', 'xb (2026).mkv'),
-    path.join(mediaBasePath, 'private', 'xb', 'xb.mkv'),
-  ];
-
-  for (const invDir of possibleInvalidDirs) {
-    if (fs.existsSync(invDir) && fs.statSync(invDir).isDirectory()) {
-      try {
-        fs.rmSync(invDir, { recursive: true, force: true });
-        removedInvalidPath = true;
-        logger?.info?.(`Recovery: removed invalid archive directory ${invDir}`);
-
-        // Remove parent directory if now empty
-        const parentDir = path.dirname(invDir);
-        if (fs.existsSync(parentDir) && fs.readdirSync(parentDir).length === 0) {
-          fs.rmdirSync(parentDir);
-          logger?.info?.(`Recovery: removed empty parent directory ${parentDir}`);
-        }
-      } catch (rmErr) {
-        logger?.error?.(`Failed to remove invalid directory ${invDir}`, rmErr);
-      }
-    }
-  }
-
   // Trigger Jellyfin library refresh (non-fatal, only if changes were made)
-  if (recoveredPaths.length > 0 || removedInvalidPath) {
+  if (recoveredPaths.length > 0) {
     if (typeof jellyfin.safeRefresh === 'function') {
       await jellyfin.safeRefresh();
     } else if (typeof jellyfin.refreshLibrary === 'function') {
@@ -195,7 +158,9 @@ export async function runCompressedDownloadsRecovery(options: RecoveryOptions): 
 
   return {
     recoveredCount: recoveredPaths.length,
-    removedInvalidPath,
+    removedInvalidPath: false,
     recoveredPaths,
   };
 }
+
+export const runCompressedDownloadsRecovery = runCorruptedArchiveRecovery;

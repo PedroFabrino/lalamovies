@@ -2,18 +2,19 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { eq, inArray } from 'drizzle-orm';
 import { AppDatabase, downloadRequests, users } from '../db';
-import { IUnarchiveService, UnarchiveService } from '../services/unarchive';
+import { IUnarchiveService } from '../services/unarchive';
 import { IFileSystemService } from '../services/fileSystem';
 import { IJellyfinService } from '../services/jellyfin';
 import { IQBittorrentService } from '../services/qbittorrent';
 import { ISubtitleInspectionService } from '../services/subtitleInspection';
 import { INotificationService } from '../services/notifications';
 import { IRequestStateMachine, RequestStateMachine, RequestStatus } from '../services/requestStateMachine';
-import { RequestsRepository } from '../services/requestsRepository';
+import { IRequestsRepository, RequestsRepository } from '../services/requestsRepository';
 import { PollerLogger } from './downloadPoller';
 
 export interface UnarchiveDaemonOptions {
   db: AppDatabase;
+  requestsRepo?: IRequestsRepository;
   unarchiveService: IUnarchiveService;
   fileSystem: IFileSystemService;
   jellyfin: IJellyfinService;
@@ -31,6 +32,7 @@ export class UnarchiveDaemon {
   private timer: NodeJS.Timeout | null = null;
   private isProcessing = false;
   private db: AppDatabase;
+  private requestsRepo: IRequestsRepository;
   private unarchiveService: IUnarchiveService;
   private fileSystem: IFileSystemService;
   private jellyfin: IJellyfinService;
@@ -45,13 +47,14 @@ export class UnarchiveDaemon {
 
   constructor(options: UnarchiveDaemonOptions) {
     this.db = options.db;
+    this.requestsRepo = options.requestsRepo || new RequestsRepository(options.db);
     this.unarchiveService = options.unarchiveService;
     this.fileSystem = options.fileSystem;
     this.jellyfin = options.jellyfin;
     this.stateMachine =
       options.stateMachine ||
       new RequestStateMachine(
-        new RequestsRepository(options.db),
+        this.requestsRepo,
         options.broadcast,
         options.jellyfin,
         options.notificationService
@@ -72,11 +75,7 @@ export class UnarchiveDaemon {
   }
 
   async processRequest(reqId: string): Promise<void> {
-    const req = this.db
-      .select()
-      .from(downloadRequests)
-      .where(eq(downloadRequests.id, reqId))
-      .get();
+    const req = this.requestsRepo.findById(reqId);
 
     if (!req) return;
 
@@ -157,12 +156,7 @@ export class UnarchiveDaemon {
       throw new Error(`Archive file not found in staging area for request ${req.title} (${req.id})`);
     }
 
-    const extractAndDeploy =
-      typeof this.unarchiveService.extractAndDeployMedia === 'function'
-        ? this.unarchiveService.extractAndDeployMedia.bind(this.unarchiveService)
-        : UnarchiveService.prototype.extractAndDeployMedia.bind(this.unarchiveService);
-
-    const destPath = await extractAndDeploy(archiveFile, req, {
+    const destPath = await this.unarchiveService.extractAndDeployMedia(archiveFile, req, {
       fileSystem: this.fileSystem,
       stagingPath: this.stagingPath,
       disambiguator:

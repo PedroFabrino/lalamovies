@@ -10,25 +10,8 @@ import { IJellyfinService } from '../src/services/jellyfin';
 import { IQBittorrentService } from '../src/services/qbittorrent';
 import { FileSystemService } from '../src/services/fileSystem';
 
-class MockJellyfin implements Partial<IJellyfinService> {
-  public refreshCount = 0;
-  async refreshLibrary(): Promise<void> {
-    this.refreshCount++;
-  }
-}
-
-class MockQBittorrent implements Partial<IQBittorrentService> {
-  public removedTorrents: { hash: string; deleteFiles?: boolean }[] = [];
-  async removeTorrent(hash: string, deleteFiles?: boolean): Promise<void> {
-    this.removedTorrents.push({ hash, deleteFiles });
-  }
-  async getActiveTorrentCount(): Promise<number> {
-    return 0;
-  }
-  async addTorrent(): Promise<string> {
-    return 'mock_hash';
-  }
-}
+import { MockJellyfin } from './fixtures/mockJellyfin';
+import { MockQBittorrent } from './fixtures/mockQBittorrent';
 
 describe('Media Library API & Capabilities (Subtasks #95, #96, #97)', () => {
   let app: FastifyInstance;
@@ -48,6 +31,7 @@ describe('Media Library API & Capabilities (Subtasks #95, #96, #97)', () => {
     tempMediaDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mdm-lib-test-'));
     mockJf = new MockJellyfin();
     mockQb = new MockQBittorrent();
+    mockQb.defaultHash = 'mock_hash';
 
     app = buildApp({
       dbPath: ':memory:',

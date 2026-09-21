@@ -6,51 +6,8 @@ import { eq, asc } from 'drizzle-orm';
 import { FileSystemService } from '../src/services/fileSystem';
 import { DownloadPoller } from '../src/jobs/downloadPoller';
 import { initDatabase, users, downloadRequests, systemConfig } from '../src/db';
-import { IQBittorrentService, TorrentInfo } from '../src/services/qbittorrent';
-import { IJellyfinService } from '../src/services/jellyfin';
-
-class MockQBService implements IQBittorrentService {
-  public torrents = new Map<string, TorrentInfo>();
-  public activeCount = 1;
-  public addedTorrents: { magnet: string; savePath?: string }[] = [];
-
-  async addTorrent(magnet: string, savePath?: string) {
-    const hash = `hash_${Date.now()}`;
-    this.addedTorrents.push({ magnet, savePath });
-    this.torrents.set(hash, {
-      hash,
-      name: 'new_download.mkv',
-      progress: 0,
-      dlspeed: 500000,
-      eta: 300,
-      state: 'downloading',
-      size: 1000000,
-    });
-    return hash;
-  }
-
-  async getActiveTorrentCount() {
-    return this.activeCount;
-  }
-
-  async getTorrentStatus(hash: string): Promise<TorrentInfo | null> {
-    return this.torrents.get(hash) || null;
-  }
-
-  async removeTorrent(hash: string) {
-    this.torrents.delete(hash);
-  }
-}
-
-class MockJellyfin implements IJellyfinService {
-  public refreshCalled = 0;
-  async authenticateUser() { return {} as any; }
-  async createUser() { return 'uid'; }
-  async deleteUser() {}
-  async refreshLibrary() {
-    this.refreshCalled++;
-  }
-}
+import { MockQBittorrent as MockQBService } from './fixtures/mockQBittorrent';
+import { MockJellyfin } from './fixtures/mockJellyfin';
 
 describe('FileSystemService', () => {
   const fsService = new FileSystemService('/test_media');
@@ -151,11 +108,11 @@ describe('FileSystemService', () => {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     });
 
-    it('returns 0 if path does not exist', () => {
-      expect(fsService.getStorageFootprintBytes(path.join(tmpDir, 'does-not-exist'))).toBe(0);
+    it('returns 0 if path does not exist', async () => {
+      await expect(fsService.getStorageFootprintBytes(path.join(tmpDir, 'does-not-exist'))).resolves.toBe(0);
     });
 
-    it('calculates physical footprint without double-counting hardlinked files', () => {
+    it('calculates physical footprint without double-counting hardlinked files', async () => {
       const stagingDir = path.join(tmpDir, 'staging');
       const libraryDir = path.join(tmpDir, 'library');
       fs.mkdirSync(stagingDir, { recursive: true });
@@ -176,11 +133,11 @@ describe('FileSystemService', () => {
       fs.linkSync(testFile1, hardlinkedFile);
 
       // Total physical bytes on disk should be 1.5 MB (1024*1024 + 512*1024), NOT 2.5 MB!
-      const totalFootprint = fsService.getStorageFootprintBytes(tmpDir);
+      const totalFootprint = await fsService.getStorageFootprintBytes(tmpDir);
       expect(totalFootprint).toBe(1024 * 1024 + 512 * 1024);
     });
 
-    it('ignores hidden directories such as .zurg and stream directory when calculating footprint', () => {
+    it('ignores hidden directories such as .zurg and stream directory when calculating footprint', async () => {
       const stagingDir = path.join(tmpDir, 'staging');
       const zurgMountDir = path.join(tmpDir, '.zurg');
       const streamDir = path.join(tmpDir, 'stream');
@@ -196,8 +153,62 @@ describe('FileSystemService', () => {
       fs.writeFileSync(path.join(streamDir, 'ephemeral.mkv'), Buffer.alloc(5 * 1024 * 1024, 3));
 
       // Total physical footprint must ONLY be the 1 MB file in staging
-      const totalFootprint = fsService.getStorageFootprintBytes(tmpDir);
+      const totalFootprint = await fsService.getStorageFootprintBytes(tmpDir);
       expect(totalFootprint).toBe(1024 * 1024);
+    });
+
+    it('caches footprint results and invalidates cache when requested', async () => {
+      const stagingDir = path.join(tmpDir, 'staging');
+      const mediaDir = path.join(tmpDir, 'media');
+      fs.mkdirSync(stagingDir, { recursive: true });
+      fs.mkdirSync(mediaDir, { recursive: true });
+
+      const prevStaging = process.env.STAGING_PATH;
+      process.env.STAGING_PATH = stagingDir;
+
+      try {
+        const testFs = new FileSystemService(mediaDir);
+        const baseline = await testFs.getStorageFootprintBytes(undefined, true);
+
+        // Add 1MB file without invalidating cache
+        fs.writeFileSync(path.join(mediaDir, 'test.mkv'), Buffer.alloc(1024 * 1024, 1));
+        const cached = await testFs.getStorageFootprintBytes();
+        expect(cached).toBe(baseline); // Cache hit
+
+        // Invalidate cache and verify recalculation includes the new file
+        testFs.invalidateFootprintCache();
+        const fresh = await testFs.getStorageFootprintBytes();
+        expect(fresh).toBe(baseline + 1024 * 1024); // Cache miss
+      } finally {
+        process.env.STAGING_PATH = prevStaging;
+      }
+    });
+
+    it('coalesces concurrent calls to getStorageFootprintBytes into a single in-flight traversal', async () => {
+      const stagingDir = path.join(tmpDir, 'staging');
+      const mediaDir = path.join(tmpDir, 'media');
+      fs.mkdirSync(stagingDir, { recursive: true });
+      fs.mkdirSync(mediaDir, { recursive: true });
+
+      const prevStaging = process.env.STAGING_PATH;
+      process.env.STAGING_PATH = stagingDir;
+
+      try {
+        const testFs = new FileSystemService(mediaDir);
+        fs.writeFileSync(path.join(mediaDir, 'test.mkv'), Buffer.alloc(1024 * 1024, 1));
+
+        const [res1, res2, res3] = await Promise.all([
+          testFs.getStorageFootprintBytes(),
+          testFs.getStorageFootprintBytes(),
+          testFs.getStorageFootprintBytes(),
+        ]);
+
+        expect(res1).toBeGreaterThan(0);
+        expect(res1).toBe(res2);
+        expect(res2).toBe(res3);
+      } finally {
+        process.env.STAGING_PATH = prevStaging;
+      }
     });
   });
 });
@@ -444,7 +455,7 @@ describe('DownloadPoller & Hardlink Integration', () => {
 
   it('does not promote queued requests when quota headroom is zero or negative', async () => {
     // Footprint is 130 GB -> availableHeadroom <= 0 (cap is 85% of 150GB = 127.5GB)
-    vi.spyOn(fsService, 'getStorageFootprintBytes').mockReturnValue(130 * 1024 * 1024 * 1024);
+    vi.spyOn(fsService, 'getStorageFootprintBytes').mockResolvedValue(130 * 1024 * 1024 * 1024);
 
     dbInstance.db.insert(downloadRequests).values({
       id: 'q_over_quota',
@@ -470,7 +481,7 @@ describe('DownloadPoller & Hardlink Integration', () => {
     // 150 GB * 0.85 = 127.5 GB cap.
     // Set footprint to cap - 5 GB, so availableHeadroom = 5 GB
     const quotaCapBytes = Math.floor(150 * 1024 * 1024 * 1024 * 0.85);
-    vi.spyOn(fsService, 'getStorageFootprintBytes').mockReturnValue(quotaCapBytes - 5 * 1024 * 1024 * 1024);
+    vi.spyOn(fsService, 'getStorageFootprintBytes').mockResolvedValue(quotaCapBytes - 5 * 1024 * 1024 * 1024);
 
     // Oldest item is 10 GB (too big for 5 GB headroom)
     // Newer item is 2 GB (fits within 5 GB headroom)

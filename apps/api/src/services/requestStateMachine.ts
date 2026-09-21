@@ -116,12 +116,20 @@ export interface IRequestStateMachine {
 
 // ── Implementation ───────────────────────────────────────────────────────────
 
+export interface RequestStateMachineLogger {
+  error: (msg: unknown, ...args: unknown[]) => void;
+  warn?: (msg: string) => void;
+  info?: (msg: string) => void;
+}
+
 export class RequestStateMachine implements IRequestStateMachine {
   constructor(
     private requestsRepo: IRequestsRepository,
     private broadcastFn?: (msg: object) => void,
     private jellyfin?: IJellyfinService,
-    private notifications?: INotificationService
+    private notifications?: INotificationService,
+    private logger?: RequestStateMachineLogger,
+    private retryDelayMs: number = 2000
   ) {}
 
   async transition(
@@ -150,8 +158,10 @@ export class RequestStateMachine implements IRequestStateMachine {
       throw new InvalidTransitionError(fromStatus, toStatus, id);
     }
 
+    // Committed first step: database status update
     this.requestsRepo.setStatus(id, toStatus, extraFields);
 
+    // WebSocket push is fire-and-forget; clients recover on next poll
     if (broadcast && this.broadcastFn) {
       this.broadcastFn({
         type: 'status',
@@ -162,19 +172,63 @@ export class RequestStateMachine implements IRequestStateMachine {
     }
 
     if (refreshJellyfin && this.jellyfin) {
-      if (typeof this.jellyfin.safeRefresh === 'function') {
-        await this.jellyfin.safeRefresh();
-      } else if (typeof this.jellyfin.refreshLibrary === 'function') {
+      const doRefresh = async () => {
+        if (typeof this.jellyfin!.safeRefresh === 'function') {
+          await this.jellyfin!.safeRefresh();
+        } else if (typeof this.jellyfin!.refreshLibrary === 'function') {
+          await this.jellyfin!.refreshLibrary();
+        }
+      };
+
+      try {
+        await doRefresh();
+      } catch (firstErr) {
         try {
-          await this.jellyfin.refreshLibrary();
-        } catch {
-          // ignore
+          if (this.retryDelayMs > 0) {
+            await new Promise((r) => setTimeout(r, this.retryDelayMs));
+          }
+          await doRefresh();
+        } catch (secondErr) {
+          const errMsg = (secondErr as Error).message || String(secondErr);
+          const structuredLog = {
+            message: 'Jellyfin refresh failed after retry',
+            requestId: id,
+            toStatus,
+            error: errMsg,
+          };
+          if (this.logger?.error) {
+            this.logger.error(structuredLog);
+          } else {
+            console.error(JSON.stringify(structuredLog));
+          }
         }
       }
     }
 
     if (sendNotification && this.notifications && notificationPayload) {
-      await this.notifications.send(sendNotification, notificationPayload);
+      try {
+        await this.notifications.send(sendNotification, notificationPayload);
+      } catch (firstErr) {
+        try {
+          if (this.retryDelayMs > 0) {
+            await new Promise((r) => setTimeout(r, this.retryDelayMs));
+          }
+          await this.notifications.send(sendNotification, notificationPayload);
+        } catch (secondErr) {
+          const errMsg = (secondErr as Error).message || String(secondErr);
+          const structuredLog = {
+            message: 'Notification delivery failed after retry',
+            requestId: id,
+            toStatus,
+            error: errMsg,
+          };
+          if (this.logger?.error) {
+            this.logger.error(structuredLog);
+          } else {
+            console.error(JSON.stringify(structuredLog));
+          }
+        }
+      }
     }
 
     const updated = this.requestsRepo.findById(id);

@@ -7,13 +7,22 @@ export interface ParsedTorrent {
   magnetUri: string;
 }
 
+type BencodeValue = number | Buffer | BencodeValue[] | { [key: string]: BencodeValue };
+
+interface TorrentInfoDict {
+  name?: string | Buffer;
+  length?: number;
+  files?: Array<{ length?: number }>;
+  [key: string]: unknown;
+}
+
 export function parseTorrentBuffer(inputBuffer: Uint8Array | Buffer): ParsedTorrent {
   const buffer = Buffer.isBuffer(inputBuffer) ? inputBuffer : Buffer.from(inputBuffer);
   let pos = 0;
   let infoStart = -1;
   let infoEnd = -1;
 
-  function decode(): any {
+  function decode(): BencodeValue {
     if (pos >= buffer.length) {
       throw new Error('Unexpected end of bencoded data');
     }
@@ -32,7 +41,7 @@ export function parseTorrentBuffer(inputBuffer: Uint8Array | Buffer): ParsedTorr
     if (byte === 0x6c) {
       // 'l' -> list
       pos++;
-      const list: any[] = [];
+      const list: BencodeValue[] = [];
       while (pos < buffer.length && buffer[pos] !== 0x65) {
         list.push(decode());
       }
@@ -43,7 +52,7 @@ export function parseTorrentBuffer(inputBuffer: Uint8Array | Buffer): ParsedTorr
     if (byte === 0x64) {
       // 'd' -> dictionary
       pos++;
-      const dict: Record<string, any> = {};
+      const dict: Record<string, BencodeValue> = {};
       while (pos < buffer.length && buffer[pos] !== 0x65) {
         const key = decodeString();
         const isInfoKey = key === 'info' && infoStart === -1;
@@ -83,7 +92,7 @@ export function parseTorrentBuffer(inputBuffer: Uint8Array | Buffer): ParsedTorr
   }
 
   const root = decode();
-  if (!root || typeof root !== 'object' || !root.info) {
+  if (!root || typeof root !== 'object' || Buffer.isBuffer(root) || Array.isArray(root) || !('info' in root)) {
     throw new Error('Invalid torrent: missing info dictionary');
   }
 
@@ -94,7 +103,8 @@ export function parseTorrentBuffer(inputBuffer: Uint8Array | Buffer): ParsedTorr
   const infoBytes = buffer.subarray(infoStart, infoEnd);
   const infoHash = crypto.createHash('sha1').update(infoBytes).digest('hex').toLowerCase();
 
-  const rawName = root.info.name;
+  const info = root.info as TorrentInfoDict;
+  const rawName = info?.name;
   const name = typeof rawName === 'string'
     ? rawName
     : Buffer.isBuffer(rawName)
@@ -102,10 +112,10 @@ export function parseTorrentBuffer(inputBuffer: Uint8Array | Buffer): ParsedTorr
       : 'Unknown Media';
 
   let totalSize = 0;
-  if (typeof root.info.length === 'number') {
-    totalSize = root.info.length;
-  } else if (Array.isArray(root.info.files)) {
-    for (const f of root.info.files) {
+  if (typeof info?.length === 'number') {
+    totalSize = info.length;
+  } else if (Array.isArray(info?.files)) {
+    for (const f of info.files) {
       if (f && typeof f.length === 'number') {
         totalSize += f.length;
       }

@@ -1,20 +1,19 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { eq } from 'drizzle-orm';
 import { initDatabase, downloadRequests, users, AppDatabase } from '../src/db';
-import { runCompressedDownloadsRecovery } from '../src/services/unarchiveRecovery';
+import { runCorruptedArchiveRecovery, runCompressedDownloadsRecovery } from '../src/services/unarchiveRecovery';
 import { UnarchiveService } from '../src/services/unarchive';
 import { FileSystemService } from '../src/services/fileSystem';
 import { IJellyfinService } from '../src/services/jellyfin';
+import { RequestStateMachine, RequestStatus } from '../src/services/requestStateMachine';
+import { RequestsRepository } from '../src/services/requestsRepository';
 
-class MockJellyfin implements IJellyfinService {
-  public refreshCalled = 0;
-  async refreshLibrary() { this.refreshCalled++; }
-}
+import { MockJellyfin } from './fixtures/mockJellyfin';
 
-describe('Existing Compressed Downloads Recovery (#113)', () => {
+describe('Corrupted Archive Recovery (#123)', () => {
   let tempDir: string;
   let stagingDir: string;
   let mediaDir: string;
@@ -23,6 +22,8 @@ describe('Existing Compressed Downloads Recovery (#113)', () => {
   let jellyfin: MockJellyfin;
   let fileSystem: FileSystemService;
   let unarchiveService: UnarchiveService;
+  let stateMachine: RequestStateMachine;
+  let requestsRepo: RequestsRepository;
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'unarchive-recovery-test-'));
@@ -47,6 +48,8 @@ describe('Existing Compressed Downloads Recovery (#113)', () => {
 
     jellyfin = new MockJellyfin();
     fileSystem = new FileSystemService(mediaDir);
+    requestsRepo = new RequestsRepository(db);
+    stateMachine = new RequestStateMachine(requestsRepo, undefined, jellyfin);
 
     unarchiveService = new UnarchiveService({
       execCommand: async (cmd, args) => {
@@ -54,7 +57,7 @@ describe('Existing Compressed Downloads Recovery (#113)', () => {
         if (dest && fs.existsSync(path.dirname(dest))) {
           fs.mkdirSync(dest, { recursive: true });
           const archivePath = args[args.length - 2];
-          const releaseMatch = archivePath.match(/xb-\d+/);
+          const releaseMatch = archivePath.match(/rel-\d+/);
           const name = releaseMatch ? `${releaseMatch[0]}.mp4` : 'feature.mp4';
           fs.writeFileSync(path.join(dest, name), Buffer.alloc(1024 * 1024 * 55)); // 55MB
         }
@@ -72,30 +75,21 @@ describe('Existing Compressed Downloads Recovery (#113)', () => {
     }
   });
 
-  it('recovers the 4 stuck xb downloads, updates db, removes invalid directory, and leaves staging untouched', async () => {
-    const releases = ['xb-4050', 'xb-3946', 'xb-3889', 'xb-3987'];
-
-    // Setup the invalid library directory with mingled .rar files
-    const invalidDir = path.join(mediaDir, 'private', 'xb (2026)', 'xb (2026).mkv');
-    fs.mkdirSync(invalidDir, { recursive: true });
+  it('recovers corrupted archive downloads via RequestStateMachine without hardcoded incident logic', async () => {
+    const releases = ['rel-4050', 'rel-3946'];
 
     for (const rel of releases) {
-      // Create staging folder and archive
       const relStaging = path.join(stagingDir, rel);
       fs.mkdirSync(relStaging, { recursive: true });
-      fs.writeFileSync(path.join(relStaging, `hhd800.com@${rel}.rar`), `staging rar content for ${rel}`);
+      fs.writeFileSync(path.join(relStaging, `${rel}.rar`), `staging rar content for ${rel}`);
 
-      // Create misplaced rar in library
-      fs.writeFileSync(path.join(invalidDir, `hhd800.com@${rel}.rar`), `misplaced rar ${rel}`);
-
-      // Insert DB record stuck with shared invalid jellyfin_path
       db.insert(downloadRequests).values({
         id: `req_${rel}`,
         userId: 'admin_user',
-        title: 'xb',
+        title: rel,
         mediaType: 'private',
-        status: 'seeding',
-        jellyfinPath: invalidDir,
+        status: 'downloading',
+        jellyfinPath: path.join(mediaDir, `${rel}.rar`),
         magnetLink: `magnet:?xt=urn:btih:hash_${rel}&dn=${rel}`,
         metadataId: `meta_${rel}`,
         metadataSource: 'tmdb',
@@ -103,22 +97,25 @@ describe('Existing Compressed Downloads Recovery (#113)', () => {
       }).run();
     }
 
-    const result = await runCompressedDownloadsRecovery({
+    const transitionSpy = vi.spyOn(stateMachine, 'transition');
+
+    const result = await runCorruptedArchiveRecovery({
       db,
       unarchiveService,
       fileSystem,
       jellyfin,
+      stateMachine,
       stagingPath: stagingDir,
       mediaPath: mediaDir,
     });
 
-    expect(result.recoveredCount).toBe(4);
-    expect(result.removedInvalidPath).toBe(true);
+    expect(result.recoveredCount).toBe(2);
+    expect(transitionSpy).toHaveBeenCalledTimes(4);
+    expect(transitionSpy).toHaveBeenCalledWith('req_rel-4050', RequestStatus.UNARCHIVING, expect.any(Object));
+    expect(transitionSpy).toHaveBeenCalledWith('req_rel-4050', RequestStatus.SEEDING, expect.any(Object));
+    expect(transitionSpy).toHaveBeenCalledWith('req_rel-3946', RequestStatus.UNARCHIVING, expect.any(Object));
+    expect(transitionSpy).toHaveBeenCalledWith('req_rel-3946', RequestStatus.SEEDING, expect.any(Object));
 
-    // Verify invalid directory is removed
-    expect(fs.existsSync(invalidDir)).toBe(false);
-
-    // Verify each release extracted to its own distinct folder
     for (const rel of releases) {
       const expectedPath = path.join(mediaDir, 'private', rel, `${rel}.mp4`);
       expect(fs.existsSync(expectedPath)).toBe(true);
@@ -126,14 +123,22 @@ describe('Existing Compressed Downloads Recovery (#113)', () => {
       const req = db.select().from(downloadRequests).where(eq(downloadRequests.id, `req_${rel}`)).get();
       expect(req?.jellyfinPath).toBe(expectedPath);
       expect(req?.status).toBe('seeding');
-
-      // Verify staging archive is untouched
-      const stagingRar = path.join(stagingDir, rel, `hhd800.com@${rel}.rar`);
-      expect(fs.existsSync(stagingRar)).toBe(true);
-      expect(fs.readFileSync(stagingRar, 'utf-8')).toBe(`staging rar content for ${rel}`);
     }
 
-    // Verify Jellyfin refresh triggered
     expect(jellyfin.refreshCalled).toBe(1);
+  });
+
+  it('verifies that no xb-specific incident clauses exist in unarchiveRecovery source', () => {
+    const sourcePath = path.resolve(__dirname, '../src/services/unarchiveRecovery.ts');
+    const sourceCode = fs.readFileSync(sourcePath, 'utf-8');
+
+    expect(sourceCode).not.toContain('xb (2026)');
+    expect(sourceCode).not.toContain("title, 'xb'");
+    expect(sourceCode).not.toContain('possibleInvalidDirs');
+    expect(sourceCode).not.toContain('UnarchiveService.prototype');
+  });
+
+  it('preserves backward compatible alias runCompressedDownloadsRecovery', () => {
+    expect(runCompressedDownloadsRecovery).toBe(runCorruptedArchiveRecovery);
   });
 });

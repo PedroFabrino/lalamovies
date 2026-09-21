@@ -7,31 +7,8 @@ import { IQBittorrentService, TorrentInfo } from '../src/services/qbittorrent';
 import { ICleanupService, SpaceCheckResult } from '../src/services/cleanup';
 import { downloadRequests, requestCoRequesters } from '../src/db/schema';
 
-class MockJellyfinService implements IJellyfinService {
-  async authenticateUser(username: string) {
-    return { accessToken: 'tk', userId: `uid_${username}`, username, isAdmin: false };
-  }
-  async createUser() { return 'new_id'; }
-  async deleteUser() {}
-}
-
-class MockQBittorrentService implements IQBittorrentService {
-  public activeCount = 0;
-  public addedTorrents: { magnetLink: string; savePath?: string }[] = [];
-
-  async addTorrent(magnetLink: string, savePath?: string) {
-    this.addedTorrents.push({ magnetLink, savePath });
-    return `hash_${this.addedTorrents.length}`;
-  }
-
-  async getActiveTorrentCount() {
-    return this.activeCount;
-  }
-
-  async getTorrentStatus(hash: string): Promise<TorrentInfo | null> {
-    return null;
-  }
-}
+import { MockJellyfinService } from './fixtures/mockJellyfin';
+import { MockQBittorrentService } from './fixtures/mockQBittorrent';
 
 class MockCleanupService implements ICleanupService {
   constructor(public appInstance: { db?: any } = {}) {}

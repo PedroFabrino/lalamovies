@@ -324,5 +324,107 @@ describe('RequestStateMachine', () => {
       transcriptionStatus: 'pending',
     });
   });
+
+  // ── side-effect retry and error observability (#129) ───────────────────────
+
+  describe('post-transition side-effect retries (#129)', () => {
+    it('retries Jellyfin refresh once on initial failure and sends notification on retry success', async () => {
+      repo.create(baseRequest());
+      let callCount = 0;
+      const safeRefresh = vi.fn().mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          throw new Error('Transient Jellyfin 503');
+        }
+      });
+      const send = vi.fn().mockResolvedValue(undefined);
+      const logger = { error: vi.fn(), warn: vi.fn() };
+      const sm = new RequestStateMachine(
+        repo,
+        undefined,
+        { safeRefresh, getPublicJellyfinUrl: () => undefined },
+        { send },
+        logger,
+        1 // 1ms delay for tests
+      );
+
+      const payload = { title: 'Fight Club', requestId: 'req_1', mediaType: 'movie' as const };
+      const updated = await sm.transition('req_1', RequestStatus.DOWNLOADING, {
+        refreshJellyfin: true,
+        sendNotification: 'download.completed',
+        notificationPayload: payload,
+      });
+
+      expect(updated.status).toBe('downloading');
+      expect(safeRefresh).toHaveBeenCalledTimes(2);
+      expect(send).toHaveBeenCalledOnce();
+      expect(logger.error).not.toHaveBeenCalled();
+    });
+
+    it('logs structured error when Jellyfin fails twice, but still attempts notification', async () => {
+      repo.create(baseRequest());
+      const safeRefresh = vi.fn().mockRejectedValue(new Error('Persistent Jellyfin 500'));
+      const send = vi.fn().mockResolvedValue(undefined);
+      const logger = { error: vi.fn(), warn: vi.fn() };
+      const sm = new RequestStateMachine(
+        repo,
+        undefined,
+        { safeRefresh, getPublicJellyfinUrl: () => undefined },
+        { send },
+        logger,
+        1
+      );
+
+      const payload = { title: 'Fight Club', requestId: 'req_1', mediaType: 'movie' as const };
+      const updated = await sm.transition('req_1', RequestStatus.DOWNLOADING, {
+        refreshJellyfin: true,
+        sendNotification: 'download.completed',
+        notificationPayload: payload,
+      });
+
+      expect(updated.status).toBe('downloading');
+      expect(safeRefresh).toHaveBeenCalledTimes(2);
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Jellyfin refresh failed after retry',
+          requestId: 'req_1',
+          toStatus: 'downloading',
+          error: 'Persistent Jellyfin 500',
+        })
+      );
+      expect(send).toHaveBeenCalledOnce();
+    });
+
+    it('logs structured error when notification fails twice and does not throw from transition', async () => {
+      repo.create(baseRequest());
+      const send = vi.fn().mockRejectedValue(new Error('Persistent Discord API error'));
+      const logger = { error: vi.fn(), warn: vi.fn() };
+      const sm = new RequestStateMachine(
+        repo,
+        undefined,
+        undefined,
+        { send },
+        logger,
+        1
+      );
+
+      const payload = { title: 'Fight Club', requestId: 'req_1', mediaType: 'movie' as const };
+      const updated = await sm.transition('req_1', RequestStatus.DOWNLOADING, {
+        sendNotification: 'download.completed',
+        notificationPayload: payload,
+      });
+
+      expect(updated.status).toBe('downloading');
+      expect(send).toHaveBeenCalledTimes(2);
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Notification delivery failed after retry',
+          requestId: 'req_1',
+          toStatus: 'downloading',
+          error: 'Persistent Discord API error',
+        })
+      );
+    });
+  });
 });
 
