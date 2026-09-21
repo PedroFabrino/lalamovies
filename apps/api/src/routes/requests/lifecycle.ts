@@ -1,12 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { adminGuard } from '../../middleware/auth';
 
-export { createRoutes } from './create';
-export { batchRoutes } from './batch';
-export { listRoutes } from './list';
-export { retryRoutes } from './retry';
-export { promoteRoutes } from './promote';
-
 export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
   // PATCH /requests/:id/keep — admin toggle keepFlag
   app.patch('/:id/keep', { preHandler: [adminGuard] }, async (request, reply) => {
@@ -60,5 +54,3 @@ export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ ok: true });
   });
 };
-
-export const mutationRoutes = lifecycleRoutes;

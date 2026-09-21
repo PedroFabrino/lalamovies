@@ -7,11 +7,12 @@ export const listRoutes: FastifyPluginAsync = async (app) => {
     const currentUserId = request.currentUser!.id;
     const callerRole = request.currentUser!.role;
 
-    const list = app.requestsRepo.findAll(currentUserId, isAdmin);
-
     if (isAdmin) {
+      const list = app.requestsRepo.findAll(currentUserId, true);
       return reply.send({ requests: list });
     }
+
+    const list = app.requestsRepo.findAllForUser(currentUserId);
 
     const filtered = list.filter((item) => {
       if (item.mediaType === 'private') {
