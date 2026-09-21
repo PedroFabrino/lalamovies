@@ -1,6 +1,6 @@
 import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
-import { eq, and, ne, inArray } from 'drizzle-orm';
-import { users, downloadRequests } from '../db/schema';
+import { eq } from 'drizzle-orm';
+import { users } from '../db/schema';
 import { JwtPayload } from '../middleware/auth';
 import { requireFeature } from '../middleware/featureFlags';
 import { normalizeShowTitle } from '../services/upNext';
@@ -117,21 +117,11 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
       const effectiveUserId = request.currentUser?.id || (request.headers['x-user-id'] as string | undefined);
 
       try {
-        const conditions = [
-          ne(downloadRequests.status, RequestStatus.DELETED),
-          inArray(downloadRequests.mediaType, ['tv_show', 'anime']),
-          eq(downloadRequests.seasonNumber, season),
-        ];
-
-        if (effectiveUserId) {
-          conditions.push(eq(downloadRequests.userId, effectiveUserId));
-        }
-
-        const existingReqs = request.server.db
-          .select()
-          .from(downloadRequests)
-          .where(and(...conditions))
-          .all();
+        const existingReqs = (
+          effectiveUserId
+            ? request.server.requestsRepo.findByUserId(effectiveUserId, true)
+            : request.server.requestsRepo.findByCriteria({ excludeDeleted: true })
+        ).filter((r) => ['tv_show', 'anime'].includes(r.mediaType) && r.seasonNumber === season);
 
         const normBodyTitle = postBody.title ? normalizeShowTitle(postBody.title) : '';
         const matching = existingReqs.filter((r) => {
@@ -163,16 +153,10 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
     // Guard 1: Already In Library check
     if (subpath === '') {
       if (postBody.mediaType === 'movie') {
-        const existingMovies = request.server.db
-          .select()
-          .from(downloadRequests)
-          .where(
-            and(
-              ne(downloadRequests.status, RequestStatus.DELETED),
-              eq(downloadRequests.mediaType, 'movie')
-            )
-          )
-          .all();
+        const existingMovies = request.server.requestsRepo.findByCriteria({
+          mediaType: 'movie',
+          excludeDeleted: true,
+        });
 
         const normTitle = postBody.title ? normalizeShowTitle(postBody.title) : '';
         const matched = existingMovies.find((r) => {
@@ -204,18 +188,14 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
         const season = postBody.seasonNumber ?? 1;
         const episode = postBody.targetEpisode ?? 1;
 
-        const existingShows = request.server.db
-          .select()
-          .from(downloadRequests)
-          .where(
-            and(
-              ne(downloadRequests.status, RequestStatus.DELETED),
-              inArray(downloadRequests.mediaType, ['tv_show', 'anime']),
-              eq(downloadRequests.seasonNumber, season),
-              eq(downloadRequests.episodeNumber, episode)
-            )
-          )
-          .all();
+        const existingShows = request.server.requestsRepo
+          .findByCriteria({ excludeDeleted: true })
+          .filter(
+            (r) =>
+              ['tv_show', 'anime'].includes(r.mediaType) &&
+              r.seasonNumber === season &&
+              r.episodeNumber === episode
+          );
 
         const normTitle = postBody.title ? normalizeShowTitle(postBody.title) : '';
         const matched = existingShows.find((r) => {

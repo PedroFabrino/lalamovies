@@ -158,6 +158,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     options.cleanupService ??
     new CleanupService({
       db,
+      requestsRepo,
       qbittorrent,
       jellyfin,
       notificationService: notifications,
@@ -193,6 +194,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     options.upNextService ??
     new UpNextService({
       db,
+      requestsRepo,
       prowlarr,
       metadata,
       getTmdbApiKey: () => {
@@ -326,6 +328,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     options.transcriptionCron ??
     new TranscriptionCron({
       db,
+      requestsRepo,
       subgen,
       isTranscriptionEnabled: () => isFeatureEnabled(db, 'transcription_enabled'),
       logger: {

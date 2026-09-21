@@ -58,7 +58,7 @@ export const createRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
-    const canonicalSeries = findCanonicalSeriesInfo(app.db, {
+    const canonicalSeries = findCanonicalSeriesInfo(app.requestsRepo, {
       metadataId,
       metadataSource,
       mediaType,
@@ -118,7 +118,7 @@ export const createRoutes: FastifyPluginAsync = async (app) => {
 
     return globalRequestMutex.runExclusive(lockKey, async () => {
       // 1. Check for existing canonical request
-      const existing = findMatchingCanonicalRequest(app.db, {
+      const existing = findMatchingCanonicalRequest(app.requestsRepo, {
         mediaType: effectiveMediaType,
         metadataId,
         metadataSource,

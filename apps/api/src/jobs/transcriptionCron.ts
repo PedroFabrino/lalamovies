@@ -1,6 +1,6 @@
 import cron, { ScheduledTask } from 'node-cron';
-import { eq, and, ne, asc } from 'drizzle-orm';
-import { AppDatabase, downloadRequests, systemConfig } from '../db';
+import { AppDatabase, systemConfig } from '../db';
+import { IRequestsRepository, RequestsRepository } from '../services/requestsRepository';
 import { ISubgenService } from '../services/subgen';
 import { RequestStatus } from '../services/requestStateMachine';
 
@@ -12,6 +12,7 @@ export interface TranscriptionCronLogger {
 
 export interface TranscriptionCronOptions {
   db: AppDatabase;
+  requestsRepo?: IRequestsRepository;
   subgen: ISubgenService;
   schedule?: string;
   logger?: TranscriptionCronLogger;
@@ -66,6 +67,7 @@ export class TranscriptionCron {
   private task: ScheduledTask | null = null;
   private isRunning = false;
   private db: AppDatabase;
+  private requestsRepo: IRequestsRepository;
   private subgen: ISubgenService;
   private schedule: string;
   private logger?: TranscriptionCronLogger;
@@ -75,6 +77,7 @@ export class TranscriptionCron {
 
   constructor(options: TranscriptionCronOptions) {
     this.db = options.db;
+    this.requestsRepo = options.requestsRepo ?? new RequestsRepository(options.db);
     this.subgen = options.subgen;
     this.schedule = options.schedule || '*/5 * * * *';
     this.logger = options.logger;
@@ -91,14 +94,9 @@ export class TranscriptionCron {
     if (!candidate.jellyfinPath) {
       const errorMsg = 'Media file path not found for transcription';
       this.logger?.warn(`Candidate request ${candidate.id} has no jellyfinPath. Marking failed.`);
-      this.db
-        .update(downloadRequests)
-        .set({
-          transcriptionStatus: 'failed',
-          transcriptionError: errorMsg,
-        })
-        .where(eq(downloadRequests.id, candidate.id))
-        .run();
+      this.requestsRepo.setTranscriptionStatus(candidate.id, 'failed', {
+        transcriptionError: errorMsg,
+      });
 
       this.broadcast?.({
         type: 'transcription_updated',
@@ -109,14 +107,9 @@ export class TranscriptionCron {
       return;
     }
 
-    this.db
-      .update(downloadRequests)
-      .set({
-        transcriptionStatus: 'transcribing',
-        transcriptionError: null,
-      })
-      .where(eq(downloadRequests.id, candidate.id))
-      .run();
+    this.requestsRepo.setTranscriptionStatus(candidate.id, 'transcribing', {
+      transcriptionError: null,
+    });
 
     this.broadcast?.({
       type: 'transcription_updated',
@@ -133,14 +126,9 @@ export class TranscriptionCron {
       const errorMsg = (err as Error).message || 'Failed to dispatch to Subgen';
       this.logger?.error(`Failed to dispatch transcription for ${candidate.id}:`, err);
 
-      this.db
-        .update(downloadRequests)
-        .set({
-          transcriptionStatus: 'failed',
-          transcriptionError: errorMsg,
-        })
-        .where(eq(downloadRequests.id, candidate.id))
-        .run();
+      this.requestsRepo.setTranscriptionStatus(candidate.id, 'failed', {
+        transcriptionError: errorMsg,
+      });
 
       this.broadcast?.({
         type: 'transcription_updated',
@@ -191,16 +179,7 @@ export class TranscriptionCron {
       }
 
       // 4. Enforce single concurrency
-      const activeJob = this.db
-        .select()
-        .from(downloadRequests)
-        .where(
-          and(
-            eq(downloadRequests.transcriptionStatus, 'transcribing'),
-            ne(downloadRequests.status, RequestStatus.DELETED)
-          )
-        )
-        .get();
+      const activeJob = this.requestsRepo.findByTranscriptionStatus('transcribing')[0];
 
       if (activeJob) {
         this.logger?.info(
@@ -211,32 +190,19 @@ export class TranscriptionCron {
 
       // 5. Select target request if specified, or oldest pending private request
       let candidate = options?.targetRequestId
-        ? this.db
-            .select()
-            .from(downloadRequests)
-            .where(
-              and(
-                eq(downloadRequests.id, options.targetRequestId),
-                eq(downloadRequests.transcriptionStatus, 'pending'),
-                ne(downloadRequests.status, RequestStatus.DELETED)
-              )
-            )
-            .get()
+        ? this.requestsRepo.findById(options.targetRequestId) ?? null
         : null;
 
+      if (
+        candidate &&
+        (candidate.transcriptionStatus !== 'pending' || candidate.status === RequestStatus.DELETED)
+      ) {
+        candidate = null;
+      }
+
       if (!candidate) {
-        candidate = this.db
-          .select()
-          .from(downloadRequests)
-          .where(
-            and(
-              eq(downloadRequests.transcriptionStatus, 'pending'),
-              eq(downloadRequests.mediaType, 'private'),
-              ne(downloadRequests.status, RequestStatus.DELETED)
-            )
-          )
-          .orderBy(asc(downloadRequests.requestedAt))
-          .get();
+        const pending = this.requestsRepo.findPendingTranscriptionByType('private');
+        candidate = pending[0] ?? null;
       }
 
       if (!candidate) {

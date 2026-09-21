@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNotNull, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, ne } from 'drizzle-orm';
 import {
   AppDatabase,
   downloadRequests,
@@ -8,6 +8,14 @@ import {
   users,
 } from '../db';
 import { RequestStatus } from './requestStateMachine';
+import {
+  RequestListItem,
+  FindByCriteriaFilters,
+  IRequestsRepository,
+  REQUEST_LIST_SELECT_FIELDS,
+} from './requestsRepositoryTypes';
+
+export { RequestListItem, FindByCriteriaFilters, IRequestsRepository };
 
 // Statuses considered "pending" (in-flight, poller and daemon care about these)
 const PENDING_STATUSES = [
@@ -16,41 +24,6 @@ const PENDING_STATUSES = [
   RequestStatus.HARDLINKING,
   RequestStatus.UNARCHIVING,
 ] as const;
-
-export interface RequestListItem extends DownloadRequest {
-  requesterUsername?: string | null;
-  isPrimaryRequester?: boolean;
-  coRequesters?: string[];
-}
-
-export interface IRequestsRepository {
-  findById(id: string): DownloadRequest | undefined;
-  create(data: NewDownloadRequest): DownloadRequest;
-  setStatus(
-    id: string,
-    status: DownloadRequest['status'],
-    extraFields?: Partial<Omit<DownloadRequest, 'id' | 'status'>>
-  ): void;
-  update(
-    id: string,
-    fields: Partial<Omit<DownloadRequest, 'id'>>
-  ): void;
-  findPending(): DownloadRequest[];
-  findByStatus(
-    status: DownloadRequest['status'],
-    orderBy?: 'requestedAtAsc'
-  ): DownloadRequest[];
-  findExistingSeriesFolder(params: {
-    metadataId?: string | null;
-    mediaType: string;
-    excludeRequestId?: string;
-  }): string | undefined;
-  markError(id: string, message: string): void;
-  findAll(userId: string, isAdmin: boolean): RequestListItem[];
-  findAllForUser(userId: string): RequestListItem[];
-  isCoRequester(requestId: string, userId: string): boolean;
-  findRequesterUsername(userId: string): string | undefined;
-}
 
 export class RequestsRepository implements IRequestsRepository {
   constructor(private db: AppDatabase) {}
@@ -286,31 +259,103 @@ export class RequestsRepository implements IRequestsRepository {
       .get();
     return user?.username;
   }
-}
 
-const REQUEST_LIST_SELECT_FIELDS = {
-  id: downloadRequests.id,
-  userId: downloadRequests.userId,
-  magnetLink: downloadRequests.magnetLink,
-  mediaType: downloadRequests.mediaType,
-  status: downloadRequests.status,
-  metadataId: downloadRequests.metadataId,
-  metadataSource: downloadRequests.metadataSource,
-  title: downloadRequests.title,
-  year: downloadRequests.year,
-  seasonNumber: downloadRequests.seasonNumber,
-  episodeNumber: downloadRequests.episodeNumber,
-  jellyfinPath: downloadRequests.jellyfinPath,
-  keepFlag: downloadRequests.keepFlag,
-  qbTorrentHash: downloadRequests.qbTorrentHash,
-  errorMessage: downloadRequests.errorMessage,
-  requestedAt: downloadRequests.requestedAt,
-  downloadedAt: downloadRequests.downloadedAt,
-  lastPlayedAt: downloadRequests.lastPlayedAt,
-  scheduledDeleteAt: downloadRequests.scheduledDeleteAt,
-  sizeBytes: downloadRequests.sizeBytes,
-  deferredReason: downloadRequests.deferredReason,
-  transcriptionStatus: downloadRequests.transcriptionStatus,
-  transcriptionError: downloadRequests.transcriptionError,
-  requesterUsername: users.username,
-};
+  findByUserId(userId: string, excludeDeleted = false): DownloadRequest[] {
+    const conditions = [eq(downloadRequests.userId, userId)];
+    if (excludeDeleted) {
+      conditions.push(ne(downloadRequests.status, RequestStatus.DELETED));
+    }
+    return this.db.select().from(downloadRequests).where(and(...conditions)).all();
+  }
+
+  findByCriteria(filters: FindByCriteriaFilters): DownloadRequest[] {
+    const conditions = [];
+    if (filters.status) conditions.push(eq(downloadRequests.status, filters.status));
+    if (filters.mediaType) conditions.push(eq(downloadRequests.mediaType, filters.mediaType));
+    if (filters.keepFlag !== undefined) conditions.push(eq(downloadRequests.keepFlag, filters.keepFlag));
+    if (filters.downloadedAtBefore) conditions.push(lte(downloadRequests.downloadedAt, filters.downloadedAtBefore));
+    if (filters.scheduledDeleteAtBefore) {
+      conditions.push(isNotNull(downloadRequests.scheduledDeleteAt));
+      conditions.push(lte(downloadRequests.scheduledDeleteAt, filters.scheduledDeleteAtBefore));
+    }
+    if (filters.scheduledDeleteAtNull === true) conditions.push(isNull(downloadRequests.scheduledDeleteAt));
+    if (filters.scheduledDeleteAtNull === false) conditions.push(isNotNull(downloadRequests.scheduledDeleteAt));
+    if (filters.excludeDeleted) conditions.push(ne(downloadRequests.status, RequestStatus.DELETED));
+
+    return conditions.length > 0
+      ? this.db.select().from(downloadRequests).where(and(...conditions)).all()
+      : this.db.select().from(downloadRequests).all();
+  }
+
+  setTranscriptionStatus(
+    id: string,
+    status: 'none' | 'pending' | 'transcribing' | 'done' | 'failed' | 'completed',
+    extraFields?: Partial<Omit<DownloadRequest, 'id' | 'transcriptionStatus'>>
+  ): void {
+    this.db
+      .update(downloadRequests)
+      .set({ transcriptionStatus: status, ...(extraFields || {}) })
+      .where(eq(downloadRequests.id, id))
+      .run();
+  }
+
+  findByTranscriptionStatus(status: string): DownloadRequest[] {
+    return this.db
+      .select()
+      .from(downloadRequests)
+      .where(
+        and(
+          eq(downloadRequests.transcriptionStatus, status),
+          ne(downloadRequests.status, RequestStatus.DELETED)
+        )
+      )
+      .all();
+  }
+
+  findPendingTranscriptionByType(mediaType: string): DownloadRequest[] {
+    return this.db
+      .select()
+      .from(downloadRequests)
+      .where(
+        and(
+          eq(downloadRequests.transcriptionStatus, 'pending'),
+          eq(downloadRequests.mediaType, mediaType),
+          ne(downloadRequests.status, RequestStatus.DELETED)
+        )
+      )
+      .orderBy(asc(downloadRequests.requestedAt))
+      .all();
+  }
+
+  findByMetadataId(
+    metadataId: string,
+    seasonNumber?: number | null,
+    episodeNumber?: number | null,
+    excludeStatuses: string[] = [RequestStatus.DELETED]
+  ): DownloadRequest[] {
+    const conditions = [eq(downloadRequests.metadataId, String(metadataId))];
+    if (seasonNumber !== undefined && seasonNumber !== null) {
+      conditions.push(eq(downloadRequests.seasonNumber, seasonNumber));
+    }
+    if (episodeNumber !== undefined && episodeNumber !== null) {
+      conditions.push(eq(downloadRequests.episodeNumber, episodeNumber));
+    }
+    for (const status of excludeStatuses) {
+      conditions.push(ne(downloadRequests.status, status));
+    }
+    return this.db.select().from(downloadRequests).where(and(...conditions)).all();
+  }
+
+  findWithTorrentHash(hash: string): DownloadRequest | undefined {
+    return this.db
+      .select()
+      .from(downloadRequests)
+      .where(
+        and(
+          eq(downloadRequests.qbTorrentHash, hash),
+          ne(downloadRequests.status, RequestStatus.DELETED)
+        )
+      )
+      .get();
+  }
+}

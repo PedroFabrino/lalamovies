@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { inArray, and, ne, eq, isNotNull } from 'drizzle-orm';
+import { inArray, and, ne, eq } from 'drizzle-orm';
 import path from 'node:path';
 import fs from 'node:fs';
 import { downloadRequests, systemConfig, users } from '../db';
@@ -409,24 +409,15 @@ export const libraryRoutes: FastifyPluginAsync = async (app) => {
         if (['tv_show', 'anime'].includes(targetMediaType)) {
           try {
             const targetSubDir = targetMediaType === 'anime' ? 'anime' : 'shows';
-            const conditions = [
-              ne(downloadRequests.id, req.id),
-              ne(downloadRequests.status, RequestStatus.DELETED),
-              eq(downloadRequests.mediaType, targetMediaType),
-              isNotNull(downloadRequests.jellyfinPath),
-            ];
-            if (req.metadataId) {
-              conditions.push(eq(downloadRequests.metadataId, req.metadataId));
-            }
-
-            const existingTargetSeries = app.db
-              .select({
-                jellyfinPath: downloadRequests.jellyfinPath,
-                title: downloadRequests.title,
-              })
-              .from(downloadRequests)
-              .where(and(...conditions))
-              .get();
+            const candidateReqs = req.metadataId
+              ? app.requestsRepo.findByMetadataId(req.metadataId)
+              : [];
+            const existingTargetSeries = candidateReqs.find(
+              (r) =>
+                r.id !== req.id &&
+                r.mediaType === targetMediaType &&
+                r.jellyfinPath != null
+            );
 
             if (existingTargetSeries?.jellyfinPath) {
               const parts = existingTargetSeries.jellyfinPath.split(/[\\/]/);
@@ -497,15 +488,11 @@ export const libraryRoutes: FastifyPluginAsync = async (app) => {
         newJellyfinPath = destPath;
       }
 
-      app.db
-        .update(downloadRequests)
-        .set({
-          mediaType: targetMediaType,
-          title: effectiveTitle,
-          jellyfinPath: newJellyfinPath,
-        })
-        .where(eq(downloadRequests.id, req.id))
-        .run();
+      app.requestsRepo.update(req.id, {
+        mediaType: targetMediaType,
+        title: effectiveTitle,
+        jellyfinPath: newJellyfinPath,
+      });
     }
 
     if (app.fileSystem.invalidateFootprintCache) {

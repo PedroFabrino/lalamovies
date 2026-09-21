@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { eq, and, isNull, isNotNull, lte } from 'drizzle-orm';
-import { AppDatabase, systemConfig, downloadRequests, DownloadRequest, users, requestCoRequesters } from '../db';
+import { eq } from 'drizzle-orm';
+import { AppDatabase, systemConfig, DownloadRequest, users, requestCoRequesters } from '../db';
+import { IRequestsRepository, RequestsRepository } from './requestsRepository';
 import { IQBittorrentService } from './qbittorrent';
 import { IJellyfinService } from './jellyfin';
 import { INotificationService } from './notifications';
@@ -33,6 +34,7 @@ export function matchesLibraryPath(itemPath: string, parentPath: string): boolea
 
 export interface CleanupServiceOptions {
   db: AppDatabase;
+  requestsRepo?: IRequestsRepository;
   qbittorrent: IQBittorrentService;
   jellyfin?: IJellyfinService;
   notificationService?: INotificationService;
@@ -47,6 +49,7 @@ export interface CleanupServiceOptions {
 export class CleanupService implements ICleanupService {
   private fullyConsumedRequestIds = new Set<string>();
   private db: AppDatabase;
+  private requestsRepo: IRequestsRepository;
   private qbittorrent: IQBittorrentService;
   private jellyfin?: IJellyfinService;
   private notificationService?: INotificationService;
@@ -85,6 +88,7 @@ export class CleanupService implements ICleanupService {
     if (optionsOrDb && 'qbittorrent' in optionsOrDb) {
       const opts = optionsOrDb as CleanupServiceOptions;
       this.db = opts.db;
+      this.requestsRepo = opts.requestsRepo ?? new RequestsRepository(opts.db);
       this.qbittorrent = opts.qbittorrent;
       this.jellyfin = opts.jellyfin;
       this.notificationService = opts.notificationService;
@@ -96,6 +100,7 @@ export class CleanupService implements ICleanupService {
       this.stateMachine = opts.stateMachine;
     } else {
       this.db = optionsOrDb as AppDatabase;
+      this.requestsRepo = new RequestsRepository(this.db);
       this.qbittorrent = qbittorrent!;
       this.jellyfin = jellyfin;
       this.notificationService = notificationService;
@@ -215,11 +220,7 @@ export class CleanupService implements ICleanupService {
     if (!this.jellyfin?.getPlayHistory) return;
 
     try {
-      const seedingRequests = this.db
-        .select()
-        .from(downloadRequests)
-        .where(eq(downloadRequests.status, RequestStatus.SEEDING))
-        .all();
+      const seedingRequests = this.requestsRepo.findByStatus(RequestStatus.SEEDING);
 
       if (seedingRequests.length === 0) {
         this.fullyConsumedRequestIds.clear();
@@ -295,11 +296,7 @@ export class CleanupService implements ICleanupService {
         }
 
         if (latestPlayed && latestPlayed !== req.lastPlayedAt) {
-          this.db
-            .update(downloadRequests)
-            .set({ lastPlayedAt: latestPlayed })
-            .where(eq(downloadRequests.id, req.id))
-            .run();
+          this.requestsRepo.update(req.id, { lastPlayedAt: latestPlayed });
           req.lastPlayedAt = latestPlayed;
         }
       }
@@ -349,11 +346,7 @@ export class CleanupService implements ICleanupService {
         }
 
         if (latestRequesterPlay && (!req.lastPlayedAt || new Date(latestRequesterPlay) > new Date(req.lastPlayedAt))) {
-          this.db
-            .update(downloadRequests)
-            .set({ lastPlayedAt: latestRequesterPlay })
-            .where(eq(downloadRequests.id, req.id))
-            .run();
+          this.requestsRepo.update(req.id, { lastPlayedAt: latestRequesterPlay });
           req.lastPlayedAt = latestRequesterPlay;
         }
       }
@@ -367,17 +360,11 @@ export class CleanupService implements ICleanupService {
   async getCandidates(): Promise<(DownloadRequest & { isFullyConsumed?: boolean })[]> {
     await this.refreshPlayHistory();
 
-    const candidates = this.db
-      .select()
-      .from(downloadRequests)
-      .where(
-        and(
-          eq(downloadRequests.status, RequestStatus.SEEDING),
-          eq(downloadRequests.keepFlag, false),
-          isNull(downloadRequests.scheduledDeleteAt)
-        )
-      )
-      .all();
+    const candidates = this.requestsRepo.findByCriteria({
+      status: RequestStatus.SEEDING,
+      keepFlag: false,
+      scheduledDeleteAtNull: true,
+    });
 
     const sorted = this.sortCandidates(candidates);
     return sorted.map((c) => ({
@@ -462,17 +449,11 @@ export class CleanupService implements ICleanupService {
 
     // 2. Select candidates (status='seeding', keepFlag=false, scheduledDeleteAt is null)
     // Priority: Tier 1 (Fully Consumed) first, then Tier 2 (remaining requests).
-    const candidates = this.db
-      .select()
-      .from(downloadRequests)
-      .where(
-        and(
-          eq(downloadRequests.status, RequestStatus.SEEDING),
-          eq(downloadRequests.keepFlag, false),
-          isNull(downloadRequests.scheduledDeleteAt)
-        )
-      )
-      .all();
+    const candidates = this.requestsRepo.findByCriteria({
+      status: RequestStatus.SEEDING,
+      keepFlag: false,
+      scheduledDeleteAtNull: true,
+    });
 
     const sortedCandidates = this.sortCandidates(candidates);
 
@@ -485,11 +466,7 @@ export class CleanupService implements ICleanupService {
         break;
       }
 
-      this.db
-        .update(downloadRequests)
-        .set({ scheduledDeleteAt })
-        .where(eq(downloadRequests.id, item.id))
-        .run();
+      this.requestsRepo.update(item.id, { scheduledDeleteAt });
 
       item.scheduledDeleteAt = scheduledDeleteAt;
       scheduled.push(item);
@@ -515,17 +492,10 @@ export class CleanupService implements ICleanupService {
   async executePendingCleanups(): Promise<DownloadRequest[]> {
     // 5-minute tolerance window to handle cron execution timing jitter
     const nowIso = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-    const pending = this.db
-      .select()
-      .from(downloadRequests)
-      .where(
-        and(
-          eq(downloadRequests.status, RequestStatus.SEEDING),
-          isNotNull(downloadRequests.scheduledDeleteAt),
-          lte(downloadRequests.scheduledDeleteAt, nowIso)
-        )
-      )
-      .all();
+    const pending = this.requestsRepo.findByCriteria({
+      status: RequestStatus.SEEDING,
+      scheduledDeleteAtBefore: nowIso,
+    });
 
     const sortedPending = this.sortCandidates(pending);
     const deleted: DownloadRequest[] = [];
@@ -533,11 +503,7 @@ export class CleanupService implements ICleanupService {
     for (const item of sortedPending) {
       // If user enabled keepFlag during the 24h grace period, cancel cleanup
       if (item.keepFlag) {
-        this.db
-          .update(downloadRequests)
-          .set({ scheduledDeleteAt: null })
-          .where(eq(downloadRequests.id, item.id))
-          .run();
+        this.requestsRepo.update(item.id, { scheduledDeleteAt: null });
         continue;
       }
 
@@ -577,14 +543,9 @@ export class CleanupService implements ICleanupService {
           }
         }
 
-        this.db
-          .update(downloadRequests)
-          .set({
-            status: RequestStatus.DELETED,
-            scheduledDeleteAt: null,
-          })
-          .where(eq(downloadRequests.id, item.id))
-          .run();
+        this.requestsRepo.setStatus(item.id, RequestStatus.DELETED, {
+          scheduledDeleteAt: null,
+        });
       }
 
       this.db
@@ -626,11 +587,7 @@ export class CleanupService implements ICleanupService {
   }
 
   async cleanItem(requestId: string): Promise<void> {
-    const request = this.db
-      .select()
-      .from(downloadRequests)
-      .where(eq(downloadRequests.id, requestId))
-      .get();
+    const request = this.requestsRepo.findById(requestId);
 
     if (!request) return;
 
@@ -704,14 +661,9 @@ export class CleanupService implements ICleanupService {
         }
       }
 
-      this.db
-        .update(downloadRequests)
-        .set({
-          status: RequestStatus.DELETED,
-          scheduledDeleteAt: null,
-        })
-        .where(eq(downloadRequests.id, requestId))
-        .run();
+      this.requestsRepo.setStatus(requestId, RequestStatus.DELETED, {
+        scheduledDeleteAt: null,
+      });
     }
 
     this.db

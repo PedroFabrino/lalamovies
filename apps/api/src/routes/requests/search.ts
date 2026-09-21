@@ -1,12 +1,11 @@
 import { FastifyPluginAsync } from 'fastify';
-import { eq, and, ne, inArray } from 'drizzle-orm';
-import { downloadRequests, systemConfig } from '../../db/schema';
+import { eq } from 'drizzle-orm';
+import { systemConfig } from '../../db/schema';
 import { normalizeShowTitle } from '../../services/upNext';
 import { MetadataApiError } from '../../services/metadata';
 import { cleanTorrentTitle } from '../../utils/torrentTitleCleaner';
 import { parseTorrentBuffer } from '../../services/torrentParser';
 import { findMatchingCanonicalRequest } from '../../services/requestDedup';
-import { RequestStatus } from '../../services/requestStateMachine';
 import {
   TmdbEpisodeInfo,
   TmdbSeasonDetails,
@@ -59,16 +58,10 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
     }
 
     if (query.mediaType === 'movie') {
-      const movieConditions = [
-        ne(downloadRequests.status, RequestStatus.DELETED),
-        eq(downloadRequests.mediaType, 'movie'),
-      ];
-
-      const allMovieRequests = app.db
-        .select()
-        .from(downloadRequests)
-        .where(and(...movieConditions))
-        .all();
+      const allMovieRequests = app.requestsRepo.findByCriteria({
+        mediaType: 'movie',
+        excludeDeleted: true,
+      });
 
       const normTitle = query.title ? normalizeShowTitle(query.title) : '';
       const matched = allMovieRequests.find((r) => {
@@ -100,17 +93,9 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const conditions = [
-      eq(downloadRequests.userId, effectiveUserId),
-      ne(downloadRequests.status, RequestStatus.DELETED),
-      inArray(downloadRequests.mediaType, ['tv_show', 'anime']),
-    ];
-
-    const userRequests = app.db
-      .select()
-      .from(downloadRequests)
-      .where(and(...conditions))
-      .all();
+    const userRequests = app.requestsRepo
+      .findByUserId(effectiveUserId, true)
+      .filter((r) => ['tv_show', 'anime'].includes(r.mediaType));
 
     const normTitle = query.title ? normalizeShowTitle(query.title) : '';
     const matching = userRequests.filter((r) => {
@@ -347,7 +332,7 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
 
     let match = null;
     if (mediaType) {
-      match = findMatchingCanonicalRequest(app.db, {
+      match = findMatchingCanonicalRequest(app.requestsRepo, {
         mediaType,
         metadataId,
         metadataSource,
@@ -356,7 +341,7 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
       });
     } else {
       if (seasonNumber !== undefined) {
-        match = findMatchingCanonicalRequest(app.db, {
+        match = findMatchingCanonicalRequest(app.requestsRepo, {
           mediaType: 'tv_show',
           metadataId,
           metadataSource,
@@ -365,12 +350,12 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
         });
       } else {
         match =
-          findMatchingCanonicalRequest(app.db, {
+          findMatchingCanonicalRequest(app.requestsRepo, {
             mediaType: 'movie',
             metadataId,
             metadataSource,
           }) ||
-          findMatchingCanonicalRequest(app.db, {
+          findMatchingCanonicalRequest(app.requestsRepo, {
             mediaType: 'tv_show',
             metadataId,
             metadataSource,

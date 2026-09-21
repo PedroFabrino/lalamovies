@@ -1,10 +1,9 @@
-import { and, eq, gte, inArray, ne, or } from 'drizzle-orm';
-import { AppDatabase, downloadRequests, requestCoRequesters } from '../db';
+import { AppDatabase, DownloadRequest } from '../db';
+import { IRequestsRepository, RequestsRepository } from './requestsRepository';
 import { IProwlarrService, ReleaseCandidate, Resolution } from './prowlarr';
 import { IMetadataService } from './metadata';
 import { cleanTorrentTitle, extractEpisodeInfo } from '../utils/torrentTitleCleaner';
 import { findMatchingCanonicalRequest } from './requestDedup';
-import { RequestStatus } from './requestStateMachine';
 
 export interface UpNextItem {
   id: string;
@@ -42,6 +41,7 @@ export interface IUpNextService {
 
 export interface UpNextServiceOptions {
   db: AppDatabase;
+  requestsRepo?: IRequestsRepository;
   prowlarr: IProwlarrService;
   metadata: IMetadataService;
   ttlMs?: number;
@@ -66,8 +66,8 @@ export function normalizeShowTitle(title: string): string {
 }
 
 export function groupShowRequests(
-  requests: (typeof downloadRequests.$inferSelect)[]
-): (typeof downloadRequests.$inferSelect)[][] {
+  requests: DownloadRequest[]
+): DownloadRequest[][] {
   const n = requests.length;
   const parent = Array.from({ length: n }, (_, i) => i);
 
@@ -107,7 +107,7 @@ export function groupShowRequests(
     }
   }
 
-  const grouped = new Map<number, typeof downloadRequests.$inferSelect[]>();
+  const grouped = new Map<number, DownloadRequest[]>();
   for (let i = 0; i < n; i++) {
     const root = find(i);
     const list = grouped.get(root) || [];
@@ -163,7 +163,7 @@ export function matchesTarget(
 }
 
 export function isCandidateAlreadyRequested(
-  db: AppDatabase,
+  db: AppDatabase | IRequestsRepository,
   params: {
     mediaType: 'movie' | 'tv_show' | 'anime';
     metadataId?: string | null;
@@ -173,8 +173,9 @@ export function isCandidateAlreadyRequested(
     episodeNumber?: number | null;
   }
 ): boolean {
+  const repo = 'findByCriteria' in db ? db : new RequestsRepository(db);
   if (params.metadataId && params.metadataSource) {
-    const match = findMatchingCanonicalRequest(db, {
+    const match = findMatchingCanonicalRequest(repo, {
       mediaType: params.mediaType,
       metadataId: params.metadataId,
       metadataSource: params.metadataSource,
@@ -188,11 +189,7 @@ export function isCandidateAlreadyRequested(
   if (params.showTitle) {
     const normTargetTitle = normalizeShowTitle(params.showTitle);
     if (normTargetTitle) {
-      const allActive = db
-        .select()
-        .from(downloadRequests)
-        .where(ne(downloadRequests.status, RequestStatus.DELETED))
-        .all();
+      const allActive = repo.findByCriteria({ excludeDeleted: true });
 
       const matchingTitleReqs = allActive.filter((r) => {
         return (
@@ -235,6 +232,7 @@ export function isCandidateAlreadyRequested(
 
 export class UpNextService implements IUpNextService {
   private db: AppDatabase;
+  private requestsRepo: IRequestsRepository;
   private prowlarr: IProwlarrService;
   private metadata: IMetadataService;
   private ttlMs: number;
@@ -248,6 +246,7 @@ export class UpNextService implements IUpNextService {
 
   constructor(options: UpNextServiceOptions) {
     this.db = options.db;
+    this.requestsRepo = options.requestsRepo ?? new RequestsRepository(options.db);
     this.prowlarr = options.prowlarr;
     this.metadata = options.metadata;
     this.ttlMs = options.ttlMs ?? 15 * 60 * 1000;
@@ -324,32 +323,14 @@ export class UpNextService implements IUpNextService {
   private async calculateUpNext(userId: string): Promise<UpNextResult> {
     const cutoffDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
 
-    let recentRequests: (typeof downloadRequests.$inferSelect)[];
+    let recentRequests: DownloadRequest[];
     try {
-      const coReqRows = this.db
-        .select({ requestId: requestCoRequesters.requestId })
-        .from(requestCoRequesters)
-        .where(eq(requestCoRequesters.userId, userId))
-        .all();
-      const coReqIds = coReqRows.map((r) => r.requestId);
-
-      const userFilters = [eq(downloadRequests.userId, userId)];
-      if (coReqIds.length > 0) {
-        userFilters.push(inArray(downloadRequests.id, coReqIds));
-      }
-
-      recentRequests = this.db
-        .select()
-        .from(downloadRequests)
-        .where(
-          and(
-            or(...userFilters),
-            ne(downloadRequests.status, RequestStatus.DELETED),
-            inArray(downloadRequests.mediaType, ['tv_show', 'anime']),
-            gte(downloadRequests.requestedAt, cutoffDate)
-          )
-        )
-        .all();
+      const userRequests = this.requestsRepo.findAllForUser(userId);
+      recentRequests = userRequests.filter(
+        (r) =>
+          ['tv_show', 'anime'].includes(r.mediaType) &&
+          r.requestedAt >= cutoffDate
+      );
     } catch (err) {
       return { available: false, items: [], error: (err as Error).message };
     }
@@ -447,7 +428,7 @@ export class UpNextService implements IUpNextService {
           targetEpisode = null;
 
           if (
-            isCandidateAlreadyRequested(this.db, {
+            isCandidateAlreadyRequested(this.requestsRepo, {
               mediaType,
               metadataId,
               metadataSource,
@@ -465,7 +446,7 @@ export class UpNextService implements IUpNextService {
           if (!bestCandidate) {
             targetEpisode = 1;
             if (
-              isCandidateAlreadyRequested(this.db, {
+              isCandidateAlreadyRequested(this.requestsRepo, {
                 mediaType,
                 metadataId,
                 metadataSource,
@@ -489,7 +470,7 @@ export class UpNextService implements IUpNextService {
           targetEpisode = maxEpisode + 1;
 
           if (
-            isCandidateAlreadyRequested(this.db, {
+            isCandidateAlreadyRequested(this.requestsRepo, {
               mediaType,
               metadataId,
               metadataSource,
@@ -534,7 +515,7 @@ export class UpNextService implements IUpNextService {
         }
 
         if (
-          isCandidateAlreadyRequested(this.db, {
+          isCandidateAlreadyRequested(this.requestsRepo, {
             mediaType,
             metadataId,
             metadataSource,

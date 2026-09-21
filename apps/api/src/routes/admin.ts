@@ -2,7 +2,7 @@ import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { eq, asc } from 'drizzle-orm';
 import { authMiddleware, adminGuard } from '../middleware/auth';
-import { users, systemConfig, downloadRequests, featureFlags } from '../db/schema';
+import { users, systemConfig, featureFlags } from '../db/schema';
 
 const updateRoleSchema = z.object({
   role: z.enum(['user', 'trusted', 'admin']),
@@ -221,11 +221,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // POST /admin/cleanup/:requestId — triggers CleanupService.cleanItem(requestId) immediately
   app.post('/cleanup/:requestId', async (request, reply) => {
     const { requestId } = request.params as { requestId: string };
-    const item = app.db
-      .select()
-      .from(downloadRequests)
-      .where(eq(downloadRequests.id, requestId))
-      .get();
+    const item = app.requestsRepo.findById(requestId);
 
     if (!item) {
       return reply.status(404).send({

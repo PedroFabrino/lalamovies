@@ -1,17 +1,17 @@
 # Graph Report - Plex-auto-download  (2026-09-21)
 
 ## Corpus Check
-- 303 files · ~218,564 words
+- 305 files · ~219,286 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 12 file(s) not represented in the graph (top: (none) 8, .example 2, .css 1)
 
 ## Summary
-- 2034 nodes · 4759 edges · 120 communities (85 shown, 35 thin omitted)
+- 2057 nodes · 4827 edges · 127 communities (87 shown, 40 thin omitted)
 - Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 178 edges (avg confidence: 0.87)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `42022a54`
+- Built from commit: `e0b26ff9`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -22,7 +22,7 @@
 - create.ts
 - AdminView.vue
 - CleanupService
-- upNext.ts
+- IMetadataService
 - Ephemeral Streaming Tier
 - LibraryView.vue
 - streamer/package.json
@@ -30,33 +30,33 @@
 - WaitlistView.vue
 - ref_vitest
 - DashboardView.vue
-- ref_drizzle_orm
+- api/src/app.ts
 - Navbar.vue
 - parseTorrentBuffer
 - ref_node_path
 - search.ts
 - api/src/services/prowlarr.ts
-- metadata.ts
+- BaseMetadataService
 - DiscoveryFeed.vue
 - api/package.json
 - IJellyfinService
-- upNext.test.ts
+- upNext.ts
 - Context Domain Model Document
 - JellyfinService
 - discovery.test.ts
 - web/package.json
 - PromotionModal.vue
-- api/src/services/notifications.ts
-- IMetadataService
-- api/src/db/index.ts
+- cleanup.test.ts
+- DownloadRequest
+- downloadPoller.ts
 - devDependencies
 - compilerOptions
 - Subgen Container Architecture (Whisper large-v3)
-- api/src/index.ts
+- runRecovery.ts
 - compilerOptions
-- MockCleanup
+- IDebridService
 - SubtitleInspectionService
-- stores/requests.ts
+- router/index.ts
 - Docker Compose Stack Specification
 - StreamProgressModal.vue
 - Cleanup Policy
@@ -82,7 +82,7 @@
 - Media Download Manager Architecture Spec
 - scripts
 - MetadataCandidate
-- DummyJellyfinService
+- IStreamerJellyfinService
 - api/tsconfig.json
 - streamer/tsconfig.json
 - watcher/tsconfig.json
@@ -91,7 +91,7 @@
 - QBittorrentService
 - Indexer
 - Ephemeral Stream
-- DownloadRequest
+- RequestsRepository
 - api/src/db/schema.ts
 - ReleaseGatingService
 - middleware/auth.ts
@@ -102,19 +102,20 @@
 - MockCleanupService
 - ICleanupService
 - MockCleanupService
+- .cleanItem
 - UnarchiveService
 - utils.ts
 - Web SPA HTML Entrypoint
 - App.vue
 - library.ts
 - DummyJellyfin
-- loadEntries
+- streamer/src/db/index.ts
 - vite-env.d.ts
 - web/tsconfig.json
 - vite.config.ts
-- checkCandidateGuards
-- closeModal
-- formatStatusText
+- DebridService
+- AdminFeaturesTab.vue
+- SymlinkManager
 - vercel.json
 - pnpm-workspace.yaml
 - Favicon Vector Graphic (MDM Brand Lightning / Geometric Icon)
@@ -124,33 +125,39 @@
 - Vue Logo Asset
 - IProwlarrService
 - config.ts
-- OpenSubtitlesService
+- Spec: Codebase Health, Architecture Hardening & Residual Refactoring
 - ws.ts
 - No Monoliths / No God Files
-- api/src/app.ts
+- EphemeralEvictionCron
+- streamer/src/routes/streams.ts
+- DownloadPoller
+- MockCleanupService
+- streamer/src/index.ts
+- DummyJellyfinService
+- DummyJellyfinService
 
 ## God Nodes (most connected - your core abstractions)
 1. `buildApp()` - 64 edges
 2. `IJellyfinService` - 63 edges
-3. `Context Domain Model Document` - 49 edges
-4. `downloadRequests` - 42 edges
-5. `users` - 40 edges
-6. `useRequestData()` - 39 edges
-7. `DownloadRequest` - 38 edges
-8. `IQBittorrentService` - 37 edges
-9. `AppDatabase` - 35 edges
-10. `FileSystemService` - 34 edges
+3. `DownloadRequest` - 54 edges
+4. `RequestsRepository` - 49 edges
+5. `Context Domain Model Document` - 49 edges
+6. `IRequestsRepository` - 47 edges
+7. `users` - 42 edges
+8. `useRequestData()` - 39 edges
+9. `IQBittorrentService` - 37 edges
+10. `AppDatabase` - 35 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `Wave 1 — Foundation (no blockers; implement first)` --references--> `CleanupService`  [INFERRED]
+  docs/spec/codebase-health-and-architecture-hardening.md → apps/api/src/services/cleanup.ts
 - `Rules for Agents` --references--> `IRequestsRepository`  [INFERRED]
-  .agents/rules/no-monoliths.md → apps/api/src/services/requestsRepository.ts
+  .agents/rules/no-monoliths.md → apps/api/src/services/requestsRepositoryTypes.ts
 - `Implementation Decisions` --references--> `buildApp()`  [INFERRED]
   docs/spec/codebase-health-and-architecture-hardening.md → apps/api/src/app.ts
-- `Implementation Decisions` --references--> `CleanupServiceOptions`  [INFERRED]
-  docs/spec/codebase-health-and-architecture-hardening.md → apps/api/src/services/cleanup.ts
 - `Problem Statement` --references--> `CleanupService`  [INFERRED]
   docs/spec/codebase-health-and-architecture-hardening.md → apps/api/src/services/cleanup.ts
-- `Wave 1 — Foundation (no blockers; implement first)` --references--> `CleanupService`  [INFERRED]
+- `User Stories` --references--> `CleanupService`  [INFERRED]
   docs/spec/codebase-health-and-architecture-hardening.md → apps/api/src/services/cleanup.ts
 
 ## Import Cycles
@@ -164,35 +171,31 @@
 - **Preferred Indexer Dual-Candidate Airgap Architecture** — docs_adr_0016_preferred_indexer_for_downloads_preferred_indexer_oracle, docs_adr_0016_preferred_indexer_for_downloads_discovery_dual_candidate, docs_spec_preferred_indexer_bj_share_preferred_indexer_concept, docs_spec_preferred_indexer_bj_share_dual_candidate_binding, docs_spec_ephemeral_streaming_and_real_debrid_private_airgap [EXTRACTED 0.95]
 - **Private Library Security & Processing Pipeline** — docs_spec_private_media_type_and_trusted_role_private_media_type, docs_spec_private_media_type_and_trusted_role_trusted_role, docs_spec_private_media_type_and_trusted_role_jellyfin_access_control, docs_spec_subgen_gpu_subtitle_transcription_subgen_container, docs_adr_0017_local_gpu_subtitle_transcription_with_subgen_subgen_whisper_integration [EXTRACTED 0.95]
 
-## Communities (120 total, 35 thin omitted)
+## Communities (127 total, 40 thin omitted)
 
 ### Community 0 - "watcher/src/routes/waitlist.ts"
 Cohesion: 0.16
 Nodes (14): renderStatusHtml(), waitlistRoutes(), deleteDiscordMessage(), generateMagicLinkToken(), ResendNotifier, sendWaitlistCancelNotification(), SendWaitlistCancelNotificationOptions, SendWaitlistErrorNotificationOptions (+6 more)
 
 ### Community 1 - "streamer/src/app.ts"
-Cohesion: 0.05
-Nodes (33): buildStreamerApp(), fastify, FastifyInstance, StreamerAppOptions, apps_streamer_src_db_index_ephemeralstreams, getStreamerDatabasePath(), initStreamerDatabase(), StreamerDatabase (+25 more)
+Cohesion: 0.23
+Nodes (7): buildStreamerApp(), fastify, apps_streamer_src_db_index_ephemeralstreams, ephemeralStreams, DebridTorrentInfo, DirectDownloader, ref_node_stream
 
 ### Community 2 - "InviteView.vue"
-Cohesion: 0.13
-Nodes (13): authStore, confirmPassword, featureFlags, isCheckingToken, isSubmitting, isTokenValid, password, route (+5 more)
+Cohesion: 0.08
+Nodes (23): error, flags, initWsListener(), isLoaded, isLoading, useFeatureFlags(), ensureFlagsLoaded(), fetchFlags() (+15 more)
 
 ### Community 3 - "create.ts"
-Cohesion: 0.35
-Nodes (8): createRoutes(), addCoRequester(), DedupMatchParams, findCanonicalSeriesInfo(), findMatchingCanonicalRequest(), getDedupLockKey(), globalRequestMutex, KeyedMutex
+Cohesion: 0.33
+Nodes (9): createRoutes(), addCoRequester(), DedupMatchParams, findCanonicalSeriesInfo(), findMatchingCanonicalRequest(), getDedupLockKey(), globalRequestMutex, KeyedMutex (+1 more)
 
 ### Community 4 - "AdminView.vue"
-Cohesion: 0.10
-Nodes (25): DiskInfo, ConfigFormData, JellyfinStatusInfo, showTmdbKey, TranscriptionFormData, AdminFeatureFlag, automationFlags, discoveryFlags (+17 more)
+Cohesion: 0.17
+Nodes (14): DiskInfo, ConfigFormData, JellyfinStatusInfo, showTmdbKey, TranscriptionFormData, AdminFeatureFlag, InviteItem, AdminUser (+6 more)
 
-### Community 5 - "CleanupService"
-Cohesion: 0.10
-Nodes (11): CleanupService, matchesLibraryPath(), Dependency diagram, Out of Scope, Recommended Implementation Order, Spec: Codebase Health, Architecture Hardening & Residual Refactoring, Testing Decisions, User Stories (+3 more)
-
-### Community 6 - "upNext.ts"
-Cohesion: 0.12
-Nodes (17): DiscoveryCategory, DiscoveryFeedResult, DiscoveryItem, DiscoveryService, extractTitleAndYear(), IDiscoveryService, Resolution, ScoreOptions (+9 more)
+### Community 6 - "IMetadataService"
+Cohesion: 0.09
+Nodes (12): DiscoveryCategory, DiscoveryFeedResult, DiscoveryItem, DiscoveryService, DiscoveryServiceOptions, extractTitleAndYear(), IDiscoveryService, IMetadataService (+4 more)
 
 ### Community 7 - "Ephemeral Streaming Tier"
 Cohesion: 0.08
@@ -211,44 +214,44 @@ Cohesion: 0.04
 Nodes (46): dependencies, better-sqlite3, dotenv, drizzle-orm, fastify, node-cron, devDependencies, drizzle-kit (+38 more)
 
 ### Community 11 - "WaitlistView.vue"
-Cohesion: 0.05
-Nodes (34): useWaitlistStore, WaitlistEntry, WaitlistStatus, activeView, approvingEntryId, authStore, availableReleasesCount, candidates (+26 more)
+Cohesion: 0.04
+Nodes (48): CreateWaitlistPayload, useWaitlistStore, WaitlistEntry, WaitlistStatus, activeView, approvingEntryId, authStore, availableReleasesCount (+40 more)
 
 ### Community 12 - "ref_vitest"
-Cohesion: 0.10
-Nodes (18): api, useAuthStore, User, CreateWaitlistPayload, mockLocalStorage, mockPush, store, mockRoute (+10 more)
+Cohesion: 0.11
+Nodes (17): api, useAuthStore, User, mockLocalStorage, mockPush, store, mockRoute, mockRouterPush (+9 more)
 
 ### Community 13 - "DashboardView.vue"
 Cohesion: 0.05
 Nodes (32): formatDate(), formatEta(), formatMediaSubtitle(), formatMediaType(), formatSpeed(), activeStreamingItem, activeStreamsShelfRef, authStore (+24 more)
 
-### Community 14 - "ref_drizzle_orm"
-Cohesion: 0.15
-Nodes (13): downloadRequests, requestCoRequesters, SystemConfig, users, SpaceCheckResult, JellyfinAuthResult, IQBittorrentService, TorrentInfo (+5 more)
+### Community 14 - "api/src/app.ts"
+Cohesion: 0.16
+Nodes (19): buildApp(), fastify, apps_api_src_db_index_featureflags, apps_api_src_db_index_invites, apps_api_src_db_index_systemconfig, downloadRequests, requestCoRequesters, SystemConfig (+11 more)
 
 ### Community 15 - "Navbar.vue"
-Cohesion: 0.08
-Nodes (23): authStore, featureFlags, { isConnected }, isLibraryEnabled, isRequestEnabled, isWaitlistEnabled, route, router (+15 more)
+Cohesion: 0.13
+Nodes (14): authStore, featureFlags, { isConnected }, isLibraryEnabled, isRequestEnabled, isWaitlistEnabled, route, router (+6 more)
 
 ### Community 16 - "parseTorrentBuffer"
 Cohesion: 0.24
 Nodes (9): promoteSchema, BencodeValue, ParsedTorrent, parseTorrentBuffer(), decode(), decodeBuffer(), decodeString(), TorrentInfoDict (+1 more)
 
 ### Community 17 - "ref_node_path"
-Cohesion: 0.08
-Nodes (36): __dirname, envPaths, __filename, main(), BuildLibraryPathParams, FileSystemService, ProcessAndHardlinkInput, ProcessAndHardlinkResult (+28 more)
+Cohesion: 0.07
+Nodes (31): BuildLibraryPathParams, FileSystemService, IFileSystemService, ProcessAndHardlinkInput, ProcessAndHardlinkResult, ProcessAndHardlinkTorrentInput, ProcessAndHardlinkTorrentResult, OpenSubtitlesOptions (+23 more)
 
 ### Community 18 - "search.ts"
 Cohesion: 0.31
 Nodes (8): batchItemSchema, batchRequestSchema, createRequestSchema, existsRequestSchema, searchMetadataSchema, searchReleasesSchema, TmdbEpisodeInfo, TmdbSeasonDetails
 
 ### Community 19 - "api/src/services/prowlarr.ts"
-Cohesion: 0.13
-Nodes (13): forwardToStreamer(), streamsAuth(), streamsRoutes(), formatBytes(), hasCjkCharacters(), hasPasskey(), isKnownPrivateIndexer(), ProwlarrService (+5 more)
-
-### Community 20 - "metadata.ts"
 Cohesion: 0.14
-Nodes (8): BaseMetadataService, MetadataApiError, MetadataSearchOptions, MetadataService, rankMetadataCandidates(), MockMetadata, MockRouteMetadataService, MockMetadataService
+Nodes (8): formatBytes(), hasCjkCharacters(), ProwlarrService, ReleaseSource, VideoCodec, isPreferredIndexer(), isQualifiedPreferred(), PreferredCandidateLike
+
+### Community 20 - "BaseMetadataService"
+Cohesion: 0.13
+Nodes (7): BaseMetadataService, MetadataApiError, MetadataService, rankMetadataCandidates(), MockMetadata, DummyJellyfinService, MockRouteMetadataService
 
 ### Community 21 - "DiscoveryFeed.vue"
 Cohesion: 0.09
@@ -260,19 +263,19 @@ Nodes (25): better-sqlite3, dotenv, drizzle-kit, drizzle-orm, esbuild, eslint, f
 
 ### Community 23 - "IJellyfinService"
 Cohesion: 0.08
-Nodes (21): AppOptions, FastifyInstance, AppDatabase, DownloadPoller, DownloadPollerOptions, PollerLogger, UnarchiveDaemon, UnarchiveDaemonOptions (+13 more)
+Nodes (4): UnarchiveDaemon, IJellyfinService, IQBittorrentService, Solution
 
-### Community 24 - "upNext.test.ts"
-Cohesion: 0.16
-Nodes (8): groupShowRequests(), find(), union(), isCandidateAlreadyRequested(), IUpNextService, normalizeShowTitle(), UpNextService, DummyJellyfinService
+### Community 24 - "upNext.ts"
+Cohesion: 0.15
+Nodes (15): MetadataSearchOptions, groupShowRequests(), find(), union(), isCandidateAlreadyRequested(), IUpNextService, matchesTarget(), normalizeShowTitle() (+7 more)
 
 ### Community 25 - "Context Domain Model Document"
 Cohesion: 0.14
 Nodes (25): Batch Submission, Coordinated Pause, Degraded Mode, Discovery Feed, Discovery Item, Context Domain Model Document, Download Request, Episode Selection (+17 more)
 
 ### Community 26 - "JellyfinService"
-Cohesion: 0.09
-Nodes (3): JellyfinApiError, JellyfinService, MockJellyfinService
+Cohesion: 0.08
+Nodes (4): InvalidCredentialsError, JellyfinApiError, JellyfinService, MockJellyfinService
 
 ### Community 27 - "discovery.test.ts"
 Cohesion: 0.11
@@ -286,13 +289,17 @@ Nodes (21): eslint, @types/node, typescript, @typescript-eslint/eslint-plugin, @
 Cohesion: 0.12
 Nodes (19): candidates, emit, episodeNumber, errorMessage, goToStep2(), handleClose(), handleStep2Next(), isPromoting (+11 more)
 
-### Community 30 - "api/src/services/notifications.ts"
-Cohesion: 0.16
-Nodes (10): DiscordEmbed, DiscordEmbedField, DiscordNotifier, formatNotificationMediaTitle(), NotificationEvent, NotificationPayload, NotificationService, NotificationServiceOptions (+2 more)
+### Community 30 - "cleanup.test.ts"
+Cohesion: 0.14
+Nodes (14): DiscordEmbed, DiscordEmbedField, DiscordNotifier, formatNotificationMediaTitle(), INotificationService, NotificationEvent, NotificationPayload, NotificationService (+6 more)
 
-### Community 32 - "api/src/db/index.ts"
+### Community 31 - "DownloadRequest"
+Cohesion: 0.12
+Nodes (3): DownloadRequest, IRequestsRepository, MockCleanupService
+
+### Community 32 - "downloadPoller.ts"
 Cohesion: 0.09
-Nodes (29): DEFAULT_FEATURE_FLAGS, __dirname, apps_api_src_db_index_downloadrequest, apps_api_src_db_index_downloadrequests, __filename, getDatabasePath(), getMigrationsFolder(), initDatabase() (+21 more)
+Nodes (42): AppDatabase, DEFAULT_FEATURE_FLAGS, __dirname, apps_api_src_db_index_downloadrequest, apps_api_src_db_index_downloadrequests, __filename, getDatabasePath(), getMigrationsFolder() (+34 more)
 
 ### Community 33 - "devDependencies"
 Cohesion: 0.11
@@ -306,17 +313,21 @@ Nodes (17): compilerOptions, baseUrl, isolatedModules, lib, module, moduleResolu
 Cohesion: 0.19
 Nodes (18): ADR 0017: Local GPU Subtitle Transcription with Subgen, Off-Peak Scheduled Transcription Window, Subgen Local Whisper GPU Transcription, Zero-Subtitle ffprobe Inspection, OpenSubtitles Subtitle Fetching Spec, Auto-Fetch Subtitles on Completion Hook, Manual Subtitle Picker Modal, OpenSubtitles REST API Integration (+10 more)
 
-### Community 36 - "api/src/index.ts"
-Cohesion: 0.13
-Nodes (14): app, __dirname, envPaths, __filename, app, __dirname, envPaths, __filename (+6 more)
+### Community 36 - "runRecovery.ts"
+Cohesion: 0.08
+Nodes (18): app, __dirname, envPaths, __filename, __dirname, envPaths, __filename, main() (+10 more)
 
 ### Community 37 - "compilerOptions"
 Cohesion: 0.12
 Nodes (16): compilerOptions, allowImportingTsExtensions, erasableSyntaxOnly, lib, module, moduleDetection, noEmit, noFallthroughCasesInSwitch (+8 more)
 
-### Community 40 - "stores/requests.ts"
-Cohesion: 0.10
-Nodes (17): ApiError, apiRequest(), app, router, routes, pinia, ProgressData, RequestStatus (+9 more)
+### Community 38 - "IDebridService"
+Cohesion: 0.15
+Nodes (5): FastifyInstance, StreamerAppOptions, StreamPoller, IDebridService, IDirectDownloader
+
+### Community 40 - "router/index.ts"
+Cohesion: 0.11
+Nodes (14): ApiError, apiRequest(), app, router, routes, pinia, apps_web_src_style, authStore (+6 more)
 
 ### Community 41 - "Docker Compose Stack Specification"
 Cohesion: 0.20
@@ -363,8 +374,8 @@ Cohesion: 0.18
 Nodes (11): dependencies, class-variance-authority, clsx, lucide-vue-next, pinia, radix-vue, tailwind-merge, @vercel/analytics (+3 more)
 
 ### Community 53 - "batch.ts"
-Cohesion: 0.23
-Nodes (11): featureFlags, JwtPayload, isFeatureEnabled(), requireFeature(), batchRoutes(), forwardToWatcher(), waitlistAuth(), WaitlistEntry (+3 more)
+Cohesion: 0.18
+Nodes (16): featureFlags, JwtPayload, isFeatureEnabled(), requireFeature(), batchRoutes(), forwardToStreamer(), streamsAuth(), streamsRoutes() (+8 more)
 
 ### Community 54 - "scripts"
 Cohesion: 0.18
@@ -379,12 +390,12 @@ Cohesion: 0.25
 Nodes (5): available, items, router, UpNextItem, UpNextResponse
 
 ### Community 57 - "useRequestData.ts"
-Cohesion: 0.12
-Nodes (25): customQueryInputRef, emit, fileInputRef, isDragging, onFileDrop(), onFileInputChange(), step2QueryInputRef, BatchItem (+17 more)
+Cohesion: 0.10
+Nodes (29): customQueryInputRef, emit, fileInputRef, isDragging, onFileDrop(), onFileInputChange(), step2QueryInputRef, BatchItem (+21 more)
 
 ### Community 58 - "useRequestData"
-Cohesion: 0.08
-Nodes (32): useRequestData(), checkCacheForCandidates(), checkDuplicateExists(), confirmStep2Selection(), extractInfoHash(), fetchReleasesForCandidate(), getCandidateCacheStatus(), handleConfirmRequest() (+24 more)
+Cohesion: 0.09
+Nodes (31): useRequestData(), checkCacheForCandidates(), checkDuplicateExists(), confirmStep2Selection(), extractInfoHash(), fetchReleasesForCandidate(), getCandidateCacheStatus(), handleConfirmRequest() (+23 more)
 
 ### Community 59 - "User Role"
 Cohesion: 0.22
@@ -414,6 +425,10 @@ Nodes (8): scripts, build, db:generate, dev, lint, start, test, typecheck
 Cohesion: 0.28
 Nodes (3): MetadataCandidate, MockMetadataService, MockMetadataService
 
+### Community 66 - "IStreamerJellyfinService"
+Cohesion: 0.20
+Nodes (5): StreamerDatabase, EphemeralEvictionCronOptions, StreamPollerOptions, IStreamerJellyfinService, StreamerJellyfinService
+
 ### Community 67 - "api/tsconfig.json"
 Cohesion: 0.29
 Nodes (6): compilerOptions, outDir, rootDir, extends, include, ../../tsconfig.base.json
@@ -432,7 +447,7 @@ Nodes (7): scripts, build, dev, lint, preview, test, typecheck
 
 ### Community 71 - "ref_fastify"
 Cohesion: 0.25
-Nodes (10): adminGuard(), requestRoutes(), lifecycleRoutes(), listRoutes(), promoteRoutes(), retryRoutes(), searchRoutes(), subtitlesRoutes() (+2 more)
+Nodes (9): requestRoutes(), lifecycleRoutes(), listRoutes(), promoteRoutes(), retryRoutes(), searchRoutes(), subtitlesRoutes(), transcriptionRoutes() (+1 more)
 
 ### Community 73 - "Indexer"
 Cohesion: 0.29
@@ -442,17 +457,13 @@ Nodes (7): Indexer, Preferred Indexer, Private Tracker Airgap, Prowlarr Indexer 
 Cohesion: 0.47
 Nodes (6): Debrid Provider, Ephemeral Stream, Streamer Microservice, ADR 0012 Document, Dual-Tier Ephemeral Debrid Streaming Architecture, Rationale: Centralized Proxying Against Real-Debrid Multi-IP Ban
 
-### Community 75 - "DownloadRequest"
-Cohesion: 0.08
-Nodes (9): DownloadRequest, NewDownloadRequest, IRequestsRepository, RequestsRepository, RequestStateMachine, MockCleanupService, Implementation Decisions, Problem Statement (+1 more)
-
 ### Community 76 - "api/src/db/schema.ts"
 Cohesion: 0.15
 Nodes (12): FeatureFlag, Invite, InviteRole, MediaType, NewFeatureFlag, NewInvite, NewRequestCoRequester, NewSystemConfig (+4 more)
 
 ### Community 78 - "middleware/auth.ts"
-Cohesion: 0.13
-Nodes (18): invites, User, authMiddleware(), fastify, @fastify/jwt, FastifyJWT, FastifyRequest, adminRoutes() (+10 more)
+Cohesion: 0.14
+Nodes (19): invites, User, adminGuard(), authMiddleware(), fastify, @fastify/jwt, FastifyJWT, FastifyRequest (+11 more)
 
 ### Community 79 - "Isolated Containerized Development Stack"
 Cohesion: 0.40
@@ -464,7 +475,7 @@ Nodes (4): Graphify Rules Document, Graphify Knowledge Graph, Graphify Workflow 
 
 ### Community 84 - "ICleanupService"
 Cohesion: 0.09
-Nodes (6): CleanupCron, CleanupCronLogger, CleanupCronOptions, ICleanupService, MockCleanupService, MockCleanup
+Nodes (6): CleanupCron, CleanupCronLogger, CleanupCronOptions, ICleanupService, MockCleanup, MockCleanup
 
 ### Community 91 - "Web SPA HTML Entrypoint"
 Cohesion: 0.67
@@ -474,25 +485,21 @@ Nodes (3): Web SPA HTML Entrypoint, Vue Single Page Application Mount, Web Front
 Cohesion: 0.20
 Nodes (11): artworkCache, deleteMediaSchema, EpisodeItem, getShowFolderPath(), LibraryMediaCard, libraryRoutes(), MediaArtwork, MediaRequester (+3 more)
 
-### Community 95 - "loadEntries"
-Cohesion: 0.50
-Nodes (4): handleCheckAll(), handleCheckEntry(), loadEntries(), setView()
+### Community 95 - "streamer/src/db/index.ts"
+Cohesion: 0.26
+Nodes (8): getStreamerDatabasePath(), initStreamerDatabase(), apps_streamer_src_db_index_systemconfig, EphemeralStream, NewEphemeralStream, NewSystemConfig, SystemConfig, JellyfinSession
 
-### Community 99 - "checkCandidateGuards"
-Cohesion: 0.67
-Nodes (3): checkCandidateGuards(), initPrefilledModal(), selectCandidate()
-
-### Community 100 - "closeModal"
-Cohesion: 0.67
-Nodes (3): closeModal(), downloadDirectly(), submitWaitlistEntry()
-
-### Community 101 - "formatStatusText"
-Cohesion: 0.67
-Nodes (3): formatGraceRemaining(), formatStatusText(), getRemainingGraceMs()
+### Community 100 - "AdminFeaturesTab.vue"
+Cohesion: 0.22
+Nodes (10): automationFlags, discoveryFlags, downloadsFlags, emit, flagConfirmModal, HIGH_IMPACT_FLAGS, HIGH_IMPACT_MESSAGES, onConfirmDisable() (+2 more)
 
 ### Community 115 - "config.ts"
 Cohesion: 0.24
 Nodes (7): AppConfig, config, configSchema, FORBIDDEN_JWT_DEV_DEFAULT, testConfigDefaults, validateConfig(), ValidateConfigOptions
+
+### Community 116 - "Spec: Codebase Health, Architecture Hardening & Residual Refactoring"
+Cohesion: 0.20
+Nodes (9): Dependency diagram, Out of Scope, Recommended Implementation Order, Spec: Codebase Health, Architecture Hardening & Residual Refactoring, Testing Decisions, User Stories, Wave 1 — Foundation (no blockers; implement first), Wave 2 — Build on the foundation (start after Wave 1 blockers are complete) (+1 more)
 
 ### Community 118 - "ws.ts"
 Cohesion: 0.29
@@ -502,29 +509,37 @@ Nodes (5): fastify, FastifyInstance, wsRoutes, fastify-plugin, ws
 Cohesion: 0.40
 Nodes (4): Hard Limits, No Monoliths / No God Files, Rules for Agents, When you discover a file already over the limit
 
-### Community 122 - "api/src/app.ts"
-Cohesion: 0.12
-Nodes (15): buildApp(), fastify, apps_api_src_db_index_featureflags, getLocalTimeInTimezone(), isInsideWindow(), TranscriptionCron, TranscriptionCronLogger, TranscriptionCronOptions (+7 more)
+### Community 121 - "streamer/src/routes/streams.ts"
+Cohesion: 0.60
+Nodes (4): assertPublicTracker(), hasPasskey(), isKnownPrivateTrackerName(), streamRoutes()
+
+### Community 122 - "DownloadPoller"
+Cohesion: 0.09
+Nodes (12): AppOptions, FastifyInstance, DownloadPoller, getLocalTimeInTimezone(), isInsideWindow(), TranscriptionCron, TranscriptionCronLogger, TranscriptionCronOptions (+4 more)
+
+### Community 124 - "streamer/src/index.ts"
+Cohesion: 0.40
+Nodes (4): app, __dirname, envPaths, __filename
 
 ## Knowledge Gaps
 - **640 isolated node(s):** `name`, `version`, `private`, `type`, `dev` (+635 more)
   These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 972 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **35 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **40 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `useRequestData()` connect `useRequestData` to `stores/requests.ts`, `useRequestData.ts`, `ref_vitest`, `Navbar.vue`?**
-  _High betweenness centrality (0.044) - this node is a cross-community bridge._
-- **Why does `IJellyfinService` connect `IJellyfinService` to `api/src/db/index.ts`, `DummyJellyfinService`, `JellyfinService`, `CleanupService`, `DownloadRequest`, `ref_drizzle_orm`, `middleware/auth.ts`, `ref_node_path`, `IProwlarrService`, `metadata.ts`, `upNext.test.ts`, `api/src/app.ts`, `discovery.test.ts`, `DummyJellyfin`?**
-  _High betweenness centrality (0.033) - this node is a cross-community bridge._
-- **Why does `ProwlarrService` connect `api/src/services/prowlarr.ts` to `api/src/app.ts`, `IProwlarrService`?**
+- **Why does `IJellyfinService` connect `IJellyfinService` to `downloadPoller.ts`, `JellyfinService`, `runRecovery.ts`, `CleanupService`, `DummyJellyfinService`, `api/src/app.ts`, `middleware/auth.ts`, `ref_node_path`, `BaseMetadataService`, `.cleanItem`, `upNext.ts`, `DummyJellyfin`, `DownloadPoller`, `discovery.test.ts`, `DummyJellyfinService`, `cleanup.test.ts`?**
   _High betweenness centrality (0.027) - this node is a cross-community bridge._
+- **Why does `RequestsRepository` connect `RequestsRepository` to `downloadPoller.ts`, `create.ts`, `runRecovery.ts`, `api/src/app.ts`, `ref_node_path`, `Spec: Codebase Health, Architecture Hardening & Residual Refactoring`, `UnarchiveService`, `IJellyfinService`, `upNext.ts`, `.cleanItem`, `DownloadPoller`, `DownloadRequest`?**
+  _High betweenness centrality (0.023) - this node is a cross-community bridge._
+- **Why does `useRequestData()` connect `useRequestData` to `useRequestData.ts`, `InviteView.vue`, `ref_vitest`, `Navbar.vue`?**
+  _High betweenness centrality (0.021) - this node is a cross-community bridge._
 - **Are the 10 inferred relationships involving `buildApp()` (e.g. with `adminRoutes()` and `authRoutes()`) actually correct?**
   _`buildApp()` has 10 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `name`, `version`, `private` to the rest of the system?**
   _640 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `streamer/src/app.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.0507048180096781 - nodes in this community are weakly interconnected._
 - **Should `InviteView.vue` be split into smaller, more focused modules?**
-  _Cohesion score 0.13333333333333333 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.07526881720430108 - nodes in this community are weakly interconnected._
+- **Should `IMetadataService` be split into smaller, more focused modules?**
+  _Cohesion score 0.09116809116809117 - nodes in this community are weakly interconnected._

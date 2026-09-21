@@ -1,8 +1,6 @@
 import fp from 'fastify-plugin';
 import { FastifyPluginAsync } from 'fastify';
 import { WebSocket } from 'ws';
-import { eq } from 'drizzle-orm';
-import { downloadRequests } from '../db/schema';
 import { RequestStatus } from '../services/requestStateMachine';
 
 export type BroadcastFunction = (message: object) => void;
@@ -70,11 +68,7 @@ const wsRoutesPlugin: FastifyPluginAsync = async (app) => {
     if (clients.size === 0) return;
 
     try {
-      const activeDownloads = app.db
-        .select()
-        .from(downloadRequests)
-        .where(eq(downloadRequests.status, RequestStatus.DOWNLOADING))
-        .all();
+      const activeDownloads = app.requestsRepo.findByStatus(RequestStatus.DOWNLOADING);
 
       for (const req of activeDownloads) {
         if (!req.qbTorrentHash) continue;

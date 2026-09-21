@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { eq, inArray } from 'drizzle-orm';
-import { AppDatabase, downloadRequests, users } from '../db';
+import { AppDatabase, users } from '../db';
 import { IUnarchiveService } from '../services/unarchive';
 import { IFileSystemService } from '../services/fileSystem';
 import { IJellyfinService } from '../services/jellyfin';
@@ -252,11 +252,7 @@ export class UnarchiveDaemon {
     this.isProcessing = true;
 
     try {
-      const unarchivingRequests = this.db
-        .select()
-        .from(downloadRequests)
-        .where(eq(downloadRequests.status, RequestStatus.UNARCHIVING))
-        .all();
+      const unarchivingRequests = this.requestsRepo.findByStatus(RequestStatus.UNARCHIVING);
 
       for (const req of unarchivingRequests) {
         try {

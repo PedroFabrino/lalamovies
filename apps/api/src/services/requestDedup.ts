@@ -1,7 +1,11 @@
-import { and, eq, ne, isNull, inArray } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { AppDatabase } from '../db';
-import { downloadRequests, DownloadRequest, requestCoRequesters } from '../db/schema';
-import { RequestStatus } from './requestStateMachine';
+import { DownloadRequest, requestCoRequesters } from '../db/schema';
+import { IRequestsRepository, RequestsRepository } from './requestsRepository';
+
+function toRepo(repoOrDb: IRequestsRepository | AppDatabase): IRequestsRepository {
+  return 'findByMetadataId' in repoOrDb ? repoOrDb : new RequestsRepository(repoOrDb);
+}
 
 export interface DedupMatchParams {
   mediaType: 'movie' | 'tv_show' | 'anime' | 'private';
@@ -12,30 +16,22 @@ export interface DedupMatchParams {
 }
 
 export function findMatchingCanonicalRequest(
-  db: AppDatabase,
+  requestsRepoOrDb: IRequestsRepository | AppDatabase,
   params: DedupMatchParams
 ): DownloadRequest | null {
+  const repo = toRepo(requestsRepoOrDb);
   const metaId = String(params.metadataId);
   const source = params.metadataSource;
   const isPrivate = params.mediaType === 'private';
-  const mediaTypeCondition = isPrivate
-    ? eq(downloadRequests.mediaType, 'private')
-    : ne(downloadRequests.mediaType, 'private');
+  const matchesMediaType = (r: DownloadRequest) =>
+    isPrivate ? r.mediaType === 'private' : r.mediaType !== 'private';
+
+  const candidates = repo.findByMetadataId(metaId).filter(
+    (r) => r.metadataSource === source && matchesMediaType(r)
+  );
 
   if (params.mediaType === 'movie' || (isPrivate && params.seasonNumber == null && params.episodeNumber == null)) {
-    const match = db
-      .select()
-      .from(downloadRequests)
-      .where(
-        and(
-          ne(downloadRequests.status, RequestStatus.DELETED),
-          eq(downloadRequests.metadataId, metaId),
-          eq(downloadRequests.metadataSource, source),
-          mediaTypeCondition
-        )
-      )
-      .get();
-    return match || null;
+    return candidates[0] || null;
   }
 
   // TV Show or Anime or Episodic Private
@@ -44,81 +40,33 @@ export function findMatchingCanonicalRequest(
 
   if (isSingleEpisode) {
     // 1. Check if a season pack exists for this season (asymmetric: pack covers episode)
-    const packMatch = db
-      .select()
-      .from(downloadRequests)
-      .where(
-        and(
-          ne(downloadRequests.status, RequestStatus.DELETED),
-          eq(downloadRequests.metadataId, metaId),
-          eq(downloadRequests.metadataSource, source),
-          eq(downloadRequests.seasonNumber, params.seasonNumber!),
-          isNull(downloadRequests.episodeNumber),
-          mediaTypeCondition
-        )
-      )
-      .get();
-
+    const packMatch = candidates.find(
+      (r) => r.seasonNumber === params.seasonNumber && r.episodeNumber == null
+    );
     if (packMatch) {
       return packMatch;
     }
 
     // 2. Check for exact episode match
-    const epMatch = db
-      .select()
-      .from(downloadRequests)
-      .where(
-        and(
-          ne(downloadRequests.status, RequestStatus.DELETED),
-          eq(downloadRequests.metadataId, metaId),
-          eq(downloadRequests.metadataSource, source),
-          eq(downloadRequests.seasonNumber, params.seasonNumber!),
-          eq(downloadRequests.episodeNumber, params.episodeNumber!),
-          mediaTypeCondition
-        )
-      )
-      .get();
-
+    const epMatch = candidates.find(
+      (r) => r.seasonNumber === params.seasonNumber && r.episodeNumber === params.episodeNumber
+    );
     return epMatch || null;
   }
 
   if (isSeasonPack) {
     // Only matches another season pack (episodeNumber is null)
     // Asymmetric: season pack does NOT absorb into individual episodes
-    const packMatch = db
-      .select()
-      .from(downloadRequests)
-      .where(
-        and(
-          ne(downloadRequests.status, RequestStatus.DELETED),
-          eq(downloadRequests.metadataId, metaId),
-          eq(downloadRequests.metadataSource, source),
-          eq(downloadRequests.seasonNumber, params.seasonNumber!),
-          isNull(downloadRequests.episodeNumber),
-          mediaTypeCondition
-        )
-      )
-      .get();
-
+    const packMatch = candidates.find(
+      (r) => r.seasonNumber === params.seasonNumber && r.episodeNumber == null
+    );
     return packMatch || null;
   }
 
   // Neither season nor episode specified
-  const generalMatch = db
-    .select()
-    .from(downloadRequests)
-    .where(
-      and(
-        ne(downloadRequests.status, RequestStatus.DELETED),
-        eq(downloadRequests.metadataId, metaId),
-        eq(downloadRequests.metadataSource, source),
-        isNull(downloadRequests.seasonNumber),
-        isNull(downloadRequests.episodeNumber),
-        mediaTypeCondition
-      )
-    )
-    .get();
-
+  const generalMatch = candidates.find(
+    (r) => r.seasonNumber == null && r.episodeNumber == null
+  );
   return generalMatch || null;
 }
 
@@ -189,7 +137,7 @@ export function getDedupLockKey(params: DedupMatchParams): string {
 }
 
 export function findCanonicalSeriesInfo(
-  db: AppDatabase,
+  requestsRepoOrDb: IRequestsRepository | AppDatabase,
   params: {
     metadataId?: string | null;
     metadataSource?: 'tmdb' | 'anilist' | null;
@@ -203,21 +151,13 @@ export function findCanonicalSeriesInfo(
     return null;
   }
 
-  const match = db
-    .select({
-      title: downloadRequests.title,
-      mediaType: downloadRequests.mediaType,
-    })
-    .from(downloadRequests)
-    .where(
-      and(
-        ne(downloadRequests.status, RequestStatus.DELETED),
-        eq(downloadRequests.metadataId, String(params.metadataId)),
-        eq(downloadRequests.metadataSource, params.metadataSource),
-        inArray(downloadRequests.mediaType, ['tv_show', 'anime'])
-      )
-    )
-    .get();
+  const repo = toRepo(requestsRepoOrDb);
+  const candidates = repo.findByMetadataId(String(params.metadataId));
+  const match = candidates.find(
+    (r) =>
+      r.metadataSource === params.metadataSource &&
+      (r.mediaType === 'tv_show' || r.mediaType === 'anime')
+  );
 
   if (match && (match.mediaType === 'tv_show' || match.mediaType === 'anime')) {
     return { title: match.title, mediaType: match.mediaType };

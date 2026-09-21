@@ -1,9 +1,6 @@
 import path from 'node:path';
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { eq, ne } from 'drizzle-orm';
-import { downloadRequests } from '../db/schema';
-import { RequestStatus } from '../services/requestStateMachine';
 
 const subgenWebhookSchema = z.object({
   file: z.string().min(1, 'File path is required'),
@@ -32,11 +29,7 @@ export const internalRoutes: FastifyPluginAsync = async (app) => {
     const fileBase = path.basename(normFile, path.extname(normFile));
 
     // Find matching download request
-    const allRequests = app.db
-      .select()
-      .from(downloadRequests)
-      .where(ne(downloadRequests.status, RequestStatus.DELETED))
-      .all();
+    const allRequests = app.requestsRepo.findByCriteria({ excludeDeleted: true });
 
     const matched = allRequests.find((r) => {
       if (!r.jellyfinPath) return false;
@@ -56,14 +49,9 @@ export const internalRoutes: FastifyPluginAsync = async (app) => {
       const errorMsg = error || 'Subgen transcription failed';
       request.log.error(`Subgen transcription failed for request ${matched.id}: ${errorMsg}`);
 
-      app.db
-        .update(downloadRequests)
-        .set({
-          transcriptionStatus: 'failed',
-          transcriptionError: errorMsg,
-        })
-        .where(eq(downloadRequests.id, matched.id))
-        .run();
+      app.requestsRepo.setTranscriptionStatus(matched.id, 'failed', {
+        transcriptionError: errorMsg,
+      });
 
       app.broadcast?.({
         type: 'transcription_updated',
@@ -81,14 +69,9 @@ export const internalRoutes: FastifyPluginAsync = async (app) => {
     }
 
     // Successful transcription
-    app.db
-      .update(downloadRequests)
-      .set({
-        transcriptionStatus: 'completed',
-        transcriptionError: null,
-      })
-      .where(eq(downloadRequests.id, matched.id))
-      .run();
+    app.requestsRepo.setTranscriptionStatus(matched.id, 'completed', {
+      transcriptionError: null,
+    });
 
     if (app.jellyfin.safeRefresh) {
       await app.jellyfin.safeRefresh();

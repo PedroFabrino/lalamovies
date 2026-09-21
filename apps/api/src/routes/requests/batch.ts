@@ -109,7 +109,7 @@ export const batchRoutes: FastifyPluginAsync = async (app) => {
       const metadataSource = (item.metadataSource || topMetadataSource)!;
       const rawTitle = (item.title || topTitle)!;
 
-      const canonicalSeries = findCanonicalSeriesInfo(app.db, {
+      const canonicalSeries = findCanonicalSeriesInfo(app.requestsRepo, {
         metadataId,
         metadataSource,
         mediaType: rawMediaType,
