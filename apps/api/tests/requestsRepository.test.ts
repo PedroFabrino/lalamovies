@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { initDatabase, users, downloadRequests } from '../src/db';
+import { initDatabase, users, downloadRequests, requestCoRequesters } from '../src/db';
 import { RequestsRepository } from '../src/services/requestsRepository';
 import type { NewDownloadRequest } from '../src/db';
 
@@ -354,6 +354,53 @@ describe('RequestsRepository', () => {
         mediaType: 'tv_show',
       });
       expect(folder).toBeUndefined();
+    });
+  });
+
+  // findAll & findAllForUser --------------------------------------------------
+
+  describe('findAll and findAllForUser', () => {
+    it('returns all non-deleted requests with coRequesters for admin', () => {
+      seedUser(dbInstance.db, 'usr_2');
+      repo.create(baseRequest({ id: 'req_1', userId: 'usr_1', title: 'R1', metadataId: 'meta_1' }));
+      repo.create(baseRequest({ id: 'req_2', userId: 'usr_2', title: 'R2', metadataId: 'meta_2', status: 'deleted' }));
+      dbInstance.db.insert(requestCoRequesters).values({ requestId: 'req_1', userId: 'usr_2', addedAt: NOW }).run();
+
+      const list = repo.findAll('usr_1', true);
+      expect(list).toHaveLength(1);
+      expect(list[0].id).toBe('req_1');
+      expect(list[0].isPrimaryRequester).toBe(true);
+      expect(list[0].coRequesters).toContain('usr_2');
+    });
+
+    it('returns primary and co-requested requests for non-admin', () => {
+      seedUser(dbInstance.db, 'usr_2');
+      repo.create(baseRequest({ id: 'req_primary', userId: 'usr_1', title: 'Primary', metadataId: 'meta_p' }));
+      repo.create(baseRequest({ id: 'req_coreq', userId: 'usr_2', title: 'CoReq', metadataId: 'meta_c' }));
+      repo.create(baseRequest({ id: 'req_other', userId: 'usr_2', title: 'Other', metadataId: 'meta_o' }));
+      dbInstance.db.insert(requestCoRequesters).values({ requestId: 'req_coreq', userId: 'usr_1', addedAt: NOW }).run();
+
+      const list = repo.findAllForUser('usr_1');
+      expect(list).toHaveLength(2);
+      const ids = list.map((r) => r.id);
+      expect(ids).toContain('req_primary');
+      expect(ids).toContain('req_coreq');
+      expect(ids).not.toContain('req_other');
+    });
+  });
+
+  // isCoRequester & findRequesterUsername -------------------------------------
+
+  describe('isCoRequester and findRequesterUsername', () => {
+    it('checks co-requester status and retrieves username', () => {
+      seedUser(dbInstance.db, 'usr_bob');
+      repo.create(baseRequest({ id: 'req_b', userId: 'usr_1', metadataId: 'meta_b' }));
+      dbInstance.db.insert(requestCoRequesters).values({ requestId: 'req_b', userId: 'usr_bob', addedAt: NOW }).run();
+
+      expect(repo.isCoRequester('req_b', 'usr_bob')).toBe(true);
+      expect(repo.isCoRequester('req_b', 'usr_unknown')).toBe(false);
+      expect(repo.findRequesterUsername('usr_bob')).toBe('usr_bob');
+      expect(repo.findRequesterUsername('nonexistent')).toBeUndefined();
     });
   });
 });
