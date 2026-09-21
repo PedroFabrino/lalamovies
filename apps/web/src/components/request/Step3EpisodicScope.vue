@@ -99,7 +99,7 @@
           data-testid="waitlist-next-season-checkbox"
           class="w-4 h-4 rounded bg-zinc-950 border-zinc-700 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-zinc-900 cursor-pointer"
           @change="$emit('update:waitlistNextSeason', ($event.target as HTMLInputElement).checked)"
-        />
+        >
         <span>Auto-download next season when available</span>
       </label>
       <p class="text-[11px] text-zinc-400 ml-6.5 mt-0.5">
@@ -123,7 +123,7 @@
           data-testid="watch-for-next-episodes-checkbox"
           class="w-4 h-4 rounded bg-zinc-950 border-zinc-700 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-zinc-900 cursor-pointer"
           @change="$emit('update:watchForNextEpisodes', ($event.target as HTMLInputElement).checked)"
-        />
+        >
         <span>Watch for next episodes</span>
       </label>
       <p class="text-[11px] text-zinc-400 ml-6.5 mt-0.5">
@@ -146,7 +146,7 @@
             data-testid="notify-before-each-download-checkbox"
             class="w-4 h-4 rounded bg-zinc-950 border-zinc-700 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-zinc-900 cursor-pointer"
             @change="$emit('update:notifyBeforeEachDownload', ($event.target as HTMLInputElement).checked)"
-          />
+          >
           <span>Notify me before each auto-download</span>
         </label>
         <p class="text-[11px] text-zinc-400 ml-6.5 mt-0.5">

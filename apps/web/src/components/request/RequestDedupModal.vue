@@ -9,8 +9,18 @@
     >
       <div class="flex items-start gap-4">
         <div class="p-3 rounded-xl bg-emerald-500/20 text-emerald-400 shrink-0">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          <svg
+            class="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M5 13l4 4L19 7"
+            />
           </svg>
         </div>
         <div class="flex-1 min-w-0">
@@ -24,7 +34,10 @@
             <span class="px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 uppercase tracking-wider">
               Status: {{ canonicalRequest.status }}
             </span>
-            <span v-if="canonicalRequest.seasonNumber != null" class="text-zinc-400">
+            <span
+              v-if="canonicalRequest.seasonNumber != null"
+              class="text-zinc-400"
+            >
               Season {{ canonicalRequest.seasonNumber }}
               <span v-if="canonicalRequest.episodeNumber != null"> • Episode {{ canonicalRequest.episodeNumber }}</span>
             </span>

@@ -160,7 +160,9 @@
             d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
           />
         </svg>
-        <p class="text-sm">Loading waitlist entries...</p>
+        <p class="text-sm">
+          Loading waitlist entries...
+        </p>
       </div>
 
       <!-- Empty State -->
@@ -172,7 +174,9 @@
         <div class="w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 flex items-center justify-center mx-auto mb-4 text-xl">
           ⏳
         </div>
-        <h3 class="text-base font-semibold text-white">Your waitlist is empty</h3>
+        <h3 class="text-base font-semibold text-white">
+          Your waitlist is empty
+        </h3>
         <p class="text-sm text-zinc-400 mt-1 mb-6">
           Add unreleased movies, future TV seasons, or titles that don't have good releases yet. We'll monitor indexers and snatch them automatically.
         </p>
@@ -182,8 +186,18 @@
           class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition inline-flex items-center gap-2 cursor-pointer shadow"
           @click="openSearchModal"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          <svg
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 4v16m8-8H4"
+            />
           </svg>
           <span>Add your first title</span>
         </button>
@@ -210,8 +224,11 @@
                 :alt="entry.title"
                 class="w-full h-full object-cover"
                 loading="lazy"
-              />
-              <div v-else class="text-2xl text-zinc-600">
+              >
+              <div
+                v-else
+                class="text-2xl text-zinc-600"
+              >
                 {{ getMediaTypeIcon(entry.mediaType) }}
               </div>
             </div>
@@ -230,7 +247,10 @@
 
               <div class="flex items-center gap-2 text-xs text-zinc-400 mt-1 flex-wrap">
                 <span v-if="entry.year">{{ entry.year }}</span>
-                <span v-if="entry.year" class="text-zinc-600">•</span>
+                <span
+                  v-if="entry.year"
+                  class="text-zinc-600"
+                >•</span>
                 <span
                   class="px-1.5 py-0.5 rounded text-[10px] font-medium border"
                   :class="getMediaTypeBadgeClasses(entry.mediaType)"
@@ -289,7 +309,10 @@
               <!-- Extra Context Info -->
               <p class="text-[11px] text-zinc-400 mt-2 line-clamp-2">
                 <template v-if="entry.status === 'pending_release'">
-                  <span v-if="entry.tmdbReleaseDate" class="text-amber-300/90 font-medium">
+                  <span
+                    v-if="entry.tmdbReleaseDate"
+                    class="text-amber-300/90 font-medium"
+                  >
                     ⏳ Unreleased • Starts searching trackers on {{ formatDateOnly(entry.tmdbReleaseDate) }}
                   </span>
                   <span v-else>Awaiting confirmed release date from TMDB</span>
@@ -299,13 +322,22 @@
                   <span v-else>Checking trackers for quality release</span>
                 </template>
                 <template v-else-if="entry.status === 'notified'">
-                  <span v-if="entry.prowlarrReleaseTitle" class="text-indigo-300 font-mono text-[10px] block truncate">
+                  <span
+                    v-if="entry.prowlarrReleaseTitle"
+                    class="text-indigo-300 font-mono text-[10px] block truncate"
+                  >
                     {{ entry.prowlarrReleaseTitle }}
                   </span>
-                  <span v-if="getRemainingGraceMs(entry) > 0" class="text-amber-300 font-medium flex items-center gap-1.5 mt-0.5">
+                  <span
+                    v-if="getRemainingGraceMs(entry) > 0"
+                    class="text-amber-300 font-medium flex items-center gap-1.5 mt-0.5"
+                  >
                     <span>⏳ Auto-downloading in {{ formatGraceRemaining(getRemainingGraceMs(entry)) }}</span>
                   </span>
-                  <span v-else class="text-amber-300 font-medium flex items-center gap-1.5 mt-0.5">
+                  <span
+                    v-else
+                    class="text-amber-300 font-medium flex items-center gap-1.5 mt-0.5"
+                  >
                     <span>⚡ Grace period ended • Queued for auto-download</span>
                   </span>
                 </template>
@@ -347,7 +379,12 @@
                   stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M5 13l4 4L19 7"
+                  />
                 </svg>
                 <span>{{ approvingEntryId === entry.id ? 'Approving...' : 'Approve Now' }}</span>
               </button>
@@ -367,7 +404,12 @@
                   stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
                 </svg>
                 <span>{{ checkingEntryId === entry.id ? 'Checking...' : 'Check Now' }}</span>
               </button>
@@ -379,8 +421,18 @@
                 class="px-2.5 py-1 text-zinc-400 hover:text-red-400 hover:bg-red-950/30 rounded border border-transparent hover:border-red-900/50 transition cursor-pointer flex items-center gap-1"
                 @click="handleCancel(entry)"
               >
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  class="w-3.5 h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
                 <span>Cancel</span>
               </button>
@@ -416,16 +468,32 @@
             class="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition"
             @click="closeModal"
           >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
 
         <!-- Step 1: Search TMDB -->
-        <div v-if="modalStep === 'search'" class="space-y-4 flex-1 overflow-y-auto pr-1">
+        <div
+          v-if="modalStep === 'search'"
+          class="space-y-4 flex-1 overflow-y-auto pr-1"
+        >
           <!-- Search Form -->
-          <form @submit.prevent="handleSearch" class="space-y-3">
+          <form
+            class="space-y-3"
+            @submit.prevent="handleSearch"
+          >
             <div class="flex gap-2">
               <input
                 id="searchWaitlistQuery"
@@ -435,7 +503,7 @@
                 data-testid="search-waitlist-input"
                 class="flex-1 px-3.5 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 required
-              />
+              >
               <button
                 type="submit"
                 :disabled="isSearching || !searchQuery.trim()"
@@ -448,8 +516,19 @@
                   fill="none"
                   viewBox="0 0 24 24"
                 >
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                  />
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v8H4z"
+                  />
                 </svg>
                 <span v-else>Search</span>
               </button>
@@ -471,7 +550,7 @@
                   name="modalMediaType"
                   :value="type.value"
                   class="sr-only"
-                />
+                >
                 <span>{{ type.icon }}</span>
                 <span>{{ type.label }}</span>
               </label>
@@ -479,8 +558,14 @@
           </form>
 
           <!-- Candidate Results -->
-          <div v-if="candidates.length > 0" class="space-y-2 mt-4" data-testid="search-candidates-list">
-            <h4 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Results</h4>
+          <div
+            v-if="candidates.length > 0"
+            class="space-y-2 mt-4"
+            data-testid="search-candidates-list"
+          >
+            <h4 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+              Results
+            </h4>
             <div
               v-for="candidate in candidates"
               :key="candidate.id"
@@ -495,22 +580,41 @@
                   :alt="candidate.title"
                   class="w-full h-full object-cover"
                   loading="lazy"
-                />
-                <span v-else class="text-sm text-zinc-600">🎬</span>
+                >
+                <span
+                  v-else
+                  class="text-sm text-zinc-600"
+                >🎬</span>
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2">
                   <h5 class="text-sm font-semibold text-white truncate group-hover:text-indigo-300 transition">
                     {{ candidate.title }}
                   </h5>
-                  <span v-if="candidate.year" class="text-xs text-zinc-400 shrink-0">({{ candidate.year }})</span>
+                  <span
+                    v-if="candidate.year"
+                    class="text-xs text-zinc-400 shrink-0"
+                  >({{ candidate.year }})</span>
                 </div>
-                <p v-if="candidate.overview" class="text-xs text-zinc-400 line-clamp-1 mt-0.5">
+                <p
+                  v-if="candidate.overview"
+                  class="text-xs text-zinc-400 line-clamp-1 mt-0.5"
+                >
                   {{ candidate.overview }}
                 </p>
               </div>
-              <svg class="w-4 h-4 text-zinc-500 group-hover:text-white transition shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              <svg
+                class="w-4 h-4 text-zinc-500 group-hover:text-white transition shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 5l7 7-7 7"
+                />
               </svg>
             </div>
           </div>
@@ -523,7 +627,10 @@
         </div>
 
         <!-- Step 2: Confirm Selection -->
-        <div v-else-if="modalStep === 'confirm' && selectedCandidate" class="space-y-4 flex-1">
+        <div
+          v-else-if="modalStep === 'confirm' && selectedCandidate"
+          class="space-y-4 flex-1"
+        >
           <div class="p-4 bg-zinc-950 rounded-xl border border-zinc-800 flex gap-4 items-center">
             <div class="w-14 h-20 bg-zinc-900 rounded overflow-hidden shrink-0 border border-zinc-800 flex items-center justify-center">
               <img
@@ -531,17 +638,26 @@
                 :src="selectedCandidate.posterUrl"
                 :alt="selectedCandidate.title"
                 class="w-full h-full object-cover"
-              />
-              <span v-else class="text-xl">🎬</span>
+              >
+              <span
+                v-else
+                class="text-xl"
+              >🎬</span>
             </div>
             <div class="flex-1 min-w-0">
-              <h4 class="text-base font-bold text-white truncate" data-testid="confirm-candidate-title">
+              <h4
+                class="text-base font-bold text-white truncate"
+                data-testid="confirm-candidate-title"
+              >
                 {{ selectedCandidate.title }}
               </h4>
               <div class="flex items-center gap-2 text-xs text-zinc-400 mt-1">
                 <span v-if="selectedCandidate.year">({{ selectedCandidate.year }})</span>
                 <span>•</span>
-                <span class="px-1.5 py-0.5 rounded text-[10px] font-medium border" :class="getMediaTypeBadgeClasses(selectedMediaType)">
+                <span
+                  class="px-1.5 py-0.5 rounded text-[10px] font-medium border"
+                  :class="getMediaTypeBadgeClasses(selectedMediaType)"
+                >
                   {{ formatMediaType(selectedMediaType) }}
                 </span>
               </div>
@@ -584,9 +700,9 @@
               <div class="pt-1">
                 <button
                   type="button"
-                  @click="downloadDirectly"
                   data-testid="download-directly-btn"
                   class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-sm transition inline-flex items-center gap-1.5 cursor-pointer"
+                  @click="downloadDirectly"
                 >
                   <span>📥 Download Directly Now</span>
                 </button>
@@ -627,7 +743,10 @@
 
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label for="waitlistSeasonInput" class="block text-xs font-medium text-zinc-300 mb-1.5">
+                <label
+                  for="waitlistSeasonInput"
+                  class="block text-xs font-medium text-zinc-300 mb-1.5"
+                >
                   Target Season
                 </label>
                 <input
@@ -636,13 +755,16 @@
                   type="number"
                   min="1"
                   data-testid="waitlist-season-input"
-                  @change="checkCandidateGuards"
                   class="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+                  @change="checkCandidateGuards"
+                >
               </div>
 
               <div>
-                <label for="waitlistEpisodeInput" class="block text-xs font-medium text-zinc-300 mb-1.5">
+                <label
+                  for="waitlistEpisodeInput"
+                  class="block text-xs font-medium text-zinc-300 mb-1.5"
+                >
                   Target Episode
                 </label>
                 <input
@@ -651,9 +773,9 @@
                   type="number"
                   min="1"
                   data-testid="waitlist-episode-input"
-                  @change="checkCandidateGuards"
                   class="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+                  @change="checkCandidateGuards"
+                >
               </div>
             </div>
 
@@ -676,7 +798,10 @@
                 TMDB Release Date:
               </template>
             </span>
-            <span class="text-white font-medium flex items-center gap-1.5" data-testid="confirm-air-date-value">
+            <span
+              class="text-white font-medium flex items-center gap-1.5"
+              data-testid="confirm-air-date-value"
+            >
               <span>📅</span>
               <span>{{ formatDateOnly(targetAirDate) }}</span>
             </span>
@@ -715,8 +840,19 @@
                 fill="none"
                 viewBox="0 0 24 24"
               >
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                />
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v8H4z"
+                />
               </svg>
               <span>{{ isSubmitting ? 'Adding...' : (libraryStatus?.inLibrary ? 'Already in Library' : 'Confirm & Add to Waitlist') }}</span>
             </button>

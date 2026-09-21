@@ -1,7 +1,7 @@
 # Graph Report - Plex-auto-download  (2026-09-21)
 
 ## Corpus Check
-- 323 files · ~222,178 words
+- 323 files · ~222,414 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 12 file(s) not represented in the graph (top: (none) 8, .example 2, .css 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `8d982889`
+- Built from commit: `de425418`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -563,7 +563,7 @@ Nodes (3): emit, props, toggleUser()
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `IRequestsRepository` connect `DownloadRequest` to `downloadPoller.ts`, `CleanupService`, `IJellyfinService`, `create.ts`, `RequestsRepository`, `ref_vitest`, `api/src/app.ts`, `useRequestSubmit`, `AppDatabase`, `upNext.ts`, `TranscriptionCron`, `IMetadataService`?**
-  _High betweenness centrality (0.024) - this node is a cross-community bridge._
+  _High betweenness centrality (0.023) - this node is a cross-community bridge._
 - **Why does `vue` connect `stores/requests.ts` to `Navbar.vue`, `AdminView.vue`, `stores/waitlist.ts`, `LibraryView.vue`, `StreamProgressModal.vue`, `WaitlistView.vue`, `api.ts`, `DashboardView.vue`, `SubtitlePickerModal.vue`, `InviteView.vue`, `ActiveStreamsShelf.vue`, `DiscoveryFeed.vue`, `useRequestStep1.ts`, `web/package.json`, `PromotionModal.vue`, `RequestStep1Input.vue`?**
   _High betweenness centrality (0.020) - this node is a cross-community bridge._
 - **Why does `Rules for Agents` connect `useRequestSubmit` to `useRequestStep1.ts`, `DownloadRequest`?**

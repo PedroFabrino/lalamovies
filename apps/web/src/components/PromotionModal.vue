@@ -30,12 +30,18 @@
       </div>
 
       <!-- Success State -->
-      <div v-if="promotedResult" class="space-y-4 py-4 text-center" data-testid="promotion-success">
+      <div
+        v-if="promotedResult"
+        class="space-y-4 py-4 text-center"
+        data-testid="promotion-success"
+      >
         <div class="w-16 h-16 mx-auto rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-3xl">
           ✓
         </div>
         <div>
-          <h4 class="text-lg font-bold text-white">Promotion Complete!</h4>
+          <h4 class="text-lg font-bold text-white">
+            Promotion Complete!
+          </h4>
           <p class="text-xs text-zinc-400 mt-1">
             Media downloaded directly via HTTP and imported into your permanent library.
           </p>
@@ -50,14 +56,20 @@
       </div>
 
       <!-- In-Progress Downloading State -->
-      <div v-else-if="isPromoting" class="space-y-4 py-8 text-center" data-testid="promotion-in-progress">
+      <div
+        v-else-if="isPromoting"
+        class="space-y-4 py-8 text-center"
+        data-testid="promotion-in-progress"
+      >
         <div class="relative w-16 h-16 mx-auto flex items-center justify-center">
           <div class="absolute inset-0 rounded-full border-4 border-indigo-500/20 animate-ping" />
           <div class="w-16 h-16 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin" />
           <span class="absolute text-xl">⚡</span>
         </div>
         <div>
-          <h4 class="text-base font-semibold text-white">Promoting Media</h4>
+          <h4 class="text-base font-semibold text-white">
+            Promoting Media
+          </h4>
           <p class="text-xs text-zinc-400 mt-1">
             Downloading direct from cloud debrid and linking to permanent Jellyfin library...
           </p>
@@ -68,9 +80,15 @@
       </div>
 
       <!-- Steps Wizard -->
-      <div v-else class="space-y-5">
+      <div
+        v-else
+        class="space-y-5"
+      >
         <!-- Error Banner -->
-        <div v-if="errorMessage" class="p-3 bg-red-950/60 border border-red-800 rounded-xl text-xs text-red-200">
+        <div
+          v-if="errorMessage"
+          class="p-3 bg-red-950/60 border border-red-800 rounded-xl text-xs text-red-200"
+        >
           {{ errorMessage }}
         </div>
 
@@ -84,7 +102,11 @@
         </div>
 
         <!-- Step 1: Media Type Selection -->
-        <div v-if="step === 1" class="space-y-4" data-testid="promotion-step-1">
+        <div
+          v-if="step === 1"
+          class="space-y-4"
+          data-testid="promotion-step-1"
+        >
           <label class="block text-xs font-semibold text-zinc-300 uppercase tracking-wider">
             Select Media Type
           </label>
@@ -131,7 +153,11 @@
         </div>
 
         <!-- Step 2: Metadata Match Confirmation -->
-        <div v-else-if="step === 2" class="space-y-4" data-testid="promotion-step-2">
+        <div
+          v-else-if="step === 2"
+          class="space-y-4"
+          data-testid="promotion-step-2"
+        >
           <div class="space-y-2">
             <label class="block text-xs font-semibold text-zinc-300 uppercase tracking-wider">
               Search & Match Title
@@ -143,7 +169,7 @@
                 class="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
                 placeholder="Search TMDB / AniList..."
                 @keyup.enter="searchMetadata"
-              />
+              >
               <button
                 type="button"
                 class="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs rounded-xl transition cursor-pointer disabled:opacity-50"
@@ -169,26 +195,40 @@
                 :src="c.posterUrl"
                 alt="Poster"
                 class="w-10 h-14 object-cover rounded shrink-0 bg-zinc-800"
-              />
-              <div v-else class="w-10 h-14 bg-zinc-800 rounded flex items-center justify-center text-xs text-zinc-500 shrink-0">
+              >
+              <div
+                v-else
+                class="w-10 h-14 bg-zinc-800 rounded flex items-center justify-center text-xs text-zinc-500 shrink-0"
+              >
                 🎬
               </div>
               <div class="flex-1 min-w-0">
-                <div class="font-medium text-xs text-white truncate">{{ c.title }}</div>
+                <div class="font-medium text-xs text-white truncate">
+                  {{ c.title }}
+                </div>
                 <div class="text-[11px] text-zinc-400 mt-0.5">
                   <span v-if="c.year">{{ c.year }} • </span>
                   <span class="uppercase text-[10px] text-zinc-500">{{ c.source }}</span>
                 </div>
-                <p v-if="c.overview" class="text-[11px] text-zinc-500 line-clamp-1 mt-0.5">
+                <p
+                  v-if="c.overview"
+                  class="text-[11px] text-zinc-500 line-clamp-1 mt-0.5"
+                >
                   {{ c.overview }}
                 </p>
               </div>
-              <div v-if="selectedCandidate?.id === c.id" class="text-indigo-400 font-bold text-sm">
+              <div
+                v-if="selectedCandidate?.id === c.id"
+                class="text-indigo-400 font-bold text-sm"
+              >
                 ✓
               </div>
             </div>
 
-            <div v-if="candidates.length === 0 && !isSearching" class="text-center py-6 text-xs text-zinc-500">
+            <div
+              v-if="candidates.length === 0 && !isSearching"
+              class="text-center py-6 text-xs text-zinc-500"
+            >
               No matching metadata found. You can adjust your query or use manual match below.
             </div>
           </div>
@@ -215,12 +255,22 @@
         </div>
 
         <!-- Step 3: Season & Episode Selection (TV / Anime) -->
-        <div v-else-if="step === 3" class="space-y-4" data-testid="promotion-step-3">
+        <div
+          v-else-if="step === 3"
+          class="space-y-4"
+          data-testid="promotion-step-3"
+        >
           <div class="p-3 bg-zinc-950 border border-zinc-800 rounded-xl flex items-center gap-3">
-            <div class="text-xl">📺</div>
+            <div class="text-xl">
+              📺
+            </div>
             <div>
-              <div class="text-xs font-semibold text-white">{{ selectedCandidate?.title }}</div>
-              <div class="text-[11px] text-zinc-400">Year: {{ selectedCandidate?.year || 'Unknown' }}</div>
+              <div class="text-xs font-semibold text-white">
+                {{ selectedCandidate?.title }}
+              </div>
+              <div class="text-[11px] text-zinc-400">
+                Year: {{ selectedCandidate?.year || 'Unknown' }}
+              </div>
             </div>
           </div>
 
@@ -234,7 +284,7 @@
                 type="number"
                 min="1"
                 class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-              />
+              >
             </div>
             <div>
               <label class="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1">
@@ -246,7 +296,7 @@
                 min="1"
                 placeholder="All / Batch"
                 class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-              />
+              >
             </div>
           </div>
 

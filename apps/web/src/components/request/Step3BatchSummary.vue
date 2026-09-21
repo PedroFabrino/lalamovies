@@ -13,7 +13,10 @@
     </div>
 
     <div class="flex items-center gap-2 pt-2 border-t border-zinc-800">
-      <label for="step3BatchSeason" class="text-xs text-zinc-400">Apply Season to All:</label>
+      <label
+        for="step3BatchSeason"
+        class="text-xs text-zinc-400"
+      >Apply Season to All:</label>
       <input
         id="step3BatchSeason"
         :value="batchSeasonInput"
@@ -22,7 +25,7 @@
         placeholder="1"
         class="w-16 px-2 py-1 bg-zinc-900 border border-zinc-700 rounded text-xs text-white"
         @input="$emit('update:batchSeasonInput', ($event.target as HTMLInputElement).value ? parseInt(($event.target as HTMLInputElement).value, 10) : null)"
-      />
+      >
       <button
         type="button"
         class="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-300 rounded cursor-pointer transition"
@@ -38,7 +41,10 @@
         :key="item.id"
         class="p-2 bg-zinc-900/50 border border-zinc-800/80 rounded flex items-center justify-between text-xs"
       >
-        <span class="text-zinc-300 truncate max-w-[280px]" :title="item.fileName">
+        <span
+          class="text-zinc-300 truncate max-w-[280px]"
+          :title="item.fileName"
+        >
           {{ item.fileName }}
         </span>
         <div class="flex items-center gap-2 shrink-0">

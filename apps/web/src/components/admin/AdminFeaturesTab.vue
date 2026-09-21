@@ -18,7 +18,9 @@
     <!-- Info Banner -->
     <div class="bg-zinc-900/60 border border-zinc-800 rounded-xl p-6 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h2 class="text-lg font-semibold text-white">Runtime Feature Flags & Kill Switches</h2>
+        <h2 class="text-lg font-semibold text-white">
+          Runtime Feature Flags & Kill Switches
+        </h2>
         <p class="text-sm text-zinc-400 mt-1">
           Toggle 9 core application capabilities instantly with zero downtime. High-impact operational flags trigger a safety guardrail before entering Degraded Mode.
         </p>
@@ -36,7 +38,12 @@
           stroke="currentColor"
           viewBox="0 0 24 24"
         >
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+          />
         </svg>
         <span>Refresh</span>
       </button>
@@ -48,8 +55,12 @@
       <div class="bg-zinc-900/60 border border-zinc-800 rounded-xl p-6 shadow-xl space-y-4">
         <div class="border-b border-zinc-800 pb-3 flex items-center justify-between">
           <div>
-            <h3 class="text-base font-semibold text-white">Content & Discovery</h3>
-            <p class="text-xs text-zinc-400 mt-0.5">Control front-of-house discovery shelves and media playback pipelines</p>
+            <h3 class="text-base font-semibold text-white">
+              Content & Discovery
+            </h3>
+            <p class="text-xs text-zinc-400 mt-0.5">
+              Control front-of-house discovery shelves and media playback pipelines
+            </p>
           </div>
           <span class="text-xs text-zinc-500 font-mono">{{ discoveryFlags.length }} subsystems</span>
         </div>
@@ -89,7 +100,9 @@
                   High Impact
                 </span>
               </div>
-              <p class="text-xs text-zinc-400 max-w-2xl">{{ flag.description }}</p>
+              <p class="text-xs text-zinc-400 max-w-2xl">
+                {{ flag.description }}
+              </p>
               <div class="text-[11px] text-zinc-500 flex items-center gap-3 pt-0.5">
                 <span>Key: <code class="text-zinc-400">{{ flag.id }}</code></span>
                 <span>•</span>
@@ -121,8 +134,12 @@
       <div class="bg-zinc-900/60 border border-zinc-800 rounded-xl p-6 shadow-xl space-y-4">
         <div class="border-b border-zinc-800 pb-3 flex items-center justify-between">
           <div>
-            <h3 class="text-base font-semibold text-white">Downloads & Torrents</h3>
-            <p class="text-xs text-zinc-400 mt-0.5">Control ingestion pipelines, qBittorrent submissions, and tracker scrapers</p>
+            <h3 class="text-base font-semibold text-white">
+              Downloads & Torrents
+            </h3>
+            <p class="text-xs text-zinc-400 mt-0.5">
+              Control ingestion pipelines, qBittorrent submissions, and tracker scrapers
+            </p>
           </div>
           <span class="text-xs text-zinc-500 font-mono">{{ downloadsFlags.length }} subsystems</span>
         </div>
@@ -162,7 +179,9 @@
                   High Impact
                 </span>
               </div>
-              <p class="text-xs text-zinc-400 max-w-2xl">{{ flag.description }}</p>
+              <p class="text-xs text-zinc-400 max-w-2xl">
+                {{ flag.description }}
+              </p>
               <div class="text-[11px] text-zinc-500 flex items-center gap-3 pt-0.5">
                 <span>Key: <code class="text-zinc-400">{{ flag.id }}</code></span>
                 <span>•</span>
@@ -194,8 +213,12 @@
       <div class="bg-zinc-900/60 border border-zinc-800 rounded-xl p-6 shadow-xl space-y-4">
         <div class="border-b border-zinc-800 pb-3 flex items-center justify-between">
           <div>
-            <h3 class="text-base font-semibold text-white">Automation & System</h3>
-            <p class="text-xs text-zinc-400 mt-0.5">Safeguard background schedulers, storage eviction, and external webhooks</p>
+            <h3 class="text-base font-semibold text-white">
+              Automation & System
+            </h3>
+            <p class="text-xs text-zinc-400 mt-0.5">
+              Safeguard background schedulers, storage eviction, and external webhooks
+            </p>
           </div>
           <span class="text-xs text-zinc-500 font-mono">{{ automationFlags.length }} subsystems</span>
         </div>
@@ -235,7 +258,9 @@
                   High Impact
                 </span>
               </div>
-              <p class="text-xs text-zinc-400 max-w-2xl">{{ flag.description }}</p>
+              <p class="text-xs text-zinc-400 max-w-2xl">
+                {{ flag.description }}
+              </p>
               <div class="text-[11px] text-zinc-500 flex items-center gap-3 pt-0.5">
                 <span>Key: <code class="text-zinc-400">{{ flag.id }}</code></span>
                 <span>•</span>

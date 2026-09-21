@@ -31,13 +31,22 @@
           stroke="currentColor"
           viewBox="0 0 24 24"
         >
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M19 9l-7 7-7-7"
+          />
         </svg>
       </div>
     </button>
 
     <!-- Expanded Explorer Content -->
-    <div v-if="isExplorerExpanded" data-testid="explorer-drawer" class="p-4 border-t border-zinc-800 space-y-4">
+    <div
+      v-if="isExplorerExpanded"
+      data-testid="explorer-drawer"
+      class="p-4 border-t border-zinc-800 space-y-4"
+    >
       <!-- Toolbar: Sorting & Count -->
       <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-zinc-800/80 text-xs">
         <div class="flex flex-wrap items-center gap-2">
@@ -67,10 +76,13 @@
               class="rounded border-zinc-700 bg-zinc-900 text-indigo-600 focus:ring-0 w-3.5 h-3.5"
               data-testid="toggle-hide-infringing"
               @change="$emit('update:hideInfringing', ($event.target as HTMLInputElement).checked)"
-            />
+            >
             <span>Hide DMCA Blocked</span>
           </label>
-          <span v-if="infringingCount > 0 && hideInfringing" class="text-amber-400/80 text-[11px]">
+          <span
+            v-if="infringingCount > 0 && hideInfringing"
+            class="text-amber-400/80 text-[11px]"
+          >
             ({{ infringingCount }} hidden)
           </span>
           <span class="text-zinc-500 text-[11px]">
@@ -190,10 +202,16 @@
             <span class="px-2 py-0.5 rounded bg-zinc-800 text-emerald-300 border border-zinc-700 font-medium">
               {{ candidate.resolution }}
             </span>
-            <span v-if="candidate.codec !== 'unknown'" class="px-2 py-0.5 rounded bg-zinc-800 text-indigo-300 border border-zinc-700 font-medium">
+            <span
+              v-if="candidate.codec !== 'unknown'"
+              class="px-2 py-0.5 rounded bg-zinc-800 text-indigo-300 border border-zinc-700 font-medium"
+            >
               {{ candidate.codec }}
             </span>
-            <span v-if="candidate.source !== 'unknown'" class="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 uppercase">
+            <span
+              v-if="candidate.source !== 'unknown'"
+              class="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 uppercase"
+            >
               {{ candidate.source }}
             </span>
             <span class="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 font-mono">

@@ -1,15 +1,40 @@
 <template>
   <div class="space-y-4">
     <!-- Source summary / Release Recommendation -->
-    <div v-if="inputMode === 'search'" class="space-y-4">
+    <div
+      v-if="inputMode === 'search'"
+      class="space-y-4"
+    >
       <!-- Loading state -->
-      <div v-if="isSearchingReleases" class="p-8 border border-zinc-800 rounded-xl bg-zinc-950/60 text-center">
-        <svg class="animate-spin h-6 w-6 text-indigo-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+      <div
+        v-if="isSearchingReleases"
+        class="p-8 border border-zinc-800 rounded-xl bg-zinc-950/60 text-center"
+      >
+        <svg
+          class="animate-spin h-6 w-6 text-indigo-500 mx-auto mb-2"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            class="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="4"
+          />
+          <path
+            class="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8v8H4z"
+          />
         </svg>
-        <p class="text-sm font-medium text-zinc-300">Searching indexers for "{{ selectedCandidate?.title }}"...</p>
-        <p class="text-xs text-zinc-500 mt-1">Ranking 1080p releases, health, and file sizes via Prowlarr</p>
+        <p class="text-sm font-medium text-zinc-300">
+          Searching indexers for "{{ selectedCandidate?.title }}"...
+        </p>
+        <p class="text-xs text-zinc-500 mt-1">
+          Ranking 1080p releases, health, and file sizes via Prowlarr
+        </p>
       </div>
 
       <!-- In-Place Manual Fallback Card (when isManualFallbackInStep3 is true) -->
@@ -146,10 +171,16 @@
           <span class="px-2 py-0.5 rounded bg-zinc-800 text-emerald-300 border border-zinc-700 font-medium">
             {{ activeRelease.resolution }}
           </span>
-          <span v-if="activeRelease.codec !== 'unknown'" class="px-2 py-0.5 rounded bg-zinc-800 text-indigo-300 border border-zinc-700 font-medium">
+          <span
+            v-if="activeRelease.codec !== 'unknown'"
+            class="px-2 py-0.5 rounded bg-zinc-800 text-indigo-300 border border-zinc-700 font-medium"
+          >
             {{ activeRelease.codec }}
           </span>
-          <span v-if="activeRelease.source !== 'unknown'" class="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 uppercase">
+          <span
+            v-if="activeRelease.source !== 'unknown'"
+            class="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 uppercase"
+          >
             {{ activeRelease.source }}
           </span>
           <span class="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 font-mono">
@@ -249,7 +280,9 @@
         class="p-5 border border-zinc-800 bg-zinc-950/60 rounded-xl space-y-3"
       >
         <div>
-          <h4 class="text-sm font-semibold text-zinc-200">No releases found automatically</h4>
+          <h4 class="text-sm font-semibold text-zinc-200">
+            No releases found automatically
+          </h4>
           <p class="text-xs text-zinc-400 mt-1">
             Prowlarr returned no matching torrents for this title. You can supply a magnet link or .torrent file manually while keeping the confirmed metadata.
           </p>
@@ -276,7 +309,10 @@
     </div>
 
     <!-- Source summary for magnet/file modes -->
-    <div v-else class="text-xs text-zinc-500 break-all bg-zinc-950 p-3 rounded-lg border border-zinc-800/50">
+    <div
+      v-else
+      class="text-xs text-zinc-500 break-all bg-zinc-950 p-3 rounded-lg border border-zinc-800/50"
+    >
       <span class="text-zinc-400 font-semibold">{{ inputMode === 'file' ? 'Torrent File:' : 'Magnet:' }}</span>
       {{ inputMode === 'file' ? (validBatchItems[0]?.fileName || selectedFile?.name) : (magnetLink.length > 80 ? magnetLink.slice(0, 80) + '...' : magnetLink) }}
     </div>

@@ -9,7 +9,10 @@
       @click.stop
     >
       <!-- State: Pending -->
-      <div v-if="status === 'pending'" class="space-y-4 py-4">
+      <div
+        v-if="status === 'pending'"
+        class="space-y-4 py-4"
+      >
         <div class="relative w-16 h-16 mx-auto flex items-center justify-center">
           <div class="absolute inset-0 rounded-full border-4 border-amber-500/20 animate-ping" />
           <div class="w-16 h-16 rounded-full border-4 border-amber-500 border-t-transparent animate-spin" />
@@ -36,7 +39,11 @@
       </div>
 
       <!-- State: Ready -->
-      <div v-else-if="status === 'ready'" class="space-y-4 py-2" data-testid="stream-ready-card">
+      <div
+        v-else-if="status === 'ready'"
+        class="space-y-4 py-2"
+        data-testid="stream-ready-card"
+      >
         <div class="w-16 h-16 mx-auto rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-3xl">
           ✓
         </div>
@@ -53,7 +60,9 @@
         <div class="p-3 bg-amber-950/30 border border-amber-800/40 rounded-xl text-xs text-amber-300 text-left flex items-start gap-2.5">
           <span class="text-base leading-none">⏱️</span>
           <div>
-            <div class="font-medium text-amber-200">Ephemeral Stream (24h)</div>
+            <div class="font-medium text-amber-200">
+              Ephemeral Stream (24h)
+            </div>
             <div class="text-[11px] text-amber-300/80 mt-0.5">
               Files are streamed from cloud storage and will automatically expire in 24 hours. You can promote it to permanent storage anytime from the dashboard.
             </div>
@@ -91,12 +100,18 @@
       </div>
 
       <!-- State: Error -->
-      <div v-else class="space-y-4 py-2" data-testid="stream-error-card">
+      <div
+        v-else
+        class="space-y-4 py-2"
+        data-testid="stream-error-card"
+      >
         <div class="w-16 h-16 mx-auto rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400 text-2xl">
           ⚠️
         </div>
         <div>
-          <h3 class="text-lg font-bold text-white">Stream Setup Failed</h3>
+          <h3 class="text-lg font-bold text-white">
+            Stream Setup Failed
+          </h3>
           <p class="text-xs text-red-300 mt-1 max-w-sm mx-auto leading-relaxed">
             {{ currentErrorMessage || errorMessage || 'An unexpected error occurred.' }}
           </p>
@@ -153,6 +168,10 @@ const props = withDefaults(
     waitlistAdded?: boolean;
   }>(),
   {
+    streamId: '',
+    initialStatus: 'pending',
+    jellyfinUrl: '',
+    errorMessage: '',
     canAddToWaitlist: false,
     isAddingToWaitlist: false,
     waitlistAdded: false,

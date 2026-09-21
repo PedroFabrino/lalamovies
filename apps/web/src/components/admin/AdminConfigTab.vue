@@ -360,7 +360,10 @@
         </svg>
         <div>
           <span class="font-medium">Diagnostic: </span>{{ jellyfinStatus.error }}
-          <div v-if="!jellyfinStatus.authenticated" class="mt-1 text-zinc-400">
+          <div
+            v-if="!jellyfinStatus.authenticated"
+            class="mt-1 text-zinc-400"
+          >
             Ensure <code class="px-1 py-0.5 bg-zinc-950 rounded text-zinc-300">JELLYFIN_API_KEY</code> is correctly configured in your server environment file (.env).
           </div>
         </div>

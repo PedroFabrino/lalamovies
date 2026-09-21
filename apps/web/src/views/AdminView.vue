@@ -4,7 +4,9 @@
 
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
       <div class="mb-8">
-        <h1 class="text-2xl font-bold tracking-tight text-white">Administration Panel</h1>
+        <h1 class="text-2xl font-bold tracking-tight text-white">
+          Administration Panel
+        </h1>
         <p class="text-sm text-zinc-400 mt-1">
           Manage server users, invite friends, configure system thresholds, and review storage cleanup.
         </p>
@@ -26,7 +28,10 @@
       </div>
 
       <!-- Tab 1: Users & Invites -->
-      <div v-if="admin.activeTab.value === 'users'" class="space-y-8">
+      <div
+        v-if="admin.activeTab.value === 'users'"
+        class="space-y-8"
+      >
         <AdminUsersTab
           :users-list="admin.usersList.value"
           :is-loading-users="admin.isLoadingUsers.value"
@@ -119,8 +124,12 @@
       class="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4"
     >
       <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-sm w-full shadow-2xl space-y-4">
-        <h3 class="text-base font-semibold text-white">{{ admin.modalAction.value.title }}</h3>
-        <p class="text-xs text-zinc-400 leading-relaxed">{{ admin.modalAction.value.message }}</p>
+        <h3 class="text-base font-semibold text-white">
+          {{ admin.modalAction.value.title }}
+        </h3>
+        <p class="text-xs text-zinc-400 leading-relaxed">
+          {{ admin.modalAction.value.message }}
+        </p>
         <div class="flex items-center justify-end gap-3 pt-2">
           <button
             type="button"
@@ -142,8 +151,19 @@
               fill="none"
               viewBox="0 0 24 24"
             >
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              />
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v8H4z"
+              />
             </svg>
             <span>{{ admin.modalAction.value.isExecuting ? 'Processing...' : 'Confirm' }}</span>
           </button>

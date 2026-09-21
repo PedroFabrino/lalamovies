@@ -33,7 +33,12 @@
             stroke="currentColor"
             viewBox="0 0 24 24"
           >
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
           </svg>
           Refresh
         </button>
@@ -101,7 +106,12 @@
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
             </svg>
             <input
               v-model="searchQuery"
@@ -109,7 +119,7 @@
               placeholder="Search library..."
               aria-label="Search library"
               class="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-9 pr-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-            />
+            >
           </div>
 
           <!-- My Downloads Only Toggle -->
@@ -118,17 +128,35 @@
               v-model="myDownloadsOnly"
               type="checkbox"
               class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-zinc-700 bg-zinc-800"
-            />
+            >
             <span>My Downloads Only</span>
           </label>
         </div>
       </div>
 
       <!-- Loading State -->
-      <div v-if="loading" class="flex flex-col items-center justify-center py-20">
-        <svg class="animate-spin w-8 h-8 text-indigo-500 mb-3" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+      <div
+        v-if="loading"
+        class="flex flex-col items-center justify-center py-20"
+      >
+        <svg
+          class="animate-spin w-8 h-8 text-indigo-500 mb-3"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            class="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="4"
+          />
+          <path
+            class="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          />
         </svg>
         <span class="text-sm text-zinc-400">Loading media library...</span>
       </div>
@@ -138,7 +166,9 @@
         v-else-if="error"
         class="p-6 bg-red-950/40 border border-red-800/80 rounded-xl text-center max-w-lg mx-auto"
       >
-        <p class="text-sm text-red-300 mb-4">{{ error }}</p>
+        <p class="text-sm text-red-300 mb-4">
+          {{ error }}
+        </p>
         <button
           type="button"
           class="px-4 py-2 bg-red-800 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition"
@@ -154,8 +184,18 @@
         class="bg-zinc-900/40 border border-zinc-800 rounded-xl p-12 text-center max-w-md mx-auto my-8"
       >
         <div class="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-4 text-zinc-500">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+          <svg
+            class="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"
+            />
           </svg>
         </div>
         <h3 class="text-base font-semibold text-white mb-1">
@@ -188,7 +228,7 @@
               class="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
               loading="lazy"
               @error="(e) => ((e.target as HTMLElement).style.display = 'none')"
-            />
+            >
 
             <!-- Gradient Overlay to ensure badges & controls remain legible -->
             <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-zinc-950/20 z-0 pointer-events-none" />
@@ -198,8 +238,18 @@
               v-if="!item.backdropUrl && !item.posterUrl"
               class="text-zinc-700 z-0 flex flex-col items-center gap-1"
             >
-              <svg class="w-10 h-10 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              <svg
+                class="w-10 h-10 opacity-40"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                />
               </svg>
             </div>
 
@@ -217,7 +267,7 @@
                   class="w-5 h-5 rounded border-zinc-700 bg-zinc-900/90 text-indigo-600 focus:ring-indigo-500 shadow-sm transition"
                   :class="!item.canManage ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'"
                   @change="toggleSelect(item.id)"
-                />
+                >
               </div>
             </div>
 
@@ -251,7 +301,10 @@
           <div class="p-4 flex-1 flex flex-col justify-between">
             <div>
               <div class="flex items-start justify-between gap-2 mb-1">
-                <h3 class="font-semibold text-white text-base leading-snug line-clamp-2" :title="item.title">
+                <h3
+                  class="font-semibold text-white text-base leading-snug line-clamp-2"
+                  :title="item.title"
+                >
                   {{ item.title }}
                 </h3>
                 <button
@@ -262,24 +315,44 @@
                   title="Manage Subtitles (pt-BR)"
                   @click.stop="openSubtitlePicker(item.id, item.title)"
                 >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  <svg
+                    class="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                    />
                   </svg>
                 </button>
               </div>
 
               <div class="flex items-center gap-2 text-xs text-zinc-400 mb-3">
-                <span v-if="item.year" class="font-medium text-zinc-300">{{ item.year }}</span>
+                <span
+                  v-if="item.year"
+                  class="font-medium text-zinc-300"
+                >{{ item.year }}</span>
                 <span v-if="item.year">�</span>
                 <span class="capitalize">{{ formatMediaType(item.mediaType) }}</span>
-                <span v-if="item.coRequesters && item.coRequesters.length > 0" class="text-amber-400/90 text-[11px]" :title="formatCoRequestersTooltip(item)">
+                <span
+                  v-if="item.coRequesters && item.coRequesters.length > 0"
+                  class="text-amber-400/90 text-[11px]"
+                  :title="formatCoRequestersTooltip(item)"
+                >
                   � +{{ item.coRequesters.length }} co-requester{{ item.coRequesters.length > 1 ? 's' : '' }}
                 </span>
               </div>
             </div>
 
             <!-- Series / Anime Seasons Accordion -->
-            <div v-if="item.seasons && item.seasons.length > 0" class="pt-2 border-t border-zinc-800/60 mt-2">
+            <div
+              v-if="item.seasons && item.seasons.length > 0"
+              class="pt-2 border-t border-zinc-800/60 mt-2"
+            >
               <button
                 type="button"
                 data-testid="expand-seasons-btn"
@@ -297,7 +370,12 @@
                   stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 9l-7 7-7-7"
+                  />
                 </svg>
               </button>
 
@@ -334,8 +412,18 @@
                           :title="`Subtitles for ${ep.title}`"
                           @click.stop="openSubtitlePicker(ep.id, `${item.title} - ${ep.title}`)"
                         >
-                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                          <svg
+                            class="w-3.5 h-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                            />
                           </svg>
                         </button>
                       </div>
@@ -370,8 +458,18 @@
             class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg shadow transition"
             @click="openMoveModal"
           >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            <svg
+              class="w-3.5 h-3.5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+              />
             </svg>
             Move to...
           </button>
@@ -382,8 +480,18 @@
             class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-semibold rounded-lg shadow transition"
             @click="openDeleteModal"
           >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            <svg
+              class="w-3.5 h-3.5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              />
             </svg>
             Delete
           </button>
@@ -408,8 +516,18 @@
       <div class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5">
         <div>
           <h2 class="text-lg font-bold text-white flex items-center gap-2">
-            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            <svg
+              class="w-5 h-5 text-indigo-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+              />
             </svg>
             Move Media Library Folders
           </h2>
@@ -425,7 +543,10 @@
             :key="item.id"
             class="text-xs text-zinc-300 truncate"
           >
-            � {{ item.title }} <span v-if="item.year" class="text-zinc-500">({{ item.year }})</span>
+            � {{ item.title }} <span
+              v-if="item.year"
+              class="text-zinc-500"
+            >({{ item.year }})</span>
           </div>
         </div>
 
@@ -478,9 +599,25 @@
             :disabled="isMoving"
             @click="executeMove"
           >
-            <svg v-if="isMoving" class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            <svg
+              v-if="isMoving"
+              class="animate-spin w-3.5 h-3.5"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              />
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
             </svg>
             {{ isMoving ? 'Moving...' : 'Confirm Move' }}
           </button>
@@ -497,8 +634,18 @@
       <div class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5">
         <div>
           <h2 class="text-lg font-bold text-red-400 flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
             </svg>
             Permanent Media Deletion
           </h2>
@@ -514,8 +661,18 @@
           class="bg-amber-950/40 border border-amber-800/80 rounded-xl p-3.5 text-xs text-amber-300 space-y-1.5"
         >
           <div class="font-semibold flex items-center gap-1.5 text-amber-200">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
             Warning: Co-requesters attached!
           </div>
@@ -523,7 +680,10 @@
             The following items were also requested by other users:
           </p>
           <ul class="list-disc list-inside space-y-0.5 text-amber-200">
-            <li v-for="item in itemsWithCoRequesters" :key="item.id">
+            <li
+              v-for="item in itemsWithCoRequesters"
+              :key="item.id"
+            >
               <span class="font-medium">{{ item.title }}</span>: co-requested with
               {{ item.coRequesters.map((u) => `@${u.username}`).join(', ') }}
             </li>
@@ -537,7 +697,10 @@
             :key="item.id"
             class="text-xs text-zinc-300 truncate"
           >
-            � {{ item.title }} <span v-if="item.year" class="text-zinc-500">({{ item.year }})</span>
+            � {{ item.title }} <span
+              v-if="item.year"
+              class="text-zinc-500"
+            >({{ item.year }})</span>
           </div>
         </div>
 
@@ -557,9 +720,25 @@
             :disabled="isDeleting"
             @click="executeDelete"
           >
-            <svg v-if="isDeleting" class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            <svg
+              v-if="isDeleting"
+              class="animate-spin w-3.5 h-3.5"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              />
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
             </svg>
             {{ isDeleting ? 'Deleting...' : 'Delete Permanently' }}
           </button>

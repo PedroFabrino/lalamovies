@@ -20,7 +20,9 @@
         />
       </svg>
       <div class="text-sm">
-        <p class="font-semibold text-white">Manual Torrent Submissions Temporarily Disabled</p>
+        <p class="font-semibold text-white">
+          Manual Torrent Submissions Temporarily Disabled
+        </p>
         <p class="text-amber-300/90 mt-0.5">
           Administrators have paused new torrent submissions for system maintenance or storage safety. You cannot submit new requests at this time.
         </p>
@@ -104,7 +106,10 @@
         @submit.prevent="$emit('search')"
       >
         <!-- Search Mode banner -->
-        <div v-if="inputMode === 'search'" class="p-3.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-xs text-zinc-400">
+        <div
+          v-if="inputMode === 'search'"
+          class="p-3.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-xs text-zinc-400"
+        >
           Type a title below. We'll match metadata and automatically find the best healthy 1080p release via Prowlarr.
         </div>
 
@@ -132,12 +137,18 @@
         </div>
 
         <!-- Torrent file dropzone / batch list -->
-        <div v-else-if="inputMode === 'file'" class="space-y-3">
+        <div
+          v-else-if="inputMode === 'file'"
+          class="space-y-3"
+        >
           <div class="flex items-center justify-between">
             <label class="block text-sm font-medium text-zinc-300">
               Upload .torrent Files
             </label>
-            <span v-if="batchItems.length > 0" class="text-xs text-zinc-400">
+            <span
+              v-if="batchItems.length > 0"
+              class="text-xs text-zinc-400"
+            >
               {{ validBatchItems.length }} valid torrent{{ validBatchItems.length === 1 ? '' : 's' }}
               <span v-if="validBatchItems.length > 0">({{ formatBytes(totalBatchSize) }})</span>
             </span>
@@ -151,7 +162,7 @@
             multiple
             class="hidden"
             @change="onFileInputChange"
-          />
+          >
 
           <!-- Drag & Drop Zone if no items -->
           <div
@@ -241,7 +252,10 @@
                     {{ item.error ? '!' : '✓' }}
                   </span>
                   <div class="min-w-0 flex-1">
-                    <div class="font-medium truncate" :title="item.fileName">
+                    <div
+                      class="font-medium truncate"
+                      :title="item.fileName"
+                    >
                       {{ item.fileName }}
                     </div>
                     <div class="flex items-center gap-2 text-[11px] text-zinc-400 mt-0.5">
@@ -253,7 +267,10 @@
                         <span v-if="item.seasonNumber !== undefined">S{{ String(item.seasonNumber).padStart(2, '0') }}</span>
                         <span v-if="item.episodeNumber !== undefined">E{{ String(item.episodeNumber).padStart(2, '0') }}</span>
                       </span>
-                      <span v-if="item.error" class="text-red-400 font-medium">
+                      <span
+                        v-if="item.error"
+                        class="text-red-400 font-medium"
+                      >
                         {{ item.error }}
                       </span>
                     </div>

@@ -48,7 +48,10 @@
     </div>
 
     <!-- Magnet Input -->
-    <div v-if="manualFallbackMode === 'magnet'" class="space-y-2">
+    <div
+      v-if="manualFallbackMode === 'magnet'"
+      class="space-y-2"
+    >
       <label class="block text-xs font-medium text-zinc-300">Paste Magnet Link</label>
       <input
         :value="fallbackMagnetLink"
@@ -57,11 +60,14 @@
         placeholder="magnet:?xt=urn:btih:..."
         class="w-full px-3.5 py-2.5 rounded-lg bg-zinc-900/80 border border-zinc-700 text-white placeholder-zinc-500 font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
         @input="$emit('update:fallbackMagnetLink', ($event.target as HTMLInputElement).value)"
-      />
+      >
     </div>
 
     <!-- File Input -->
-    <div v-else class="space-y-2">
+    <div
+      v-else
+      class="space-y-2"
+    >
       <label class="block text-xs font-medium text-zinc-300">Upload .torrent File</label>
       <input
         type="file"
@@ -69,8 +75,11 @@
         accept=".torrent"
         class="block w-full text-xs text-zinc-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer"
         @change="$emit('handleFallbackFileChange', $event)"
-      />
-      <p v-if="fallbackFile" class="text-xs text-emerald-400 font-mono mt-1">
+      >
+      <p
+        v-if="fallbackFile"
+        class="text-xs text-emerald-400 font-mono mt-1"
+      >
         ✓ Selected: {{ fallbackFile.name }} ({{ formatBytes(fallbackFile.size) }})
       </p>
     </div>

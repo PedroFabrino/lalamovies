@@ -43,7 +43,7 @@
           placeholder="Refine title or search query..."
           class="w-full px-3.5 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-50"
           @input="$emit('update:customQuery', ($event.target as HTMLInputElement).value)"
-        />
+        >
       </div>
       <button
         type="submit"

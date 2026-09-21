@@ -56,10 +56,18 @@
       <UpNextShelf v-if="featureFlags.isEnabled('up_next')" />
 
       <!-- Discovery Feed Shelf (Curated Quality Releases) -->
-      <DiscoveryFeed v-if="featureFlags.isEnabled('discovery_feed')" ref="discoveryFeedRef" @instant-stream="handleInstantStream" />
+      <DiscoveryFeed
+        v-if="featureFlags.isEnabled('discovery_feed')"
+        ref="discoveryFeedRef"
+        @instant-stream="handleInstantStream"
+      />
 
       <!-- Active Ephemeral Streams Shelf -->
-      <ActiveStreamsShelf v-if="featureFlags.isEnabled('streaming')" ref="activeStreamsShelfRef" @promote="handleOpenPromotion" />
+      <ActiveStreamsShelf
+        v-if="featureFlags.isEnabled('streaming')"
+        ref="activeStreamsShelfRef"
+        @promote="handleOpenPromotion"
+      />
 
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
@@ -380,7 +388,10 @@
                     data-testid="admin-requester-group"
                     class="flex items-center gap-1.5 flex-wrap"
                   >
-                    <span class="font-medium text-zinc-200" title="Primary requester">
+                    <span
+                      class="font-medium text-zinc-200"
+                      title="Primary requester"
+                    >
                       {{ item.requesterUsername || item.userId.slice(0, 8) }}
                     </span>
                     <span class="text-zinc-500 text-[11px] font-normal">+</span>
@@ -395,7 +406,10 @@
                       <span class="text-[9px] uppercase tracking-wider text-indigo-400 font-semibold">(co-req)</span>
                     </span>
                   </div>
-                  <span v-else class="whitespace-nowrap">
+                  <span
+                    v-else
+                    class="whitespace-nowrap"
+                  >
                     {{ item.requesterUsername || item.userId.slice(0, 8) }}
                   </span>
                 </td>
@@ -456,8 +470,18 @@
                       title="Manage Subtitles (pt-BR)"
                       @click="openSubtitlePicker(item)"
                     >
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      <svg
+                        class="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                        />
                       </svg>
                     </button>
 
@@ -534,14 +558,33 @@
             <table class="w-full text-left border-collapse text-sm">
               <thead>
                 <tr class="border-b border-zinc-800 bg-zinc-900/80 text-zinc-400 text-xs font-semibold uppercase tracking-wider">
-                  <th class="py-3.5 px-4 sm:px-6">Media</th>
-                  <th class="py-3.5 px-4">Type</th>
-                  <th class="py-3.5 px-4">Status</th>
-                  <th class="py-3.5 px-4 min-w-[200px]">Progress / Details</th>
-                  <th v-if="authStore.isAdmin" class="py-3.5 px-4">Requester</th>
-                  <th class="py-3.5 px-4">Requested</th>
-                  <th class="py-3.5 px-4 text-center">Keep</th>
-                  <th class="py-3.5 px-4 text-right">Actions</th>
+                  <th class="py-3.5 px-4 sm:px-6">
+                    Media
+                  </th>
+                  <th class="py-3.5 px-4">
+                    Type
+                  </th>
+                  <th class="py-3.5 px-4">
+                    Status
+                  </th>
+                  <th class="py-3.5 px-4 min-w-[200px]">
+                    Progress / Details
+                  </th>
+                  <th
+                    v-if="authStore.isAdmin"
+                    class="py-3.5 px-4"
+                  >
+                    Requester
+                  </th>
+                  <th class="py-3.5 px-4">
+                    Requested
+                  </th>
+                  <th class="py-3.5 px-4 text-center">
+                    Keep
+                  </th>
+                  <th class="py-3.5 px-4 text-right">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-zinc-800/70 text-zinc-200">
@@ -613,13 +656,26 @@
                       class="space-y-1.5"
                     >
                       <div class="text-xs text-emerald-400/90 flex items-center gap-1">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        <svg
+                          class="w-3.5 h-3.5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M5 13l4 4L19 7"
+                          />
                         </svg>
                         <span>In Jellyfin private library</span>
                       </div>
                       <!-- Subtitle status badge -->
-                      <div v-if="item.transcriptionStatus && item.transcriptionStatus !== 'none'" class="flex items-center">
+                      <div
+                        v-if="item.transcriptionStatus && item.transcriptionStatus !== 'none'"
+                        class="flex items-center"
+                      >
                         <span
                           v-if="item.transcriptionStatus === 'pending'"
                           class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-amber-950/60 border border-amber-800 text-amber-300"
@@ -632,8 +688,18 @@
                           v-else-if="item.transcriptionStatus === 'transcribing'"
                           class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-950/60 border border-indigo-800 text-indigo-300"
                         >
-                          <svg class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          <svg
+                            class="w-3 h-3 animate-spin"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                            />
                           </svg>
                           <span>Transcribing...</span>
                         </span>
@@ -641,8 +707,18 @@
                           v-else-if="item.transcriptionStatus === 'completed'"
                           class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-950/60 border border-emerald-800 text-emerald-300"
                         >
-                          <svg class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                          <svg
+                            class="w-3 h-3 text-emerald-400"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M5 13l4 4L19 7"
+                            />
                           </svg>
                           <span>Subtitles Ready</span>
                         </span>
@@ -651,23 +727,44 @@
                           class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-rose-950/60 border border-rose-800 text-rose-300"
                           :title="item.transcriptionError || 'Transcription failed'"
                         >
-                          <svg class="w-3 h-3 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          <svg
+                            class="w-3 h-3 text-rose-400"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
                           </svg>
                           <span>Transcription Failed</span>
                         </span>
                       </div>
                     </div>
-                    <div v-else class="text-xs text-zinc-500">—</div>
+                    <div
+                      v-else
+                      class="text-xs text-zinc-500"
+                    >
+                      —
+                    </div>
                   </td>
-                  <td v-if="authStore.isAdmin" class="py-4 px-4 text-xs text-zinc-400 whitespace-nowrap">
+                  <td
+                    v-if="authStore.isAdmin"
+                    class="py-4 px-4 text-xs text-zinc-400 whitespace-nowrap"
+                  >
                     {{ item.requesterUsername || item.userId.slice(0, 8) }}
                   </td>
                   <td class="py-4 px-4 whitespace-nowrap text-xs text-zinc-400">
                     {{ formatDate(item.requestedAt) }}
                   </td>
                   <td class="py-4 px-4 whitespace-nowrap text-center">
-                    <span class="text-amber-400 text-xs font-medium inline-flex items-center gap-1" title="Private downloads are permanently kept and immune to auto-cleanup">
+                    <span
+                      class="text-amber-400 text-xs font-medium inline-flex items-center gap-1"
+                      title="Private downloads are permanently kept and immune to auto-cleanup"
+                    >
                       <span>🔒</span> Permanent
                     </span>
                   </td>
@@ -691,7 +788,12 @@
                           stroke="currentColor"
                           viewBox="0 0 24 24"
                         >
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                          />
                         </svg>
                         <span>{{ item.transcriptionStatus === 'failed' ? 'Retry Subtitles' : 'Generate Subtitles' }}</span>
                       </button>
@@ -703,8 +805,19 @@
                         title="Retry processing / refresh Jellyfin"
                         @click="handleRetry(item)"
                       >
-                        <svg class="w-4 h-4" :class="{ 'animate-spin': retryingId === item.id }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        <svg
+                          class="w-4 h-4"
+                          :class="{ 'animate-spin': retryingId === item.id }"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                          />
                         </svg>
                       </button>
                       <button
@@ -714,8 +827,18 @@
                         title="Delete Request"
                         @click="promptDelete(item)"
                       >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        <svg
+                          class="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
                         </svg>
                       </button>
                     </div>

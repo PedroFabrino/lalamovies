@@ -1,9 +1,15 @@
 <template>
-  <div v-if="streams.length > 0" class="mb-8 space-y-4" data-testid="active-streams-shelf">
+  <div
+    v-if="streams.length > 0"
+    class="mb-8 space-y-4"
+    data-testid="active-streams-shelf"
+  >
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2">
         <span class="text-xl">⏱️</span>
-        <h2 class="text-lg font-bold text-white tracking-tight">Active Ephemeral Streams</h2>
+        <h2 class="text-lg font-bold text-white tracking-tight">
+          Active Ephemeral Streams
+        </h2>
         <span class="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-medium">
           {{ streams.length }}
         </span>
@@ -28,7 +34,10 @@
       >
         <div>
           <div class="flex items-start justify-between gap-2">
-            <h3 class="font-semibold text-sm text-white line-clamp-2" :title="stream.title">
+            <h3
+              class="font-semibold text-sm text-white line-clamp-2"
+              :title="stream.title"
+            >
               {{ stream.title }}
             </h3>
             <span
@@ -83,7 +92,12 @@
             data-testid="button-evict-stream"
             @click="handleEvict(stream)"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"

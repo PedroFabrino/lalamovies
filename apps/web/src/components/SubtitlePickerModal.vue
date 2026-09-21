@@ -16,7 +16,10 @@
             <span>💬</span>
             <span>Subtitles (pt-BR)</span>
           </h3>
-          <p class="text-xs text-zinc-400 mt-0.5 truncate max-w-md" :title="title">
+          <p
+            class="text-xs text-zinc-400 mt-0.5 truncate max-w-md"
+            :title="title"
+          >
             {{ title || 'Select OpenSubtitles track' }}
           </p>
         </div>
@@ -27,8 +30,18 @@
           :disabled="isApplying"
           @click="handleClose"
         >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
         </button>
       </div>
@@ -68,8 +81,19 @@
             fill="none"
             viewBox="0 0 24 24"
           >
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            />
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            />
           </svg>
           <span>Re-fetch Best</span>
         </button>
@@ -84,7 +108,9 @@
           class="py-12 flex flex-col items-center justify-center gap-3 text-zinc-400"
         >
           <div class="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
-          <p class="text-xs">Searching OpenSubtitles...</p>
+          <p class="text-xs">
+            Searching OpenSubtitles...
+          </p>
         </div>
 
         <!-- Service Not Configured -->
@@ -96,7 +122,9 @@
           <div class="w-10 h-10 mx-auto rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg mb-2">
             ⚠️
           </div>
-          <h4 class="text-sm font-semibold text-white">OpenSubtitles Not Configured</h4>
+          <h4 class="text-sm font-semibold text-white">
+            OpenSubtitles Not Configured
+          </h4>
           <p class="text-xs text-zinc-400 mt-1 max-w-sm mx-auto">
             OPENSUBTITLES_API_KEY is not configured on the server. Configure an API key to enable subtitle downloads.
           </p>
@@ -108,7 +136,9 @@
           data-testid="load-error-state"
           class="py-8 text-center bg-red-950/20 border border-red-800/40 rounded-xl p-6"
         >
-          <p class="text-xs text-red-300">{{ loadError }}</p>
+          <p class="text-xs text-red-300">
+            {{ loadError }}
+          </p>
           <button
             type="button"
             class="mt-3 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-200 rounded-lg transition cursor-pointer"
@@ -127,14 +157,19 @@
           <div class="w-10 h-10 mx-auto rounded-full bg-zinc-800 text-zinc-500 flex items-center justify-center text-lg mb-2">
             🔍
           </div>
-          <h4 class="text-sm font-semibold text-white">No Subtitles Found</h4>
+          <h4 class="text-sm font-semibold text-white">
+            No Subtitles Found
+          </h4>
           <p class="text-xs text-zinc-400 mt-1">
             No matching pt-BR subtitles were found on OpenSubtitles for this title.
           </p>
         </div>
 
         <!-- Subtitles List -->
-        <div v-else class="space-y-2">
+        <div
+          v-else
+          class="space-y-2"
+        >
           <div
             v-for="sub in subtitles"
             :key="sub.fileId"
@@ -151,9 +186,12 @@
                 :disabled="isApplying"
                 class="mt-1 w-4 h-4 rounded border-zinc-700 bg-zinc-900 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                 @change="toggleSelect(sub.fileId)"
-              />
+              >
               <div class="min-w-0 flex-1">
-                <div class="text-xs font-semibold text-zinc-100 truncate" :title="sub.releaseName">
+                <div
+                  class="text-xs font-semibold text-zinc-100 truncate"
+                  :title="sub.releaseName"
+                >
                   {{ sub.releaseName }}
                 </div>
                 <div class="flex flex-wrap items-center gap-2 mt-1 text-[11px] text-zinc-400">
@@ -161,7 +199,10 @@
                   <span>•</span>
                   <span class="text-indigo-400 font-mono">⬇ {{ formatDownloadCount(sub.downloadCount) }}</span>
                   <span v-if="sub.fileSizeBytes">•</span>
-                  <span v-if="sub.fileSizeBytes" class="font-mono">{{ formatBytes(sub.fileSizeBytes) }}</span>
+                  <span
+                    v-if="sub.fileSizeBytes"
+                    class="font-mono"
+                  >{{ formatBytes(sub.fileSizeBytes) }}</span>
                   <span v-if="sub.uploadDate">•</span>
                   <span v-if="sub.uploadDate">{{ formatDate(sub.uploadDate) }}</span>
                 </div>
@@ -182,8 +223,19 @@
                 fill="none"
                 viewBox="0 0 24 24"
               >
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                />
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
               </svg>
               <span>Apply</span>
             </button>
@@ -215,8 +267,19 @@
             fill="none"
             viewBox="0 0 24 24"
           >
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            />
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            />
           </svg>
           <span>
             {{ selectedIds.size > 0 ? `Apply Selected (${selectedIds.size})` : 'Apply Selected' }}
