@@ -488,6 +488,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
           fileSystem,
           requestsRepo,
           stateMachine,
+          qbittorrentService: qbittorrent,
           logger: {
             info: (msg) => app.log.info(msg),
             warn: (msg) => app.log.warn(msg),

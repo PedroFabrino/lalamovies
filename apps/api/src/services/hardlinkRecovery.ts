@@ -1,9 +1,11 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { AppDatabase } from '../db';
 import { IFileSystemService } from './fileSystem';
 import { IRequestsRepository } from './requestsRepository';
 import { IRequestStateMachine, RequestStatus } from './requestStateMachine';
 import { PollerLogger } from '../jobs/downloadPoller';
+import type { IQBittorrentService } from './qbittorrent';
 
 export interface HardlinkRecoveryOptions {
   db: AppDatabase;
@@ -12,6 +14,7 @@ export interface HardlinkRecoveryOptions {
   stateMachine: IRequestStateMachine;
   stagingPath?: string;
   logger?: PollerLogger;
+  qbittorrentService?: IQBittorrentService;
 }
 
 export interface HardlinkRecoveryResult {
@@ -27,7 +30,7 @@ export interface HardlinkRecoveryResult {
 export async function runHardlinkingRecovery(
   options: HardlinkRecoveryOptions
 ): Promise<HardlinkRecoveryResult> {
-  const { fileSystem, requestsRepo, stateMachine, logger } = options;
+  const { fileSystem, requestsRepo, stateMachine, logger, qbittorrentService } = options;
   const stagingPath =
     options.stagingPath ||
     process.env.STAGING_PATH ||
@@ -46,10 +49,36 @@ export async function runHardlinkingRecovery(
         excludeRequestId: req.id,
       });
 
+      let files: Array<{ name: string; size: number }> = [];
+
+      if (qbittorrentService?.getTorrentFiles && req.qbTorrentHash) {
+        try {
+          files = await qbittorrentService.getTorrentFiles(req.qbTorrentHash);
+        } catch (qbErr) {
+          logger?.warn?.(
+            `Failed to get torrent files from qBittorrent for ${req.qbTorrentHash}: ${(qbErr as Error).message}`
+          );
+        }
+      }
+
+      if (files.length === 0 && fileSystem.reconstructFilesFromDisk) {
+        try {
+          const subDir =
+            req.qbTorrentHash && fs.existsSync(path.join(stagingPath, req.qbTorrentHash))
+              ? req.qbTorrentHash
+              : req.title;
+          files = await fileSystem.reconstructFilesFromDisk(stagingPath, subDir);
+        } catch (diskErr) {
+          logger?.warn?.(
+            `Failed to reconstruct files from disk for ${req.title}: ${(diskErr as Error).message}`
+          );
+        }
+      }
+
       const result = await fileSystem.processAndHardlinkTorrent({
         request: req,
         torrentStatus: { name: req.title },
-        files: [],
+        files,
         stagingPath,
         existingShowFolder,
       });

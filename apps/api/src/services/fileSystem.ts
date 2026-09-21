@@ -2,6 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { ISubtitleInspectionService } from './subtitleInspection';
 import { extractEpisodeInfo } from '../utils/torrentTitleCleaner';
+import { reconstructFilesFromDisk } from '../utils/stagingScanner';
+
+export { reconstructFilesFromDisk };
 
 export interface BuildLibraryPathParams {
   mediaType: 'movie' | 'tv_show' | 'anime' | 'private';
@@ -59,6 +62,10 @@ export interface IFileSystemService {
   getStorageFootprintBytes(targetPath?: string | string[], forceRefresh?: boolean): Promise<number>;
   ensureDirectory(dirPath: string): void;
   processAndHardlinkTorrent(input: ProcessAndHardlinkInput): Promise<ProcessAndHardlinkResult>;
+  reconstructFilesFromDisk?(
+    stagingDir: string,
+    subDir?: string
+  ): Promise<Array<{ name: string; size: number }>>;
   invalidateFootprintCache?(): void;
   getMediaBasePath?(): string;
 }
@@ -76,6 +83,13 @@ export class FileSystemService implements IFileSystemService {
 
   getMediaBasePath(): string {
     return this.defaultMediaBasePath;
+  }
+
+  async reconstructFilesFromDisk(
+    stagingDir: string,
+    subDir?: string
+  ): Promise<Array<{ name: string; size: number }>> {
+    return reconstructFilesFromDisk(stagingDir, subDir);
   }
 
   /**
