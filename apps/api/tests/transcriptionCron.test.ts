@@ -97,6 +97,7 @@ describe('Timezone-Aware Transcription Window Scheduler (Subtask #102)', () => {
 
       const cronJob = new TranscriptionCron({
         db: app.db,
+        requestsRepo: app.requestsRepo,
         subgen: { triggerBatch: mockTriggerBatch },
         nowProvider: () => mockNow,
       });
@@ -133,6 +134,7 @@ describe('Timezone-Aware Transcription Window Scheduler (Subtask #102)', () => {
 
       const cronJob = new TranscriptionCron({
         db: app.db,
+        requestsRepo: app.requestsRepo,
         subgen: { triggerBatch: mockTriggerBatch },
         nowProvider: () => mockNow,
       });
@@ -170,6 +172,7 @@ describe('Timezone-Aware Transcription Window Scheduler (Subtask #102)', () => {
 
       const cronJob = new TranscriptionCron({
         db: app.db,
+        requestsRepo: app.requestsRepo,
         subgen: { triggerBatch: mockTriggerBatch },
         isTranscriptionEnabled: () => {
           const row = app.db.select().from(featureFlags).where(eq(featureFlags.id, 'transcription_enabled')).get();
@@ -222,6 +225,7 @@ describe('Timezone-Aware Transcription Window Scheduler (Subtask #102)', () => {
 
       const cronJob = new TranscriptionCron({
         db: app.db,
+        requestsRepo: app.requestsRepo,
         subgen: { triggerBatch: mockTriggerBatch },
         nowProvider: () => new Date('2026-09-16T10:00:00.000Z'),
       });
@@ -272,6 +276,7 @@ describe('Timezone-Aware Transcription Window Scheduler (Subtask #102)', () => {
 
       const cronJob = new TranscriptionCron({
         db: app.db,
+        requestsRepo: app.requestsRepo,
         subgen: { triggerBatch: mockTriggerBatch },
         nowProvider: () => mockNow,
         broadcast: mockBroadcast,
@@ -313,6 +318,7 @@ describe('Timezone-Aware Transcription Window Scheduler (Subtask #102)', () => {
 
       const cronJob = new TranscriptionCron({
         db: app.db,
+        requestsRepo: app.requestsRepo,
         subgen: failingSubgen,
         nowProvider: () => new Date('2026-09-16T04:00:00.000Z'),
         broadcast: mockBroadcast,

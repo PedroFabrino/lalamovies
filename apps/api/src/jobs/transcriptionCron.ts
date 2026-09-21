@@ -12,7 +12,7 @@ export interface TranscriptionCronLogger {
 
 export interface TranscriptionCronOptions {
   db: AppDatabase;
-  requestsRepo?: IRequestsRepository;
+  requestsRepo: IRequestsRepository;
   subgen: ISubgenService;
   schedule?: string;
   logger?: TranscriptionCronLogger;
@@ -77,7 +77,7 @@ export class TranscriptionCron {
 
   constructor(options: TranscriptionCronOptions) {
     this.db = options.db;
-    this.requestsRepo = options.requestsRepo ?? new RequestsRepository(options.db);
+    this.requestsRepo = options.requestsRepo;
     this.subgen = options.subgen;
     this.schedule = options.schedule || '*/5 * * * *';
     this.logger = options.logger;
