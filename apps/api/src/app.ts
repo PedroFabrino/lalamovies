@@ -38,7 +38,7 @@ import { runCorruptedArchiveRecovery } from './services/unarchiveRecovery';
 import { runHardlinkingRecovery } from './services/hardlinkRecovery';
 import { IRequestStateMachine, RequestStateMachine } from './services/requestStateMachine';
 import { IRequestsRepository, RequestsRepository } from './services/requestsRepository';
-import { validateConfig, config } from './config';
+import { validateConfig, getConfig } from './config';
 
 
 export interface AppOptions {
@@ -514,7 +514,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     credentials: true,
   });
 
-  const jwtSecret = options.jwtSecret || config.JWT_SECRET;
+  const jwtSecret = options.jwtSecret || getConfig().JWT_SECRET;
   if (!jwtSecret) {
     throw new Error('JWT_SECRET is required');
   }

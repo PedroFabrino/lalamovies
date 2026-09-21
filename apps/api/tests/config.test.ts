@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { validateConfig, FORBIDDEN_JWT_DEV_DEFAULT } from '../src/config';
+import { validateConfig, getConfig, _resetConfigForTesting, FORBIDDEN_JWT_DEV_DEFAULT } from '../src/config';
 
 describe('Config Validation', () => {
   const baseValidEnv: NodeJS.ProcessEnv = {
@@ -87,4 +87,18 @@ describe('Config Validation', () => {
       expect.stringContaining('Optional environment variable PROWLARR_URL is not set')
     );
   });
+
+  it('throws error when getConfig() is called before validateConfig()', () => {
+    _resetConfigForTesting();
+    expect(() => getConfig()).toThrow('validateConfig() must be called before accessing config');
+  });
+
+  it('returns validated config when getConfig() is called after validateConfig()', () => {
+    _resetConfigForTesting();
+    validateConfig(baseValidEnv, { allowTestDefaults: false, exitOnError: false });
+    const cfg = getConfig();
+    expect(cfg.JWT_SECRET).toBe('my-valid-secret-key-that-is-secure');
+    expect(cfg.QB_URL).toBe('http://localhost:8080');
+  });
 });
+

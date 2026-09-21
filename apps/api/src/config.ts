@@ -119,31 +119,22 @@ export function validateConfig(
     }
   }
 
-  // Update exported config singleton
-  Object.assign(config, validConfig);
+  // Store validated config singleton
+  _config = validConfig;
 
   return validConfig;
 }
 
-export const config: AppConfig = {
-  NODE_ENV: process.env.NODE_ENV || 'development',
-  PORT: process.env.PORT || '3000',
-  HOST: process.env.HOST || '0.0.0.0',
-  JWT_SECRET: process.env.JWT_SECRET || testConfigDefaults.JWT_SECRET || '',
-  SERVICE_API_KEY: process.env.SERVICE_API_KEY || testConfigDefaults.SERVICE_API_KEY || '',
-  STAGING_PATH: process.env.STAGING_PATH || testConfigDefaults.STAGING_PATH || '',
-  MEDIA_PATH: process.env.MEDIA_PATH || testConfigDefaults.MEDIA_PATH || '',
-  QB_URL: process.env.QB_URL || process.env.QBITTORRENT_URL || testConfigDefaults.QB_URL || '',
-  JELLYFIN_URL: process.env.JELLYFIN_URL || testConfigDefaults.JELLYFIN_URL || '',
-  PROWLARR_URL: process.env.PROWLARR_URL,
-  TMDB_API_KEY: process.env.TMDB_API_KEY,
-  DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL,
-  RESEND_API_KEY: process.env.RESEND_API_KEY,
-  NOTIFICATION_EMAIL_TO: process.env.NOTIFICATION_EMAIL_TO,
-  NOTIFICATION_EMAIL_FROM: process.env.NOTIFICATION_EMAIL_FROM,
-  WATCHER_URL: process.env.WATCHER_URL,
-  STREAMER_URL: process.env.STREAMER_URL,
-  SUBGEN_URL: process.env.SUBGEN_URL,
-  OPEN_SUBTITLES_API_KEY: process.env.OPEN_SUBTITLES_API_KEY,
-  PREFERRED_INDEXER_REGEX: process.env.PREFERRED_INDEXER_REGEX,
-};
+let _config: AppConfig | null = null;
+
+export function getConfig(): AppConfig {
+  if (!_config) {
+    throw new Error('validateConfig() must be called before accessing config');
+  }
+  return _config;
+}
+
+export function _resetConfigForTesting(): void {
+  _config = null;
+}
+
