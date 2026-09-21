@@ -195,4 +195,165 @@ describe('RequestsRepository', () => {
       expect(() => repo.markError('bad_id', 'err')).not.toThrow();
     });
   });
+
+  // update ------------------------------------------------------------------
+
+  describe('update', () => {
+    beforeEach(() => {
+      repo.create(baseRequest());
+    });
+
+    it('updates arbitrary fields on existing request', () => {
+      repo.update('req_1', {
+        keepFlag: true,
+        qbTorrentHash: 'hash_123',
+        deferredReason: 'waiting_for_space',
+        transcriptionStatus: 'pending',
+      });
+      const found = repo.findById('req_1');
+      expect(found?.keepFlag).toBe(true);
+      expect(found?.qbTorrentHash).toBe('hash_123');
+      expect(found?.deferredReason).toBe('waiting_for_space');
+      expect(found?.transcriptionStatus).toBe('pending');
+    });
+  });
+
+  // findByStatus ------------------------------------------------------------
+
+  describe('findByStatus', () => {
+    it('returns requests matching status', () => {
+      repo.create(baseRequest({ id: 'req_d1', status: 'downloading', metadataId: 'm1' }));
+      repo.create(baseRequest({ id: 'req_d2', status: 'downloading', metadataId: 'm2' }));
+      repo.create(baseRequest({ id: 'req_q1', status: 'queued', metadataId: 'm3' }));
+
+      const downloading = repo.findByStatus('downloading');
+      expect(downloading).toHaveLength(2);
+      expect(downloading.map((r) => r.id)).toEqual(expect.arrayContaining(['req_d1', 'req_d2']));
+    });
+
+    it('orders by requestedAt asc when requestedAtAsc is specified', () => {
+      repo.create(
+        baseRequest({
+          id: 'req_later',
+          status: 'queued',
+          metadataId: 'm_late',
+          requestedAt: '2026-09-20T12:00:00.000Z',
+        })
+      );
+      repo.create(
+        baseRequest({
+          id: 'req_earlier',
+          status: 'queued',
+          metadataId: 'm_early',
+          requestedAt: '2026-09-20T10:00:00.000Z',
+        })
+      );
+
+      const ordered = repo.findByStatus('queued', 'requestedAtAsc');
+      expect(ordered.map((r) => r.id)).toEqual(['req_earlier', 'req_later']);
+    });
+  });
+
+  // findExistingSeriesFolder ------------------------------------------------
+
+  describe('findExistingSeriesFolder', () => {
+    it('returns undefined if mediaType is not tv_show or anime', () => {
+      repo.create(
+        baseRequest({
+          id: 'req_mov',
+          mediaType: 'movie',
+          metadataId: 'tmdb_movie_1',
+          jellyfinPath: '/media/movies/Fight Club (1999)/Fight Club.mkv',
+        })
+      );
+
+      const folder = repo.findExistingSeriesFolder({
+        metadataId: 'tmdb_movie_1',
+        mediaType: 'movie',
+      });
+      expect(folder).toBeUndefined();
+    });
+
+    it('returns undefined if metadataId is missing', () => {
+      const folder = repo.findExistingSeriesFolder({
+        metadataId: null,
+        mediaType: 'tv_show',
+      });
+      expect(folder).toBeUndefined();
+    });
+
+    it('returns existing folder when prior anime request exists', () => {
+      repo.create(
+        baseRequest({
+          id: 'req_anime_1',
+          mediaType: 'anime',
+          metadataId: 'anime_123',
+          status: 'seeding',
+          jellyfinPath: '/media/anime/Dungeon Meshi (2024)/Season 01/Dungeon Meshi S01E01.mkv',
+        })
+      );
+
+      const folder = repo.findExistingSeriesFolder({
+        metadataId: 'anime_123',
+        mediaType: 'tv_show',
+        excludeRequestId: 'req_anime_2',
+      });
+      expect(folder).toBe('Dungeon Meshi (2024)');
+    });
+
+    it('returns existing folder when prior tv_show request exists', () => {
+      repo.create(
+        baseRequest({
+          id: 'req_show_1',
+          mediaType: 'tv_show',
+          metadataId: 'show_456',
+          status: 'done',
+          jellyfinPath: '/media/shows/Breaking Bad (2008)/Season 01/Breaking Bad S01E01.mkv',
+        })
+      );
+
+      const folder = repo.findExistingSeriesFolder({
+        metadataId: 'show_456',
+        mediaType: 'tv_show',
+      });
+      expect(folder).toBe('Breaking Bad (2008)');
+    });
+
+    it('excludes excludeRequestId from match', () => {
+      repo.create(
+        baseRequest({
+          id: 'req_current',
+          mediaType: 'tv_show',
+          metadataId: 'show_789',
+          status: 'downloading',
+          jellyfinPath: '/media/shows/Severance (2022)/Season 01/Severance S01E01.mkv',
+        })
+      );
+
+      const folder = repo.findExistingSeriesFolder({
+        metadataId: 'show_789',
+        mediaType: 'tv_show',
+        excludeRequestId: 'req_current',
+      });
+      expect(folder).toBeUndefined();
+    });
+
+    it('excludes deleted requests', () => {
+      repo.create(
+        baseRequest({
+          id: 'req_deleted',
+          mediaType: 'tv_show',
+          metadataId: 'show_del',
+          status: 'deleted',
+          jellyfinPath: '/media/shows/Deleted Show/Season 01/ep.mkv',
+        })
+      );
+
+      const folder = repo.findExistingSeriesFolder({
+        metadataId: 'show_del',
+        mediaType: 'tv_show',
+      });
+      expect(folder).toBeUndefined();
+    });
+  });
 });

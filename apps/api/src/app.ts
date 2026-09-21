@@ -34,9 +34,11 @@ import { ISubgenService, SubgenService } from './services/subgen';
 import { OpenSubtitlesService } from './services/openSubtitles';
 import { IUnarchiveService, UnarchiveService } from './services/unarchive';
 import { UnarchiveDaemon } from './jobs/unarchiveDaemon';
-import { runCompressedDownloadsRecovery } from './services/unarchiveRecovery';
+import { runCorruptedArchiveRecovery } from './services/unarchiveRecovery';
+import { runHardlinkingRecovery } from './services/hardlinkRecovery';
 import { IRequestStateMachine, RequestStateMachine } from './services/requestStateMachine';
 import { IRequestsRepository, RequestsRepository } from './services/requestsRepository';
+import { validateConfig, config } from './config';
 
 
 export interface AppOptions {
@@ -104,6 +106,8 @@ declare module 'fastify' {
 
 
 export function buildApp(options: AppOptions = {}): FastifyInstance {
+  validateConfig();
+
   const app = Fastify({
     logger: process.env.NODE_ENV !== 'test',
   });
@@ -137,23 +141,29 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
         }
       },
       jellyfin,
-      notifications
+      notifications,
+      {
+        error: (msg) => {
+          if (typeof msg === 'string') {
+            app.log.error(msg);
+          } else {
+            app.log.error(msg as object);
+          }
+        },
+        warn: (msg) => app.log.warn(msg),
+      }
     );
 
   const cleanup =
     options.cleanupService ??
-    new CleanupService(
+    new CleanupService({
       db,
       qbittorrent,
       jellyfin,
-      notifications,
-      undefined,
-      undefined,
-      undefined,
-      fileSystem,
-      undefined,
-      stateMachine
-    );
+      notificationService: notifications,
+      fileSystemService: fileSystem,
+      stateMachine,
+    });
   const metadata = options.metadataService ?? new MetadataService();
   const prowlarr = options.prowlarrService ?? new ProwlarrService();
   const discovery =
@@ -246,6 +256,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     options.downloadPoller ??
     new DownloadPoller({
       db,
+      requestsRepo,
       qbittorrent,
       fileSystem,
       jellyfin,
@@ -273,6 +284,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     options.unarchiveDaemon ??
     new UnarchiveDaemon({
       db,
+      requestsRepo,
       unarchiveService: unarchive,
       fileSystem,
       jellyfin,
@@ -430,7 +442,9 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
               .select({ jellyfinUserId: users.jellyfinUserId, role: users.role })
               .from(users)
               .all();
-            await jellyfin.syncAllUserPermissions(allUsers as any);
+            await jellyfin.syncAllUserPermissions(
+              allUsers as Array<{ jellyfinUserId: string | null; role: 'user' | 'trusted' | 'admin' }>
+            );
             app.log.info(`Enforced private library access control for ${allUsers.length} users`);
           }
         } else {
@@ -443,11 +457,12 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
 
     if (options.startPoller) {
       setImmediate(() => {
-        runCompressedDownloadsRecovery({
+        runCorruptedArchiveRecovery({
           db,
           unarchiveService: unarchive,
           fileSystem,
           jellyfin,
+          stateMachine,
           logger: {
             info: (msg) => app.log.info(msg),
             warn: (msg) => app.log.warn(msg),
@@ -455,14 +470,36 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
           },
         })
           .then((recoveryRes) => {
-            if (recoveryRes.recoveredCount > 0 || recoveryRes.removedInvalidPath) {
+            if (recoveryRes.recoveredCount > 0) {
               app.log.info(
-                `Startup compressed downloads recovery finished: recovered ${recoveryRes.recoveredCount} items, removed invalid path: ${recoveryRes.removedInvalidPath}`
+                `Startup corrupted archive recovery finished: recovered ${recoveryRes.recoveredCount} items`
               );
             }
           })
           .catch((recErr) => {
-            app.log.warn(recErr, 'Non-fatal error in startup compressed downloads recovery');
+            app.log.warn(recErr, 'Non-fatal error in startup corrupted archive recovery');
+          });
+
+        runHardlinkingRecovery({
+          db,
+          fileSystem,
+          requestsRepo,
+          stateMachine,
+          logger: {
+            info: (msg) => app.log.info(msg),
+            warn: (msg) => app.log.warn(msg),
+            error: (msg, err) => app.log.error(err, msg),
+          },
+        })
+          .then((hlRes) => {
+            if (hlRes.recoveredCount > 0 || hlRes.failedCount > 0) {
+              app.log.info(
+                `Startup hardlink recovery finished: recovered ${hlRes.recoveredCount}, failed ${hlRes.failedCount} items`
+              );
+            }
+          })
+          .catch((hlErr) => {
+            app.log.warn(hlErr, 'Non-fatal error in startup hardlink recovery');
           });
       });
     }
@@ -473,7 +510,10 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     credentials: true,
   });
 
-  const jwtSecret = options.jwtSecret || process.env.JWT_SECRET || 'super-secret-jwt-key-for-development-32chars';
+  const jwtSecret = options.jwtSecret || config.JWT_SECRET;
+  if (!jwtSecret) {
+    throw new Error('JWT_SECRET is required');
+  }
 
   app.register(fastifyCookie);
   app.register(fastifyJwt, {

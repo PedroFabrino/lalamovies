@@ -1,13 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { eq, and, isNull, isNotNull, lte, asc } from 'drizzle-orm';
+import { eq, and, isNull, isNotNull, lte } from 'drizzle-orm';
 import { AppDatabase, systemConfig, downloadRequests, DownloadRequest, users, requestCoRequesters } from '../db';
 import { IQBittorrentService } from './qbittorrent';
 import { IJellyfinService } from './jellyfin';
 import { INotificationService } from './notifications';
 import { IFileSystemService } from './fileSystem';
-import { IRequestStateMachine, RequestStateMachine, RequestStatus } from './requestStateMachine';
-import { RequestsRepository } from './requestsRepository';
+import { IRequestStateMachine, RequestStatus } from './requestStateMachine';
 
 export interface SpaceCheckResult {
   sufficient: boolean;
@@ -32,30 +31,81 @@ export function matchesLibraryPath(itemPath: string, parentPath: string): boolea
   return normItem === normReq || normItem.startsWith(normReq.endsWith('/') ? normReq : normReq + '/');
 }
 
+export interface CleanupServiceOptions {
+  db: AppDatabase;
+  qbittorrent: IQBittorrentService;
+  jellyfin?: IJellyfinService;
+  notificationService?: INotificationService;
+  mediaPath?: string;
+  diskFreePercentProvider?: () => number;
+  diskFreeBytesProvider?: () => number;
+  fileSystemService?: IFileSystemService;
+  storageFootprintProvider?: () => number | Promise<number>;
+  stateMachine?: IRequestStateMachine;
+}
+
 export class CleanupService implements ICleanupService {
   private fullyConsumedRequestIds = new Set<string>();
+  private db: AppDatabase;
+  private qbittorrent: IQBittorrentService;
+  private jellyfin?: IJellyfinService;
+  private notificationService?: INotificationService;
+  private mediaPath?: string;
+  private diskFreePercentProvider?: () => number;
+  private diskFreeBytesProvider?: () => number;
+  private fileSystemService?: IFileSystemService;
+  private storageFootprintProvider?: () => number | Promise<number>;
   private stateMachine?: IRequestStateMachine;
 
+  constructor(options: CleanupServiceOptions);
   constructor(
-    private db: AppDatabase,
-    private qbittorrent: IQBittorrentService,
-    private jellyfin?: IJellyfinService,
-    private notificationService?: INotificationService,
-    private mediaPath?: string,
-    private diskFreePercentProvider?: () => number,
-    private diskFreeBytesProvider?: () => number,
-    private fileSystemService?: IFileSystemService,
-    private storageFootprintProvider?: () => number,
+    db: AppDatabase,
+    qbittorrent: IQBittorrentService,
+    jellyfin?: IJellyfinService,
+    notificationService?: INotificationService,
+    mediaPath?: string,
+    diskFreePercentProvider?: () => number,
+    diskFreeBytesProvider?: () => number,
+    fileSystemService?: IFileSystemService,
+    storageFootprintProvider?: () => number | Promise<number>,
+    stateMachine?: IRequestStateMachine
+  );
+  constructor(
+    optionsOrDb: CleanupServiceOptions | AppDatabase,
+    qbittorrent?: IQBittorrentService,
+    jellyfin?: IJellyfinService,
+    notificationService?: INotificationService,
+    mediaPath?: string,
+    diskFreePercentProvider?: () => number,
+    diskFreeBytesProvider?: () => number,
+    fileSystemService?: IFileSystemService,
+    storageFootprintProvider?: () => number | Promise<number>,
     stateMachine?: IRequestStateMachine
   ) {
-    this.stateMachine =
-      stateMachine ||
-      new RequestStateMachine(
-        new RequestsRepository(db),
-        undefined,
-        jellyfin,
-        notificationService
-      );
+    if (optionsOrDb && 'qbittorrent' in optionsOrDb) {
+      const opts = optionsOrDb as CleanupServiceOptions;
+      this.db = opts.db;
+      this.qbittorrent = opts.qbittorrent;
+      this.jellyfin = opts.jellyfin;
+      this.notificationService = opts.notificationService;
+      this.mediaPath = opts.mediaPath;
+      this.diskFreePercentProvider = opts.diskFreePercentProvider;
+      this.diskFreeBytesProvider = opts.diskFreeBytesProvider;
+      this.fileSystemService = opts.fileSystemService;
+      this.storageFootprintProvider = opts.storageFootprintProvider;
+      this.stateMachine = opts.stateMachine;
+    } else {
+      this.db = optionsOrDb as AppDatabase;
+      this.qbittorrent = qbittorrent!;
+      this.jellyfin = jellyfin;
+      this.notificationService = notificationService;
+      this.mediaPath = mediaPath;
+      this.diskFreePercentProvider = diskFreePercentProvider;
+      this.diskFreeBytesProvider = diskFreeBytesProvider;
+      this.fileSystemService = fileSystemService;
+      this.storageFootprintProvider = storageFootprintProvider;
+      this.stateMachine = stateMachine;
+    }
   }
 
   getFreeDiskBytes(customPath?: string): number {
@@ -216,9 +266,10 @@ export class CleanupService implements ICleanupService {
                 globalHistory[itemPath] = playedDate;
               }
             }
-          } catch (err: any) {
-            const statusCode = err?.statusCode || err?.status;
-            const msg = String(err?.message || err).toLowerCase();
+          } catch (err: unknown) {
+            const errorObj = err as { statusCode?: number; status?: number; message?: string } | null;
+            const statusCode = errorObj?.statusCode || errorObj?.status;
+            const msg = String(errorObj?.message || err).toLowerCase();
             const isNotFound = statusCode === 404 || msg.includes('404') || msg.includes('not found');
             requesterHistoryCache.set(jfUid, {
               accountExists: !isNotFound,
@@ -358,9 +409,9 @@ export class CleanupService implements ICleanupService {
       : parseInt(process.env.STORAGE_QUOTA_GB || '150', 10);
     const storageQuotaBytes = storageQuotaGb * 1024 * 1024 * 1024;
     const footprintBytes = this.fileSystemService?.getStorageFootprintBytes
-      ? this.fileSystemService.getStorageFootprintBytes()
+      ? await this.fileSystemService.getStorageFootprintBytes()
       : this.storageFootprintProvider
-        ? this.storageFootprintProvider()
+        ? await this.storageFootprintProvider()
         : 0;
 
     const hasFootprintTracking = Boolean(
@@ -494,8 +545,8 @@ export class CleanupService implements ICleanupService {
       if (item.qbTorrentHash) {
         try {
           await this.qbittorrent.removeTorrent(item.qbTorrentHash, true);
-        } catch {
-          // Continue even if qB removal fails
+        } catch (err) {
+          console.error(`Failed to remove torrent ${item.qbTorrentHash} from qBittorrent during cleanup: ${(err as Error).message}`);
         }
       }
 
@@ -503,8 +554,8 @@ export class CleanupService implements ICleanupService {
       if (item.jellyfinPath && fs.existsSync(item.jellyfinPath)) {
         try {
           fs.rmSync(item.jellyfinPath, { recursive: true, force: true });
-        } catch {
-          // Continue
+        } catch (err) {
+          console.error(`Failed to remove media path ${item.jellyfinPath} from disk during cleanup: ${(err as Error).message}`);
         }
       }
 
@@ -521,8 +572,8 @@ export class CleanupService implements ICleanupService {
         } else if (typeof this.jellyfin?.refreshLibrary === 'function') {
           try {
             await this.jellyfin.refreshLibrary();
-          } catch {
-            // Continue
+          } catch (err) {
+            console.error(`Failed to refresh Jellyfin library during cleanup for ${item.id}: ${(err as Error).message}`);
           }
         }
 
@@ -596,16 +647,16 @@ export class CleanupService implements ICleanupService {
         if (matched) {
           torrentHashToRemove = matched.hash;
         }
-      } catch {
-        // Silently continue
+      } catch (err) {
+        console.error(`Failed searching qBittorrent torrents for removal of ${request.title}: ${(err as Error).message}`);
       }
     }
 
     if (torrentHashToRemove) {
       try {
         await this.qbittorrent.removeTorrent(torrentHashToRemove, true);
-      } catch {
-        // Silently log or continue
+      } catch (err) {
+        console.error(`Failed to remove torrent ${torrentHashToRemove} from qBittorrent: ${(err as Error).message}`);
       }
     }
 
@@ -626,8 +677,8 @@ export class CleanupService implements ICleanupService {
         if (fs.existsSync(parentDir) && fs.readdirSync(parentDir).length === 0) {
           fs.rmdirSync(parentDir);
         }
-      } catch {
-        // Continue
+      } catch (err) {
+        console.error(`Failed to delete library path ${libraryPath} during cleanItem: ${(err as Error).message}`);
       }
     }
 
@@ -648,8 +699,8 @@ export class CleanupService implements ICleanupService {
       } else if (typeof this.jellyfin?.refreshLibrary === 'function') {
         try {
           await this.jellyfin.refreshLibrary();
-        } catch {
-          // Continue
+        } catch (err) {
+          console.error(`Failed to refresh Jellyfin library during cleanItem for ${requestId}: ${(err as Error).message}`);
         }
       }
 

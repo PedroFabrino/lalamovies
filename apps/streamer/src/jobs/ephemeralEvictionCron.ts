@@ -71,7 +71,7 @@ export class EphemeralEvictionCron {
       return { evicted: [], deferred: [] };
     }
 
-    let activeItemIds = new Set<string>();
+    const activeItemIds = new Set<string>();
     try {
       const activeSessions = await this.jellyfin.getActiveSessions();
       for (const session of activeSessions) {

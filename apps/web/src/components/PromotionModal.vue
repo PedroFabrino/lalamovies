@@ -358,8 +358,8 @@ async function searchMetadata() {
     if (candidates.value.length > 0) {
       selectedCandidate.value = candidates.value[0];
     }
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to search metadata';
+  } catch (err: unknown) {
+    errorMessage.value = (err as Error).message || 'Failed to search metadata';
   } finally {
     isSearching.value = false;
   }
@@ -407,8 +407,8 @@ async function submitPromotion() {
       streamId: props.stream.id,
       requestId: res.requestId,
     });
-  } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to promote stream';
+  } catch (err: unknown) {
+    errorMessage.value = (err as Error).message || 'Failed to promote stream';
   } finally {
     isPromoting.value = false;
   }

@@ -1,7 +1,7 @@
 import cron, { ScheduledTask } from 'node-cron';
 import { and, eq, isNotNull, isNull, lte } from 'drizzle-orm';
 import { WatcherDatabase } from '../db';
-import { watchRequests, WatchRequest } from '../db/schema';
+import { watchRequests } from '../db/schema';
 
 export interface ReleaseGatingLogger {
   info: (msg: string) => void;
@@ -82,7 +82,18 @@ export class ReleaseGatingService {
           this.logger?.warn(`TMDB returned HTTP ${res.status} for movie ${metadataId}`);
           return null;
         }
-        const data = (await res.json()) as any;
+        interface TmdbMovieReleaseResponse {
+          release_date?: string;
+          release_dates?: {
+            results?: Array<{
+              release_dates?: Array<{
+                type?: number;
+                release_date?: string;
+              }>;
+            }>;
+          };
+        }
+        const data = (await res.json()) as TmdbMovieReleaseResponse;
 
         const candidateDates: string[] = [];
         if (data.release_date) {
@@ -94,7 +105,7 @@ export class ReleaseGatingService {
             if (Array.isArray(country.release_dates)) {
               for (const rd of country.release_dates) {
                 // type 3: Theatrical, type 4: Digital, type 5: Physical
-                if (rd.release_date && [3, 4, 5].includes(rd.type)) {
+                if (rd.release_date && rd.type && [3, 4, 5].includes(rd.type)) {
                   candidateDates.push(rd.release_date.slice(0, 10));
                 }
               }
@@ -115,11 +126,19 @@ export class ReleaseGatingService {
           this.logger?.warn(`TMDB returned HTTP ${res.status} for tv ${metadataId} season ${sNum}`);
           return null;
         }
-        const data = (await res.json()) as any;
+        interface TmdbEpisodeInfo {
+          episode_number?: number;
+          air_date?: string | null;
+        }
+        interface TmdbSeasonResponse {
+          air_date?: string | null;
+          episodes?: TmdbEpisodeInfo[];
+        }
+        const data = (await res.json()) as TmdbSeasonResponse;
 
         // If targetEpisode is provided, look up that specific episode's air date first
         if (targetEpisode && Array.isArray(data.episodes)) {
-          const ep = data.episodes.find((e: any) => e.episode_number === targetEpisode);
+          const ep = data.episodes.find((e: TmdbEpisodeInfo) => e.episode_number === targetEpisode);
           if (ep && ep.air_date) {
             return ep.air_date.slice(0, 10);
           }
@@ -194,9 +213,17 @@ export class ReleaseGatingService {
         )}/season/${encodeURIComponent(targetSeason)}?api_key=${encodeURIComponent(this.tmdbApiKey)}`;
         const seasonRes = await fetch(seasonUrl);
         if (seasonRes.ok) {
-          const seasonData = (await seasonRes.json()) as any;
+          interface TmdbEp {
+            episode_number?: number;
+            air_date?: string | null;
+          }
+          interface TmdbSeason {
+            air_date?: string | null;
+            episodes?: TmdbEp[];
+          }
+          const seasonData = (await seasonRes.json()) as TmdbSeason;
           if (entry.targetEpisode && Array.isArray(seasonData.episodes)) {
-            const ep = seasonData.episodes.find((e: any) => e.episode_number === entry.targetEpisode);
+            const ep = seasonData.episodes.find((e: TmdbEp) => e.episode_number === entry.targetEpisode);
             if (ep && ep.air_date) {
               foundAirDate = ep.air_date.slice(0, 10);
             }
@@ -213,7 +240,13 @@ export class ReleaseGatingService {
           )}?api_key=${encodeURIComponent(this.tmdbApiKey)}`;
           const res = await fetch(url);
           if (res.ok) {
-            const data = (await res.json()) as any;
+            interface TmdbShow {
+              next_episode_to_air?: {
+                season_number?: number;
+                air_date?: string;
+              } | null;
+            }
+            const data = (await res.json()) as TmdbShow;
             const nextEpisode = data.next_episode_to_air;
             if (nextEpisode && nextEpisode.season_number === targetSeason && nextEpisode.air_date) {
               foundAirDate = nextEpisode.air_date.slice(0, 10);

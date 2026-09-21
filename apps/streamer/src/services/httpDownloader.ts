@@ -58,7 +58,7 @@ export class DirectDownloader implements IDirectDownloader {
       throw new Error('Response body is null');
     }
 
-    const nodeReadable = Readable.fromWeb(res.body as any);
+    const nodeReadable = Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]);
     await pipeline(nodeReadable, fileStream);
 
     return destPath;

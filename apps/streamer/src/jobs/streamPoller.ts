@@ -91,8 +91,8 @@ export class StreamPoller {
             if (!unrestricted || unrestricted.length === 0) {
               throw new Error('No playable stream links returned by Real-Debrid');
             }
-          } catch (unrestrictErr: any) {
-            const errMessage = unrestrictErr?.message || '';
+          } catch (unrestrictErr: unknown) {
+            const errMessage = (unrestrictErr as Error)?.message || '';
             const isInfringing = errMessage.includes('infringing_file') || errMessage.includes('451');
             const userReason = isInfringing
               ? 'This release has been blocked by Real-Debrid (DMCA takedown: infringing file). Please choose another release.'

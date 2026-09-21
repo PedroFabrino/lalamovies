@@ -4,22 +4,7 @@ import { buildApp } from '../src/app';
 import { IJellyfinService, InvalidCredentialsError, JellyfinApiError } from '../src/services/jellyfin';
 import { authMiddleware, adminGuard } from '../src/middleware/auth';
 
-class MockJellyfinService implements IJellyfinService {
-  async authenticateUser(username: string, password: string) {
-    if (username === 'bad_user' || password === 'wrong_pass') {
-      throw new InvalidCredentialsError();
-    }
-    if (username === 'server_error') {
-      throw new JellyfinApiError('Connection refused');
-    }
-    return {
-      accessToken: `token_${username}`,
-      userId: `jf_${username}`,
-      username,
-      isAdmin: false,
-    };
-  }
-}
+import { MockJellyfinService } from './fixtures/mockJellyfin';
 
 describe('Auth Integration', () => {
   let app: FastifyInstance;

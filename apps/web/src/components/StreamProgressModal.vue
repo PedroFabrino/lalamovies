@@ -217,7 +217,9 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 async function checkStreamStatus() {
   if (!props.streamId || status.value !== 'pending') return;
   try {
-    const res = await api.get<{ stream: any }>(`/streams/${props.streamId}`);
+    const res = await api.get<{ stream: { id?: string; status?: string; jellyfinUrl?: string; errorMessage?: string; error?: string } }>(
+      `/streams/${props.streamId}`
+    );
     if (res && res.stream) {
       if (res.stream.status === 'ready') {
         status.value = 'ready';
@@ -226,8 +228,8 @@ async function checkStreamStatus() {
         }
         stopPolling();
         emit('ready', {
-          streamId: res.stream.id,
-          jellyfinUrl: currentJellyfinUrl.value,
+          streamId: res.stream.id || props.streamId,
+          jellyfinUrl: currentJellyfinUrl.value || '',
         });
       } else if (res.stream.status === 'error' || res.stream.status === 'expired') {
         status.value = 'error';
@@ -310,16 +312,18 @@ function handleWebSocketMessage(event: MessageEvent) {
 
 onMounted(() => {
   window.addEventListener('message', handleWebSocketMessage);
-  if ((window as any).__mdm_ws) {
-    (window as any).__mdm_ws.addEventListener('message', handleWebSocketMessage);
+  const mdmWs = (window as unknown as { __mdm_ws?: WebSocket }).__mdm_ws;
+  if (mdmWs) {
+    mdmWs.addEventListener('message', handleWebSocketMessage);
   }
 });
 
 onUnmounted(() => {
   stopPolling();
   window.removeEventListener('message', handleWebSocketMessage);
-  if ((window as any).__mdm_ws) {
-    (window as any).__mdm_ws.removeEventListener('message', handleWebSocketMessage);
+  const mdmWs = (window as unknown as { __mdm_ws?: WebSocket }).__mdm_ws;
+  if (mdmWs) {
+    mdmWs.removeEventListener('message', handleWebSocketMessage);
   }
 });
 </script>

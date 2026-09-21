@@ -6,7 +6,9 @@ import { initDatabase } from '../db';
 import { FileSystemService } from '../services/fileSystem';
 import { UnarchiveService } from '../services/unarchive';
 import { JellyfinService } from '../services/jellyfin';
-import { runCompressedDownloadsRecovery } from '../services/unarchiveRecovery';
+import { RequestsRepository } from '../services/requestsRepository';
+import { RequestStateMachine } from '../services/requestStateMachine';
+import { runCorruptedArchiveRecovery } from '../services/unarchiveRecovery';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,13 +35,16 @@ async function main() {
   const fileSystem = new FileSystemService();
   const unarchiveService = new UnarchiveService();
   const jellyfin = new JellyfinService();
+  const requestsRepo = new RequestsRepository(db);
+  const stateMachine = new RequestStateMachine(requestsRepo, undefined, jellyfin);
 
-  console.log('Running compressed downloads recovery...');
-  const result = await runCompressedDownloadsRecovery({
+  console.log('Running corrupted archive recovery...');
+  const result = await runCorruptedArchiveRecovery({
     db,
     unarchiveService,
     fileSystem,
     jellyfin,
+    stateMachine,
     stagingPath: process.env.STAGING_PATH,
     mediaPath: process.env.MEDIA_PATH,
     logger: {

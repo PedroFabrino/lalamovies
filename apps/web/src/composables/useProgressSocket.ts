@@ -45,7 +45,7 @@ export function useProgressSocket() {
       ws.onopen = () => {
         isConnected.value = true;
         retryDelay = 1000;
-        (window as any).__mdm_ws = ws;
+        (window as unknown as { __mdm_ws?: WebSocket }).__mdm_ws = ws;
       };
 
       ws.onmessage = (event: MessageEvent) => {

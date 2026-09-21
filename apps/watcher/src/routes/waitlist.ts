@@ -790,11 +790,11 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
         polled: pollResult?.polled || 0,
         notified: pollResult?.notified || 0,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       app.log.error(err, 'Failed running poll-now');
       return reply.status(500).send({
         error: 'Internal Server Error',
-        message: err.message,
+        message: (err as Error).message,
       });
     }
   });
@@ -829,7 +829,7 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
 
     try {
       await app.poller?.pollOnce();
-    } catch (err: any) {
+    } catch (err: unknown) {
       app.log.warn(err, 'Manual poller tick failed');
     }
 

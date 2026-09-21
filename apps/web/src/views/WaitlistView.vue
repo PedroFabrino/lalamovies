@@ -757,9 +757,34 @@ async function setView(view: 'mine' | 'all') {
   await loadEntries();
 }
 
+interface WaitlistCandidate {
+  id: string | number;
+  source?: string;
+  title: string;
+  year?: number;
+  posterUrl?: string | null;
+  releaseDate?: string | null;
+  [key: string]: unknown;
+}
+
+interface SeriesProgressResponse {
+  inLibrary?: boolean;
+  hasExisting?: boolean;
+  status?: string | null;
+  highestSeason: number | null;
+  highestEpisode: number | null;
+  existingEpisodes: number[];
+  suggestedSeason: number;
+  suggestedEpisode: number;
+  existingMediaType?: string;
+  existingTitle?: string;
+  airDate?: string | null;
+  [key: string]: unknown;
+}
+
 // Live ticker for notification countdowns
 const now = ref(Date.now());
-let tickerInterval: any = null;
+let tickerInterval: ReturnType<typeof setInterval> | null = null;
 
 onMounted(async () => {
   tickerInterval = setInterval(() => {
@@ -790,25 +815,14 @@ const isSubmitting = ref(false);
 
 const searchQuery = ref('');
 const searchMediaType = ref<'movie' | 'tv_show' | 'anime'>('movie');
-const candidates = ref<any[]>([]);
+const candidates = ref<WaitlistCandidate[]>([]);
 
-const selectedCandidate = ref<any | null>(null);
+const selectedCandidate = ref<WaitlistCandidate | null>(null);
 const selectedMediaType = ref<'movie' | 'tv_show' | 'anime'>('movie');
 const selectedSeasonNumber = ref<number>(1);
 const selectedEpisodeNumber = ref<number | null>(1);
 const targetAirDate = ref<string | null>(null);
-const seriesProgress = ref<{
-  highestSeason: number | null;
-  highestEpisode: number | null;
-  existingEpisodes: number[];
-  suggestedSeason: number;
-  suggestedEpisode: number;
-  existingTitle: string | null;
-  hasExisting: boolean;
-  airDate?: string | null;
-  inLibrary?: boolean;
-  status?: string | null;
-} | null>(null);
+const seriesProgress = ref<SeriesProgressResponse | null>(null);
 
 const libraryStatus = ref<{ inLibrary: boolean; hasExisting: boolean; status?: string | null } | null>(null);
 const isCheckingLibrary = ref(false);
@@ -838,7 +852,7 @@ async function checkCandidateGuards() {
       if (selectedEpisodeNumber.value) params.append('episodeNumber', String(selectedEpisodeNumber.value));
     }
 
-    const data = await api.get<any>(`/requests/series-progress?${params.toString()}`);
+    const data = await api.get<SeriesProgressResponse>(`/requests/series-progress?${params.toString()}`);
     libraryStatus.value = {
       inLibrary: Boolean(data?.inLibrary),
       hasExisting: Boolean(data?.hasExisting),
@@ -849,7 +863,7 @@ async function checkCandidateGuards() {
       seriesProgress.value = data;
       if (data?.hasExisting) {
         if (data.existingMediaType && ['tv_show', 'anime'].includes(data.existingMediaType)) {
-          selectedMediaType.value = data.existingMediaType;
+          selectedMediaType.value = data.existingMediaType as 'tv_show' | 'anime';
         }
         if (data.existingTitle && selectedCandidate.value) {
           selectedCandidate.value.title = data.existingTitle;
@@ -871,7 +885,7 @@ async function checkCandidateGuards() {
   // 2. Trackers release check
   isCheckingReleases.value = true;
   try {
-    const relData = await api.post<any>('/requests/search-releases', {
+    const relData = await api.post<{ releases?: unknown[] }>('/requests/search-releases', {
       metadataId: String(selectedCandidate.value.id),
       metadataSource: selectedCandidate.value.source || 'tmdb',
       mediaType: selectedMediaType.value,
@@ -941,8 +955,8 @@ async function initPrefilledModal() {
   isPrefilled.value = true;
   modalStep.value = 'confirm';
   const query = route.query;
-  const mType = (query.mediaType as any) || 'movie';
-  selectedMediaType.value = ['movie', 'tv_show', 'anime'].includes(mType) ? mType : 'movie';
+  const mType = typeof query.mediaType === 'string' ? query.mediaType : 'movie';
+  selectedMediaType.value = ['movie', 'tv_show', 'anime'].includes(mType) ? (mType as 'movie' | 'tv_show' | 'anime') : 'movie';
   selectedSeasonNumber.value = query.seasonNumber ? Number(query.seasonNumber) : 1;
   selectedEpisodeNumber.value = query.targetEpisode || query.episodeNumber ? Number(query.targetEpisode || query.episodeNumber) : 1;
   if (query.releaseDate) {
@@ -965,19 +979,19 @@ async function handleSearch() {
   hasSearched.value = true;
   candidates.value = [];
   try {
-    const data = await api.post<{ candidates: any[] }>('/requests/search-metadata', {
+    const data = await api.post<{ candidates: WaitlistCandidate[] }>('/requests/search-metadata', {
       query: searchQuery.value.trim(),
       mediaType: searchMediaType.value,
     });
     candidates.value = data.candidates || [];
-  } catch (err: any) {
-    waitlistStore.showToast(err.message || 'Failed to search metadata', 'error');
+  } catch (err: unknown) {
+    waitlistStore.showToast((err as Error).message || 'Failed to search metadata', 'error');
   } finally {
     isSearching.value = false;
   }
 }
 
-async function selectCandidate(candidate: any) {
+async function selectCandidate(candidate: WaitlistCandidate) {
   selectedCandidate.value = candidate;
   selectedMediaType.value = searchMediaType.value;
   selectedSeasonNumber.value = 1;
@@ -997,7 +1011,7 @@ async function submitWaitlistEntry() {
     await waitlistStore.addEntry({
       mediaType: selectedMediaType.value,
       metadataId: String(selectedCandidate.value.id),
-      metadataSource: selectedCandidate.value.source || 'tmdb',
+      metadataSource: selectedCandidate.value.source === 'anilist' ? 'anilist' : 'tmdb',
       title: selectedCandidate.value.title,
       year: selectedCandidate.value.year || undefined,
       seasonNumber: ['tv_show', 'anime'].includes(selectedMediaType.value) ? (selectedSeasonNumber.value || 1) : undefined,
@@ -1019,15 +1033,15 @@ const isCheckingAll = ref(false);
 async function handleCheckEntry(entry: WaitlistEntry) {
   checkingEntryId.value = entry.id;
   try {
-    const res = await api.post<any>(`/waitlist/${entry.id}/check`);
+    const res = await api.post<{ entry?: { status?: string } }>(`/waitlist/${entry.id}/check`);
     await loadEntries();
     if (res?.entry?.status === 'notified') {
       waitlistStore.showToast(`Found release for "${entry.title}"! Auto-downloading soon.`, 'success');
     } else {
       waitlistStore.showToast(`Checked trackers for "${entry.title}". Still waiting for quality release.`, 'info');
     }
-  } catch (err: any) {
-    waitlistStore.showToast(err.message || 'Failed to check trackers', 'error');
+  } catch (err: unknown) {
+    waitlistStore.showToast((err as Error).message || 'Failed to check trackers', 'error');
   } finally {
     checkingEntryId.value = null;
   }
@@ -1036,11 +1050,11 @@ async function handleCheckEntry(entry: WaitlistEntry) {
 async function handleCheckAll() {
   isCheckingAll.value = true;
   try {
-    await api.post<any>('/waitlist/poll-now');
+    await api.post<unknown>('/waitlist/poll-now');
     await loadEntries();
     waitlistStore.showToast('Checked trackers for all active entries.', 'success');
-  } catch (err: any) {
-    waitlistStore.showToast(err.message || 'Failed to poll trackers', 'error');
+  } catch (err: unknown) {
+    waitlistStore.showToast((err as Error).message || 'Failed to poll trackers', 'error');
   } finally {
     isCheckingAll.value = false;
   }

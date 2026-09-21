@@ -91,7 +91,7 @@ export const useWaitlistStore = defineStore('waitlist', () => {
   async function addEntry(payload: CreateWaitlistPayload): Promise<WaitlistEntry> {
     try {
       const data = await api.post<WaitlistEntry | { entry: WaitlistEntry }>('/waitlist', payload);
-      const created = 'entry' in data && (data as any).entry ? (data as any).entry : (data as WaitlistEntry);
+      const created = 'entry' in data && (data as { entry: WaitlistEntry }).entry ? (data as { entry: WaitlistEntry }).entry : (data as WaitlistEntry);
       entries.value = [created, ...entries.value.filter((e) => e.id !== created.id)];
       showToast(`Added "${created.title}" to waitlist`, 'success');
       return created;

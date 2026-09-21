@@ -773,8 +773,8 @@ async function fetchLibrary() {
       shows: res.shows || [],
       anime: res.anime || [],
     };
-  } catch (err: any) {
-    error.value = err.message || 'Failed to load library catalog';
+  } catch (err: unknown) {
+    error.value = (err as Error).message || 'Failed to load library catalog';
   } finally {
     loading.value = false;
   }
@@ -801,8 +801,8 @@ async function executeMove() {
     showMoveModal.value = false;
     clearSelection();
     await fetchLibrary();
-  } catch (err: any) {
-    requestsStore.showToast(`Failed to move media: ${err.message || 'Unknown error'}`, 'error');
+  } catch (err: unknown) {
+    requestsStore.showToast(`Failed to move media: ${(err as Error).message || 'Unknown error'}`, 'error');
   } finally {
     isMoving.value = false;
   }
@@ -823,8 +823,8 @@ async function executeDelete() {
     showDeleteModal.value = false;
     clearSelection();
     await fetchLibrary();
-  } catch (err: any) {
-    requestsStore.showToast(`Failed to delete media: ${err.message || 'Unknown error'}`, 'error');
+  } catch (err: unknown) {
+    requestsStore.showToast(`Failed to delete media: ${(err as Error).message || 'Unknown error'}`, 'error');
   } finally {
     isDeleting.value = false;
   }

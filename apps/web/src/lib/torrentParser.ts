@@ -5,12 +5,21 @@ export interface ParsedTorrentClient {
   magnetUri: string;
 }
 
-export async function parseTorrentFile(fileOrBuffer: File | ArrayBuffer | Uint8Array): Promise<ParsedTorrentClient> {
+export type ParsedTorrent = ParsedTorrentClient;
+
+type BencodeValue = number | Uint8Array | BencodeValue[] | { [key: string]: BencodeValue };
+
+interface WebTorrentInfoDict {
+  name?: string | Uint8Array;
+  length?: number;
+  files?: Array<{ length?: number }>;
+  [key: string]: unknown;
+}
+
+export async function parseTorrentFile(fileOrBuffer: File | Blob | Uint8Array): Promise<ParsedTorrent> {
   let uint8: Uint8Array;
   if (fileOrBuffer instanceof Uint8Array) {
     uint8 = fileOrBuffer;
-  } else if (fileOrBuffer instanceof ArrayBuffer) {
-    uint8 = new Uint8Array(fileOrBuffer);
   } else {
     const arrayBuffer = await fileOrBuffer.arrayBuffer();
     uint8 = new Uint8Array(arrayBuffer);
@@ -21,7 +30,7 @@ export async function parseTorrentFile(fileOrBuffer: File | ArrayBuffer | Uint8A
   let infoEnd = -1;
   const decoder = new TextDecoder('utf-8');
 
-  function decode(): any {
+  function decode(): BencodeValue {
     if (pos >= uint8.length) {
       throw new Error('Unexpected end of torrent file');
     }
@@ -43,7 +52,7 @@ export async function parseTorrentFile(fileOrBuffer: File | ArrayBuffer | Uint8A
     if (byte === 0x6c) {
       // 'l' -> list
       pos++;
-      const list: any[] = [];
+      const list: BencodeValue[] = [];
       while (pos < uint8.length && uint8[pos] !== 0x65) {
         list.push(decode());
       }
@@ -54,7 +63,7 @@ export async function parseTorrentFile(fileOrBuffer: File | ArrayBuffer | Uint8A
     if (byte === 0x64) {
       // 'd' -> dictionary
       pos++;
-      const dict: Record<string, any> = {};
+      const dict: Record<string, BencodeValue> = {};
       while (pos < uint8.length && uint8[pos] !== 0x65) {
         const key = decodeString();
         const isInfo = key === 'info' && infoStart === -1;
@@ -97,7 +106,7 @@ export async function parseTorrentFile(fileOrBuffer: File | ArrayBuffer | Uint8A
   }
 
   const root = decode();
-  if (!root || typeof root !== 'object' || !root.info) {
+  if (!root || typeof root !== 'object' || root instanceof Uint8Array || Array.isArray(root) || !('info' in root)) {
     throw new Error('Invalid torrent: missing info dictionary');
   }
 
@@ -110,7 +119,8 @@ export async function parseTorrentFile(fileOrBuffer: File | ArrayBuffer | Uint8A
   const hashArr = Array.from(new Uint8Array(hashBuf));
   const infoHash = hashArr.map((b) => b.toString(16).padStart(2, '0')).join('');
 
-  const rawName = root.info.name;
+  const info = root.info as WebTorrentInfoDict;
+  const rawName = info?.name;
   const name = typeof rawName === 'string'
     ? rawName
     : rawName instanceof Uint8Array
@@ -118,10 +128,10 @@ export async function parseTorrentFile(fileOrBuffer: File | ArrayBuffer | Uint8A
       : 'Unknown Torrent';
 
   let totalSize = 0;
-  if (typeof root.info.length === 'number') {
-    totalSize = root.info.length;
-  } else if (Array.isArray(root.info.files)) {
-    for (const f of root.info.files) {
+  if (typeof info?.length === 'number') {
+    totalSize = info.length;
+  } else if (Array.isArray(info?.files)) {
+    for (const f of info.files) {
       if (f && typeof f.length === 'number') {
         totalSize += f.length;
       }

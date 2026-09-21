@@ -17,65 +17,8 @@ import {
 import { IJellyfinService, JellyfinService } from '../src/services/jellyfin';
 import { IQBittorrentService, TorrentInfo } from '../src/services/qbittorrent';
 
-class MockQBittorrent implements IQBittorrentService {
-  public removedTorrents: { hash: string; deleteFiles?: boolean }[] = [];
-
-  async addTorrent(): Promise<string> {
-    return 'qb_hash_1';
-  }
-  async getActiveTorrentCount(): Promise<number> {
-    return 0;
-  }
-  async getTorrentStatus(hash: string): Promise<TorrentInfo | null> {
-    return {
-      hash,
-      name: 'test',
-      progress: 1,
-      dlspeed: 0,
-      eta: 0,
-      state: 'seeding',
-      size: 1000,
-    };
-  }
-  async removeTorrent(hash: string, deleteFiles?: boolean): Promise<void> {
-    this.removedTorrents.push({ hash, deleteFiles });
-  }
-}
-
-class MockJellyfin implements IJellyfinService {
-  public refreshed = false;
-  public playHistory: Record<string, string> = {};
-  public userPlayHistories: Record<string, Record<string, string>> = {};
-  public deletedUserIds: Set<string> = new Set();
-  public queriedUserIds: string[] = [];
-
-  async authenticateUser() {
-    return { accessToken: 'token', userId: 'jf_u1', username: 'alice', isAdmin: true };
-  }
-  async createUser() {
-    return 'jf_u2';
-  }
-  async deleteUser(userId: string) {
-    this.deletedUserIds.add(userId);
-  }
-
-  async refreshLibrary(): Promise<void> {
-    this.refreshed = true;
-  }
-
-  async getPlayHistory(userId?: string): Promise<Record<string, string>> {
-    if (userId) {
-      this.queriedUserIds.push(userId);
-      if (this.deletedUserIds.has(userId)) {
-        const err: any = new Error('User not found (HTTP 404)');
-        err.statusCode = 404;
-        throw err;
-      }
-      return this.userPlayHistories[userId] || {};
-    }
-    return this.playHistory;
-  }
-}
+import { MockQBittorrent } from './fixtures/mockQBittorrent';
+import { MockJellyfin } from './fixtures/mockJellyfin';
 
 class MockNotificationService implements INotificationService {
   public sentEvents: { event: NotificationEvent; payload: NotificationPayload }[] = [];
@@ -264,7 +207,7 @@ describe('CleanupService, Notifiers & Cron (Ticket 09)', () => {
         buildLibraryPath: () => '',
         hardlink: () => {},
         hardlinkDirectory: () => {},
-        getStorageFootprintBytes: () => 80 * 1024 * 1024 * 1024,
+        getStorageFootprintBytes: async () => 80 * 1024 * 1024 * 1024,
       };
 
       const cleanup = new CleanupService(
@@ -1578,7 +1521,7 @@ describe('CleanupService, Notifiers & Cron (Ticket 09)', () => {
           buildLibraryPath: () => '',
           hardlink: () => {},
           hardlinkDirectory: () => {},
-          getStorageFootprintBytes: () => 85 * 1024 * 1024 * 1024, // 85 GB footprint
+          getStorageFootprintBytes: async () => 85 * 1024 * 1024 * 1024, // 85 GB footprint
         }
       );
 

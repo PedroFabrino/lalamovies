@@ -9,32 +9,11 @@ import { IJellyfinService } from '../src/services/jellyfin';
 import { IQBittorrentService } from '../src/services/qbittorrent';
 import { INotificationService } from '../src/services/notifications';
 
-class MockQBittorrent implements IQBittorrentService {
-  async addTorrent(): Promise<string> { return 'hash'; }
-  async getActiveTorrentCount(): Promise<number> { return 0; }
-  async getTorrentStatus(): Promise<any> { return null; }
-  async removeTorrent(): Promise<void> {}
-}
+import { MockQBittorrent } from './fixtures/mockQBittorrent';
+import { MockJellyfin } from './fixtures/mockJellyfin';
 
 class MockNotifications implements INotificationService {
   async send(): Promise<void> {}
-}
-
-class MockJellyfin implements IJellyfinService {
-  public userPlayHistories: Record<string, Record<string, string>> = {};
-  public globalPlayHistory: Record<string, string> = {};
-
-  async authenticateUser(): Promise<any> { return null; }
-  async createUser(): Promise<string> { return ''; }
-  async deleteUser(): Promise<void> {}
-  async refreshLibrary(): Promise<void> {}
-
-  async getPlayHistory(userId?: string): Promise<Record<string, string>> {
-    if (userId) {
-      return this.userPlayHistories[userId] || {};
-    }
-    return this.globalPlayHistory;
-  }
 }
 
 describe('Cleanup Bug Reproduction - Issue: full library marked for deletion without taking watch status into account', () => {
@@ -154,7 +133,7 @@ describe('Cleanup Bug Reproduction - Issue: full library marked for deletion wit
         buildLibraryPath: () => '',
         hardlink: () => {},
         hardlinkDirectory: () => {},
-        getStorageFootprintBytes: () => 192 * 1024 * 1024 * 1024,
+        getStorageFootprintBytes: async () => 192 * 1024 * 1024 * 1024,
       };
 
       const cleanup = new CleanupService(

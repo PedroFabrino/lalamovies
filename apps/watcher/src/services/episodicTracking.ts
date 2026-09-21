@@ -97,8 +97,20 @@ export class EpisodicTrackingService {
         return this.db.select().from(watchRequests).where(eq(watchRequests.id, entry.id)).get() || null;
       }
 
-      const seasonData = (await seasonRes.json()) as any;
-      const showData = (await showRes.json()) as any;
+      interface TmdbEpInfo {
+        episode_number: number;
+        air_date?: string | null;
+      }
+      interface TmdbSeasonData {
+        episodes?: TmdbEpInfo[];
+        episode_count?: number;
+      }
+      interface TmdbShowData {
+        next_episode_to_air?: unknown;
+      }
+
+      const seasonData = (await seasonRes.json()) as TmdbSeasonData;
+      const showData = (await showRes.json()) as TmdbShowData;
 
       const episodeCount = seasonData.episodes ? seasonData.episodes.length : (seasonData.episode_count ?? 0);
       const nextEpisodeToAir = showData.next_episode_to_air ?? null;
@@ -106,7 +118,7 @@ export class EpisodicTrackingService {
       if (nextEpisodeToAir !== null && newTriggeredCount < episodeCount) {
         // Next episode exists and more episodes remain in the season
         const nextTargetEpisode = (entry.targetEpisode ?? 1) + 1;
-        const nextEp = seasonData.episodes?.find((e: any) => e.episode_number === nextTargetEpisode);
+        const nextEp = seasonData.episodes?.find((e: TmdbEpInfo) => e.episode_number === nextTargetEpisode);
         const nextEpAirDate = nextEp?.air_date ? nextEp.air_date.slice(0, 10) : null;
         const today = new Date().toISOString().slice(0, 10);
         const nextStatus = nextEpAirDate && nextEpAirDate > today ? 'pending_release' : 'checking';

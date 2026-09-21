@@ -1,7 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
-import { eq, and, inArray, desc } from 'drizzle-orm';
+import { eq, inArray, desc } from 'drizzle-orm';
 import { assertPublicTracker } from '../middleware/assertPublicTracker';
 import { ephemeralStreams } from '../db';
 
@@ -27,7 +27,7 @@ export const streamRoutes: FastifyPluginAsync = async (app) => {
     const userId = request.headers['x-user-id'] as string | undefined;
     const userRole = request.headers['x-user-role'] as string | undefined;
 
-    let query = app.db
+    const query = app.db
       .select()
       .from(ephemeralStreams)
       .where(inArray(ephemeralStreams.status, ['pending', 'ready']))
@@ -167,8 +167,9 @@ export const streamRoutes: FastifyPluginAsync = async (app) => {
       app.log.error(err, 'Failed to initialize instant stream');
       const msg = (err as Error).message || 'Failed to start instant stream';
       const isInfringing = msg.includes('451') || msg.includes('infringing_file');
-      if (isInfringing && (app as any).streamPoller) {
-        (app as any).streamPoller.broadcastToMainApi?.({
+      const poller = (app as unknown as { streamPoller?: { broadcastToMainApi?: (data: unknown) => Promise<unknown> } }).streamPoller;
+      if (isInfringing && poller) {
+        poller.broadcastToMainApi?.({
           type: 'stream_error',
           error: msg,
           isInfringing: true,

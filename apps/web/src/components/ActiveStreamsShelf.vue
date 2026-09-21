@@ -169,8 +169,8 @@ async function handleEvict(stream: EphemeralStreamItem) {
     await api.delete(`/streams/${stream.id}`);
     streams.value = streams.value.filter((s) => s.id !== stream.id);
     emit('evicted', stream.id);
-  } catch (err: any) {
-    alert(err.message || 'Failed to evict stream');
+  } catch (err: unknown) {
+    alert((err as Error).message || 'Failed to evict stream');
   }
 }
 
@@ -188,15 +188,17 @@ function handleWsMessage(event: MessageEvent) {
 onMounted(() => {
   fetchStreams();
   window.addEventListener('message', handleWsMessage);
-  if ((window as any).__mdm_ws) {
-    (window as any).__mdm_ws.addEventListener('message', handleWsMessage);
+  const mdmWs = (window as unknown as { __mdm_ws?: WebSocket }).__mdm_ws;
+  if (mdmWs) {
+    mdmWs.addEventListener('message', handleWsMessage);
   }
 });
 
 onUnmounted(() => {
   window.removeEventListener('message', handleWsMessage);
-  if ((window as any).__mdm_ws) {
-    (window as any).__mdm_ws.removeEventListener('message', handleWsMessage);
+  const mdmWs = (window as unknown as { __mdm_ws?: WebSocket }).__mdm_ws;
+  if (mdmWs) {
+    mdmWs.removeEventListener('message', handleWsMessage);
   }
 });
 

@@ -922,8 +922,8 @@ async function handleInstantStream(item: DiscoveryItem) {
       streamModalStatus.value = 'ready';
     }
     activeStreamsShelfRef.value?.fetchStreams();
-  } catch (err: any) {
-    const errorMsg = err.message || 'Failed to initialize instant stream';
+  } catch (err: unknown) {
+    const errorMsg = (err as Error).message || 'Failed to initialize instant stream';
     await handleStreamPlaybackError({
       error: errorMsg,
       isInfringing: errorMsg.includes('451') || errorMsg.includes('infringing'),
@@ -979,12 +979,13 @@ async function handleConfirmAddToWaitlist() {
     });
     hasAddedToWaitlistFromModal.value = true;
     requestsStore.showToast(`Added "${item.title}" to your waitlist!`, 'success');
-  } catch (err: any) {
-    if (err?.status === 409 || err?.message?.includes('already')) {
+  } catch (err: unknown) {
+    const error = err as { status?: number; message?: string } | null;
+    if (error?.status === 409 || error?.message?.includes('already')) {
       hasAddedToWaitlistFromModal.value = true;
       requestsStore.showToast(`"${item.title}" is already in your library or waitlist.`, 'info');
     } else {
-      requestsStore.showToast(`Failed to add to waitlist: ${err?.message || 'Unknown error'}`, 'error');
+      requestsStore.showToast(`Failed to add to waitlist: ${error?.message || 'Unknown error'}`, 'error');
     }
   } finally {
     isAddingToWaitlistFromModal.value = false;
@@ -1000,7 +1001,7 @@ function handleOpenPromotion(payload: { id?: string; streamId?: string; title: s
   showPromotionModal.value = true;
 }
 
-async function handleStreamPromoted(_payload: { streamId: string; requestId: string }) {
+async function handleStreamPromoted() {
   showPromotionModal.value = false;
   requestsStore.showToast('Stream successfully promoted to permanent library!', 'success');
   await requestsStore.fetchAll();
@@ -1043,8 +1044,8 @@ async function handleTranscribe(item: DownloadRequest) {
       requestsStore.updateRequest(res.request);
     }
     requestsStore.showToast('Subtitle transcription queued.', 'success');
-  } catch (err: any) {
-    requestsStore.showToast(err.message || 'Failed to queue subtitle transcription.', 'error');
+  } catch (err: unknown) {
+    requestsStore.showToast((err as Error).message || 'Failed to queue subtitle transcription.', 'error');
   } finally {
     transcribingId.value = null;
   }
@@ -1062,8 +1063,8 @@ async function handleRetry(item: DownloadRequest) {
         : `"${item.title}" reset to downloading.`,
       'success'
     );
-  } catch (err: any) {
-    requestsStore.showToast(err.message || 'Failed to retry request', 'error');
+  } catch (err: unknown) {
+    requestsStore.showToast((err as Error).message || 'Failed to retry request', 'error');
   } finally {
     retryingId.value = null;
   }

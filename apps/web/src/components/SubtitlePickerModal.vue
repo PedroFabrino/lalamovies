@@ -317,11 +317,12 @@ async function fetchSubtitles(): Promise<void> {
   try {
     const res = await api.get<{ subtitles: SubtitleItem[] }>(`/requests/${props.requestId}/subtitles`);
     subtitles.value = res.subtitles || [];
-  } catch (err: any) {
-    if (err?.status === 503) {
+  } catch (err: unknown) {
+    const error = err as { status?: number; message?: string } | null;
+    if (error?.status === 503) {
       serviceNotConfigured.value = true;
     } else {
-      loadError.value = err?.message || 'Failed to search subtitles';
+      loadError.value = error?.message || 'Failed to search subtitles';
     }
   } finally {
     loading.value = false;
@@ -338,8 +339,8 @@ async function handleApplySingle(fileId: number | string): Promise<void> {
     requestsStore.showToast('Subtitle applied successfully!', 'success');
     emit('applied', 1);
     emit('close');
-  } catch (err: any) {
-    applyError.value = err?.message || 'Failed to apply subtitle';
+  } catch (err: unknown) {
+    applyError.value = (err as { message?: string })?.message || 'Failed to apply subtitle';
   } finally {
     isApplying.value = false;
     applyingTarget.value = null;
@@ -366,8 +367,8 @@ async function handleApplySelected(): Promise<void> {
     );
     emit('applied', count);
     emit('close');
-  } catch (err: any) {
-    applyError.value = err?.message || 'Failed to apply selected subtitles';
+  } catch (err: unknown) {
+    applyError.value = (err as { message?: string })?.message || 'Failed to apply selected subtitles';
   } finally {
     isApplying.value = false;
     applyingTarget.value = null;
@@ -384,8 +385,8 @@ async function handleFetchBest(): Promise<void> {
     requestsStore.showToast('Best subtitle fetched successfully!', 'success');
     emit('applied', 1);
     emit('close');
-  } catch (err: any) {
-    applyError.value = err?.message || 'Failed to fetch best subtitle';
+  } catch (err: unknown) {
+    applyError.value = (err as { message?: string })?.message || 'Failed to fetch best subtitle';
   } finally {
     isApplying.value = false;
     applyingTarget.value = null;

@@ -38,7 +38,7 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
     request.currentUser = user;
     return;
   } catch {
-    // Check X-Service-Key for internal service-to-service communication
+    // Intentional catch: JWT parse/verification failures fall through to service-key check
     const serviceKey = request.server.serviceApiKey;
     const headerKey = request.headers['x-service-key'];
     const providedKey = Array.isArray(headerKey) ? headerKey[0] : headerKey;

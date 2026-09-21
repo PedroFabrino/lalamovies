@@ -1,7 +1,7 @@
 import cron, { ScheduledTask } from 'node-cron';
 import { eq } from 'drizzle-orm';
 import { WatcherDatabase } from '../db';
-import { watchRequests, WatchRequest } from '../db/schema';
+import { watchRequests } from '../db/schema';
 import { WatcherProwlarrService, CAM_REGEX } from '../services/prowlarr';
 import { sendWaitlistNotification, deleteDiscordMessage } from '../services/notifications';
 import { ReleaseGatingService } from '../services/releaseGating';
