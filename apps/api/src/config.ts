@@ -69,6 +69,9 @@ export function validateConfig(
   const exitOnError = options.exitOnError ?? !isTest;
 
   const rawEnv: Record<string, string | undefined> = { ...env };
+  if (!rawEnv.QB_URL && rawEnv.QBITTORRENT_URL) {
+    rawEnv.QB_URL = rawEnv.QBITTORRENT_URL;
+  }
   if (allowTestDefaults) {
     for (const [key, val] of Object.entries(testConfigDefaults)) {
       if (!rawEnv[key]) {
@@ -130,7 +133,7 @@ export const config: AppConfig = {
   SERVICE_API_KEY: process.env.SERVICE_API_KEY || testConfigDefaults.SERVICE_API_KEY || '',
   STAGING_PATH: process.env.STAGING_PATH || testConfigDefaults.STAGING_PATH || '',
   MEDIA_PATH: process.env.MEDIA_PATH || testConfigDefaults.MEDIA_PATH || '',
-  QB_URL: process.env.QB_URL || testConfigDefaults.QB_URL || '',
+  QB_URL: process.env.QB_URL || process.env.QBITTORRENT_URL || testConfigDefaults.QB_URL || '',
   JELLYFIN_URL: process.env.JELLYFIN_URL || testConfigDefaults.JELLYFIN_URL || '',
   PROWLARR_URL: process.env.PROWLARR_URL,
   TMDB_API_KEY: process.env.TMDB_API_KEY,
