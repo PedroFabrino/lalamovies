@@ -1,10 +1,6 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { randomUUID } from 'node:crypto';
 import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
-import { DownloadRequest } from '../../db/schema';
-import { RequestStatus } from '../../services/requestStateMachine';
+import { RequestServiceError } from '../../services/requestServiceTypes';
 
 const promoteSchema = z.object({
   userId: z.string().min(1),
@@ -42,72 +38,18 @@ export const promoteRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const data = parsed.data;
-    const requestId = randomUUID();
-    const now = new Date().toISOString();
-
-    const ext = path.extname(data.stagingPath) || '.mkv';
-    let destPath = '';
     try {
-      destPath = app.fileSystem.buildLibraryPath({
-        mediaType: data.mediaType,
-        title: data.title,
-        year: data.year,
-        seasonNumber: data.seasonNumber,
-        episodeNumber: data.episodeNumber,
-        ext,
-      });
-
-      if (fs.existsSync(data.stagingPath)) {
-        await app.fileSystem.hardlink(data.stagingPath, destPath);
-      }
+      const result = await app.requestService.promoteFromStream(parsed.data);
+      return reply.status(201).send(result);
     } catch (err) {
-      app.log.warn(err, 'Failed to hardlink stream promotion file');
+      if (err instanceof RequestServiceError) {
+        return reply.status(err.statusCode).send({
+          error: err.error,
+          message: err.message,
+        });
+      }
+      throw err;
     }
-
-    const initialRequest: DownloadRequest = {
-      id: requestId,
-      userId: data.userId,
-      magnetLink: 'promoted-from-stream',
-      mediaType: data.mediaType,
-      status: RequestStatus.SEEDING,
-      metadataId: data.metadataId,
-      metadataSource: data.metadataSource,
-      title: data.title,
-      year: data.year ?? null,
-      seasonNumber: data.seasonNumber ?? null,
-      episodeNumber: data.episodeNumber ?? null,
-      jellyfinPath: destPath || null,
-      keepFlag: false,
-      qbTorrentHash: null,
-      errorMessage: null,
-      requestedAt: now,
-      downloadedAt: now,
-      lastPlayedAt: null,
-      scheduledDeleteAt: null,
-      sizeBytes: data.sizeBytes ?? null,
-      torrentFilePath: null,
-      deferredReason: null,
-      transcriptionStatus: 'none',
-      transcriptionError: null,
-    };
-
-    app.requestsRepo.create(initialRequest);
-
-    try {
-      await app.stateMachine.transition(requestId, RequestStatus.DONE, {
-        refreshJellyfin: true,
-        broadcast: true,
-      });
-    } catch (transitionErr) {
-      app.log.warn(transitionErr, 'State machine transition for promoted stream encountered non-fatal error');
-    }
-
-    return reply.status(201).send({
-      requestId,
-      jellyfinPath: destPath,
-      status: 'completed',
-    });
   };
 
   // Support both /from-stream (existing caller API) and /promote-from-stream (ticket spec)

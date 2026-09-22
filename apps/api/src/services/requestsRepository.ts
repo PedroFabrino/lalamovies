@@ -15,7 +15,7 @@ import {
   REQUEST_LIST_SELECT_FIELDS,
 } from './requestsRepositoryTypes';
 
-export { RequestListItem, FindByCriteriaFilters, IRequestsRepository };
+export type { RequestListItem, FindByCriteriaFilters, IRequestsRepository };
 
 // Statuses considered "pending" (in-flight, poller and daemon care about these)
 const PENDING_STATUSES = [
@@ -270,8 +270,8 @@ export class RequestsRepository implements IRequestsRepository {
 
   findByCriteria(filters: FindByCriteriaFilters): DownloadRequest[] {
     const conditions = [];
-    if (filters.status) conditions.push(eq(downloadRequests.status, filters.status));
-    if (filters.mediaType) conditions.push(eq(downloadRequests.mediaType, filters.mediaType));
+    if (filters.status) conditions.push(eq(downloadRequests.status, filters.status as DownloadRequest['status']));
+    if (filters.mediaType) conditions.push(eq(downloadRequests.mediaType, filters.mediaType as DownloadRequest['mediaType']));
     if (filters.keepFlag !== undefined) conditions.push(eq(downloadRequests.keepFlag, filters.keepFlag));
     if (filters.downloadedAtBefore) conditions.push(lte(downloadRequests.downloadedAt, filters.downloadedAtBefore));
     if (filters.scheduledDeleteAtBefore) {
@@ -292,9 +292,11 @@ export class RequestsRepository implements IRequestsRepository {
     status: 'none' | 'pending' | 'transcribing' | 'done' | 'failed' | 'completed',
     extraFields?: Partial<Omit<DownloadRequest, 'id' | 'transcriptionStatus'>>
   ): void {
+    const effectiveStatus: DownloadRequest['transcriptionStatus'] =
+      status === 'done' ? 'completed' : (status as DownloadRequest['transcriptionStatus']);
     this.db
       .update(downloadRequests)
-      .set({ transcriptionStatus: status, ...(extraFields || {}) })
+      .set({ transcriptionStatus: effectiveStatus, ...(extraFields || {}) })
       .where(eq(downloadRequests.id, id))
       .run();
   }
@@ -305,7 +307,7 @@ export class RequestsRepository implements IRequestsRepository {
       .from(downloadRequests)
       .where(
         and(
-          eq(downloadRequests.transcriptionStatus, status),
+          eq(downloadRequests.transcriptionStatus, status as DownloadRequest['transcriptionStatus']),
           ne(downloadRequests.status, RequestStatus.DELETED)
         )
       )
@@ -319,7 +321,7 @@ export class RequestsRepository implements IRequestsRepository {
       .where(
         and(
           eq(downloadRequests.transcriptionStatus, 'pending'),
-          eq(downloadRequests.mediaType, mediaType),
+          eq(downloadRequests.mediaType, mediaType as DownloadRequest['mediaType']),
           ne(downloadRequests.status, RequestStatus.DELETED)
         )
       )
@@ -341,7 +343,7 @@ export class RequestsRepository implements IRequestsRepository {
       conditions.push(eq(downloadRequests.episodeNumber, episodeNumber));
     }
     for (const status of excludeStatuses) {
-      conditions.push(ne(downloadRequests.status, status));
+      conditions.push(ne(downloadRequests.status, status as DownloadRequest['status']));
     }
     return this.db.select().from(downloadRequests).where(and(...conditions)).all();
   }

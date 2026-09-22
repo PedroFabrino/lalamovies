@@ -82,6 +82,7 @@ export const REQUEST_LIST_SELECT_FIELDS = {
   lastPlayedAt: downloadRequests.lastPlayedAt,
   scheduledDeleteAt: downloadRequests.scheduledDeleteAt,
   sizeBytes: downloadRequests.sizeBytes,
+  torrentFilePath: downloadRequests.torrentFilePath,
   deferredReason: downloadRequests.deferredReason,
   transcriptionStatus: downloadRequests.transcriptionStatus,
   transcriptionError: downloadRequests.transcriptionError,

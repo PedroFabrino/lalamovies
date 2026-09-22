@@ -1,0 +1,88 @@
+import Database from 'better-sqlite3';
+import { AppDatabase } from './db';
+import { IJellyfinService } from './services/jellyfin';
+import { IMetadataService } from './services/metadata';
+import { IQBittorrentService } from './services/qbittorrent';
+import { ICleanupService } from './services/cleanup';
+import { INotificationService } from './services/notifications';
+import { IFileSystemService } from './services/fileSystem';
+import { IProwlarrService } from './services/prowlarr';
+import { IDiscoveryService } from './services/discovery';
+import { IUpNextService } from './services/upNext';
+import { DownloadPoller } from './jobs/downloadPoller';
+import { CleanupCron } from './jobs/cleanupCron';
+import { TranscriptionCron } from './jobs/transcriptionCron';
+import { ISubtitleInspectionService } from './services/subtitleInspection';
+import { ISubgenService } from './services/subgen';
+import { OpenSubtitlesService } from './services/openSubtitles';
+import { IUnarchiveService } from './services/unarchive';
+import { UnarchiveDaemon } from './jobs/unarchiveDaemon';
+import { IRequestStateMachine } from './services/requestStateMachine';
+import { IRequestsRepository } from './services/requestsRepository';
+import { IRequestService } from './services/requestServiceTypes';
+import { BroadcastFunction } from './routes/ws';
+
+export interface AppOptions {
+  dbPath?: string;
+  runMigrate?: boolean;
+  jellyfinService?: IJellyfinService;
+  metadataService?: IMetadataService;
+  qbittorrentService?: IQBittorrentService;
+  cleanupService?: ICleanupService;
+  notificationService?: INotificationService;
+  fileSystemService?: IFileSystemService;
+  prowlarrService?: IProwlarrService;
+  discoveryService?: IDiscoveryService;
+  upNextService?: IUpNextService;
+  downloadPoller?: DownloadPoller;
+  unarchiveService?: IUnarchiveService;
+  unarchiveDaemon?: UnarchiveDaemon;
+  cleanupCron?: CleanupCron;
+  transcriptionCron?: TranscriptionCron;
+  startPoller?: boolean;
+  startUnarchiveDaemon?: boolean;
+  startCleanupCron?: boolean;
+  startTranscriptionCron?: boolean;
+  jwtSecret?: string;
+  serviceApiKey?: string;
+  watcherUrl?: string;
+  streamerUrl?: string;
+  subtitleInspectionService?: ISubtitleInspectionService;
+  subgenService?: ISubgenService;
+  openSubtitlesService?: OpenSubtitlesService;
+  openSubtitlesApiKey?: string;
+  stateMachine?: IRequestStateMachine;
+  requestsRepo?: IRequestsRepository;
+  requestService?: IRequestService;
+}
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    db: AppDatabase;
+    sqlite: Database.Database;
+    jellyfin: IJellyfinService;
+    metadata: IMetadataService;
+    qbittorrent: IQBittorrentService;
+    cleanup: ICleanupService;
+    notifications: INotificationService;
+    cleanupCron: CleanupCron;
+    transcriptionCron: TranscriptionCron;
+    fileSystem: IFileSystemService;
+    prowlarr: IProwlarrService;
+    discovery: IDiscoveryService;
+    upNext: IUpNextService;
+    poller: DownloadPoller;
+    broadcast: BroadcastFunction;
+    serviceApiKey?: string;
+    watcherUrl?: string;
+    streamerUrl?: string;
+    subtitleInspection: ISubtitleInspectionService;
+    subgen: ISubgenService;
+    openSubtitles: OpenSubtitlesService;
+    unarchive: IUnarchiveService;
+    unarchiveDaemon: UnarchiveDaemon;
+    stateMachine: IRequestStateMachine;
+    requestsRepo: IRequestsRepository;
+    requestService: IRequestService;
+  }
+}

@@ -20,6 +20,7 @@ build
 *.db-shm
 *.sqlite
 *.sqlite3
+downloads/
 
 # OS and Editor
 .DS_Store

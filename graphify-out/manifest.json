@@ -18,9 +18,9 @@
     "semantic_hash": "26454771a910c1087406c3e92e30c8f9"
   },
   "apps/api/src/app.ts": {
-    "mtime": 1790020341.8956938,
-    "seen": 1790020450.3358676,
-    "ast_hash": "88187f4b3189aa45d51bf4d6afe595ba",
+    "mtime": 1790082519.735353,
+    "seen": 1790083216.086623,
+    "ast_hash": "bbef5ce36ce366cf54a7ed3c57822671",
     "semantic_hash": ""
   },
   "apps/api/src/db/index.ts": {
@@ -174,9 +174,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/jobs/transcriptionCron.ts": {
-    "mtime": 1790021364.5139656,
-    "seen": 1790021466.4028683,
-    "ast_hash": "423c437293bceed99a8eebc726714fad",
+    "mtime": 1790082203.1491323,
+    "seen": 1790083216.0929465,
+    "ast_hash": "dcb748ac2fa312499935c47f0b9a374b",
     "semantic_hash": ""
   },
   "apps/api/src/middleware/auth.ts": {
@@ -1638,9 +1638,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/requestsRepository.ts": {
-    "mtime": 1790014422.1216385,
-    "seen": 1790014549.67309,
-    "ast_hash": "75aad3cdeaf26672af29802f9b64635e",
+    "mtime": 1790083093.2272015,
+    "seen": 1790083216.107699,
+    "ast_hash": "781379241fe57118f7ce804b3775d12a",
     "semantic_hash": ""
   },
   "apps/api/tests/fileSystem_ensureDirectory.test.ts": {
@@ -1836,15 +1836,15 @@
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/batch.ts": {
-    "mtime": 1790013971.450727,
-    "seen": 1790014549.6671028,
-    "ast_hash": "d9fa9ac1da069087832180a69ecf61a4",
+    "mtime": 1790082544.2335653,
+    "seen": 1790083216.0976157,
+    "ast_hash": "9fcb0069c60b3eb47f747dbc53020238",
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/create.ts": {
-    "mtime": 1790013960.1425178,
-    "seen": 1790014549.6671028,
-    "ast_hash": "1712f39692a7d596c93eeb344f9ec599",
+    "mtime": 1790082535.5596983,
+    "seen": 1790083216.0976157,
+    "ast_hash": "58a312e7675f62041257e6cf31ed4195",
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/list.ts": {
@@ -1854,15 +1854,15 @@
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/promote.ts": {
-    "mtime": 1790021636.2031791,
-    "seen": 1790021729.5677924,
-    "ast_hash": "ddd6a6f7114a90ba90b9d8c7e26117f1",
+    "mtime": 1790082561.3570306,
+    "seen": 1790083216.0991647,
+    "ast_hash": "7d0cf19cb04bf915079ac31f88b3bbbf",
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/retry.ts": {
-    "mtime": 1790009122.9652934,
-    "seen": 1790009382.077369,
-    "ast_hash": "a7a62fedd3dbc12e5ce5761231f70653",
+    "mtime": 1790082552.00851,
+    "seen": 1790083216.0991647,
+    "ast_hash": "51ebd7f96d74ba4aace7c41ccac6a18b",
     "semantic_hash": ""
   },
   ".agents/rules/no-monoliths.md": {
@@ -1872,9 +1872,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/requestsRepositoryTypes.ts": {
-    "mtime": 1790014416.004414,
-    "seen": 1790014549.67309,
-    "ast_hash": "07698a0f05639ccad5e0bc70ef488643",
+    "mtime": 1790083041.4262168,
+    "seen": 1790083216.107699,
+    "ast_hash": "479559f929e966ab5ac0c542ddf0e935",
     "semantic_hash": ""
   },
   "apps/api/tests/requestsRepository_new_methods.test.ts": {
@@ -2001,6 +2001,78 @@
     "mtime": 1790021599.8576078,
     "seen": 1790021729.5767884,
     "ast_hash": "6262e2f72fbf52ab34684e8b3b13e2cd",
+    "semantic_hash": ""
+  },
+  "apps/api/src/appTypes.ts": {
+    "mtime": 1790082481.3140984,
+    "seen": 1790083216.086623,
+    "ast_hash": "daed9072db2803a517055f644bad9655",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/requestBatch.ts": {
+    "mtime": 1790082314.6695652,
+    "seen": 1790083216.1071746,
+    "ast_hash": "c607555e6c3611d7f00feb2fb4b38acd",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/requestPreparation.ts": {
+    "mtime": 1790082289.2409463,
+    "seen": 1790083216.1071746,
+    "ast_hash": "29d2760ee17d2c3107ca708fb96cc02d",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/requestPromote.ts": {
+    "mtime": 1790082280.5169516,
+    "seen": 1790083216.1071746,
+    "ast_hash": "483ee4ea629047f0858b8a094e645db5",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/requestRetry.ts": {
+    "mtime": 1790082950.0445538,
+    "seen": 1790083216.1071746,
+    "ast_hash": "0ebe976c09116061b36fd0bbdf15df2f",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/requestService.ts": {
+    "mtime": 1790137614.155676,
+    "seen": 1790137704.2044008,
+    "ast_hash": "e6913d104c5d3d289e0872184bb7eb02",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/requestServiceTypes.ts": {
+    "mtime": 1790082238.7567916,
+    "seen": 1790083216.1071746,
+    "ast_hash": "630130b2ab138310704000e3e6ac876d",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/serviceContainer.ts": {
+    "mtime": 1790082990.6640074,
+    "seen": 1790083216.107699,
+    "ast_hash": "e267b45374988c3980e97a513da86848",
+    "semantic_hash": ""
+  },
+  "apps/api/src/startup/onReady.ts": {
+    "mtime": 1790082507.171832,
+    "seen": 1790083216.1097836,
+    "ast_hash": "c3b3c2b48f8bc7f6e449c5fc219e8282",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/requestPreparation.test.ts": {
+    "mtime": 1790082218.6579595,
+    "seen": 1790083216.1202567,
+    "ast_hash": "44bbc64c2e2bd2c7d1b8aaa7041645f6",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/requestService.test.ts": {
+    "mtime": 1790082461.327068,
+    "seen": 1790083216.1202567,
+    "ast_hash": "a989c6e95a7dcd27cc842f978957b069",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/requestCreate.ts": {
+    "mtime": 1790137592.1573715,
+    "seen": 1790137704.2028482,
+    "ast_hash": "7160d95d554bb559a79cf507786af5de",
     "semantic_hash": ""
   }
 }

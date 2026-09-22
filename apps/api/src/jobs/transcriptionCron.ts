@@ -1,6 +1,6 @@
 import cron, { ScheduledTask } from 'node-cron';
 import { AppDatabase, systemConfig } from '../db';
-import { IRequestsRepository, RequestsRepository } from '../services/requestsRepository';
+import { IRequestsRepository } from '../services/requestsRepository';
 import { ISubgenService } from '../services/subgen';
 import { RequestStatus } from '../services/requestStateMachine';
 
