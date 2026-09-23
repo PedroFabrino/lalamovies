@@ -42,6 +42,10 @@ _Avoid_: torrent match, search hit, result
 The automated ranking applied to Release Candidates based on resolution, file size, and seeders to determine the default recommendation.
 _Avoid_: sorting, filtering, ranking
 
+**Torrent Replacement**:
+The substitution of an in-progress or queued Download Request's underlying torrent with an alternative Release Candidate or magnet link, discarding uncompleted files and restarting download progress while preserving the established Metadata Match and request ownership.
+_Avoid_: torrent swap, re-download, update request, change torrent
+
 **Preferred Indexer**:
 A private torrent tracker configured as the operator's preferred download source via `PREFERRED_INDEXER_REGEX`. Release Candidates from the Preferred Indexer receive a Release Scoring bonus and are always favoured as the Recommended Release when they meet the minimum health threshold (>= 3 seeders, non-CAM source). Preferred Indexer releases are excluded from Debrid Provider ingestion by the Private Tracker Airgap. The Watcher Service will only auto-download Waitlist Entries from the Preferred Indexer.
 _Avoid_: private tracker preference, BJ-Share mode, indexer priority

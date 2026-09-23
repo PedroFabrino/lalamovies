@@ -130,6 +130,9 @@ describe('RequestStateMachine', () => {
     [RequestStatus.ERROR, RequestStatus.DOWNLOADING],
     [RequestStatus.ERROR, RequestStatus.SEEDING],
     [RequestStatus.ERROR, RequestStatus.DELETED],
+    [RequestStatus.DOWNLOADING, RequestStatus.QUEUED],
+    [RequestStatus.DOWNLOADING, RequestStatus.DOWNLOADING],
+    [RequestStatus.QUEUED, RequestStatus.QUEUED],
   ];
 
   for (const [from, to] of validPaths) {
@@ -147,7 +150,7 @@ describe('RequestStateMachine', () => {
   const invalidPaths: [string, string][] = [
     [RequestStatus.QUEUED, RequestStatus.SEEDING],
     [RequestStatus.QUEUED, RequestStatus.DONE],
-    [RequestStatus.DOWNLOADING, RequestStatus.QUEUED],
+    [RequestStatus.DOWNLOADING, RequestStatus.SEEDING],
     [RequestStatus.DOWNLOADING, RequestStatus.DONE],
     [RequestStatus.HARDLINKING, RequestStatus.DOWNLOADING],
     [RequestStatus.SEEDING, RequestStatus.DOWNLOADING],

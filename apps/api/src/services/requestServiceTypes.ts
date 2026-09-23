@@ -87,9 +87,24 @@ export interface PromoteStreamResult {
   status: string;
 }
 
+export interface ReplaceTorrentInput {
+  requestId: string;
+  userId: string;
+  userRole?: string;
+  magnetLink?: string;
+  torrentFileBase64?: string;
+  torrentFileName?: string;
+}
+
+export interface ReplaceTorrentResult {
+  request: DownloadRequest;
+  message: string;
+}
+
 export interface IRequestService {
   createRequest(input: CreateRequestInput): Promise<CreateRequestResult>;
   createBatchRequests(input: BatchRequestInput): Promise<BatchRequestResult>;
   retryRequest(id: string): Promise<RetryRequestResult>;
   promoteFromStream(input: PromoteStreamInput): Promise<PromoteStreamResult>;
+  replaceTorrent(input: ReplaceTorrentInput): Promise<ReplaceTorrentResult>;
 }

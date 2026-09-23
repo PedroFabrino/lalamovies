@@ -180,6 +180,28 @@ export const useRequestsStore = defineStore('requests', () => {
     }
   }
 
+  async function replaceTorrent(
+    id: string,
+    payload: { magnetLink?: string; torrentFileBase64?: string; torrentFileName?: string }
+  ): Promise<DownloadRequest> {
+    try {
+      const data = await api.post<{ request: DownloadRequest; message?: string }>(
+        `/requests/${id}/replace-torrent`,
+        payload
+      );
+      const index = requests.value.findIndex((r) => r.id === id);
+      if (index !== -1) {
+        requests.value[index] = data.request;
+      }
+      return data.request;
+    } catch (err) {
+      if (err instanceof ApiError) {
+        throw new Error(err.message);
+      }
+      throw new Error('Failed to replace torrent');
+    }
+  }
+
   return {
     requests,
     loading,
@@ -193,6 +215,7 @@ export const useRequestsStore = defineStore('requests', () => {
     deleteRequest,
     toggleKeep,
     retryRequest,
+    replaceTorrent,
     updateRequest,
     handleProgressMessage,
     handleStatusMessage,

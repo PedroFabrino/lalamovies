@@ -12,6 +12,7 @@ import { executeCreateRequest } from './requestCreate';
 import { executeBatchRequests } from './requestBatch';
 import { executeRetryRequest } from './requestRetry';
 import { executePromoteFromStream } from './requestPromote';
+import { executeReplaceTorrent } from './requestReplaceTorrent';
 import {
   IRequestService,
   CreateRequestInput,
@@ -21,6 +22,8 @@ import {
   RetryRequestResult,
   PromoteStreamInput,
   PromoteStreamResult,
+  ReplaceTorrentInput,
+  ReplaceTorrentResult,
 } from './requestServiceTypes';
 
 export interface RequestServiceOptions {
@@ -130,6 +133,20 @@ export class RequestService implements IRequestService {
       requestsRepo: this.requestsRepo,
       stateMachine: this.stateMachine,
       fileSystem: this.fileSystem,
+      logger: this.logger,
+    });
+  }
+
+  async replaceTorrent(input: ReplaceTorrentInput): Promise<ReplaceTorrentResult> {
+    return executeReplaceTorrent({
+      input,
+      db: this.db,
+      requestsRepo: this.requestsRepo,
+      stateMachine: this.stateMachine,
+      cleanup: this.cleanup,
+      fileSystem: this.fileSystem,
+      qbittorrent: this.qbittorrent,
+      stagingPath: this.stagingPath,
       logger: this.logger,
     });
   }

@@ -156,8 +156,8 @@
     "semantic_hash": ""
   },
   "apps/api/src/index.ts": {
-    "mtime": 1789883085.9609237,
-    "seen": 1789883740.5244913,
+    "mtime": 1790139227.9841459,
+    "seen": 1790139468.8441675,
     "ast_hash": "255f352a8cb3e238067c54b677195a79",
     "semantic_hash": ""
   },
@@ -942,9 +942,9 @@
     "semantic_hash": "886c161c2f2d9388473a64033e7d1931"
   },
   "apps/web/package.json": {
-    "mtime": 1790021158.660953,
-    "seen": 1790021216.2095587,
-    "ast_hash": "cfbc8f27e79f524932667f25e1a1e1e1",
+    "mtime": 1790139353.9966543,
+    "seen": 1790139468.895665,
+    "ast_hash": "8a3cec1680b8af2270891b054fca2948",
     "semantic_hash": ""
   },
   "apps/web/postcss.config.js": {
@@ -1068,9 +1068,9 @@
     "semantic_hash": "92f3db51328c0a19fee2069d5550bd14"
   },
   "apps/web/src/stores/requests.ts": {
-    "mtime": 1789882950.8932822,
-    "seen": 1789883740.5713742,
-    "ast_hash": "0ff8e6569a590e8a13078990bc37cf67",
+    "mtime": 1790174993.210446,
+    "seen": 1790175893.3671787,
+    "ast_hash": "660ece42de4b6eafdb3ea2a7a4056e16",
     "semantic_hash": ""
   },
   "apps/web/src/stores/waitlist.ts": {
@@ -1086,9 +1086,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/DashboardView.vue": {
-    "mtime": 1790021120.9629998,
-    "seen": 1790021216.2217262,
-    "ast_hash": "85b6e7bbfc40bd327a757a60aa610bfc",
+    "mtime": 1790175688.9041214,
+    "seen": 1790175893.3687134,
+    "ast_hash": "1c40625ada35acadeadf9a0eda27d149",
     "semantic_hash": ""
   },
   "apps/web/src/views/ForbiddenView.vue": {
@@ -1290,10 +1290,10 @@
     "semantic_hash": "78039d90f5f5b96c1ce5aca851aadaae"
   },
   "package.json": {
-    "mtime": 1788493030.274807,
-    "seen": 1789780156.9478219,
-    "ast_hash": "240726281f2ef2db8f531d4700befe65",
-    "semantic_hash": "240726281f2ef2db8f531d4700befe65"
+    "mtime": 1790139362.6747684,
+    "seen": 1790139468.9176645,
+    "ast_hash": "0975bc8df1fd4a141f00cf3fd4c76606",
+    "semantic_hash": ""
   },
   "tsconfig.base.json": {
     "mtime": 1788493030.2964594,
@@ -1314,10 +1314,10 @@
     "semantic_hash": "a831cf3669f1e6ab85d8a80ebe655f99"
   },
   "CONTEXT.md": {
-    "mtime": 1789557362.178722,
-    "seen": 1789780156.9478219,
-    "ast_hash": "9c0717456647755d0fb89f45dfbf47f0",
-    "semantic_hash": "9c0717456647755d0fb89f45dfbf47f0"
+    "mtime": 1790146328.7222626,
+    "seen": 1790175893.3833652,
+    "ast_hash": "21536a6e2e2f4f3e32a10979024b8bd5",
+    "semantic_hash": ""
   },
   "README.md": {
     "mtime": 1789783478.2625556,
@@ -1338,15 +1338,15 @@
     "semantic_hash": "007063adf47891048cc7431ae20d045c"
   },
   "docker-compose.yml": {
-    "mtime": 1789389321.0140488,
-    "seen": 1789780156.9478219,
-    "ast_hash": "a029a1c007e1904be60e4041e7c22305",
-    "semantic_hash": "a029a1c007e1904be60e4041e7c22305"
+    "mtime": 1790138864.2286448,
+    "seen": 1790139468.9206655,
+    "ast_hash": "067014321e59ee765a392aa4e848f4cd",
+    "semantic_hash": ""
   },
   "docker/docker-compose.yml": {
-    "mtime": 1789783893.5497,
-    "seen": 1789793964.3293097,
-    "ast_hash": "b72dd2e484f7a59b4a0fa73aa3af260d",
+    "mtime": 1790139736.7681634,
+    "seen": 1790140235.7735057,
+    "ast_hash": "13616d0d0b4b9fa809d17e01f01cbe90",
     "semantic_hash": ""
   },
   "docs/adr/0001-jellyfin-as-auth-source-of-truth.md": {
@@ -1632,9 +1632,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/requestStateMachine.ts": {
-    "mtime": 1789957387.7441506,
-    "seen": 1789958026.7256842,
-    "ast_hash": "d61576b946081f48d22037156033d83d",
+    "mtime": 1790174651.221186,
+    "seen": 1790175893.3101106,
+    "ast_hash": "f1c293697d5cf60afcd77d7f2668ff2e",
     "semantic_hash": ""
   },
   "apps/api/src/services/requestsRepository.ts": {
@@ -1656,9 +1656,9 @@
     "semantic_hash": ""
   },
   "apps/api/tests/requestStateMachine.test.ts": {
-    "mtime": 1789957406.9926298,
-    "seen": 1789958026.7351964,
-    "ast_hash": "c5f8ecedf54fada6c412adee06f0db76",
+    "mtime": 1790174965.6862428,
+    "seen": 1790175893.324426,
+    "ast_hash": "cc1ffe66fab1e9f0496039a264c830ef",
     "semantic_hash": ""
   },
   "apps/api/tests/requestsRepository.test.ts": {
@@ -1722,9 +1722,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/index.ts": {
-    "mtime": 1790009221.01469,
-    "seen": 1790009382.077369,
-    "ast_hash": "8ae9e1d83bf6b3637cbb9bc92e658fbf",
+    "mtime": 1790174777.7518232,
+    "seen": 1790175893.3028817,
+    "ast_hash": "a51c985ce3f7d0592a241f9d09fb217e",
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/lifecycle.ts": {
@@ -1734,9 +1734,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/schemas.ts": {
-    "mtime": 1789957737.964815,
-    "seen": 1789958026.7226825,
-    "ast_hash": "cc910a6be780bf2c6e68c6dd63ca9868",
+    "mtime": 1790174757.354258,
+    "seen": 1790175893.3039048,
+    "ast_hash": "dc00183ccbacecfe11f8165f3696bb19",
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/search.ts": {
@@ -2034,15 +2034,15 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/requestService.ts": {
-    "mtime": 1790137614.155676,
-    "seen": 1790137704.2044008,
-    "ast_hash": "e6913d104c5d3d289e0872184bb7eb02",
+    "mtime": 1790174731.58615,
+    "seen": 1790175893.3101106,
+    "ast_hash": "7685f7fdd87a2a0fa151989796f96a62",
     "semantic_hash": ""
   },
   "apps/api/src/services/requestServiceTypes.ts": {
-    "mtime": 1790082238.7567916,
-    "seen": 1790083216.1071746,
-    "ast_hash": "630130b2ab138310704000e3e6ac876d",
+    "mtime": 1790174686.3785598,
+    "seen": 1790175893.3101106,
+    "ast_hash": "c0d4f0f9ccc221a105576c01ba941342",
     "semantic_hash": ""
   },
   "apps/api/src/services/serviceContainer.ts": {
@@ -2073,6 +2073,60 @@
     "mtime": 1790137592.1573715,
     "seen": 1790137704.2028482,
     "ast_hash": "7160d95d554bb559a79cf507786af5de",
+    "semantic_hash": ""
+  },
+  "scripts/dev-setup.mjs": {
+    "mtime": 1790140119.4170215,
+    "seen": 1790140235.7684705,
+    "ast_hash": "7d827bf5a2c4077478b3d950a184c062",
+    "semantic_hash": ""
+  },
+  "docker/docker-compose.dev.yml": {
+    "mtime": 1790139232.856979,
+    "seen": 1790139468.9206655,
+    "ast_hash": "dc9ec7fa5b2998019c1945a5ddfa153c",
+    "semantic_hash": ""
+  },
+  "apps/api/src/routes/requests/replaceTorrent.ts": {
+    "mtime": 1790174764.1337643,
+    "seen": 1790175893.3039048,
+    "ast_hash": "53d790c1c681a6f1b722b00a9f67bcd6",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/requestReplaceTorrent.ts": {
+    "mtime": 1790175615.4903817,
+    "seen": 1790175893.3101106,
+    "ast_hash": "989ebf89f872da4b769a39dbb0eca0c4",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/replaceTorrentRoute.test.ts": {
+    "mtime": 1790174917.405992,
+    "seen": 1790175893.324426,
+    "ast_hash": "c3cff2ae6a6122d33a305b1eac2c1edb",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/requestReplaceTorrent.test.ts": {
+    "mtime": 1790174837.89589,
+    "seen": 1790175893.324426,
+    "ast_hash": "cd3156dffec1cda25d45ab76d27bf0a7",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/TorrentReplacementModal.vue": {
+    "mtime": 1790175726.2056315,
+    "seen": 1790175893.3544202,
+    "ast_hash": "b0b0c824cfd9b4a21c50ab860773859c",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/TorrentReplacementModal.test.ts": {
+    "mtime": 1790175410.2765825,
+    "seen": 1790175893.3776295,
+    "ast_hash": "e34b6b26c20411fa3ea758b28d7a6e05",
+    "semantic_hash": ""
+  },
+  "docs/adr/0018-torrent-replacement-for-underway-requests.md": {
+    "mtime": 1790147914.3154678,
+    "seen": 1790175893.391089,
+    "ast_hash": "b6101b9faa7a355382b636141d2006a2",
     "semantic_hash": ""
   }
 }

@@ -93,3 +93,16 @@ export const searchReleasesSchema = z.object({
   romajiTitle: z.string().optional().nullable(),
   englishTitle: z.string().optional().nullable(),
 });
+
+export const replaceTorrentSchema = z
+  .object({
+    magnetLink: z.string().optional(),
+    torrentFileBase64: z.string().optional(),
+    torrentFileName: z.string().optional(),
+  })
+  .refine(
+    (data) => Boolean((data.magnetLink && data.magnetLink.trim().length > 0) || data.torrentFileBase64),
+    {
+      message: 'Either magnetLink or torrentFileBase64 is required',
+    }
+  );

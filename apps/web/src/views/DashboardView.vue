@@ -486,6 +486,29 @@
                     </button>
 
                     <button
+                      v-if="canReplaceTorrent(item)"
+                      type="button"
+                      data-testid="replace-torrent-btn"
+                      class="p-1.5 text-zinc-400 hover:text-amber-400 hover:bg-amber-950/40 rounded-lg transition cursor-pointer"
+                      title="Replace Torrent"
+                      @click="replaceTarget = item"
+                    >
+                      <svg
+                        class="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                        />
+                      </svg>
+                    </button>
+
+                    <button
                       v-if="authStore.isAdmin && item.status === 'error'"
                       type="button"
                       :disabled="retryingId === item.id"
@@ -798,6 +821,28 @@
                         <span>{{ item.transcriptionStatus === 'failed' ? 'Retry Subtitles' : 'Generate Subtitles' }}</span>
                       </button>
                       <button
+                        v-if="canReplaceTorrent(item)"
+                        type="button"
+                        data-testid="replace-private-torrent-btn"
+                        class="p-1.5 text-zinc-400 hover:text-amber-400 hover:bg-amber-950/40 rounded-lg transition cursor-pointer"
+                        title="Replace Torrent"
+                        @click="replaceTarget = item"
+                      >
+                        <svg
+                          class="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                          />
+                        </svg>
+                      </button>
+                      <button
                         v-if="authStore.isAdmin && item.status === 'error'"
                         type="button"
                         :disabled="retryingId === item.id"
@@ -959,6 +1004,14 @@
       :title="subtitleTarget?.title"
       @close="showSubtitleModal = false"
     />
+
+    <!-- Torrent Replacement Modal -->
+    <TorrentReplacementModal
+      :open="!!replaceTarget"
+      :item="replaceTarget"
+      @close="replaceTarget = null"
+      @replaced="requestsStore.fetchAll"
+    />
   </div>
 </template>
 
@@ -970,6 +1023,7 @@ import DiscoveryFeed from '../components/DiscoveryFeed.vue';
 import StreamProgressModal from '../components/StreamProgressModal.vue';
 import PromotionModal from '../components/PromotionModal.vue';
 import SubtitlePickerModal from '../components/SubtitlePickerModal.vue';
+import TorrentReplacementModal from '../components/TorrentReplacementModal.vue';
 import ActiveStreamsShelf from '../components/ActiveStreamsShelf.vue';
 import type { DiscoveryItem } from '../components/DiscoveryFeed.vue';
 import { useAuthStore } from '../stores/auth';
@@ -1001,6 +1055,7 @@ const publicRequests = computed(() => requestsStore.requests.filter((r) => r.med
 const privateRequests = computed(() => requestsStore.requests.filter((r) => r.mediaType === 'private'));
 
 const itemToDelete = ref<DownloadRequest | null>(null);
+const replaceTarget = ref<DownloadRequest | null>(null);
 const isDeleting = ref(false);
 const diskInfo = ref<DiskInfo | null>(null);
 
@@ -1147,6 +1202,11 @@ function canDelete(item: DownloadRequest): boolean {
   if (authStore.isAdmin) return true;
   if (item.isPrimaryRequester === false) return false;
   return item.userId === authStore.user?.id;
+}
+
+function canReplaceTorrent(item: DownloadRequest): boolean {
+  if (!['downloading', 'queued', 'error'].includes(item.status)) return false;
+  return authStore.isAdmin || item.userId === authStore.user?.id;
 }
 
 function canTranscribe(item: DownloadRequest): boolean {

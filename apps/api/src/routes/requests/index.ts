@@ -8,6 +8,7 @@ import { batchRoutes } from './batch';
 import { listRoutes } from './list';
 import { retryRoutes } from './retry';
 import { promoteRoutes } from './promote';
+import { replaceTorrentRoutes } from './replaceTorrent';
 import { lifecycleRoutes } from './lifecycle';
 
 export * from './schemas';
@@ -19,6 +20,7 @@ export { batchRoutes } from './batch';
 export { listRoutes } from './list';
 export { retryRoutes } from './retry';
 export { promoteRoutes } from './promote';
+export { replaceTorrentRoutes } from './replaceTorrent';
 export { lifecycleRoutes } from './lifecycle';
 
 export const requestRoutes: FastifyPluginAsync = async (app) => {
@@ -34,5 +36,6 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
   await app.register(listRoutes);
   await app.register(retryRoutes);
   await app.register(promoteRoutes);
+  await app.register(replaceTorrentRoutes);
   await app.register(lifecycleRoutes);
 };

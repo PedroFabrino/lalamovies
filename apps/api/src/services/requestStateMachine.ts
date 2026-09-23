@@ -46,8 +46,15 @@ export class InvalidTransitionError extends Error {
 //   deleted     → (none)
 
 const VALID_TRANSITIONS: Record<RequestStatusValue, ReadonlyArray<RequestStatusValue>> = {
-  [RequestStatus.QUEUED]: [RequestStatus.DOWNLOADING, RequestStatus.ERROR, RequestStatus.DELETED],
+  [RequestStatus.QUEUED]: [
+    RequestStatus.QUEUED,
+    RequestStatus.DOWNLOADING,
+    RequestStatus.ERROR,
+    RequestStatus.DELETED,
+  ],
   [RequestStatus.DOWNLOADING]: [
+    RequestStatus.DOWNLOADING,
+    RequestStatus.QUEUED,
     RequestStatus.HARDLINKING,
     RequestStatus.UNARCHIVING,
     RequestStatus.ERROR,
