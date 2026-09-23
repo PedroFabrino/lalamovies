@@ -260,16 +260,11 @@ services:
 volumes:
   app_db:
     name: docker_app_db
-    external: true
   caddy_data:
     name: docker_caddy_data
-    external: true
   caddy_config:
     name: docker_caddy_config
-    external: true
   watcher_db:
     name: docker_watcher_db
-    external: true
   streamer_db:
     name: docker_streamer_db
-    external: true
