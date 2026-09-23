@@ -2202,15 +2202,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/anime/AnticipatedSequelsShelf.vue": {
-    "mtime": 1790182206.089117,
-    "seen": 1790182625.5813496,
-    "ast_hash": "e461bd3271883783540d002fffa65054",
+    "mtime": 1790194240.3256805,
+    "seen": 1790194378.859817,
+    "ast_hash": "667a84a318f51b7fed7a049f86982e4b",
     "semantic_hash": ""
   },
   "apps/web/src/components/anime/SeasonalAnimeGrid.vue": {
-    "mtime": 1790182225.1210275,
-    "seen": 1790182625.5813496,
-    "ast_hash": "214ca2670bd606fc0b544e2deaf48695",
+    "mtime": 1790194237.116922,
+    "seen": 1790194378.859817,
+    "ast_hash": "3958a46acbfba618f73f0b786b407f9c",
     "semantic_hash": ""
   },
   "apps/web/src/composables/useSeasonalAnime.ts": {
@@ -2226,9 +2226,9 @@
     "semantic_hash": ""
   },
   "apps/web/tests/AnimeView.test.ts": {
-    "mtime": 1790182338.8897772,
-    "seen": 1790182625.5971394,
-    "ast_hash": "66a661d39dcec040a6124f844de9d6b5",
+    "mtime": 1790194279.483052,
+    "seen": 1790194378.8973007,
+    "ast_hash": "e0be85dc3da4453c29b5b99ef2898620",
     "semantic_hash": ""
   },
   "docs/adr/0020-leanback-client-and-tv-shell.md": {

@@ -309,4 +309,53 @@ describe('AnimeView.vue & Components', () => {
     expect(wrapper.find('[data-testid="archive-grid"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('Archived Anime');
   });
+
+  it('allows folding and unfolding anime grid sections and shelf', async () => {
+    vi.mocked(api.get).mockImplementation(async (url: string) => {
+      if (url === '/features') return { seasonal_anime: true };
+      if (url === '/anime/seasonal') {
+        return {
+          trending: [mockAiringAnime],
+          popularThisSeason: [mockAiringAnime],
+          upcomingNextSeason: [mockAnime],
+          anticipatedSequels: [mockSequel],
+        };
+      }
+      return {};
+    });
+
+    const wrapper = mount(AnimeView, mountOptions);
+    await flushPromises();
+
+    // Trending grid collapse toggle
+    const trendingGrid = wrapper.find('[data-testid="trending-grid"]');
+    const toggleBtn = trendingGrid.find('[data-testid="section-collapse-toggle"]');
+    expect(toggleBtn.exists()).toBe(true);
+    expect(toggleBtn.attributes('aria-expanded')).toBe('true');
+    expect(trendingGrid.find('[data-testid="grid-content"]').isVisible()).toBe(true);
+
+    // Click to collapse
+    await toggleBtn.trigger('click');
+    expect(toggleBtn.attributes('aria-expanded')).toBe('false');
+    expect(trendingGrid.text()).toContain('(Collapsed)');
+    expect(trendingGrid.find('[data-testid="grid-content"]').attributes('style')).toContain('display: none');
+
+    // Click to expand again
+    await toggleBtn.trigger('click');
+    expect(toggleBtn.attributes('aria-expanded')).toBe('true');
+    expect(trendingGrid.find('[data-testid="grid-content"]').isVisible()).toBe(true);
+
+    // Anticipated sequels shelf collapse toggle
+    const shelf = wrapper.find('[data-testid="anticipated-sequels-shelf"]');
+    const shelfToggle = shelf.find('[data-testid="anticipated-sequels-toggle"]');
+    expect(shelfToggle.exists()).toBe(true);
+    expect(shelfToggle.attributes('aria-expanded')).toBe('true');
+    expect(shelf.find('[data-testid="shelf-content"]').isVisible()).toBe(true);
+
+    // Click to collapse shelf
+    await shelfToggle.trigger('click');
+    expect(shelfToggle.attributes('aria-expanded')).toBe('false');
+    expect(shelf.text()).toContain('(Collapsed)');
+    expect(shelf.find('[data-testid="shelf-content"]').attributes('style')).toContain('display: none');
+  });
 });
