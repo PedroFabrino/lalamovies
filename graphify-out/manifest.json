@@ -1314,9 +1314,9 @@
     "semantic_hash": "a831cf3669f1e6ab85d8a80ebe655f99"
   },
   "CONTEXT.md": {
-    "mtime": 1790182503.3473828,
-    "seen": 1790182625.6091497,
-    "ast_hash": "7217edfdd5e11d7ef682a69fed809eb6",
+    "mtime": 1790182700.617322,
+    "seen": 1790182733.015783,
+    "ast_hash": "c3eaa864df45f97624b463fb9860f6ef",
     "semantic_hash": ""
   },
   "README.md": {
@@ -2196,9 +2196,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/anime/AnimeDetailModal.vue": {
-    "mtime": 1790182255.2938738,
-    "seen": 1790182625.5813496,
-    "ast_hash": "3a83a52a5186aef7e3ca33c6c0b1f2a1",
+    "mtime": 1790182730.9619355,
+    "seen": 1790182732.9638436,
+    "ast_hash": "a5181721846df1d5bde186414358d38c",
     "semantic_hash": ""
   },
   "apps/web/src/components/anime/AnticipatedSequelsShelf.vue": {
@@ -2229,6 +2229,18 @@
     "mtime": 1790182338.8897772,
     "seen": 1790182625.5971394,
     "ast_hash": "66a661d39dcec040a6124f844de9d6b5",
+    "semantic_hash": ""
+  },
+  "docs/adr/0020-leanback-client-and-tv-shell.md": {
+    "mtime": 1790182691.0949678,
+    "seen": 1790182733.0247788,
+    "ast_hash": "0dcf70e812b5f3e224237f2af64ec903",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/anime/AnimeTmdbConfirmSection.vue": {
+    "mtime": 1790182715.7281754,
+    "seen": 1790182792.553579,
+    "ast_hash": "4fbc8839c5ed1265d964ec5d75ce5f8a",
     "semantic_hash": ""
   }
 }
