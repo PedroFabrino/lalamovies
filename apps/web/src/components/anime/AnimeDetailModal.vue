@@ -190,16 +190,16 @@ const selectedCandidateId = ref<string>('');
 const waitlistMode = ref<'episodic' | 'season_pack'>('episodic');
 
 const posterUrl = computed(() => {
-  if (!props.anime) return null;
+  if (!props.anime) return undefined;
   return (
     props.anime.coverImage?.extraLarge ||
     props.anime.coverImage?.large ||
     props.anime.coverImage?.medium ||
-    null
+    undefined
   );
 });
 
-const bannerUrl = computed(() => props.anime?.bannerImage || null);
+const bannerUrl = computed(() => props.anime?.bannerImage || undefined);
 const displayTitle = computed(() => props.anime?.title?.english || props.anime?.title?.romaji || 'Untitled');
 const subTitle = computed(() => props.anime?.title?.romaji || props.anime?.title?.native || '');
 const isAiringOrFinished = computed(() => props.anime?.status === 'RELEASING' || props.anime?.status === 'FINISHED');

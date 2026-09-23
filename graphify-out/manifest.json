@@ -24,9 +24,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/db/index.ts": {
-    "mtime": 1790181843.620569,
-    "seen": 1790182625.5011935,
-    "ast_hash": "1f9246a248bedd13ad1c3f77607b0992",
+    "mtime": 1790183557.0537617,
+    "seen": 1790183981.5747313,
+    "ast_hash": "990711b977aa4060a4f959869ff4d61c",
     "semantic_hash": ""
   },
   "apps/api/src/db/migrations/0000_complex_ghost_rider.sql": {
@@ -372,10 +372,10 @@
     "semantic_hash": ""
   },
   "apps/api/tests/db.test.ts": {
-    "mtime": 1789562775.081961,
-    "seen": 1789780156.9478219,
-    "ast_hash": "edee0953b9e168f5627888e267582259",
-    "semantic_hash": "edee0953b9e168f5627888e267582259"
+    "mtime": 1790183643.8760715,
+    "seen": 1790183981.6133497,
+    "ast_hash": "0e3ca932dab7b12a76fa389d69b8a748",
+    "semantic_hash": ""
   },
   "apps/api/tests/discovery.test.ts": {
     "mtime": 1789619406.4055417,
@@ -1776,9 +1776,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/admin/AdminConfigTab.vue": {
-    "mtime": 1790021120.96195,
-    "seen": 1790021216.2122371,
-    "ast_hash": "f7a1d18c60a5b356d5d4b7344a01da0d",
+    "mtime": 1790183719.433113,
+    "seen": 1790183981.655068,
+    "ast_hash": "b1a22f8143d2082a0d4ef8f7e7c52b8d",
     "semantic_hash": ""
   },
   "apps/web/src/components/admin/AdminFeaturesTab.vue": {
@@ -1824,9 +1824,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/composables/useAdminData.ts": {
-    "mtime": 1789959544.7745843,
-    "seen": 1789959904.19829,
-    "ast_hash": "ba5dae2efea7301b96768b5cabe5416d",
+    "mtime": 1790183748.5029063,
+    "seen": 1790183981.6630685,
+    "ast_hash": "f249fb132c101818c891938bdb34aeb0",
     "semantic_hash": ""
   },
   "apps/web/src/composables/useRequestData.ts": {
@@ -2046,9 +2046,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/serviceContainer.ts": {
-    "mtime": 1790182005.327443,
-    "seen": 1790182625.5271783,
-    "ast_hash": "be4cb022fdc74b6bffdff53a5eae4b7d",
+    "mtime": 1790183628.7700267,
+    "seen": 1790183981.60723,
+    "ast_hash": "d749078432c495307c8785541e77b46e",
     "semantic_hash": ""
   },
   "apps/api/src/startup/onReady.ts": {
@@ -2172,9 +2172,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/animeSeasonService.ts": {
-    "mtime": 1790181874.9299996,
-    "seen": 1790182625.5171754,
-    "ast_hash": "825315991ac93d2fa62bedfc4f8098b9",
+    "mtime": 1790183608.5163786,
+    "seen": 1790183981.5965335,
+    "ast_hash": "526a4a39f78ac00497ee4fa1a4afd705",
     "semantic_hash": ""
   },
   "apps/api/src/services/animeTypes.ts": {
@@ -2184,9 +2184,9 @@
     "semantic_hash": ""
   },
   "apps/api/tests/animeSeasonal.test.ts": {
-    "mtime": 1790182101.2568364,
-    "seen": 1790182625.5316224,
-    "ast_hash": "cab3165ab84ffaf42ff3834f8a396266",
+    "mtime": 1790183678.5236619,
+    "seen": 1790183981.611741,
+    "ast_hash": "e6f29a69691f66f6c991ced1c6566e88",
     "semantic_hash": ""
   },
   "apps/web/src/components/anime/AnimeCard.vue": {
@@ -2196,9 +2196,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/anime/AnimeDetailModal.vue": {
-    "mtime": 1790182730.9619355,
-    "seen": 1790182732.9638436,
-    "ast_hash": "a5181721846df1d5bde186414358d38c",
+    "mtime": 1790183880.4438064,
+    "seen": 1790183981.6570675,
+    "ast_hash": "edffb681cfb46fd419c13d5fa7addfa7",
     "semantic_hash": ""
   },
   "apps/web/src/components/anime/AnticipatedSequelsShelf.vue": {
@@ -2220,9 +2220,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/AnimeView.vue": {
-    "mtime": 1790182269.7654102,
-    "seen": 1790182625.5930586,
-    "ast_hash": "52bbb7c54b8bd7c8e54d09be1acac5d7",
+    "mtime": 1790183827.9091327,
+    "seen": 1790183981.6711524,
+    "ast_hash": "6e18310089371070d6a136d043aabdfc",
     "semantic_hash": ""
   },
   "apps/web/tests/AnimeView.test.ts": {
@@ -2232,15 +2232,27 @@
     "semantic_hash": ""
   },
   "docs/adr/0020-leanback-client-and-tv-shell.md": {
-    "mtime": 1790182691.0949678,
-    "seen": 1790182733.0247788,
-    "ast_hash": "0dcf70e812b5f3e224237f2af64ec903",
+    "mtime": 1790182879.8656998,
+    "seen": 1790183297.4287088,
+    "ast_hash": "a8ab09e8552d8e18f7649515f1e3d5ee",
     "semantic_hash": ""
   },
   "apps/web/src/components/anime/AnimeTmdbConfirmSection.vue": {
     "mtime": 1790182715.7281754,
     "seen": 1790182792.553579,
     "ast_hash": "4fbc8839c5ed1265d964ec5d75ce5f8a",
+    "semantic_hash": ""
+  },
+  "docs/spec/apple-tv-companion-draft.md": {
+    "mtime": 1790183177.7565806,
+    "seen": 1790183297.4287088,
+    "ast_hash": "0f9948b06d24e8c70ac0482357b59b98",
+    "semantic_hash": ""
+  },
+  "docs/spec/leanback-client-and-android-tv-shell.md": {
+    "mtime": 1790184085.362314,
+    "seen": 1790184139.1161337,
+    "ast_hash": "b76f470b68d46fa490a4884e6a73a95b",
     "semantic_hash": ""
   }
 }

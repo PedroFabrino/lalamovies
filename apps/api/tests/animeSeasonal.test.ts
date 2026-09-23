@@ -179,6 +179,41 @@ describe('AnimeSeasonService & Calculations', () => {
       global.fetch = originalFetch;
     }
   });
+
+  it('AnimeSeasonService passes isAdult to AniList GraphQL query variables', async () => {
+    let capturedBody: any = null;
+    const originalFetch = global.fetch;
+
+    global.fetch = vi.fn().mockImplementation(async (_url: string, opts: any) => {
+      capturedBody = JSON.parse(opts.body);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: {
+            Page: {
+              pageInfo: { total: 0, perPage: 24, currentPage: 1, lastPage: 1, hasNextPage: false },
+              media: [],
+            },
+          },
+        }),
+      };
+    }) as any;
+
+    try {
+      // Default: isAdult is false
+      const serviceDefault = new AnimeSeasonService();
+      await serviceDefault.getSeasonalArchive('WINTER', 2025);
+      expect(capturedBody.variables.isAdult).toBe(false);
+
+      // With getIsAdult: returns true
+      const serviceAdult = new AnimeSeasonService({ getIsAdult: () => true });
+      await serviceAdult.getSeasonalArchive('WINTER', 2025);
+      expect(capturedBody.variables.isAdult).toBe(true);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
 });
 
 describe('Anime Seasonal Routes (/anime)', () => {

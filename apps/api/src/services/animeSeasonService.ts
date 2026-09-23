@@ -13,6 +13,7 @@ export interface AnimeSeasonServiceOptions {
   endpoint?: string;
   trendingTtlMs?: number;
   seasonalTtlMs?: number;
+  getIsAdult?: () => boolean | Promise<boolean>;
   logger?: {
     info?: (msg: string) => void;
     warn?: (msg: string, extra?: unknown) => void;
@@ -31,6 +32,7 @@ query (
   $sort: [MediaSort]
   $page: Int
   $perPage: Int
+  $isAdult: Boolean
 ) {
   Page(page: $page, perPage: $perPage) {
     pageInfo {
@@ -45,7 +47,7 @@ query (
       season: $season
       seasonYear: $seasonYear
       sort: $sort
-      isAdult: false
+      isAdult: $isAdult
     ) {
       id
       title {
@@ -135,6 +137,7 @@ export class AnimeSeasonService implements IAnimeSeasonService {
   private trendingTtlMs: number;
   private seasonalTtlMs: number;
   private historyMatcher?: AnimeHistoryMatcher;
+  private getIsAdult?: () => boolean | Promise<boolean>;
   private logger?: AnimeSeasonServiceOptions['logger'];
 
   private cache = new Map<string, CacheEntry<unknown>>();
@@ -145,6 +148,7 @@ export class AnimeSeasonService implements IAnimeSeasonService {
     this.trendingTtlMs = options.trendingTtlMs ?? TRENDING_TTL_MS;
     this.seasonalTtlMs = options.seasonalTtlMs ?? SEASONAL_TTL_MS;
     this.historyMatcher = options.historyMatcher;
+    this.getIsAdult = options.getIsAdult;
     this.logger = options.logger;
   }
 
@@ -153,17 +157,29 @@ export class AnimeSeasonService implements IAnimeSeasonService {
     this.inflight.clear();
   }
 
+  private async resolveIsAdult(): Promise<boolean> {
+    if (this.getIsAdult) {
+      try {
+        return Boolean(await this.getIsAdult());
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  }
+
   async getSeasonalSections(
     userId?: string,
     jellyfinUserId?: string
   ): Promise<SeasonalSectionsResponse> {
+    const isAdult = await this.resolveIsAdult();
     const { season: curSeason, year: curYear } = calculateCurrentSeasonAndYear();
     const { season: nextSeason, year: nextYear } = calculateNextSeasonAndYear(curSeason, curYear);
 
     const [trending, popularThisSeason, upcomingNextSeason] = await Promise.all([
-      this.fetchTrending(),
-      this.fetchSeason(curSeason, curYear),
-      this.fetchSeason(nextSeason, nextYear),
+      this.fetchTrending(isAdult),
+      this.fetchSeason(curSeason, curYear, isAdult),
+      this.fetchSeason(nextSeason, nextYear, isAdult),
     ]);
 
     let anticipatedSequels: SeasonalSectionsResponse['anticipatedSequels'] = [];
@@ -189,7 +205,8 @@ export class AnimeSeasonService implements IAnimeSeasonService {
     page = 1,
     perPage = 24
   ): Promise<SeasonalArchiveResponse> {
-    const cacheKey = `archive:${season}:${year}:${page}:${perPage}`;
+    const isAdult = await this.resolveIsAdult();
+    const cacheKey = `archive:${season}:${year}:${page}:${perPage}:${isAdult}`;
     return this.executeWithDeduplicationAndCache<SeasonalArchiveResponse>(
       cacheKey,
       this.seasonalTtlMs,
@@ -200,6 +217,7 @@ export class AnimeSeasonService implements IAnimeSeasonService {
           sort: ['POPULARITY_DESC'],
           page,
           perPage,
+          isAdult,
         });
 
         return {
@@ -210,8 +228,8 @@ export class AnimeSeasonService implements IAnimeSeasonService {
     );
   }
 
-  private async fetchTrending(): Promise<SeasonalAnimeItem[]> {
-    const cacheKey = 'trending';
+  private async fetchTrending(isAdult = false): Promise<SeasonalAnimeItem[]> {
+    const cacheKey = `trending:${isAdult}`;
     return this.executeWithDeduplicationAndCache<SeasonalAnimeItem[]>(
       cacheKey,
       this.trendingTtlMs,
@@ -220,14 +238,19 @@ export class AnimeSeasonService implements IAnimeSeasonService {
           sort: ['TRENDING_DESC'],
           page: 1,
           perPage: 24,
+          isAdult,
         });
         return res.items;
       }
     );
   }
 
-  private async fetchSeason(season: MediaSeason, year: number): Promise<SeasonalAnimeItem[]> {
-    const cacheKey = `season:${season}:${year}`;
+  private async fetchSeason(
+    season: MediaSeason,
+    year: number,
+    isAdult = false
+  ): Promise<SeasonalAnimeItem[]> {
+    const cacheKey = `season:${season}:${year}:${isAdult}`;
     return this.executeWithDeduplicationAndCache<SeasonalAnimeItem[]>(
       cacheKey,
       this.seasonalTtlMs,
@@ -238,6 +261,7 @@ export class AnimeSeasonService implements IAnimeSeasonService {
           sort: ['POPULARITY_DESC'],
           page: 1,
           perPage: 24,
+          isAdult,
         });
         return res.items;
       }
@@ -288,6 +312,7 @@ export class AnimeSeasonService implements IAnimeSeasonService {
     sort?: string[];
     page?: number;
     perPage?: number;
+    isAdult?: boolean;
   }): Promise<{ pageInfo: PageInfo; items: SeasonalAnimeItem[] }> {
     try {
       const response = await fetch(this.endpoint, {
@@ -299,7 +324,10 @@ export class AnimeSeasonService implements IAnimeSeasonService {
         },
         body: JSON.stringify({
           query: ANILIST_SEASONAL_QUERY,
-          variables,
+          variables: {
+            ...variables,
+            isAdult: variables.isAdult ?? false,
+          },
         }),
       });
 

@@ -40,6 +40,7 @@ describe('Database Schema & Migrations', () => {
       transcription_window_start: '02:00',
       transcription_window_end: '07:00',
       transcription_timezone: 'America/Sao_Paulo',
+      anime_include_adult: 'false',
     });
   });
 

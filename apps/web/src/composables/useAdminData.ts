@@ -51,6 +51,7 @@ export function useAdminData() {
     disk_reject_threshold: 15,
     discord_webhook_url: '',
     tmdb_api_key: '',
+    anime_include_adult: false,
   });
 
   const isSavingTranscription = ref(false);
@@ -279,6 +280,7 @@ export function useAdminData() {
       if (c.disk_reject_threshold) configForm.disk_reject_threshold = parseInt(c.disk_reject_threshold, 10);
       if (c.discord_webhook_url) configForm.discord_webhook_url = c.discord_webhook_url;
       if (c.tmdb_api_key) configForm.tmdb_api_key = c.tmdb_api_key;
+      if (c.anime_include_adult !== undefined) configForm.anime_include_adult = c.anime_include_adult === 'true';
       if (c.transcription_window_start) transcriptionForm.transcription_window_start = c.transcription_window_start;
       if (c.transcription_window_end) transcriptionForm.transcription_window_end = c.transcription_window_end;
       if (c.transcription_timezone) transcriptionForm.transcription_timezone = c.transcription_timezone;

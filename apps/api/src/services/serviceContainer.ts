@@ -162,6 +162,12 @@ export function setupServices(
     options.animeSeasonService ??
     new AnimeSeasonService({
       historyMatcher,
+      getIsAdult: () =>
+        app.db
+          .select()
+          .from(systemConfig)
+          .where(eq(systemConfig.key, 'anime_include_adult'))
+          .get()?.value === 'true',
       logger: {
         info: (msg: string) => app.log.info(msg),
         warn: (msg: string, extra?: unknown) => app.log.warn({ extra }, msg),

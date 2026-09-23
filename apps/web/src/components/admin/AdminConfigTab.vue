@@ -186,6 +186,26 @@
           </div>
         </div>
 
+        <div class="flex items-center justify-between p-3.5 bg-zinc-950/60 border border-zinc-800 rounded-lg">
+          <div>
+            <label
+              for="anime_include_adult"
+              class="block text-xs font-medium text-zinc-300 cursor-pointer"
+            >
+              AniList Adult Anime (isAdult)
+            </label>
+            <p class="text-[11px] text-zinc-500 mt-0.5">
+              Include 18+ adult content in seasonal anime catalogs. Default: Off (isAdult: false).
+            </p>
+          </div>
+          <input
+            id="anime_include_adult"
+            v-model="configForm.anime_include_adult"
+            type="checkbox"
+            class="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+          >
+        </div>
+
         <div class="pt-4 border-t border-zinc-800 flex justify-end">
           <button
             type="submit"
@@ -569,6 +589,7 @@ export interface ConfigFormData {
   disk_reject_threshold: number;
   discord_webhook_url: string;
   tmdb_api_key: string;
+  anime_include_adult?: boolean;
 }
 
 export interface TranscriptionFormData {

@@ -246,6 +246,10 @@ _Avoid_: TV app, couch UI, TV dashboard, TV mode
 The platform-specific application container (such as an Android TV APK embedding a WebView or a Smart TV packaged web app) responsible for hosting the Leanback Client, handling hardware back keys, and launching external media player apps.
 _Avoid_: wrapper, mobile container, native port
 
+**Quick Connect**:
+The authentication flow where a Leanback Client displays a temporary pairing code and QR code, allowing an authenticated User on a secondary device (phone or browser) to authorize the session without entering credentials on the TV.
+_Avoid_: TV login, code auth, device link
+
 
 
 

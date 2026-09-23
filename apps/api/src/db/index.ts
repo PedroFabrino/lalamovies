@@ -73,6 +73,7 @@ export function seedDefaultConfig(db: AppDatabase) {
     transcription_window_start: '02:00',
     transcription_window_end: '07:00',
     transcription_timezone: process.env.TZ || 'America/Sao_Paulo',
+    anime_include_adult: 'false',
   };
 
   for (const [key, value] of Object.entries(defaults)) {

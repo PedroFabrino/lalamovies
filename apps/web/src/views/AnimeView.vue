@@ -163,7 +163,6 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import Navbar from '../components/Navbar.vue';
 import StreamProgressModal from '../components/StreamProgressModal.vue';
-import AnimeCard from '../components/anime/AnimeCard.vue';
 import AnticipatedSequelsShelf from '../components/anime/AnticipatedSequelsShelf.vue';
 import SeasonalAnimeGrid from '../components/anime/SeasonalAnimeGrid.vue';
 import AnimeDetailModal from '../components/anime/AnimeDetailModal.vue';
@@ -181,7 +180,6 @@ const {
   error,
   trending,
   popularThisSeason,
-  upcomingNextSeason,
   anticipatedSequels,
   selectedSeason,
   selectedYear,
