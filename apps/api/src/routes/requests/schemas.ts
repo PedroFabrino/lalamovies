@@ -83,8 +83,8 @@ export const batchRequestSchema = z.object({
 });
 
 export const searchReleasesSchema = z.object({
-  metadataId: z.string().min(1, 'Metadata ID is required'),
-  metadataSource: z.enum(['tmdb', 'anilist']),
+  metadataId: z.string().optional().nullable(),
+  metadataSource: z.enum(['tmdb', 'anilist']).optional().nullable(),
   mediaType: z.enum(['movie', 'tv_show', 'anime', 'private']),
   title: z.string().min(1, 'Title is required'),
   year: z.number().int().optional().nullable(),

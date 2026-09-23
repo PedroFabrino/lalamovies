@@ -1734,9 +1734,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/schemas.ts": {
-    "mtime": 1790174757.354258,
-    "seen": 1790175893.3039048,
-    "ast_hash": "dc00183ccbacecfe11f8165f3696bb19",
+    "mtime": 1790178339.7716875,
+    "seen": 1790178803.0250866,
+    "ast_hash": "581308a56993033ac31a9b93c04551ac",
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/search.ts": {
@@ -2112,9 +2112,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/TorrentReplacementModal.vue": {
-    "mtime": 1790175726.2056315,
-    "seen": 1790175893.3544202,
-    "ast_hash": "b0b0c824cfd9b4a21c50ab860773859c",
+    "mtime": 1790178676.5567179,
+    "seen": 1790178803.078625,
+    "ast_hash": "4733784ed5af903a74b5965a0e641a96",
     "semantic_hash": ""
   },
   "apps/web/tests/TorrentReplacementModal.test.ts": {
@@ -2127,6 +2127,18 @@
     "mtime": 1790147914.3154678,
     "seen": 1790175893.391089,
     "ast_hash": "b6101b9faa7a355382b636141d2006a2",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/TorrentCandidateCard.vue": {
+    "mtime": 1790178608.9650075,
+    "seen": 1790178803.078625,
+    "ast_hash": "948694acc8d3eccefdb895b183097686",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/TorrentManualInput.vue": {
+    "mtime": 1790178657.7797058,
+    "seen": 1790178803.078625,
+    "ast_hash": "5c9e385f071d7568d2cc1f5d023d6a72",
     "semantic_hash": ""
   }
 }

@@ -151,95 +151,26 @@
             v-else
             class="space-y-2"
           >
-            <div
+            <TorrentCandidateCard
               v-for="candidate in candidates"
               :key="candidate.guid"
-              data-testid="release-candidate-item"
-              class="p-3 rounded-xl border text-xs cursor-pointer transition flex flex-col gap-1.5"
-              :class="selectedCandidate?.guid === candidate.guid ? 'bg-indigo-950/40 border-indigo-500 ring-1 ring-indigo-500' : 'bg-zinc-950/40 border-zinc-800 hover:border-zinc-700'"
-              @click="selectedCandidate = candidate"
-            >
-              <div class="flex items-start justify-between gap-2">
-                <span class="font-medium text-zinc-200 line-clamp-2">{{ candidate.title }}</span>
-                <span class="font-bold text-zinc-300 shrink-0">{{ candidate.formattedSize }}</span>
-              </div>
-              <div class="flex items-center gap-2 flex-wrap text-[11px] text-zinc-400">
-                <span class="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 font-mono">{{ candidate.indexer }}</span>
-                <span
-                  v-if="candidate.resolution"
-                  class="px-1.5 py-0.5 rounded bg-zinc-800/80 text-zinc-300"
-                >{{ candidate.resolution }}</span>
-                <span class="text-emerald-400 font-medium">▲ {{ candidate.seeders }}</span>
-                <span class="text-zinc-500">▼ {{ candidate.leechers }}</span>
-                <span
-                  v-if="candidate.isPreferred"
-                  class="px-1.5 py-0.5 rounded bg-indigo-900/60 text-indigo-300 font-semibold"
-                >★ Preferred</span>
-              </div>
-            </div>
+              :candidate="candidate"
+              :selected="selectedCandidate?.guid === candidate.guid"
+              @select="selectedCandidate = candidate"
+            />
           </div>
         </div>
 
         <!-- Manual Tab -->
-        <div
+        <TorrentManualInput
           v-else
-          class="space-y-4"
-        >
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-zinc-300">Magnet Link</label>
-            <input
-              v-model="manualMagnet"
-              type="text"
-              data-testid="manual-magnet-input"
-              placeholder="magnet:?xt=urn:btih:..."
-              class="w-full px-3 py-2 text-xs rounded-xl bg-zinc-950 border border-zinc-800 focus:outline-none focus:border-indigo-500 text-zinc-200 placeholder-zinc-600 font-mono"
-              :disabled="Boolean(manualFileBase64)"
-            >
-          </div>
-
-          <div class="relative flex py-1 items-center">
-            <div class="flex-grow border-t border-zinc-800" />
-            <span class="flex-shrink mx-2 text-[10px] uppercase tracking-wider text-zinc-500">OR</span>
-            <div class="flex-grow border-t border-zinc-800" />
-          </div>
-
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-zinc-300">Upload .torrent File</label>
-            <div class="flex items-center gap-2">
-              <input
-                ref="fileInputRef"
-                type="file"
-                accept=".torrent"
-                data-testid="manual-file-input"
-                class="hidden"
-                @change="handleFileUpload"
-              >
-              <button
-                type="button"
-                data-testid="upload-torrent-btn"
-                class="px-3 py-2 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl transition cursor-pointer"
-                :disabled="Boolean(manualMagnet.trim())"
-                @click="fileInputRef?.click()"
-              >
-                Browse .torrent...
-              </button>
-              <span
-                v-if="manualFileName"
-                class="text-xs text-zinc-300 truncate max-w-xs"
-              >
-                {{ manualFileName }}
-              </span>
-              <button
-                v-if="manualFileName"
-                type="button"
-                class="text-xs text-red-400 hover:underline"
-                @click="clearFile"
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-        </div>
+          :magnet="manualMagnet"
+          :file-base64="manualFileBase64"
+          :file-name="manualFileName"
+          @update:magnet="manualMagnet = $event"
+          @file-selected="handleFileSelected"
+          @clear-file="clearFile"
+        />
       </div>
 
       <!-- Footer Buttons -->
@@ -277,6 +208,8 @@ import { ref, computed, watch } from 'vue';
 import { api, ApiError } from '../lib/api';
 import { useRequestsStore, type DownloadRequest } from '../stores/requests';
 import type { ReleaseCandidate } from '../lib/releaseExplorer';
+import TorrentCandidateCard from './TorrentCandidateCard.vue';
+import TorrentManualInput from './TorrentManualInput.vue';
 
 const props = defineProps<{
   open: boolean;
@@ -299,7 +232,6 @@ const selectedCandidate = ref<ReleaseCandidate | null>(null);
 const manualMagnet = ref('');
 const manualFileBase64 = ref<string | null>(null);
 const manualFileName = ref<string | null>(null);
-const fileInputRef = ref<HTMLInputElement | null>(null);
 
 const isSubmitting = ref(false);
 const errorMessage = ref<string | null>(null);
@@ -337,31 +269,34 @@ async function fetchReleases(): Promise<void> {
     const res = await api.post<{
       isConfigured: boolean;
       isReachable: boolean;
-      releases: ReleaseCandidate[];
+      candidates?: ReleaseCandidate[];
+      releases?: ReleaseCandidate[];
+      recommended?: ReleaseCandidate | null;
     }>('/requests/search-releases', {
+      metadataId: props.item.metadataId,
+      metadataSource: props.item.metadataSource,
       mediaType: props.item.mediaType,
       title: props.item.title,
       year: props.item.year ?? undefined,
       seasonNumber: props.item.seasonNumber ?? undefined,
       episodeNumber: props.item.episodeNumber ?? undefined,
     });
-    candidates.value = res.releases || [];
-  } catch (err) {
-    if (err instanceof ApiError && err.statusCode === 503) {
-      searchFailedMessage.value = err.message || 'Prowlarr indexer is currently unreachable.';
+    candidates.value = res.candidates || res.releases || [];
+    if (res.recommended && !selectedCandidate.value) {
+      selectedCandidate.value = res.recommended;
+    }
+  } catch (err: unknown) {
+    if (err instanceof ApiError) {
+      searchFailedMessage.value = err.message;
     } else {
-      searchFailedMessage.value = 'Failed to fetch indexer releases.';
+      searchFailedMessage.value = (err as Error)?.message || 'Failed to fetch indexer releases.';
     }
   } finally {
     isSearching.value = false;
   }
 }
 
-function handleFileUpload(event: Event): void {
-  const target = event.target as HTMLInputElement;
-  const file = target.files?.[0];
-  if (!file) return;
-
+function handleFileSelected(file: File): void {
   manualFileName.value = file.name;
   const reader = new FileReader();
   reader.onload = () => {
@@ -375,7 +310,6 @@ function handleFileUpload(event: Event): void {
 function clearFile(): void {
   manualFileBase64.value = null;
   manualFileName.value = null;
-  if (fileInputRef.value) fileInputRef.value.value = '';
 }
 
 function handleClose(): void {
