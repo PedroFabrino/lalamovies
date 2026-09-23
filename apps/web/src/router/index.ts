@@ -44,6 +44,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, requiresFeature: 'waitlist' },
   },
   {
+    path: '/anime',
+    name: 'anime',
+    component: () => import('../views/AnimeView.vue'),
+    meta: { requiresAuth: true, requiresFeature: 'seasonal_anime' },
+  },
+  {
     path: '/admin',
     name: 'admin',
     component: () => import('../views/AdminView.vue'),

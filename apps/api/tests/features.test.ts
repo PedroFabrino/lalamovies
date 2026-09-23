@@ -65,12 +65,13 @@ describe('Feature Flags Foundation (Subtask #85)', () => {
 
   it('automatically seeds all default feature flags with enabled: true', async () => {
     const all = app.db.select().from(featureFlags).all();
-    expect(all).toHaveLength(11);
+    expect(all).toHaveLength(12);
 
     const expectedFlags = [
       'discovery_feed',
       'up_next',
       'streaming',
+      'seasonal_anime',
       'manual_torrents',
       'batch_uploads',
       'waitlist',
@@ -119,7 +120,7 @@ describe('Feature Flags Foundation (Subtask #85)', () => {
     });
     expect(resAdmin.statusCode).toBe(200);
     const body = resAdmin.json();
-    expect(body.features).toHaveLength(11);
+    expect(body.features).toHaveLength(12);
     expect(body.features[0]).toHaveProperty('id');
     expect(body.features[0]).toHaveProperty('name');
     expect(body.features[0]).toHaveProperty('category');

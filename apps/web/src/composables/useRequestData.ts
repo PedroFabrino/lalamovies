@@ -208,6 +208,13 @@ export function useRequestData() {
           }
         }).catch(() => {});
       }
+    } else if (!isFastTrack && route.query.query) {
+      step1.customQuery.value = String(route.query.query);
+      if (route.query.mediaType && ['movie', 'tv_show', 'anime', 'private'].includes(String(route.query.mediaType))) {
+        mediaType.value = route.query.mediaType as MediaType;
+      }
+      step1.inputMode.value = 'search';
+      step2.handleSearchMetadata();
     }
 
     try {

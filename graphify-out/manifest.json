@@ -18,16 +18,16 @@
     "semantic_hash": "26454771a910c1087406c3e92e30c8f9"
   },
   "apps/api/src/app.ts": {
-    "mtime": 1790082519.735353,
-    "seen": 1790083216.086623,
-    "ast_hash": "bbef5ce36ce366cf54a7ed3c57822671",
+    "mtime": 1790182028.1570463,
+    "seen": 1790182625.5006871,
+    "ast_hash": "1675620d8232fd4d5f3c88ace4d4eb82",
     "semantic_hash": ""
   },
   "apps/api/src/db/index.ts": {
-    "mtime": 1789562203.715482,
-    "seen": 1789780156.9478219,
-    "ast_hash": "c7965bb37daf636a41b70a57021f409e",
-    "semantic_hash": "c7965bb37daf636a41b70a57021f409e"
+    "mtime": 1790181843.620569,
+    "seen": 1790182625.5011935,
+    "ast_hash": "1f9246a248bedd13ad1c3f77607b0992",
+    "semantic_hash": ""
   },
   "apps/api/src/db/migrations/0000_complex_ghost_rider.sql": {
     "mtime": 1788493353.0538535,
@@ -390,10 +390,10 @@
     "semantic_hash": ""
   },
   "apps/api/tests/features.test.ts": {
-    "mtime": 1789562780.0199702,
-    "seen": 1789780156.9478219,
-    "ast_hash": "4bc22c3305bf59d1cb8c75cf06bb309a",
-    "semantic_hash": "4bc22c3305bf59d1cb8c75cf06bb309a"
+    "mtime": 1790182417.4576783,
+    "seen": 1790182625.534619,
+    "ast_hash": "002478a23fc32bbf46a1015c74625793",
+    "semantic_hash": ""
   },
   "apps/api/tests/fileSystem_poller.test.ts": {
     "mtime": 1789957677.2641034,
@@ -972,10 +972,10 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/Navbar.vue": {
-    "mtime": 1789455539.6228366,
-    "seen": 1789780156.9478219,
-    "ast_hash": "8f7a4c527239ea4763c22ad377d6600b",
-    "semantic_hash": "8f7a4c527239ea4763c22ad377d6600b"
+    "mtime": 1790182140.0628705,
+    "seen": 1790182625.5768757,
+    "ast_hash": "1f32bdab9205f6f05d21f4ce5ca4bb64",
+    "semantic_hash": ""
   },
   "apps/web/src/components/PromotionModal.vue": {
     "mtime": 1790021120.9624832,
@@ -1050,10 +1050,10 @@
     "semantic_hash": "09279288afe5d204e896caec3423ed5c"
   },
   "apps/web/src/router/index.ts": {
-    "mtime": 1789455510.3623452,
-    "seen": 1789780156.9478219,
-    "ast_hash": "836590b30a52e05f5496852123ac6cf2",
-    "semantic_hash": "836590b30a52e05f5496852123ac6cf2"
+    "mtime": 1790182155.854145,
+    "seen": 1790182625.591454,
+    "ast_hash": "11686bd2b8acfc490b4172a76db43e7c",
+    "semantic_hash": ""
   },
   "apps/web/src/stores/auth.ts": {
     "mtime": 1789540356.2923925,
@@ -1314,9 +1314,9 @@
     "semantic_hash": "a831cf3669f1e6ab85d8a80ebe655f99"
   },
   "CONTEXT.md": {
-    "mtime": 1790179844.1846304,
-    "seen": 1790180420.1787474,
-    "ast_hash": "41efa5a1fde4787a568f8cb6d09f1361",
+    "mtime": 1790182503.3473828,
+    "seen": 1790182625.6091497,
+    "ast_hash": "7217edfdd5e11d7ef682a69fed809eb6",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1830,9 +1830,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/composables/useRequestData.ts": {
-    "mtime": 1790020971.3827648,
-    "seen": 1790021059.0348854,
-    "ast_hash": "1923f85490b8ca3e393c917242c30f93",
+    "mtime": 1790182187.0819297,
+    "seen": 1790182625.5875804,
+    "ast_hash": "7cb6c2b4d555b92969b09b9412508e38",
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/batch.ts": {
@@ -2004,9 +2004,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/appTypes.ts": {
-    "mtime": 1790082481.3140984,
-    "seen": 1790083216.086623,
-    "ast_hash": "daed9072db2803a517055f644bad9655",
+    "mtime": 1790181922.358329,
+    "seen": 1790182625.5006871,
+    "ast_hash": "78a9ba9ea0a920a152c78f0b94c06012",
     "semantic_hash": ""
   },
   "apps/api/src/services/requestBatch.ts": {
@@ -2046,9 +2046,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/serviceContainer.ts": {
-    "mtime": 1790082990.6640074,
-    "seen": 1790083216.107699,
-    "ast_hash": "e267b45374988c3980e97a513da86848",
+    "mtime": 1790182005.327443,
+    "seen": 1790182625.5271783,
+    "ast_hash": "be4cb022fdc74b6bffdff53a5eae4b7d",
     "semantic_hash": ""
   },
   "apps/api/src/startup/onReady.ts": {
@@ -2151,6 +2151,84 @@
     "mtime": 1790180544.3067646,
     "seen": 1790180811.9019516,
     "ast_hash": "a14298bce884dde7e8537e615a5518b9",
+    "semantic_hash": ""
+  },
+  "apps/api/src/routes/anime/index.ts": {
+    "mtime": 1790181890.2588618,
+    "seen": 1790182625.509163,
+    "ast_hash": "85b03e50e0d846aa28a4b84e746d70a5",
+    "semantic_hash": ""
+  },
+  "apps/api/src/routes/anime/seasonal.ts": {
+    "mtime": 1790181885.2126863,
+    "seen": 1790182625.509163,
+    "ast_hash": "f9158cf02da032cb82225a08d072e435",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/animeHistoryMatcher.ts": {
+    "mtime": 1790182055.4004736,
+    "seen": 1790182625.5171754,
+    "ast_hash": "ee1834e80f52fdd7ce7f083805fc46f5",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/animeSeasonService.ts": {
+    "mtime": 1790181874.9299996,
+    "seen": 1790182625.5171754,
+    "ast_hash": "825315991ac93d2fa62bedfc4f8098b9",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/animeTypes.ts": {
+    "mtime": 1790182045.0529678,
+    "seen": 1790182625.5171754,
+    "ast_hash": "0c28f2df29a03b0f734291d2fc4c15e7",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/animeSeasonal.test.ts": {
+    "mtime": 1790182101.2568364,
+    "seen": 1790182625.5316224,
+    "ast_hash": "cab3165ab84ffaf42ff3834f8a396266",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/anime/AnimeCard.vue": {
+    "mtime": 1790182198.49422,
+    "seen": 1790182625.5813496,
+    "ast_hash": "d99f0d79fc288f7abc00a85a8171185f",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/anime/AnimeDetailModal.vue": {
+    "mtime": 1790182255.2938738,
+    "seen": 1790182625.5813496,
+    "ast_hash": "3a83a52a5186aef7e3ca33c6c0b1f2a1",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/anime/AnticipatedSequelsShelf.vue": {
+    "mtime": 1790182206.089117,
+    "seen": 1790182625.5813496,
+    "ast_hash": "e461bd3271883783540d002fffa65054",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/anime/SeasonalAnimeGrid.vue": {
+    "mtime": 1790182225.1210275,
+    "seen": 1790182625.5813496,
+    "ast_hash": "214ca2670bd606fc0b544e2deaf48695",
+    "semantic_hash": ""
+  },
+  "apps/web/src/composables/useSeasonalAnime.ts": {
+    "mtime": 1790182165.9914582,
+    "seen": 1790182625.5887353,
+    "ast_hash": "16ec764afa3c3b4cad32fbaa4857a25e",
+    "semantic_hash": ""
+  },
+  "apps/web/src/views/AnimeView.vue": {
+    "mtime": 1790182269.7654102,
+    "seen": 1790182625.5930586,
+    "ast_hash": "52bbb7c54b8bd7c8e54d09be1acac5d7",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/AnimeView.test.ts": {
+    "mtime": 1790182338.8897772,
+    "seen": 1790182625.5971394,
+    "ast_hash": "66a661d39dcec040a6124f844de9d6b5",
     "semantic_hash": ""
   }
 }

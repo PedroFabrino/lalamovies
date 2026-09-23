@@ -20,6 +20,7 @@ import { UnarchiveDaemon } from './jobs/unarchiveDaemon';
 import { IRequestStateMachine } from './services/requestStateMachine';
 import { IRequestsRepository } from './services/requestsRepository';
 import { IRequestService } from './services/requestServiceTypes';
+import { IAnimeSeasonService } from './services/animeTypes';
 import { BroadcastFunction } from './routes/ws';
 
 export interface AppOptions {
@@ -54,6 +55,7 @@ export interface AppOptions {
   stateMachine?: IRequestStateMachine;
   requestsRepo?: IRequestsRepository;
   requestService?: IRequestService;
+  animeSeasonService?: IAnimeSeasonService;
 }
 
 declare module 'fastify' {
@@ -71,6 +73,7 @@ declare module 'fastify' {
     prowlarr: IProwlarrService;
     discovery: IDiscoveryService;
     upNext: IUpNextService;
+    animeSeason: IAnimeSeasonService;
     poller: DownloadPoller;
     broadcast: BroadcastFunction;
     serviceApiKey?: string;

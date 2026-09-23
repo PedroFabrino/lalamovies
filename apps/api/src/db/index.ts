@@ -117,6 +117,13 @@ export const DEFAULT_FEATURE_FLAGS: Array<{
     enabled: true,
   },
   {
+    id: 'seasonal_anime',
+    name: 'Seasonal Anime',
+    description: 'Seasonal anime schedules, trending catalogs, and anticipated sequel tracking via AniList',
+    category: 'discovery',
+    enabled: true,
+  },
+  {
     id: 'manual_torrents',
     name: 'Manual Torrent Submissions',
     description: 'Single torrent requests, magnet links, and torrent file uploads',

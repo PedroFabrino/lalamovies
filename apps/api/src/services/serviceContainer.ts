@@ -20,6 +20,9 @@ import { IRequestStateMachine, RequestStateMachine } from './requestStateMachine
 import { IRequestsRepository, RequestsRepository } from './requestsRepository';
 import { IRequestService } from './requestServiceTypes';
 import { RequestService } from './requestService';
+import { IAnimeSeasonService } from './animeTypes';
+import { AnimeSeasonService } from './animeSeasonService';
+import { AnimeHistoryMatcher } from './animeHistoryMatcher';
 import { DownloadPoller } from '../jobs/downloadPoller';
 import { UnarchiveDaemon } from '../jobs/unarchiveDaemon';
 import { CleanupCron } from '../jobs/cleanupCron';
@@ -38,6 +41,7 @@ export interface CreatedServices {
   prowlarr: IProwlarrService;
   discovery: IDiscoveryService;
   upNext: IUpNextService;
+  animeSeason: IAnimeSeasonService;
   subtitleInspection: ISubtitleInspectionService;
   subgen: ISubgenService;
   openSubtitles: OpenSubtitlesService;
@@ -56,21 +60,13 @@ export function setupServices(
   sqlite: Database.Database
 ): CreatedServices {
   const qbittorrent = options.qbittorrentService ?? new QBittorrentService();
-  const jellyfin =
-    options.jellyfinService ??
-    new JellyfinService(undefined, undefined, () => {
-      const row = db
-        .select()
-        .from(systemConfig)
-        .where(eq(systemConfig.key, 'jellyfin_api_key'))
-        .get();
-      return row?.value || process.env.JELLYFIN_API_KEY || '';
-    });
-  const notifications =
-    options.notificationService ??
-    new NotificationService({
-      isDiscordEnabled: () => isFeatureEnabled(db, 'discord_notifications'),
-    });
+  const jellyfin = options.jellyfinService ?? new JellyfinService(undefined, undefined, () => {
+    const row = db.select().from(systemConfig).where(eq(systemConfig.key, 'jellyfin_api_key')).get();
+    return row?.value || process.env.JELLYFIN_API_KEY || '';
+  });
+  const notifications = options.notificationService ?? new NotificationService({
+    isDiscordEnabled: () => isFeatureEnabled(db, 'discord_notifications'),
+  });
   const fileSystem = options.fileSystemService ?? new FileSystemService();
   const requestsRepo = options.requestsRepo ?? new RequestsRepository(db);
   const stateMachine: IRequestStateMachine =
@@ -151,6 +147,25 @@ export function setupServices(
       serviceApiKey,
       logger: {
         warn: (msg: string) => app.log.warn(msg),
+      },
+    });
+
+  const historyMatcher = new AnimeHistoryMatcher({
+    requestsRepo,
+    jellyfin,
+    logger: {
+      warn: (msg: string, extra?: unknown) => app.log.warn({ extra }, msg),
+    },
+  });
+
+  const animeSeason =
+    options.animeSeasonService ??
+    new AnimeSeasonService({
+      historyMatcher,
+      logger: {
+        info: (msg: string) => app.log.info(msg),
+        warn: (msg: string, extra?: unknown) => app.log.warn({ extra }, msg),
+        error: (msg: string, extra?: unknown) => app.log.error(extra, msg),
       },
     });
 
@@ -331,6 +346,7 @@ export function setupServices(
   app.decorate('prowlarr', prowlarr);
   app.decorate('discovery', discovery);
   app.decorate('upNext', upNext);
+  app.decorate('animeSeason', animeSeason);
   app.decorate('poller', poller);
   app.decorate('subtitleInspection', subtitleInspection);
   app.decorate('subgen', subgen);
@@ -357,6 +373,7 @@ export function setupServices(
     prowlarr,
     discovery,
     upNext,
+    animeSeason,
     subtitleInspection,
     subgen,
     openSubtitles,

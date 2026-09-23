@@ -236,6 +236,16 @@ _Avoid_: Whisper API, Bazarr worker, subtitle engine
 The orthogonal state (`none`, `pending`, `transcribing`, `completed`, `failed`) tracked on a Download Request for subtitle generation, independent of its seeding lifecycle.
 _Avoid_: sub status, whisper state, translation stage
 
+### Clients & Interfaces
+
+**Leanback Client**:
+The dedicated 10-foot TV user interface (served under ``/tv``) optimized for D-Pad remote navigation, high-contrast focus rings, and horizontal shelves, restricted strictly to media discovery, episodic tracking, request status, and playback launching.
+_Avoid_: TV app, couch UI, TV dashboard, TV mode
+
+**TV Shell**:
+The platform-specific application container (such as an Android TV APK embedding a WebView or a Smart TV packaged web app) responsible for hosting the Leanback Client, handling hardware back keys, and launching external media player apps.
+_Avoid_: wrapper, mobile container, native port
+
 
 
 

@@ -1,0 +1,1 @@
+export { animeSeasonalRoutes } from './seasonal';

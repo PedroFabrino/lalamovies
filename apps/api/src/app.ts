@@ -17,6 +17,7 @@ import { waitlistRoutes } from './routes/waitlist';
 import { streamsRoutes } from './routes/streams';
 import { libraryRoutes } from './routes/library';
 import { internalRoutes } from './routes/internal';
+import { animeSeasonalRoutes } from './routes/anime';
 import { validateConfig, getConfig } from './config';
 
 export * from './appTypes';
@@ -96,6 +97,8 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.register(streamsRoutes, { prefix: '/api/streams' });
   app.register(libraryRoutes, { prefix: '/library' });
   app.register(libraryRoutes, { prefix: '/api/library' });
+  app.register(animeSeasonalRoutes, { prefix: '/anime' });
+  app.register(animeSeasonalRoutes, { prefix: '/api/anime' });
   app.register(internalRoutes, { prefix: '/internal' });
   app.register(internalRoutes, { prefix: '/api/internal' });
   app.register(wsRoutes);

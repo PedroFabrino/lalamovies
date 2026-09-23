@@ -66,6 +66,14 @@
           Waitlist
         </router-link>
         <router-link
+          v-if="isSeasonalAnimeEnabled"
+          to="/anime"
+          class="px-3 py-1.5 text-sm font-medium rounded-lg transition"
+          :class="isRouteActive('/anime') ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'"
+        >
+          Anime
+        </router-link>
+        <router-link
           v-if="authStore.isAdmin"
           to="/admin"
           class="px-3 py-1.5 text-sm font-medium rounded-lg transition"
@@ -128,6 +136,7 @@ const featureFlags = useFeatureFlags();
 const isLibraryEnabled = computed(() => featureFlags.isEnabled('jellyfin_library_view'));
 const isRequestEnabled = computed(() => featureFlags.isEnabled('manual_torrents'));
 const isWaitlistEnabled = computed(() => featureFlags.isEnabled('waitlist'));
+const isSeasonalAnimeEnabled = computed(() => featureFlags.isEnabled('seasonal_anime'));
 
 onMounted(() => {
   featureFlags.ensureFlagsLoaded();
