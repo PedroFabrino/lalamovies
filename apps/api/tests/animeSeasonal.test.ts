@@ -365,5 +365,42 @@ describe('Anime Seasonal Routes (/anime)', () => {
     expect(body.candidates).toHaveLength(2);
     expect(body.recommended.title).toBe('Solo Leveling');
     expect(body.recommended.id).toBe('101');
+    expect(body.cleanTitle).toBe('Solo Leveling');
+    expect(body.detectedSeason).toBe(1);
+  });
+
+  it('POST /anime/resolve-tmdb cleans season from title and autodetects season number', async () => {
+    const mockCandidates: MetadataCandidate[] = [
+      { id: '215074', source: 'tmdb', title: 'The Apothecary Diaries', year: 2023, posterUrl: '/p3.jpg', overview: 'O3' },
+    ];
+
+    app.metadata = {
+      ...app.metadata,
+      searchTMDB: vi.fn().mockResolvedValue(mockCandidates),
+    };
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/anime/resolve-tmdb',
+      headers: { authorization: `Bearer ${authToken}` },
+      payload: {
+        anilistId: 99999,
+        title: 'The Apothecary Diaries Season 3',
+        romajiTitle: 'Kusuriya no Hitorigoto 3rd Season',
+        year: 2025,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.cleanTitle).toBe('The Apothecary Diaries');
+    expect(body.detectedSeason).toBe(3);
+    expect(body.recommended.title).toBe('The Apothecary Diaries');
+    expect(app.metadata.searchTMDB).toHaveBeenCalledWith(
+      'The Apothecary Diaries',
+      'tv_show',
+      undefined,
+      2025
+    );
   });
 });

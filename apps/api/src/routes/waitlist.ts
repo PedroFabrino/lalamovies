@@ -5,6 +5,7 @@ import { JwtPayload } from '../middleware/auth';
 import { requireFeature } from '../middleware/featureFlags';
 import { normalizeShowTitle } from '../services/upNext';
 import { RequestStatus } from '../services/requestStateMachine';
+import { parseAnimeTitleAndSeason } from '../utils/animeTitleCleaner';
 
 interface WaitlistRequestBody {
   mediaType?: string;
@@ -105,6 +106,21 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
       requesterUsername: outgoingBody.requesterUsername || request.currentUser?.username,
       requesterEmail: outgoingBody.requesterEmail || request.currentUser?.email || undefined,
     };
+
+    // Clean anime/TV show titles that have embedded season suffixes (e.g. "The Apothecary Diaries Season 3")
+    if (postBody.title && ['tv_show', 'anime'].includes(postBody.mediaType || '')) {
+      const parsed = parseAnimeTitleAndSeason(postBody.title);
+      if (parsed.cleanTitle !== postBody.title) {
+        postBody.title = parsed.cleanTitle;
+        if (
+          (postBody.seasonNumber === undefined || postBody.seasonNumber === null || postBody.seasonNumber === 1) &&
+          parsed.seasonNumber > 1
+        ) {
+          postBody.seasonNumber = parsed.seasonNumber;
+        }
+      }
+    }
+
     outgoingBody = postBody;
 
     // Auto-detect targetEpisode from download_requests if omitted for tv_show / anime

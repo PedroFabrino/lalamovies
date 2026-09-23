@@ -4,6 +4,7 @@ import { authMiddleware } from '../../middleware/auth';
 import { requireFeature } from '../../middleware/featureFlags';
 import { rankMetadataCandidates, MetadataCandidate } from '../../services/metadata';
 import { MediaSeason } from '../../services/animeTypes';
+import { parseAnimeTitleAndSeason } from '../../utils/animeTitleCleaner';
 
 const seasonsQuerySchema = z.object({
   season: z.enum(['WINTER', 'SPRING', 'SUMMER', 'FALL']),
@@ -87,29 +88,60 @@ export const animeSeasonalRoutes: FastifyPluginAsync = async (app) => {
     const { title, romajiTitle, year, format } = parseResult.data;
     const mediaType = format?.toUpperCase() === 'MOVIE' ? 'movie' : 'tv_show';
 
+    const parsedTitle = parseAnimeTitleAndSeason(title);
+    const parsedRomaji = romajiTitle ? parseAnimeTitleAndSeason(romajiTitle) : null;
+    const cleanTitle = parsedTitle.cleanTitle;
+    const detectedSeason =
+      parsedTitle.seasonNumber > 1
+        ? parsedTitle.seasonNumber
+        : parsedRomaji && parsedRomaji.seasonNumber > 1
+          ? parsedRomaji.seasonNumber
+          : 1;
+
     try {
+      // 1. Search TMDB with cleaned title first (e.g. "The Apothecary Diaries")
       const primaryCandidates = await app.metadata.searchTMDB(
-        title,
+        cleanTitle,
         mediaType,
         undefined,
         year ?? undefined
       );
 
       let allCandidates = [...primaryCandidates];
+      const seenIds = new Set(primaryCandidates.map((c) => String(c.id)));
 
-      // If romajiTitle exists and is distinct from title, query TMDB with it too
-      if (
-        romajiTitle &&
-        romajiTitle.trim().toLowerCase() !== title.trim().toLowerCase()
-      ) {
+      // 2. If cleanTitle is distinct from original raw title, search raw title as fallback
+      if (title.trim().toLowerCase() !== cleanTitle.trim().toLowerCase()) {
         try {
-          const romajiCandidates = await app.metadata.searchTMDB(
-            romajiTitle,
+          const rawCandidates = await app.metadata.searchTMDB(
+            title,
             mediaType,
             undefined,
             year ?? undefined
           );
-          const seenIds = new Set(primaryCandidates.map((c) => String(c.id)));
+          for (const cand of rawCandidates) {
+            if (!seenIds.has(String(cand.id))) {
+              seenIds.add(String(cand.id));
+              allCandidates.push(cand);
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      // 3. Search romaji queries if distinct
+      const romajiQueries = [parsedRomaji?.cleanTitle, romajiTitle].filter(
+        (r): r is string => Boolean(r && r.trim().toLowerCase() !== cleanTitle.trim().toLowerCase())
+      );
+      for (const rq of romajiQueries) {
+        try {
+          const romajiCandidates = await app.metadata.searchTMDB(
+            rq,
+            mediaType,
+            undefined,
+            year ?? undefined
+          );
           for (const cand of romajiCandidates) {
             if (!seenIds.has(String(cand.id))) {
               seenIds.add(String(cand.id));
@@ -117,20 +149,22 @@ export const animeSeasonalRoutes: FastifyPluginAsync = async (app) => {
             }
           }
         } catch {
-          // Non-blocking fallback
+          // ignore
         }
       }
 
-      // Rank candidates against title and year
+      // Rank candidates against cleanTitle and year
       const ranked = rankMetadataCandidates<MetadataCandidate>(
         allCandidates,
-        title,
+        cleanTitle,
         year ?? undefined
       );
 
       return reply.send({
         candidates: ranked,
         recommended: ranked.length > 0 ? ranked[0] : null,
+        cleanTitle,
+        detectedSeason,
       });
     } catch (err) {
       request.log.error(err, `Failed to resolve TMDB candidate for anime "${title}"`);

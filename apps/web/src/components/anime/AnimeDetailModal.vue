@@ -144,10 +144,14 @@
           :is-resolving-tmdb="isResolvingTmdb"
           :tmdb-candidates="tmdbCandidates"
           :selected-candidate-id="selectedCandidateId"
+          :target-season-number="targetSeasonNumber"
+          :target-episode-number="targetEpisodeNumber"
           :waitlist-mode="waitlistMode"
           :is-submitting-waitlist="isSubmittingWaitlist"
           @back="showWaitlistConfirmation = false"
           @update:selected-candidate-id="selectedCandidateId = $event"
+          @update:target-season-number="targetSeasonNumber = $event"
+          @update:target-episode-number="targetEpisodeNumber = $event"
           @update:waitlist-mode="waitlistMode = $event"
           @confirm="confirmWaitlistSubmission"
           @submit-direct="submitDirectWaitlist"
@@ -162,6 +166,7 @@ import { ref, computed, watch } from 'vue';
 import type { SeasonalAnimeItem } from '../../composables/useSeasonalAnime';
 import { api } from '../../lib/api';
 import { useRequestsStore } from '../../stores/requests';
+import { parseAnimeTitleAndSeason } from '../../lib/animeTitleCleaner';
 import AnimeTmdbConfirmSection, { type MetadataCandidate } from './AnimeTmdbConfirmSection.vue';
 
 const props = withDefaults(
@@ -188,6 +193,8 @@ const isSubmittingWaitlist = ref(false);
 const tmdbCandidates = ref<MetadataCandidate[]>([]);
 const selectedCandidateId = ref<string>('');
 const waitlistMode = ref<'episodic' | 'season_pack'>('episodic');
+const targetSeasonNumber = ref<number>(1);
+const targetEpisodeNumber = ref<number>(1);
 
 const posterUrl = computed(() => {
   if (!props.anime) return undefined;
@@ -243,6 +250,9 @@ watch(
     tmdbCandidates.value = [];
     selectedCandidateId.value = '';
     waitlistMode.value = newVal?.status === 'RELEASING' ? 'episodic' : 'episodic';
+    const parsed = parseAnimeTitleAndSeason(displayTitle.value);
+    targetSeasonNumber.value = parsed.seasonNumber;
+    targetEpisodeNumber.value = 1;
   }
 );
 
@@ -256,10 +266,16 @@ async function startWaitlistFlow() {
   showWaitlistConfirmation.value = true;
   isResolvingTmdb.value = true;
 
+  const parsed = parseAnimeTitleAndSeason(displayTitle.value);
+  targetSeasonNumber.value = parsed.seasonNumber;
+  targetEpisodeNumber.value = 1;
+
   try {
     const res = await api.post<{
       candidates: MetadataCandidate[];
       recommended: MetadataCandidate | null;
+      detectedSeason?: number;
+      cleanTitle?: string;
     }>('/anime/resolve-tmdb', {
       anilistId: props.anime.id,
       title: displayTitle.value,
@@ -274,6 +290,10 @@ async function startWaitlistFlow() {
     } else if (tmdbCandidates.value[0]) {
       selectedCandidateId.value = tmdbCandidates.value[0].id;
     }
+
+    if (typeof res.detectedSeason === 'number' && res.detectedSeason >= 1) {
+      targetSeasonNumber.value = res.detectedSeason;
+    }
   } catch {
     tmdbCandidates.value = [];
   } finally {
@@ -286,20 +306,22 @@ async function confirmWaitlistSubmission() {
   const candidate = selectedTmdbCandidate.value;
   isSubmittingWaitlist.value = true;
 
-  const targetEpisode = waitlistMode.value === 'episodic' ? 1 : null;
+  const targetEpisode = waitlistMode.value === 'episodic' ? targetEpisodeNumber.value : null;
+  const parsed = parseAnimeTitleAndSeason(displayTitle.value);
+  const finalTitle = candidate?.title || parsed.cleanTitle;
 
   try {
     await api.post('/waitlist', {
       mediaType: 'anime',
-      title: candidate?.title || displayTitle.value,
+      title: finalTitle,
       metadataId: candidate?.id || String(props.anime.id),
       metadataSource: candidate ? 'tmdb' : 'anilist',
-      seasonNumber: 1,
+      seasonNumber: targetSeasonNumber.value,
       targetEpisode,
       posterUrl: candidate?.posterUrl || posterUrl.value,
     });
 
-    requestsStore.showToast(`"${displayTitle.value}" added to Watcher Waitlist!`, 'success');
+    requestsStore.showToast(`"${finalTitle}" (S${targetSeasonNumber.value}) added to Watcher Waitlist!`, 'success');
     handleClose();
   } catch (err: unknown) {
     requestsStore.showToast((err as Error).message || 'Failed to add to waitlist', 'error');
@@ -311,17 +333,20 @@ async function confirmWaitlistSubmission() {
 async function submitDirectWaitlist() {
   if (!props.anime) return;
   isSubmittingWaitlist.value = true;
+  const parsed = parseAnimeTitleAndSeason(displayTitle.value);
+  const finalTitle = parsed.cleanTitle;
+
   try {
     await api.post('/waitlist', {
       mediaType: 'anime',
-      title: displayTitle.value,
+      title: finalTitle,
       metadataId: String(props.anime.id),
       metadataSource: 'anilist',
-      seasonNumber: 1,
-      targetEpisode: waitlistMode.value === 'episodic' ? 1 : null,
+      seasonNumber: targetSeasonNumber.value,
+      targetEpisode: waitlistMode.value === 'episodic' ? targetEpisodeNumber.value : null,
       posterUrl: posterUrl.value,
     });
-    requestsStore.showToast(`"${displayTitle.value}" added to Watcher Waitlist!`, 'success');
+    requestsStore.showToast(`"${finalTitle}" (S${targetSeasonNumber.value}) added to Watcher Waitlist!`, 'success');
     handleClose();
   } catch (err: unknown) {
     requestsStore.showToast((err as Error).message || 'Failed to add to waitlist', 'error');

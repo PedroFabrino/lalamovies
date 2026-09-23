@@ -246,9 +246,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/routes/waitlist.ts": {
-    "mtime": 1790014026.6655881,
-    "seen": 1790014549.6699111,
-    "ast_hash": "0207625eaf2420c00b87cadf0610824f",
+    "mtime": 1790185861.973632,
+    "seen": 1790186329.2395015,
+    "ast_hash": "4221f6ba07394920b68f48a9ec90f2b7",
     "semantic_hash": ""
   },
   "apps/api/src/routes/ws.ts": {
@@ -2160,9 +2160,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/routes/anime/seasonal.ts": {
-    "mtime": 1790181885.2126863,
-    "seen": 1790182625.509163,
-    "ast_hash": "f9158cf02da032cb82225a08d072e435",
+    "mtime": 1790185823.699226,
+    "seen": 1790186329.2340107,
+    "ast_hash": "a56f3daa1bb22d0bc47643a2de646232",
     "semantic_hash": ""
   },
   "apps/api/src/services/animeHistoryMatcher.ts": {
@@ -2184,9 +2184,9 @@
     "semantic_hash": ""
   },
   "apps/api/tests/animeSeasonal.test.ts": {
-    "mtime": 1790183678.5236619,
-    "seen": 1790183981.611741,
-    "ast_hash": "e6f29a69691f66f6c991ced1c6566e88",
+    "mtime": 1790185998.0457666,
+    "seen": 1790186329.2527838,
+    "ast_hash": "edc18a8a930bd7d692dcdf18bf82aefc",
     "semantic_hash": ""
   },
   "apps/web/src/components/anime/AnimeCard.vue": {
@@ -2196,9 +2196,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/anime/AnimeDetailModal.vue": {
-    "mtime": 1790183880.4438064,
-    "seen": 1790183981.6570675,
-    "ast_hash": "edffb681cfb46fd419c13d5fa7addfa7",
+    "mtime": 1790185967.2627215,
+    "seen": 1790186329.298996,
+    "ast_hash": "1203a2d12a722e7bffaf0668bdf16b62",
     "semantic_hash": ""
   },
   "apps/web/src/components/anime/AnticipatedSequelsShelf.vue": {
@@ -2238,9 +2238,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/anime/AnimeTmdbConfirmSection.vue": {
-    "mtime": 1790182715.7281754,
-    "seen": 1790182792.553579,
-    "ast_hash": "4fbc8839c5ed1265d964ec5d75ce5f8a",
+    "mtime": 1790186073.0316267,
+    "seen": 1790186329.298996,
+    "ast_hash": "6f322e433c25110fa8ba11a4f3596451",
     "semantic_hash": ""
   },
   "docs/spec/apple-tv-companion-draft.md": {
@@ -2253,6 +2253,30 @@
     "mtime": 1790184085.362314,
     "seen": 1790184139.1161337,
     "ast_hash": "b76f470b68d46fa490a4884e6a73a95b",
+    "semantic_hash": ""
+  },
+  "apps/api/src/utils/animeTitleCleaner.ts": {
+    "mtime": 1790185787.6874833,
+    "seen": 1790186329.2522776,
+    "ast_hash": "3c1e5b027f36b64aa5f89b0095c74e37",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/animeTitleCleaner.test.ts": {
+    "mtime": 1790186008.762916,
+    "seen": 1790186329.2527838,
+    "ast_hash": "e3945f6203c5ffbee500f008e51a2a28",
+    "semantic_hash": ""
+  },
+  "apps/web/src/lib/animeTitleCleaner.ts": {
+    "mtime": 1790185797.5860932,
+    "seen": 1790186329.307005,
+    "ast_hash": "3c1e5b027f36b64aa5f89b0095c74e37",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/animeTitleCleaner.test.ts": {
+    "mtime": 1790186017.4134197,
+    "seen": 1790186329.3299704,
+    "ast_hash": "c7add5929a21912195c37f29e0402949",
     "semantic_hash": ""
   }
 }
