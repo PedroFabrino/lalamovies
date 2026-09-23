@@ -1,4 +1,4 @@
-name: docker
+name: mdm
 
 services:
   api:
@@ -259,15 +259,17 @@ services:
 
 volumes:
   app_db:
-    # Dedicated Docker named volume for SQLite database (app.db) on SSD storage.
-    # Decoupled from media storage for high IOPS and zero NTFS lock contention.
+    name: docker_app_db
+    external: true
   caddy_data:
-    # Stores Caddy's TLS certificates and ACME account data (Let's Encrypt).
-    # Must be a named volume (not a bind mount) so certificate data survives container recreations.
+    name: docker_caddy_data
+    external: true
   caddy_config:
-    # Stores Caddy's runtime configuration cache.
+    name: docker_caddy_config
+    external: true
   watcher_db:
-    # Dedicated Docker named volume for Watcher SQLite database (watcher.db) on SSD storage.
-    # Kept independent from app_db for isolated backups and schema maintenance.
+    name: docker_watcher_db
+    external: true
   streamer_db:
-    # Dedicated Docker named volume for Streamer SQLite database (streamer.db) on SSD storage.
+    name: docker_streamer_db
+    external: true

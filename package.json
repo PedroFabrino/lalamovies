@@ -4,6 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "pnpm --filter \"./apps/*\" --parallel dev",
+    "dev:setup": "node scripts/dev-setup.mjs",
+    "dev:up": "docker compose -f docker/docker-compose.dev.yml --env-file .env.dev up -d",
+    "dev:down": "docker compose -f docker/docker-compose.dev.yml --env-file .env.dev down",
+    "dev:prod": "pnpm --filter @mdm/web dev:prod",
     "build": "pnpm --filter \"./apps/*\" build",
     "lint": "pnpm --filter \"./apps/*\" lint",
     "typecheck": "pnpm --filter \"./apps/*\" typecheck",
