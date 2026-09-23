@@ -86,6 +86,18 @@ _Avoid_: approval window, notification delay, hold period
 The configurable number of days (default 30, env `NEW_RELEASE_THRESHOLD_DAYS`) used to classify a release as "new" vs "old" when computing its Grace Period. A Movie released within this window receives the configured Movie Grace Period (`MOVIE_GRACE_HOURS`, default 6h). Movies older than the threshold and all episodic releases receive the Episode Grace Period (`EPISODE_GRACE_HOURS`, default 0h).
 _Avoid_: freshness window, age cutoff, new release check
 
+**Seasonal Anime Tab**:
+A dedicated top-level application view (located at `/anime`) displaying episodic anime organized by Japanese broadcast cycles (`Trending Anime`, `Popular This Season`, `Upcoming Next Season`). Powered directly by AniList GraphQL metadata and relations.
+_Avoid_: anime browser, upcoming tab, anime list
+
+**Seasonal Anime Item**:
+An individual anime series card within the Seasonal Anime Tab displaying broadcast status, season schedule, community score, and trailer/synopsis, supporting quick actions for Waitlist commitment or tracker search.
+_Avoid_: anime card, seasonal card, show result
+
+**Anticipated Sequels Shelf**:
+A prioritized, personalized showcase within the Seasonal Anime Tab that highlights upcoming seasonal anime whose prequels or parent franchises appear in the user's completed Download Requests or Jellyfin play history.
+_Avoid_: returning anime, watchlist sequels, recommended sequels
+
 
 
 ### File System

@@ -1314,9 +1314,9 @@
     "semantic_hash": "a831cf3669f1e6ab85d8a80ebe655f99"
   },
   "CONTEXT.md": {
-    "mtime": 1790146328.7222626,
-    "seen": 1790175893.3833652,
-    "ast_hash": "21536a6e2e2f4f3e32a10979024b8bd5",
+    "mtime": 1790179844.1846304,
+    "seen": 1790180420.1787474,
+    "ast_hash": "41efa5a1fde4787a568f8cb6d09f1361",
     "semantic_hash": ""
   },
   "README.md": {
@@ -2139,6 +2139,18 @@
     "mtime": 1790178657.7797058,
     "seen": 1790178803.078625,
     "ast_hash": "5c9e385f071d7568d2cc1f5d023d6a72",
+    "semantic_hash": ""
+  },
+  "docs/adr/0019-seasonal-anime-discovery-and-waitlist-bridging.md": {
+    "mtime": 1790180394.312144,
+    "seen": 1790180420.1859279,
+    "ast_hash": "9a966cac84bad0719277596dbb70f2e6",
+    "semantic_hash": ""
+  },
+  "docs/spec/seasonal-anime-discovery-and-waitlist-bridging.md": {
+    "mtime": 1790180544.3067646,
+    "seen": 1790180811.9019516,
+    "ast_hash": "a14298bce884dde7e8537e615a5518b9",
     "semantic_hash": ""
   }
 }
