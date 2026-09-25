@@ -41,6 +41,7 @@
           :is-invites-enabled="featureFlags.isEnabled('user_invites')"
           :format-date="admin.formatDate"
           @change-role="admin.handleRoleChange"
+          @toggle-invites="admin.handleToggleInvitesPermission"
           @delete-user="admin.confirmDeleteUser"
           @open-invite-modal="admin.openInviteModal"
           @clear-error="admin.userActionError.value = null"

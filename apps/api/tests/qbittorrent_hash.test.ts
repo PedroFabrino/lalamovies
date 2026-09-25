@@ -91,6 +91,9 @@ describe('DownloadPoller - Orphan Torrent Self-Healing', () => {
         username TEXT NOT NULL,
         email TEXT,
         role TEXT NOT NULL DEFAULT 'user',
+        invited_by_user_id TEXT,
+        invite_id TEXT,
+        invites_enabled INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL
       );
       CREATE TABLE download_requests (

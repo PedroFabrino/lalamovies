@@ -43,19 +43,42 @@ describe('Invite Flow Integration', () => {
     await app.close();
   });
 
-  it('rejects POST /invites if unauthenticated or non-admin', async () => {
+  it('rejects POST /invites if unauthenticated or invites disabled', async () => {
     const unauth = await app.inject({
       method: 'POST',
       url: '/invites',
     });
     expect(unauth.statusCode).toBe(401);
 
-    const nonAdmin = await app.inject({
+    // Disable invites for regular user
+    app.db
+      .update(users)
+      .set({ invitesEnabled: false })
+      .where(eq(users.username, 'regular_user'))
+      .run();
+
+    const disabledUser = await app.inject({
       method: 'POST',
       url: '/invites',
       cookies: { token: userCookie },
     });
-    expect(nonAdmin.statusCode).toBe(403);
+    expect(disabledUser.statusCode).toBe(403);
+
+    // Re-enable invites
+    app.db
+      .update(users)
+      .set({ invitesEnabled: true })
+      .where(eq(users.username, 'regular_user'))
+      .run();
+
+    const enabledUser = await app.inject({
+      method: 'POST',
+      url: '/invites',
+      cookies: { token: userCookie },
+    });
+    expect(enabledUser.statusCode).toBe(201);
+    expect(enabledUser.json().invite.role).toBe('user');
+    expect(enabledUser.json().invite.expiresAt).toBeNull();
   });
 
   it('admin can generate an invite with 48h expiry', async () => {

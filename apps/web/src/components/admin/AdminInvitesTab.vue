@@ -40,6 +40,12 @@
                 Status
               </th>
               <th class="py-3 px-4">
+                Created By
+              </th>
+              <th class="py-3 px-4">
+                Uses
+              </th>
+              <th class="py-3 px-4">
                 Expires
               </th>
               <th class="py-3 px-4 text-right">
@@ -71,15 +77,43 @@
                   class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border"
                   :class="inv.status === 'used'
                     ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800'
-                    : inv.status === 'expired'
-                      ? 'bg-zinc-800 text-zinc-400 border-zinc-700'
-                      : 'bg-amber-950/60 text-amber-400 border-amber-800'"
+                    : inv.status === 'revoked'
+                      ? 'bg-red-950/60 text-red-400 border-red-800'
+                      : inv.status === 'expired'
+                        ? 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                        : 'bg-amber-950/60 text-amber-400 border-amber-800'"
                 >
                   {{ inv.status }}
                 </span>
               </td>
+              <td class="py-3 px-4 whitespace-nowrap text-xs text-zinc-300">
+                <span
+                  v-if="inv.creatorUsername"
+                  class="text-indigo-400 font-medium"
+                >@{{ inv.creatorUsername }}</span>
+                <span
+                  v-else
+                  class="text-zinc-500"
+                >—</span>
+              </td>
+              <td class="py-3 px-4 whitespace-nowrap text-xs text-zinc-300">
+                <div class="flex items-center gap-1.5">
+                  <span class="font-medium text-white">{{ inv.usageCount ?? (inv.status === 'used' ? 1 : 0) }}</span>
+                  <span
+                    v-if="inv.invitedUsers && inv.invitedUsers.length > 0"
+                    class="text-[10px] text-zinc-400 max-w-[120px] truncate"
+                    :title="inv.invitedUsers.join(', ')"
+                  >
+                    ({{ inv.invitedUsers.join(', ') }})
+                  </span>
+                </div>
+              </td>
               <td class="py-3 px-4 whitespace-nowrap text-xs text-zinc-400">
-                {{ formatDate(inv.expiresAt) }}
+                <span
+                  v-if="!inv.expiresAt"
+                  class="text-emerald-400 font-medium"
+                >Never</span>
+                <span v-else>{{ formatDate(inv.expiresAt) }}</span>
               </td>
               <td class="py-3 px-4 whitespace-nowrap text-right">
                 <button
@@ -199,6 +233,9 @@
               <option :value="168">
                 7 Days
               </option>
+              <option :value="0">
+                Never (Multi-Use)
+              </option>
             </select>
           </div>
 
@@ -252,9 +289,12 @@ export interface InviteItem {
   role: 'user' | 'trusted';
   createdByUserId: string;
   creatorUsername: string;
-  expiresAt: string;
+  expiresAt: string | null;
   usedAt: string | null;
-  status: 'pending' | 'used' | 'expired';
+  revokedAt?: string | null;
+  status: 'pending' | 'used' | 'expired' | 'revoked';
+  usageCount?: number;
+  invitedUsers?: string[];
 }
 
 defineProps<{

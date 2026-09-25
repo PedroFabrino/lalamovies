@@ -69,6 +69,12 @@
               Role
             </th>
             <th class="py-3 px-4">
+              Invited By
+            </th>
+            <th class="py-3 px-4">
+              Invites
+            </th>
+            <th class="py-3 px-4">
               Joined
             </th>
             <th class="py-3 px-4 text-right">
@@ -107,6 +113,34 @@
               >
                 {{ user.role }}
               </span>
+            </td>
+            <td class="py-3.5 px-4 whitespace-nowrap text-xs text-zinc-400">
+              <span
+                v-if="user.invitedBy"
+                class="text-indigo-400 font-medium"
+              >@{{ user.invitedBy }}</span>
+              <span
+                v-else
+                class="text-zinc-600"
+              >—</span>
+            </td>
+            <td class="py-3.5 px-4 whitespace-nowrap">
+              <button
+                v-if="user.role !== 'admin'"
+                type="button"
+                class="px-2 py-0.5 rounded text-[11px] font-medium border transition cursor-pointer"
+                :class="user.invitesEnabled !== false
+                  ? 'bg-emerald-950/50 text-emerald-400 border-emerald-800 hover:bg-emerald-900/50'
+                  : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:bg-zinc-700/50'"
+                :title="user.invitesEnabled !== false ? 'Click to disable invite generation' : 'Click to enable invite generation'"
+                @click="$emit('toggleInvites', user, user.invitesEnabled === false)"
+              >
+                {{ user.invitesEnabled !== false ? 'Allowed' : 'Disabled' }}
+              </button>
+              <span
+                v-else
+                class="text-[11px] text-zinc-500"
+              >Always</span>
             </td>
             <td class="py-3.5 px-4 whitespace-nowrap text-xs text-zinc-400">
               {{ formatDate(user.createdAt) }}
@@ -170,6 +204,8 @@ export interface AdminUser {
   role: 'admin' | 'trusted' | 'user';
   email: string | null;
   createdAt: string;
+  invitedBy?: string | null;
+  invitesEnabled?: boolean;
 }
 
 defineProps<{
@@ -184,6 +220,7 @@ defineProps<{
 
 defineEmits<{
   (e: 'changeRole', user: AdminUser, newRole: 'user' | 'trusted' | 'admin'): void;
+  (e: 'toggleInvites', user: AdminUser, enabled: boolean): void;
   (e: 'deleteUser', user: AdminUser): void;
   (e: 'openInviteModal'): void;
   (e: 'clearError'): void;

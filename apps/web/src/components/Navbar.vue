@@ -97,6 +97,30 @@
         <span>{{ isConnected ? 'Live Feed' : 'Connecting...' }}</span>
       </div>
 
+      <!-- Invite Friends Button -->
+      <button
+        v-if="isUserInvitesEnabled"
+        type="button"
+        class="px-2.5 py-1.5 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/80 rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+        title="Invite Friends"
+        @click="showInviteModal = true"
+      >
+        <svg
+          class="w-3.5 h-3.5 text-indigo-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+          />
+        </svg>
+        <span class="hidden sm:inline">Invite</span>
+      </button>
+
       <div class="text-right hidden sm:block">
         <div class="text-sm font-medium text-white flex items-center gap-2 justify-end">
           <span>{{ authStore.user?.username }}</span>
@@ -117,15 +141,22 @@
         Sign Out
       </button>
     </div>
+
+    <!-- User Invite Modal -->
+    <UserInviteModal
+      v-if="showInviteModal"
+      @close="showInviteModal = false"
+    />
   </header>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { useProgressSocket } from '../composables/useProgressSocket';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
+import UserInviteModal from './UserInviteModal.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -133,10 +164,13 @@ const authStore = useAuthStore();
 const { isConnected } = useProgressSocket();
 const featureFlags = useFeatureFlags();
 
+const showInviteModal = ref(false);
+
 const isLibraryEnabled = computed(() => featureFlags.isEnabled('jellyfin_library_view'));
 const isRequestEnabled = computed(() => featureFlags.isEnabled('manual_torrents'));
 const isWaitlistEnabled = computed(() => featureFlags.isEnabled('waitlist'));
 const isSeasonalAnimeEnabled = computed(() => featureFlags.isEnabled('seasonal_anime'));
+const isUserInvitesEnabled = computed(() => featureFlags.isEnabled('user_invites'));
 
 onMounted(() => {
   featureFlags.ensureFlagsLoaded();

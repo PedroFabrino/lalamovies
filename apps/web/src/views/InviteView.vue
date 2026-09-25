@@ -6,7 +6,7 @@
           Accept Invite
         </h1>
         <p class="text-sm text-zinc-400">
-          Join the media server and start downloading
+          <span v-if="creatorUsername">Invited by <span class="text-indigo-400 font-medium">@{{ creatorUsername }}</span> &bull; </span>Join the media server and start downloading
         </p>
       </div>
 
@@ -232,6 +232,7 @@ const token = String(route.params.token || '');
 const isCheckingToken = ref(true);
 const isTokenValid = ref(false);
 const tokenError = ref<string | null>(null);
+const creatorUsername = ref<string | null>(null);
 
 const username = ref('');
 const password = ref('');
@@ -250,9 +251,12 @@ onMounted(async () => {
   }
 
   try {
-    const res = await api.get<{ valid: boolean; expiresAt: string }>(`/invites/${token}`);
+    const res = await api.get<{ valid: boolean; expiresAt: string | null; creatorUsername?: string }>(`/invites/${token}`);
     if (res.valid) {
       isTokenValid.value = true;
+      if (res.creatorUsername) {
+        creatorUsername.value = res.creatorUsername;
+      }
     } else {
       isTokenValid.value = false;
       tokenError.value = 'Invite link is no longer valid.';

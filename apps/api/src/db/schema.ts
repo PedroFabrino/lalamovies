@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, primaryKey, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, primaryKey, uniqueIndex, AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 export const users = sqliteTable('users', {
@@ -7,6 +7,9 @@ export const users = sqliteTable('users', {
   username: text('username').notNull(),
   email: text('email'),
   role: text('role', { enum: ['user', 'trusted', 'admin'] }).notNull().default('user'),
+  invitedByUserId: text('invited_by_user_id').references((): AnySQLiteColumn => users.id, { onDelete: 'set null' }),
+  inviteId: text('invite_id').references((): AnySQLiteColumn => invites.id, { onDelete: 'set null' }),
+  invitesEnabled: integer('invites_enabled', { mode: 'boolean' }).notNull().default(true),
   createdAt: text('created_at').notNull(),
 });
 
@@ -16,9 +19,10 @@ export const invites = sqliteTable('invites', {
   role: text('role', { enum: ['user', 'trusted'] }).notNull().default('user'),
   createdByUserId: text('created_by_user_id')
     .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  expiresAt: text('expires_at').notNull(),
+    .references((): AnySQLiteColumn => users.id, { onDelete: 'cascade' }),
+  expiresAt: text('expires_at'),
   usedAt: text('used_at'),
+  revokedAt: text('revoked_at'),
 });
 
 export const downloadRequests = sqliteTable(
