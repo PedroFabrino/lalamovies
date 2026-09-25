@@ -1,5 +1,8 @@
 <template>
-  <div class="space-y-4" data-testid="tmdb-confirmation-flow">
+  <div
+    class="space-y-4"
+    data-testid="tmdb-confirmation-flow"
+  >
     <div class="flex items-center justify-between pb-3 border-b border-zinc-800">
       <h3 class="text-base font-bold text-white flex items-center gap-2">
         <span>🔗</span> Confirm TMDB Waitlist Match
@@ -13,12 +16,18 @@
       </button>
     </div>
 
-    <div v-if="isResolvingTmdb" class="py-8 text-center text-zinc-400 text-sm">
+    <div
+      v-if="isResolvingTmdb"
+      class="py-8 text-center text-zinc-400 text-sm"
+    >
       <div class="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
       Matching with TMDB catalog...
     </div>
 
-    <div v-else-if="tmdbCandidates.length === 0" class="py-6 text-center text-zinc-400 text-sm space-y-4">
+    <div
+      v-else-if="tmdbCandidates.length === 0"
+      class="py-6 text-center text-zinc-400 text-sm space-y-4"
+    >
       <p>No exact TMDB match was found automatically.</p>
       <div class="max-w-xs mx-auto text-left p-3 rounded-xl bg-zinc-950/40 border border-zinc-800/80">
         <label class="block text-xs font-semibold text-zinc-300 mb-1">Target Season:</label>
@@ -31,7 +40,7 @@
             :value="targetSeasonNumber"
             class="w-20 bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white text-center font-bold"
             @input="$emit('update:targetSeasonNumber', Math.max(1, parseInt(($event.target as HTMLInputElement).value, 10) || 1))"
-          />
+          >
         </div>
       </div>
       <button
@@ -43,7 +52,10 @@
       </button>
     </div>
 
-    <div v-else class="space-y-4">
+    <div
+      v-else
+      class="space-y-4"
+    >
       <!-- Matched Candidate Preview -->
       <div class="p-3.5 rounded-xl bg-zinc-950/60 border border-zinc-800 flex items-start gap-3.5">
         <img
@@ -51,11 +63,14 @@
           :src="selectedCandidate.posterUrl"
           :alt="selectedCandidate.title"
           class="w-14 aspect-[2/3] object-cover rounded shadow flex-shrink-0"
-        />
+        >
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2">
             <span class="text-sm font-bold text-white truncate">{{ selectedCandidate?.title }}</span>
-            <span v-if="selectedCandidate?.year" class="text-xs text-zinc-400">({{ selectedCandidate.year }})</span>
+            <span
+              v-if="selectedCandidate?.year"
+              class="text-xs text-zinc-400"
+            >({{ selectedCandidate.year }})</span>
           </div>
           <p class="text-xs text-zinc-400 line-clamp-2 mt-1">
             {{ selectedCandidate?.overview || 'No overview available.' }}
@@ -67,7 +82,10 @@
       </div>
 
       <!-- Candidate Switcher if Multiple -->
-      <div v-if="tmdbCandidates.length > 1" class="text-xs">
+      <div
+        v-if="tmdbCandidates.length > 1"
+        class="text-xs"
+      >
         <label class="block text-zinc-400 mb-1">Alternate TMDB Candidate:</label>
         <select
           :value="selectedCandidateId"
@@ -99,9 +117,11 @@
               :value="targetSeasonNumber"
               class="w-20 bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white text-center focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
               @input="$emit('update:targetSeasonNumber', Math.max(1, parseInt(($event.target as HTMLInputElement).value, 10) || 1))"
-            />
+            >
           </div>
-          <p class="text-[10px] text-zinc-500 mt-1">Autodetected, editable</p>
+          <p class="text-[10px] text-zinc-500 mt-1">
+            Autodetected, editable
+          </p>
         </div>
 
         <div v-if="waitlistMode === 'episodic'">
@@ -117,12 +137,17 @@
               :value="targetEpisodeNumber"
               class="w-20 bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white text-center focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
               @input="$emit('update:targetEpisodeNumber', Math.max(1, parseInt(($event.target as HTMLInputElement).value, 10) || 1))"
-            />
+            >
           </div>
-          <p class="text-[10px] text-zinc-500 mt-1">First episode to track</p>
+          <p class="text-[10px] text-zinc-500 mt-1">
+            First episode to track
+          </p>
         </div>
 
-        <div v-else class="flex flex-col justify-center">
+        <div
+          v-else
+          class="flex flex-col justify-center"
+        >
           <label class="block text-xs font-semibold text-zinc-400 mb-1">Scope:</label>
           <span class="text-xs text-zinc-400 font-medium">All episodes (Season Pack)</span>
         </div>
@@ -139,7 +164,7 @@
             :checked="waitlistMode === 'episodic'"
             class="text-indigo-600 focus:ring-indigo-500"
             @change="$emit('update:waitlistMode', 'episodic')"
-          />
+          >
           <span>
             <strong>Weekly Episodic Tracking</strong>
             <span class="block text-[11px] text-zinc-400">Auto-advances and downloads each weekly episode as it airs</span>
@@ -153,7 +178,7 @@
             :checked="waitlistMode === 'season_pack'"
             class="text-indigo-600 focus:ring-indigo-500"
             @change="$emit('update:waitlistMode', 'season_pack')"
-          />
+          >
           <span>
             <strong>Complete Season Pack</strong>
             <span class="block text-[11px] text-zinc-400">Waits for the season to finish and grabs the full batch release</span>
@@ -177,7 +202,10 @@
           :disabled="isSubmittingWaitlist"
           @click="$emit('confirm')"
         >
-          <span v-if="isSubmittingWaitlist" class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          <span
+            v-if="isSubmittingWaitlist"
+            class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"
+          />
           <span>{{ isSubmittingWaitlist ? 'Adding...' : 'Confirm & Add to Waitlist' }}</span>
         </button>
       </div>

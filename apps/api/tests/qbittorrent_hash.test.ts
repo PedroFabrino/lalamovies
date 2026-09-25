@@ -117,7 +117,9 @@ describe('DownloadPoller - Orphan Torrent Self-Healing', () => {
         torrent_file_path TEXT,
         deferred_reason TEXT,
         transcription_status TEXT NOT NULL DEFAULT 'none',
-        transcription_error TEXT
+        transcription_error TEXT,
+        deleted_at TEXT,
+        deletion_reason TEXT
       );
     `);
     db = drizzle(sqliteDb);

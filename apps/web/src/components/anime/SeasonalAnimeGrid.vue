@@ -28,7 +28,12 @@
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 9l-7 7-7-7"
+              />
             </svg>
           </span>
           <h3 class="text-xl font-bold text-white tracking-tight group-hover:text-indigo-300 transition-colors">
@@ -42,13 +47,19 @@
         >
           {{ items.length }}
         </span>
-        <span v-if="isCollapsed" class="text-xs text-zinc-500 italic">
+        <span
+          v-if="isCollapsed"
+          class="text-xs text-zinc-500 italic"
+        >
           (Collapsed)
         </span>
       </div>
 
       <!-- Optional Controls: Library Filter Pill -->
-      <div v-if="showLibraryFilter && !isCollapsed" class="flex items-center gap-1.5 p-1 bg-zinc-900 border border-zinc-800 rounded-xl text-xs">
+      <div
+        v-if="showLibraryFilter && !isCollapsed"
+        class="flex items-center gap-1.5 p-1 bg-zinc-900 border border-zinc-800 rounded-xl text-xs"
+      >
         <button
           type="button"
           class="px-3 py-1 rounded-lg font-medium transition"
@@ -64,7 +75,10 @@
           @click="$emit('update:filter', 'library')"
         >
           <span>From My Library</span>
-          <span v-if="libraryCount" class="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-900/80 text-indigo-200">
+          <span
+            v-if="libraryCount"
+            class="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-900/80 text-indigo-200"
+          >
             {{ libraryCount }}
           </span>
         </button>
@@ -72,7 +86,10 @@
     </div>
 
     <!-- Collapsible Body -->
-    <div v-show="!isCollapsed" data-testid="grid-content">
+    <div
+      v-show="!isCollapsed"
+      data-testid="grid-content"
+    >
       <!-- Loading Skeleton Grid -->
       <div
         v-if="isLoading"
@@ -100,7 +117,10 @@
         <p class="text-sm font-medium text-zinc-300">
           {{ emptyText || 'No anime found for this category.' }}
         </p>
-        <p v-if="currentFilter === 'library'" class="text-xs text-zinc-500">
+        <p
+          v-if="currentFilter === 'library'"
+          class="text-xs text-zinc-500"
+        >
           Try switching back to "All Upcoming" to explore new series.
         </p>
       </div>

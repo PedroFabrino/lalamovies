@@ -7,6 +7,12 @@ export const listRoutes: FastifyPluginAsync = async (app) => {
     const currentUserId = request.currentUser!.id;
     const callerRole = request.currentUser!.role;
 
+    const query = request.query as { status?: string } | undefined;
+    if (query?.status === 'deleted') {
+      const list = app.requestsRepo.findDeleted(currentUserId, { isAdmin, isTrusted: callerRole === 'trusted' });
+      return reply.send({ requests: list });
+    }
+
     if (isAdmin) {
       const list = app.requestsRepo.findAll(currentUserId, true);
       return reply.send({ requests: list });

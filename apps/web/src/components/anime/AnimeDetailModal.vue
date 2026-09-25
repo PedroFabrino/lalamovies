@@ -26,7 +26,7 @@
           :src="bannerUrl || posterUrl"
           :alt="displayTitle"
           class="w-full h-full object-cover opacity-60 filter blur-sm scale-105"
-        />
+        >
         <div class="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/40 to-transparent" />
 
         <!-- Header Content Overlay -->
@@ -36,12 +36,18 @@
             :src="posterUrl"
             :alt="displayTitle"
             class="w-20 sm:w-24 aspect-[3/4] object-cover rounded-lg shadow-2xl border border-zinc-700/60 flex-shrink-0"
-          />
+          >
           <div class="flex-1 min-w-0 pb-1">
-            <h2 class="text-xl sm:text-2xl font-bold text-white truncate" :title="displayTitle">
+            <h2
+              class="text-xl sm:text-2xl font-bold text-white truncate"
+              :title="displayTitle"
+            >
               {{ displayTitle }}
             </h2>
-            <p v-if="subTitle && subTitle !== displayTitle" class="text-xs text-zinc-400 truncate mt-0.5">
+            <p
+              v-if="subTitle && subTitle !== displayTitle"
+              class="text-xs text-zinc-400 truncate mt-0.5"
+            >
               {{ subTitle }}
             </p>
             <div class="flex flex-wrap items-center gap-2 mt-2">
@@ -51,9 +57,18 @@
               >
                 {{ statusLabel }}
               </span>
-              <span v-if="anime.format" class="text-xs text-zinc-400">{{ anime.format }}</span>
-              <span v-if="anime.episodes" class="text-xs text-zinc-400">• {{ anime.episodes }} episodes</span>
-              <span v-if="anime.averageScore" class="text-xs font-semibold text-amber-400">
+              <span
+                v-if="anime.format"
+                class="text-xs text-zinc-400"
+              >{{ anime.format }}</span>
+              <span
+                v-if="anime.episodes"
+                class="text-xs text-zinc-400"
+              >• {{ anime.episodes }} episodes</span>
+              <span
+                v-if="anime.averageScore"
+                class="text-xs font-semibold text-amber-400"
+              >
                 • ★ {{ anime.averageScore }}%
               </span>
             </div>
@@ -93,10 +108,12 @@
             <h4 class="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
               Synopsis
             </h4>
+            <!-- eslint-disable vue/no-v-html -->
             <div
               class="text-sm text-zinc-300 leading-relaxed max-h-48 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-zinc-700"
               v-html="cleanDescription"
             />
+            <!-- eslint-enable vue/no-v-html -->
           </div>
 
           <!-- Action Buttons Row -->

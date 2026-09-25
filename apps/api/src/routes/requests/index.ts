@@ -10,6 +10,8 @@ import { retryRoutes } from './retry';
 import { promoteRoutes } from './promote';
 import { replaceTorrentRoutes } from './replaceTorrent';
 import { lifecycleRoutes } from './lifecycle';
+import { deletedRoutes } from './deleted';
+import { redownloadRoutes } from './redownload';
 
 export * from './schemas';
 export { searchRoutes } from './search';
@@ -22,6 +24,8 @@ export { retryRoutes } from './retry';
 export { promoteRoutes } from './promote';
 export { replaceTorrentRoutes } from './replaceTorrent';
 export { lifecycleRoutes } from './lifecycle';
+export { deletedRoutes } from './deleted';
+export { redownloadRoutes } from './redownload';
 
 export const requestRoutes: FastifyPluginAsync = async (app) => {
   // All /requests routes require authentication
@@ -34,6 +38,8 @@ export const requestRoutes: FastifyPluginAsync = async (app) => {
   await app.register(createRoutes);
   await app.register(batchRoutes);
   await app.register(listRoutes);
+  await app.register(deletedRoutes);
+  await app.register(redownloadRoutes);
   await app.register(retryRoutes);
   await app.register(promoteRoutes);
   await app.register(replaceTorrentRoutes);

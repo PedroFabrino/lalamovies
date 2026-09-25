@@ -107,7 +107,7 @@ export const animeSeasonalRoutes: FastifyPluginAsync = async (app) => {
         year ?? undefined
       );
 
-      let allCandidates = [...primaryCandidates];
+      const allCandidates = [...primaryCandidates];
       const seenIds = new Set(primaryCandidates.map((c) => String(c.id)));
 
       // 2. If cleanTitle is distinct from original raw title, search raw title as fallback

@@ -526,11 +526,12 @@ export class CleanupService implements ICleanupService {
       }
 
       // 3 & 4. Trigger Jellyfin refresh and update status to deleted
+      const nowIso = new Date().toISOString();
       if (this.stateMachine) {
         await this.stateMachine.transition(item.id, RequestStatus.DELETED, {
           refreshJellyfin: true,
           broadcast: false,
-          extraFields: { scheduledDeleteAt: null },
+          extraFields: { scheduledDeleteAt: null, deletedAt: nowIso, deletionReason: 'cleanup' },
         });
       } else {
         if (typeof this.jellyfin?.safeRefresh === 'function') {
@@ -545,6 +546,8 @@ export class CleanupService implements ICleanupService {
 
         this.requestsRepo.setStatus(item.id, RequestStatus.DELETED, {
           scheduledDeleteAt: null,
+          deletedAt: nowIso,
+          deletionReason: 'cleanup',
         });
       }
 
@@ -556,6 +559,8 @@ export class CleanupService implements ICleanupService {
       this.fullyConsumedRequestIds.delete(item.id);
       item.status = 'deleted';
       item.scheduledDeleteAt = null;
+      item.deletedAt = nowIso;
+      item.deletionReason = 'cleanup';
       deleted.push(item);
 
       let requestedBy: string | undefined;
@@ -644,11 +649,12 @@ export class CleanupService implements ICleanupService {
     }
 
     // 3 & 4. Trigger Jellyfin refresh and mark status deleted
+    const nowIso = new Date().toISOString();
     if (this.stateMachine) {
       await this.stateMachine.transition(requestId, RequestStatus.DELETED, {
         refreshJellyfin: true,
         broadcast: false,
-        extraFields: { scheduledDeleteAt: null },
+        extraFields: { scheduledDeleteAt: null, deletedAt: nowIso, deletionReason: 'manual' },
       });
     } else {
       if (typeof this.jellyfin?.safeRefresh === 'function') {
@@ -663,6 +669,8 @@ export class CleanupService implements ICleanupService {
 
       this.requestsRepo.setStatus(requestId, RequestStatus.DELETED, {
         scheduledDeleteAt: null,
+        deletedAt: nowIso,
+        deletionReason: 'manual',
       });
     }
 

@@ -1,5 +1,8 @@
 <template>
-  <div class="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col" data-testid="anime-view">
+  <div
+    class="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col"
+    data-testid="anime-view"
+  >
     <Navbar />
 
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">

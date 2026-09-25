@@ -54,6 +54,8 @@ export const downloadRequests = sqliteTable(
       enum: ['none', 'pending', 'transcribing', 'completed', 'failed'],
     }).notNull().default('none'),
     transcriptionError: text('transcription_error'),
+    deletedAt: text('deleted_at'),
+    deletionReason: text('deletion_reason', { enum: ['cleanup', 'manual'] }),
   },
   (table) => [
     uniqueIndex('download_requests_movie_unique')

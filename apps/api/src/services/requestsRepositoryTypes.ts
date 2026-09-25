@@ -16,6 +16,12 @@ export interface FindByCriteriaFilters {
   excludeDeleted?: boolean;
 }
 
+export interface DeletedRequestListItem extends DownloadRequest {
+  requesterUsername?: string | null;
+  isPrimaryRequester?: boolean;
+  isActiveOrPresent: boolean;
+}
+
 export interface IRequestsRepository {
   findById(id: string): DownloadRequest | undefined;
   create(data: NewDownloadRequest): DownloadRequest;
@@ -41,6 +47,7 @@ export interface IRequestsRepository {
   markError(id: string, message: string): void;
   findAll(userId: string, isAdmin: boolean): RequestListItem[];
   findAllForUser(userId: string): RequestListItem[];
+  findDeleted(userId: string, isPrivileged: { isAdmin: boolean; isTrusted: boolean }): DeletedRequestListItem[];
   isCoRequester(requestId: string, userId: string): boolean;
   findRequesterUsername(userId: string): string | undefined;
   findByUserId(userId: string, excludeDeleted?: boolean): DownloadRequest[];
@@ -86,5 +93,7 @@ export const REQUEST_LIST_SELECT_FIELDS = {
   deferredReason: downloadRequests.deferredReason,
   transcriptionStatus: downloadRequests.transcriptionStatus,
   transcriptionError: downloadRequests.transcriptionError,
+  deletedAt: downloadRequests.deletedAt,
+  deletionReason: downloadRequests.deletionReason,
   requesterUsername: users.username,
 };

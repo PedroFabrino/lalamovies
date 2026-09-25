@@ -28,11 +28,17 @@
             <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-600/30 text-indigo-300 border border-indigo-500/30">
               {{ items.length }}
             </span>
-            <span v-if="isCollapsed" class="text-xs text-zinc-500 italic">
+            <span
+              v-if="isCollapsed"
+              class="text-xs text-zinc-500 italic"
+            >
               (Collapsed)
             </span>
           </div>
-          <p v-if="!isCollapsed" class="text-xs text-zinc-400 mt-0.5">
+          <p
+            v-if="!isCollapsed"
+            class="text-xs text-zinc-400 mt-0.5"
+          >
             Returning series from your download requests and Jellyfin watch history
           </p>
         </div>
@@ -40,7 +46,10 @@
 
       <div class="flex items-center gap-2">
         <!-- Scroll Buttons (when expanded) -->
-        <div v-show="!isCollapsed" class="hidden sm:flex items-center gap-1.5">
+        <div
+          v-show="!isCollapsed"
+          class="hidden sm:flex items-center gap-1.5"
+        >
           <button
             type="button"
             class="p-1.5 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 disabled:opacity-30 disabled:cursor-not-allowed border border-zinc-700/60 transition"
@@ -48,8 +57,18 @@
             aria-label="Scroll left"
             @click="scrollShelf('left')"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 19l-7-7 7-7"
+              />
             </svg>
           </button>
           <button
@@ -59,8 +78,18 @@
             aria-label="Scroll right"
             @click="scrollShelf('right')"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 5l7 7-7 7"
+              />
             </svg>
           </button>
         </div>
@@ -80,7 +109,12 @@
             stroke="currentColor"
             viewBox="0 0 24 24"
           >
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 9l-7 7-7-7"
+            />
           </svg>
         </button>
       </div>

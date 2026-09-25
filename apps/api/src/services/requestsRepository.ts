@@ -10,12 +10,13 @@ import {
 import { RequestStatus } from './requestStateMachine';
 import {
   RequestListItem,
+  DeletedRequestListItem,
   FindByCriteriaFilters,
   IRequestsRepository,
   REQUEST_LIST_SELECT_FIELDS,
 } from './requestsRepositoryTypes';
 
-export type { RequestListItem, FindByCriteriaFilters, IRequestsRepository };
+export type { RequestListItem, DeletedRequestListItem, FindByCriteriaFilters, IRequestsRepository };
 
 // Statuses considered "pending" (in-flight, poller and daemon care about these)
 const PENDING_STATUSES = [
@@ -76,24 +77,9 @@ export class RequestsRepository implements IRequestsRepository {
       .all();
   }
 
-  findByStatus(
-    status: DownloadRequest['status'],
-    orderBy?: 'requestedAtAsc'
-  ): DownloadRequest[] {
-    if (orderBy === 'requestedAtAsc') {
-      return this.db
-        .select()
-        .from(downloadRequests)
-        .where(eq(downloadRequests.status, status))
-        .orderBy(asc(downloadRequests.requestedAt))
-        .all();
-    }
-
-    return this.db
-      .select()
-      .from(downloadRequests)
-      .where(eq(downloadRequests.status, status))
-      .all();
+  findByStatus(status: DownloadRequest['status'], orderBy?: 'requestedAtAsc'): DownloadRequest[] {
+    const q = this.db.select().from(downloadRequests).where(eq(downloadRequests.status, status));
+    return orderBy === 'requestedAtAsc' ? q.orderBy(asc(downloadRequests.requestedAt)).all() : q.all();
   }
 
   findExistingSeriesFolder(params: {
@@ -146,9 +132,7 @@ export class RequestsRepository implements IRequestsRepository {
   }
 
   findAll(userId: string, isAdmin: boolean): RequestListItem[] {
-    if (!isAdmin) {
-      return this.findAllForUser(userId);
-    }
+    if (!isAdmin) return this.findAllForUser(userId);
 
     const rawList = this.db
       .select(REQUEST_LIST_SELECT_FIELDS)
@@ -160,21 +144,14 @@ export class RequestsRepository implements IRequestsRepository {
 
     const coReqMap = new Map<string, string[]>();
     const allCoRequesters = this.db
-      .select({
-        requestId: requestCoRequesters.requestId,
-        username: users.username,
-      })
+      .select({ requestId: requestCoRequesters.requestId, username: users.username })
       .from(requestCoRequesters)
       .leftJoin(users, eq(requestCoRequesters.userId, users.id))
       .all();
 
     for (const cr of allCoRequesters) {
-      if (!coReqMap.has(cr.requestId)) {
-        coReqMap.set(cr.requestId, []);
-      }
-      if (cr.username) {
-        coReqMap.get(cr.requestId)!.push(cr.username);
-      }
+      if (!coReqMap.has(cr.requestId)) coReqMap.set(cr.requestId, []);
+      if (cr.username) coReqMap.get(cr.requestId)!.push(cr.username);
     }
 
     return rawList.map((item) => ({
@@ -189,12 +166,7 @@ export class RequestsRepository implements IRequestsRepository {
       .select(REQUEST_LIST_SELECT_FIELDS)
       .from(downloadRequests)
       .leftJoin(users, eq(downloadRequests.userId, users.id))
-      .where(
-        and(
-          eq(downloadRequests.userId, userId),
-          ne(downloadRequests.status, RequestStatus.DELETED)
-        )
-      )
+      .where(and(eq(downloadRequests.userId, userId), ne(downloadRequests.status, RequestStatus.DELETED)))
       .all();
 
     const coRequestRows = this.db
@@ -202,39 +174,96 @@ export class RequestsRepository implements IRequestsRepository {
       .from(requestCoRequesters)
       .innerJoin(downloadRequests, eq(requestCoRequesters.requestId, downloadRequests.id))
       .leftJoin(users, eq(downloadRequests.userId, users.id))
-      .where(
-        and(
-          eq(requestCoRequesters.userId, userId),
-          ne(downloadRequests.status, RequestStatus.DELETED)
-        )
-      )
+      .where(and(eq(requestCoRequesters.userId, userId), ne(downloadRequests.status, RequestStatus.DELETED)))
       .all();
-
-    const primaryMapped: RequestListItem[] = primaryRows.map((r) => ({
-      ...r,
-      isPrimaryRequester: true,
-      coRequesters: [],
-    })) as RequestListItem[];
-
-    const coMapped: RequestListItem[] = coRequestRows.map((r) => ({
-      ...r,
-      isPrimaryRequester: false,
-      coRequesters: [],
-    })) as RequestListItem[];
 
     const seen = new Set<string>();
     const combined: RequestListItem[] = [];
-    for (const item of [...primaryMapped, ...coMapped]) {
-      if (!seen.has(item.id)) {
-        seen.add(item.id);
-        combined.push(item);
-      }
+    for (const item of primaryRows) {
+      if (!seen.has(item.id)) { seen.add(item.id); combined.push({ ...item, isPrimaryRequester: true, coRequesters: [] } as RequestListItem); }
     }
-    combined.sort(
-      (a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime()
-    );
+    for (const item of coRequestRows) {
+      if (!seen.has(item.id)) { seen.add(item.id); combined.push({ ...item, isPrimaryRequester: false, coRequesters: [] } as RequestListItem); }
+    }
+    return combined.sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
+  }
 
-    return combined;
+  findDeleted(userId: string, isPrivileged: { isAdmin: boolean; isTrusted: boolean }): DeletedRequestListItem[] {
+    const rawList = this.db
+      .select(REQUEST_LIST_SELECT_FIELDS)
+      .from(downloadRequests)
+      .leftJoin(users, eq(downloadRequests.userId, users.id))
+      .where(eq(downloadRequests.status, RequestStatus.DELETED))
+      .all();
+
+    let accessible = rawList;
+    if (!isPrivileged.isAdmin) {
+      const coReqIds = new Set(
+        this.db
+          .select({ requestId: requestCoRequesters.requestId })
+          .from(requestCoRequesters)
+          .where(eq(requestCoRequesters.userId, userId))
+          .all()
+          .map((r) => r.requestId)
+      );
+      accessible = rawList.filter((item) => item.userId === userId || coReqIds.has(item.id));
+    }
+
+    const filtered = accessible.filter((item) => {
+      if (item.mediaType === 'private') {
+        return isPrivileged.isAdmin || (isPrivileged.isTrusted && item.userId === userId);
+      }
+      return true;
+    });
+
+    filtered.sort((a, b) => {
+      const timeA = new Date(a.deletedAt || a.requestedAt).getTime();
+      const timeB = new Date(b.deletedAt || b.requestedAt).getTime();
+      return timeB - timeA;
+    });
+
+    const activeRequests = this.db
+      .select({
+        id: downloadRequests.id,
+        mediaType: downloadRequests.mediaType,
+        metadataId: downloadRequests.metadataId,
+        metadataSource: downloadRequests.metadataSource,
+        seasonNumber: downloadRequests.seasonNumber,
+        episodeNumber: downloadRequests.episodeNumber,
+        status: downloadRequests.status,
+        jellyfinPath: downloadRequests.jellyfinPath,
+      })
+      .from(downloadRequests)
+      .where(ne(downloadRequests.status, RequestStatus.DELETED))
+      .all();
+
+    const isMatchActive = (del: typeof filtered[0], act: typeof activeRequests[0]): boolean => {
+      if (del.metadataId !== act.metadataId || del.metadataSource !== act.metadataSource) return false;
+      const delIsPrivate = del.mediaType === 'private';
+      const actIsPrivate = act.mediaType === 'private';
+      if (delIsPrivate !== actIsPrivate) return false;
+      if (del.mediaType === 'movie' || (delIsPrivate && del.seasonNumber == null && del.episodeNumber == null)) return true;
+      const isSingleEp = del.seasonNumber != null && del.episodeNumber != null;
+      if (isSingleEp) {
+        return (act.seasonNumber === del.seasonNumber && act.episodeNumber == null) ||
+               (act.seasonNumber === del.seasonNumber && act.episodeNumber === del.episodeNumber);
+      }
+      return act.seasonNumber === del.seasonNumber && act.episodeNumber == null;
+    };
+
+    return filtered.map((item) => {
+      const activeMatch = activeRequests.find((act) => isMatchActive(item, act));
+      const isActiveOrPresent = Boolean(
+        activeMatch &&
+        (['queued', 'downloading', 'hardlinking', 'unarchiving', 'seeding', 'done'].includes(activeMatch.status) ||
+         Boolean(activeMatch.jellyfinPath))
+      );
+      return {
+        ...item,
+        isPrimaryRequester: item.userId === userId,
+        isActiveOrPresent,
+      } as DeletedRequestListItem;
+    });
   }
 
   isCoRequester(requestId: string, userId: string): boolean {
@@ -302,31 +331,18 @@ export class RequestsRepository implements IRequestsRepository {
   }
 
   findByTranscriptionStatus(status: string): DownloadRequest[] {
-    return this.db
-      .select()
-      .from(downloadRequests)
-      .where(
-        and(
-          eq(downloadRequests.transcriptionStatus, status as DownloadRequest['transcriptionStatus']),
-          ne(downloadRequests.status, RequestStatus.DELETED)
-        )
-      )
-      .all();
+    return this.db.select().from(downloadRequests).where(and(
+      eq(downloadRequests.transcriptionStatus, status as DownloadRequest['transcriptionStatus']),
+      ne(downloadRequests.status, RequestStatus.DELETED)
+    )).all();
   }
 
   findPendingTranscriptionByType(mediaType: string): DownloadRequest[] {
-    return this.db
-      .select()
-      .from(downloadRequests)
-      .where(
-        and(
-          eq(downloadRequests.transcriptionStatus, 'pending'),
-          eq(downloadRequests.mediaType, mediaType as DownloadRequest['mediaType']),
-          ne(downloadRequests.status, RequestStatus.DELETED)
-        )
-      )
-      .orderBy(asc(downloadRequests.requestedAt))
-      .all();
+    return this.db.select().from(downloadRequests).where(and(
+      eq(downloadRequests.transcriptionStatus, 'pending'),
+      eq(downloadRequests.mediaType, mediaType as DownloadRequest['mediaType']),
+      ne(downloadRequests.status, RequestStatus.DELETED)
+    )).orderBy(asc(downloadRequests.requestedAt)).all();
   }
 
   findByMetadataId(

@@ -41,6 +41,9 @@ export interface DownloadRequest {
   isFullyConsumed?: boolean;
   transcriptionStatus?: 'none' | 'pending' | 'transcribing' | 'completed' | 'failed' | null;
   transcriptionError?: string | null;
+  deletedAt?: string | null;
+  deletionReason?: 'cleanup' | 'manual' | null;
+  isActiveOrPresent?: boolean;
 }
 
 export interface ProgressData {
@@ -51,7 +54,9 @@ export interface ProgressData {
 
 export const useRequestsStore = defineStore('requests', () => {
   const requests = ref<DownloadRequest[]>([]);
+  const deletedRequests = ref<DownloadRequest[]>([]);
   const loading = ref(false);
+  const loadingDeleted = ref(false);
   const error = ref<string | null>(null);
   const progressMap = ref<Record<string, ProgressData>>({});
   const toast = ref<{ text: string; type: 'info' | 'success' | 'error' } | null>(null);
@@ -69,7 +74,7 @@ export const useRequestsStore = defineStore('requests', () => {
     error.value = null;
     try {
       const data = await api.get<{ requests: DownloadRequest[] }>('/requests');
-      requests.value = data.requests;
+      requests.value = data?.requests || [];
     } catch (err) {
       if (err instanceof ApiError) {
         error.value = err.message;
@@ -202,9 +207,47 @@ export const useRequestsStore = defineStore('requests', () => {
     }
   }
 
+  async function fetchDeleted(): Promise<void> {
+    loadingDeleted.value = true;
+    try {
+      const data = await api.get<{ requests: DownloadRequest[] }>('/requests?status=deleted');
+      deletedRequests.value = data?.requests || [];
+    } catch (err) {
+      if (err instanceof ApiError) {
+        showToast(err.message, 'error');
+      } else {
+        showToast('Failed to load deleted requests', 'error');
+      }
+    } finally {
+      loadingDeleted.value = false;
+    }
+  }
+
+  async function redownload(
+    id: string,
+    payload?: { magnetLink?: string; torrentFileBase64?: string }
+  ): Promise<DownloadRequest> {
+    try {
+      const data = await api.post<{ request: DownloadRequest }>(`/requests/${id}/redownload`, payload || {});
+      showToast(`Re-download started: ${data.request.title}`, 'success');
+      await fetchAll();
+      await fetchDeleted();
+      return data.request;
+    } catch (err) {
+      if (err instanceof ApiError) {
+        showToast(err.message, 'error');
+        throw new Error(err.message);
+      }
+      showToast('Failed to redownload request', 'error');
+      throw new Error('Failed to redownload request');
+    }
+  }
+
   return {
     requests,
+    deletedRequests,
     loading,
+    loadingDeleted,
     error,
     progressMap,
     toast,
@@ -212,6 +255,8 @@ export const useRequestsStore = defineStore('requests', () => {
     setToast: showToast,
     clearToast,
     fetchAll,
+    fetchDeleted,
+    redownload,
     deleteRequest,
     toggleKeep,
     retryRequest,

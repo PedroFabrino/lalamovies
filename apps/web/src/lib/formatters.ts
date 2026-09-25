@@ -73,3 +73,39 @@ export function formatMediaSubtitle(item: {
   return parts.join(' • ');
 }
 
+export function formatStatusLabel(item: { status: string; deferredReason?: string | null }): string {
+  if (item.status === 'queued') {
+    if (item.deferredReason === 'waiting_for_space') {
+      return 'Queued (Waiting for Space)';
+    }
+    return 'Queued (Waiting for Slot)';
+  }
+  return item.status;
+}
+
+export function getStatusBadgeClass(item: { status: string; deferredReason?: string | null }): string {
+  if (item.status === 'queued') {
+    if (item.deferredReason === 'waiting_for_space') {
+      return 'bg-amber-950/60 text-amber-400 border-amber-800';
+    }
+    return 'bg-blue-950/50 text-blue-300 border-blue-800/80';
+  }
+  switch (item.status) {
+    case 'downloading':
+      return 'bg-blue-950/60 text-blue-400 border-blue-800';
+    case 'hardlinking':
+    case 'unarchiving':
+      return 'bg-indigo-950/60 text-indigo-400 border-indigo-800';
+    case 'seeding':
+      return 'bg-emerald-950/60 text-emerald-400 border-emerald-800';
+    case 'done':
+      return 'bg-green-950/60 text-green-400 border-green-800';
+    case 'error':
+      return 'bg-red-950/60 text-red-400 border-red-800';
+    case 'deleted':
+      return 'bg-zinc-900 text-zinc-500 border-zinc-800';
+    default:
+      return 'bg-zinc-800 text-zinc-400 border-zinc-700';
+  }
+}
+

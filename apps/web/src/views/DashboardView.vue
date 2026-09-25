@@ -1,9 +1,7 @@
 <template>
   <div class="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
-    <!-- Navbar -->
     <Navbar />
 
-    <!-- Main Content -->
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
       <!-- Toast Alert -->
       <div
@@ -52,23 +50,20 @@
         </button>
       </div>
 
-      <!-- Up Next Shelf (Active Episodic Series) -->
+      <!-- Feature Shelves -->
       <UpNextShelf v-if="featureFlags.isEnabled('up_next')" />
-
-      <!-- Discovery Feed Shelf (Curated Quality Releases) -->
       <DiscoveryFeed
         v-if="featureFlags.isEnabled('discovery_feed')"
         ref="discoveryFeedRef"
-        @instant-stream="handleInstantStream"
+        @instant-stream="streamPlayback.handleInstantStream"
       />
-
-      <!-- Active Ephemeral Streams Shelf -->
       <ActiveStreamsShelf
         v-if="featureFlags.isEnabled('streaming')"
         ref="activeStreamsShelfRef"
-        @promote="handleOpenPromotion"
+        @promote="streamPlayback.handleOpenPromotion"
       />
 
+      <!-- Header & Top Actions -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 class="text-2xl font-bold tracking-tight text-white">
@@ -83,13 +78,13 @@
           <button
             type="button"
             class="p-2 text-zinc-400 hover:text-zinc-200 bg-zinc-900 border border-zinc-800 rounded-lg hover:bg-zinc-800 transition cursor-pointer disabled:opacity-50"
-            :disabled="requestsStore.loading"
+            :disabled="requestsStore.loading || requestsStore.loadingDeleted"
             title="Refresh List"
-            @click="requestsStore.fetchAll"
+            @click="refreshCurrentTab"
           >
             <svg
               class="w-4 h-4"
-              :class="{ 'animate-spin': requestsStore.loading }"
+              :class="{ 'animate-spin': requestsStore.loading || requestsStore.loadingDeleted }"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -125,15 +120,73 @@
         </div>
       </div>
 
-      <!-- Admin Storage Quota Summary Banner (User Story 3) -->
-      <div
-        v-if="authStore.isAdmin && diskInfo"
-        class="mb-6 p-4 bg-zinc-900/60 border border-zinc-800 rounded-xl shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4"
-      >
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-lg bg-zinc-800/80 border border-zinc-700/60 flex items-center justify-center text-zinc-300 shrink-0">
+      <!-- Admin Storage Quota Summary Banner -->
+      <StorageQuotaBanner
+        v-if="authStore.isAdmin"
+        :disk-info="diskInfo"
+      />
+
+      <!-- Tab Navigation: Active vs Deleted History -->
+      <div class="flex items-center gap-2 border-b border-zinc-800 mb-6 pb-2">
+        <button
+          type="button"
+          data-testid="tab-active-requests"
+          class="px-4 py-2 text-sm font-medium rounded-lg transition cursor-pointer flex items-center gap-2"
+          :class="activeTab === 'active'
+            ? 'bg-zinc-800 text-white font-semibold shadow-xs'
+            : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'"
+          @click="setActiveTab('active')"
+        >
+          <span>Active Requests</span>
+          <span
+            v-if="(requestsStore.requests?.length ?? 0) > 0"
+            class="px-2 py-0.2 rounded-full text-xs font-medium bg-zinc-700/60 text-zinc-300"
+          >
+            {{ requestsStore.requests.length }}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          data-testid="tab-deleted-history"
+          class="px-4 py-2 text-sm font-medium rounded-lg transition cursor-pointer flex items-center gap-2"
+          :class="activeTab === 'deleted'
+            ? 'bg-zinc-800 text-white font-semibold shadow-xs'
+            : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'"
+          @click="setActiveTab('deleted')"
+        >
+          <span>Deleted History</span>
+          <span
+            v-if="(requestsStore.deletedRequests?.length ?? 0) > 0"
+            class="px-2 py-0.2 rounded-full text-xs font-medium bg-zinc-700/60 text-zinc-300"
+          >
+            {{ requestsStore.deletedRequests.length }}
+          </span>
+        </button>
+      </div>
+
+      <!-- Active Requests View -->
+      <section v-if="activeTab === 'active'">
+        <!-- Loading Skeleton -->
+        <div
+          v-if="requestsStore.loading && requestsStore.requests.length === 0"
+          class="space-y-3"
+        >
+          <div
+            v-for="i in 3"
+            :key="i"
+            class="h-20 bg-zinc-900/60 border border-zinc-800/80 rounded-xl animate-pulse"
+          />
+        </div>
+
+        <!-- Empty State -->
+        <div
+          v-else-if="publicRequests.length === 0 && (!authStore.isTrusted || privateRequests.length === 0)"
+          class="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-12 text-center my-8"
+        >
+          <div class="w-14 h-14 mx-auto rounded-full bg-zinc-800/60 border border-zinc-700/60 flex items-center justify-center text-zinc-400 mb-4">
             <svg
-              class="w-5 h-5"
+              class="w-7 h-7"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -141,863 +194,107 @@
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7M4 7c0-2 1-3 3-3h10c2 0 3 1 3 3M4 7h16m-5 4h.01m-4 0h.01m-4 0h.01"
+                stroke-width="1.5"
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"
               />
             </svg>
           </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <span class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Media Storage Quota</span>
-              <span
-                class="px-2 py-0.5 rounded text-[11px] font-medium border"
-                :class="diskInfo.quotaUsedPercent >= 100 || diskInfo.percentFree <= diskInfo.rejectThreshold
-                  ? 'bg-red-950/80 text-red-300 border-red-800'
-                  : diskInfo.quotaUsedPercent >= 80 || diskInfo.percentFree <= diskInfo.warnThreshold
-                    ? 'bg-amber-950/80 text-amber-300 border-amber-800'
-                    : 'bg-emerald-950/80 text-emerald-300 border-emerald-800'"
-              >
-                {{ diskInfo.quotaUsedPercent >= 100 ? 'Quota Exceeded' : diskInfo.quotaUsedPercent >= 80 ? 'Quota Warning' : 'Healthy' }}
-              </span>
-            </div>
-            <p class="text-sm font-semibold text-white mt-0.5">
-              {{ diskInfo.storageFootprintGb }} GB <span class="text-xs font-normal text-zinc-400">used of</span> {{ diskInfo.storageQuotaGb }} GB <span class="text-xs font-normal text-zinc-400">quota ({{ diskInfo.quotaUsedPercent }}%)</span>
-            </p>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-4 min-w-[240px] max-w-sm flex-1">
-          <div class="w-full bg-zinc-950 border border-zinc-800 rounded-full h-2.5 overflow-hidden p-0.5">
-            <div
-              class="h-full rounded-full transition-all duration-500"
-              :class="diskInfo.quotaUsedPercent >= 100
-                ? 'bg-red-500'
-                : diskInfo.quotaUsedPercent >= 80
-                  ? 'bg-amber-500'
-                  : 'bg-emerald-500'"
-              :style="{ width: `${Math.min(100, Math.max(0, diskInfo.quotaUsedPercent))}%` }"
-            />
-          </div>
+          <h3 class="text-lg font-semibold text-white mb-1">
+            No requests yet
+          </h3>
+          <p class="text-sm text-zinc-400 max-w-sm mx-auto mb-6">
+            Submit a magnet link from any torrent site to download and automatically add it to your Jellyfin media library.
+          </p>
           <router-link
-            to="/admin"
-            class="text-xs text-indigo-400 hover:text-indigo-300 whitespace-nowrap transition cursor-pointer"
+            to="/request"
+            class="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition"
           >
-            Manage &rarr;
+            Submit First Request
           </router-link>
         </div>
-      </div>
 
-      <!-- Loading skeleton -->
-      <div
-        v-if="requestsStore.loading && requestsStore.requests.length === 0"
-        class="space-y-3"
-      >
+        <!-- Active Tables -->
         <div
-          v-for="i in 3"
-          :key="i"
-          class="h-20 bg-zinc-900/60 border border-zinc-800/80 rounded-xl animate-pulse"
-        />
-      </div>
-
-      <!-- Empty state -->
-      <div
-        v-else-if="publicRequests.length === 0 && (!authStore.isTrusted || privateRequests.length === 0)"
-        class="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-12 text-center my-8"
-      >
-        <div class="w-14 h-14 mx-auto rounded-full bg-zinc-800/60 border border-zinc-700/60 flex items-center justify-center text-zinc-400 mb-4">
-          <svg
-            class="w-7 h-7"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1.5"
-              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"
-            />
-          </svg>
-        </div>
-        <h3 class="text-lg font-semibold text-white mb-1">
-          No requests yet
-        </h3>
-        <p class="text-sm text-zinc-400 max-w-sm mx-auto mb-6">
-          Submit a magnet link from any torrent site to download and automatically add it to your Jellyfin media library.
-        </p>
-        <router-link
-          to="/request"
-          class="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition"
+          v-else
+          class="space-y-8"
         >
-          Submit First Request
-        </router-link>
-      </div>
+          <ActiveRequestsTable
+            v-if="publicRequests.length > 0"
+            :requests="publicRequests"
+            :is-admin="authStore.isAdmin"
+            :current-user-id="authStore.user?.id"
+            :retrying-id="retryingId"
+            @toggle-keep="handleToggleKeep"
+            @open-subtitles="openSubtitlePicker"
+            @replace-torrent="(item) => replaceTarget = item"
+            @retry="handleRetry"
+            @delete="(item) => itemToDelete = item"
+          />
 
-      <!-- Requests List / Table -->
-      <div
-        v-else-if="publicRequests.length > 0"
-        class="bg-zinc-900/60 border border-zinc-800 rounded-xl overflow-hidden shadow-xl"
-      >
-        <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse text-sm">
-            <thead>
-              <tr class="border-b border-zinc-800 bg-zinc-900/80 text-zinc-400 text-xs font-semibold uppercase tracking-wider">
-                <th class="py-3.5 px-4 sm:px-6">
-                  Media
-                </th>
-                <th class="py-3.5 px-4">
-                  Type
-                </th>
-                <th class="py-3.5 px-4">
-                  Status
-                </th>
-                <th class="py-3.5 px-4 min-w-[200px]">
-                  Progress / Details
-                </th>
-                <th
-                  v-if="authStore.isAdmin"
-                  class="py-3.5 px-4"
-                >
-                  Requester
-                </th>
-                <th class="py-3.5 px-4">
-                  Requested
-                </th>
-                <th class="py-3.5 px-4 text-center">
-                  Keep
-                </th>
-                <th class="py-3.5 px-4 text-right">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-zinc-800/70 text-zinc-200">
-              <tr
-                v-for="item in publicRequests"
-                :key="item.id"
-                class="hover:bg-zinc-800/30 transition group"
-              >
-                <!-- Title & Metadata -->
-                <td class="py-4 px-4 sm:px-6">
-                  <div class="font-medium text-white text-base">
-                    {{ item.title }}
-                  </div>
-                  <div class="text-xs text-zinc-400 mt-0.5 flex items-center gap-2">
-                    <span v-if="formatMediaSubtitle(item)">{{ formatMediaSubtitle(item) }}</span>
-                    <span
-                      v-if="item.scheduledDeleteAt"
-                      class="text-amber-400 font-medium"
-                    >
-                      (Auto-delete scheduled: {{ formatDate(item.scheduledDeleteAt) }})
-                    </span>
-                  </div>
-                </td>
-
-                <!-- Media Type Badge -->
-                <td class="py-4 px-4 whitespace-nowrap">
-                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-zinc-800 text-zinc-300 border border-zinc-700/60">
-                    {{ formatMediaType(item.mediaType) }}
-                  </span>
-                </td>
-
-                <!-- Status Badge -->
-                <td class="py-4 px-4 whitespace-nowrap">
-                  <span
-                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border"
-                    :class="getStatusBadgeClass(item)"
-                  >
-                    <span
-                      v-if="item.status === 'downloading'"
-                      class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping"
-                    />
-                    {{ formatStatusLabel(item) }}
-                  </span>
-                </td>
-
-                <!-- Progress Bar & Speed / ETA -->
-                <td class="py-4 px-4">
-                  <div
-                    v-if="item.status === 'downloading'"
-                    class="space-y-1.5"
-                  >
-                    <div class="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
-                      <div
-                        class="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                        :style="{ width: `${getProgressPercent(item.id)}%` }"
-                      />
-                    </div>
-                    <div class="flex justify-between items-center text-[11px] text-zinc-400 font-mono">
-                      <span>{{ getProgressPercent(item.id) }}%</span>
-                      <span>{{ getProgressSpeedEta(item.id) }}</span>
-                    </div>
-                  </div>
-
-                  <div
-                    v-else-if="item.status === 'queued'"
-                    class="text-xs flex items-center gap-1.5"
-                    :class="item.deferredReason === 'waiting_for_space' ? 'text-amber-400/90' : 'text-blue-400/90'"
-                  >
-                    <span>
-                      {{ item.deferredReason === 'waiting_for_space' ? 'Waiting for storage quota headroom' : 'Waiting for available download slot' }}
-                    </span>
-                  </div>
-
-                  <div
-                    v-else-if="item.status === 'error'"
-                    class="text-xs text-red-400 max-w-xs truncate"
-                    :title="item.errorMessage || 'Unknown error occurred'"
-                  >
-                    {{ item.errorMessage || 'Download error' }}
-                  </div>
-
-                  <div
-                    v-else-if="item.status === 'seeding'"
-                    class="text-xs text-emerald-400/90 flex items-center gap-1"
-                  >
-                    <svg
-                      class="w-3.5 h-3.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    <span>In Jellyfin library</span>
-                  </div>
-
-                  <div
-                    v-else
-                    class="text-xs text-zinc-500"
-                  >
-                    —
-                  </div>
-                </td>
-
-                <!-- Requester (Admin View) -->
-                <td
-                  v-if="authStore.isAdmin"
-                  class="py-4 px-4 text-xs text-zinc-400"
-                >
-                  <div
-                    v-if="item.coRequesters && item.coRequesters.length > 0"
-                    data-testid="admin-requester-group"
-                    class="flex items-center gap-1.5 flex-wrap"
-                  >
-                    <span
-                      class="font-medium text-zinc-200"
-                      title="Primary requester"
-                    >
-                      {{ item.requesterUsername || item.userId.slice(0, 8) }}
-                    </span>
-                    <span class="text-zinc-500 text-[11px] font-normal">+</span>
-                    <span
-                      v-for="coReq in item.coRequesters"
-                      :key="coReq"
-                      data-testid="co-requester-badge"
-                      class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-800/80 text-zinc-400 border border-zinc-700/60 text-[11px]"
-                      :title="`${coReq} (co-requester)`"
-                    >
-                      <span>{{ coReq }}</span>
-                      <span class="text-[9px] uppercase tracking-wider text-indigo-400 font-semibold">(co-req)</span>
-                    </span>
-                  </div>
-                  <span
-                    v-else
-                    class="whitespace-nowrap"
-                  >
-                    {{ item.requesterUsername || item.userId.slice(0, 8) }}
-                  </span>
-                </td>
-
-                <!-- Requested Date -->
-                <td class="py-4 px-4 whitespace-nowrap text-xs text-zinc-400">
-                  {{ formatDate(item.requestedAt) }}
-                </td>
-
-                <!-- Keep Flag Toggle (Admin Only) -->
-                <td class="py-4 px-4 whitespace-nowrap text-center">
-                  <button
-                    v-if="authStore.isAdmin"
-                    type="button"
-                    class="p-1.5 rounded-lg border transition cursor-pointer disabled:opacity-50"
-                    :class="item.keepFlag
-                      ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 hover:bg-amber-500/30'
-                      : 'bg-zinc-800/60 border-zinc-700/60 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'"
-                    :title="item.keepFlag ? 'Item marked Keep (immune to auto-cleanup)' : 'Enable Keep flag to protect from auto-cleanup'"
-                    @click="handleToggleKeep(item)"
-                  >
-                    <svg
-                      class="w-4 h-4"
-                      :fill="item.keepFlag ? 'currentColor' : 'none'"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-                      />
-                    </svg>
-                  </button>
-                  <span
-                    v-else-if="item.keepFlag"
-                    class="text-amber-400 text-xs font-medium"
-                  >
-                    Yes
-                  </span>
-                  <span
-                    v-else
-                    class="text-zinc-600 text-xs"
-                  >
-                    No
-                  </span>
-                </td>
-
-                <!-- Actions (Retry & Delete) -->
-                <td class="py-4 px-4 whitespace-nowrap text-right">
-                  <div class="flex items-center justify-end gap-1.5">
-                    <button
-                      v-if="item.status === 'seeding' || item.status === 'done'"
-                      type="button"
-                      data-testid="open-subtitles-btn"
-                      class="p-1.5 text-zinc-400 hover:text-indigo-400 hover:bg-indigo-950/40 rounded-lg transition cursor-pointer"
-                      title="Manage Subtitles (pt-BR)"
-                      @click="openSubtitlePicker(item)"
-                    >
-                      <svg
-                        class="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                        />
-                      </svg>
-                    </button>
-
-                    <button
-                      v-if="canReplaceTorrent(item)"
-                      type="button"
-                      data-testid="replace-torrent-btn"
-                      class="p-1.5 text-zinc-400 hover:text-amber-400 hover:bg-amber-950/40 rounded-lg transition cursor-pointer"
-                      title="Replace Torrent"
-                      @click="replaceTarget = item"
-                    >
-                      <svg
-                        class="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                        />
-                      </svg>
-                    </button>
-
-                    <button
-                      v-if="authStore.isAdmin && item.status === 'error'"
-                      type="button"
-                      :disabled="retryingId === item.id"
-                      class="p-1.5 text-zinc-400 hover:text-indigo-400 hover:bg-indigo-950/40 rounded-lg transition cursor-pointer disabled:opacity-50"
-                      title="Retry processing / refresh Jellyfin"
-                      @click="handleRetry(item)"
-                    >
-                      <svg
-                        class="w-4 h-4"
-                        :class="{ 'animate-spin': retryingId === item.id }"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                        />
-                      </svg>
-                    </button>
-
-                    <button
-                      v-if="canDelete(item)"
-                      type="button"
-                      class="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-950/40 rounded-lg transition cursor-pointer"
-                      title="Delete Request"
-                      @click="promptDelete(item)"
-                    >
-                      <svg
-                        class="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <PrivateRequestsTable
+            v-if="authStore.isTrusted && privateRequests.length > 0"
+            :requests="privateRequests"
+            :is-admin="authStore.isAdmin"
+            :is-trusted="authStore.isTrusted"
+            :current-user-id="authStore.user?.id"
+            :retrying-id="retryingId"
+            :transcribing-id="transcribingId"
+            @open-subtitles="openSubtitlePicker"
+            @transcribe="handleTranscribe"
+            @replace-torrent="(item) => replaceTarget = item"
+            @retry="handleRetry"
+            @delete="(item) => itemToDelete = item"
+          />
         </div>
-      </div>
+      </section>
 
-      <!-- Private Downloads Section (Trusted & Admin only) -->
-      <div
-        v-if="authStore.isTrusted && privateRequests.length > 0"
-        class="space-y-4 pt-6 border-t border-zinc-800"
-      >
-        <div class="flex items-center gap-2">
-          <span class="text-xl">🔒</span>
-          <h2 class="text-lg font-semibold text-white">
-            Private Downloads
-          </h2>
-          <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-            {{ privateRequests.length }}
-          </span>
-        </div>
-
-        <div class="bg-zinc-900/60 border border-zinc-800 rounded-xl overflow-hidden shadow-xl">
-          <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse text-sm">
-              <thead>
-                <tr class="border-b border-zinc-800 bg-zinc-900/80 text-zinc-400 text-xs font-semibold uppercase tracking-wider">
-                  <th class="py-3.5 px-4 sm:px-6">
-                    Media
-                  </th>
-                  <th class="py-3.5 px-4">
-                    Type
-                  </th>
-                  <th class="py-3.5 px-4">
-                    Status
-                  </th>
-                  <th class="py-3.5 px-4 min-w-[200px]">
-                    Progress / Details
-                  </th>
-                  <th
-                    v-if="authStore.isAdmin"
-                    class="py-3.5 px-4"
-                  >
-                    Requester
-                  </th>
-                  <th class="py-3.5 px-4">
-                    Requested
-                  </th>
-                  <th class="py-3.5 px-4 text-center">
-                    Keep
-                  </th>
-                  <th class="py-3.5 px-4 text-right">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-zinc-800/70 text-zinc-200">
-                <tr
-                  v-for="item in privateRequests"
-                  :key="item.id"
-                  class="hover:bg-zinc-800/30 transition group"
-                >
-                  <td class="py-4 px-4 sm:px-6">
-                    <div class="font-medium text-white text-base">
-                      {{ item.title }}
-                    </div>
-                    <div class="text-xs text-zinc-400 mt-0.5 flex items-center gap-2">
-                      <span v-if="formatMediaSubtitle(item)">{{ formatMediaSubtitle(item) }}</span>
-                    </div>
-                  </td>
-                  <td class="py-4 px-4 whitespace-nowrap">
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                      <span>🔒</span>
-                      <span>Private</span>
-                    </span>
-                  </td>
-                  <td class="py-4 px-4 whitespace-nowrap">
-                    <span
-                      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border"
-                      :class="getStatusBadgeClass(item)"
-                    >
-                      <span
-                        v-if="item.status === 'downloading'"
-                        class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping"
-                      />
-                      {{ formatStatusLabel(item) }}
-                    </span>
-                  </td>
-                  <td class="py-4 px-4">
-                    <div
-                      v-if="item.status === 'downloading'"
-                      class="space-y-1.5"
-                    >
-                      <div class="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
-                        <div
-                          class="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                          :style="{ width: `${getProgressPercent(item.id)}%` }"
-                        />
-                      </div>
-                      <div class="flex justify-between items-center text-[11px] text-zinc-400 font-mono">
-                        <span>{{ getProgressPercent(item.id) }}%</span>
-                        <span>{{ getProgressSpeedEta(item.id) }}</span>
-                      </div>
-                    </div>
-                    <div
-                      v-else-if="item.status === 'queued'"
-                      class="text-xs flex items-center gap-1.5"
-                      :class="item.deferredReason === 'waiting_for_space' ? 'text-amber-400/90' : 'text-blue-400/90'"
-                    >
-                      <span>
-                        {{ item.deferredReason === 'waiting_for_space' ? 'Waiting for storage quota headroom' : 'Waiting for available download slot' }}
-                      </span>
-                    </div>
-                    <div
-                      v-else-if="item.status === 'error'"
-                      class="text-xs text-red-400 max-w-xs truncate"
-                      :title="item.errorMessage || 'Unknown error occurred'"
-                    >
-                      {{ item.errorMessage || 'Download error' }}
-                    </div>
-                    <div
-                      v-else-if="item.status === 'seeding' || item.status === 'done'"
-                      class="space-y-1.5"
-                    >
-                      <div class="text-xs text-emerald-400/90 flex items-center gap-1">
-                        <svg
-                          class="w-3.5 h-3.5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                        <span>In Jellyfin private library</span>
-                      </div>
-                      <!-- Subtitle status badge -->
-                      <div
-                        v-if="item.transcriptionStatus && item.transcriptionStatus !== 'none'"
-                        class="flex items-center"
-                      >
-                        <span
-                          v-if="item.transcriptionStatus === 'pending'"
-                          class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-amber-950/60 border border-amber-800 text-amber-300"
-                          title="Queued for off-peak transcription window"
-                        >
-                          <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                          <span>Pending Window</span>
-                        </span>
-                        <span
-                          v-else-if="item.transcriptionStatus === 'transcribing'"
-                          class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-950/60 border border-indigo-800 text-indigo-300"
-                        >
-                          <svg
-                            class="w-3 h-3 animate-spin"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                            />
-                          </svg>
-                          <span>Transcribing...</span>
-                        </span>
-                        <span
-                          v-else-if="item.transcriptionStatus === 'completed'"
-                          class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-950/60 border border-emerald-800 text-emerald-300"
-                        >
-                          <svg
-                            class="w-3 h-3 text-emerald-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
-                          <span>Subtitles Ready</span>
-                        </span>
-                        <span
-                          v-else-if="item.transcriptionStatus === 'failed'"
-                          class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-rose-950/60 border border-rose-800 text-rose-300"
-                          :title="item.transcriptionError || 'Transcription failed'"
-                        >
-                          <svg
-                            class="w-3 h-3 text-rose-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                          </svg>
-                          <span>Transcription Failed</span>
-                        </span>
-                      </div>
-                    </div>
-                    <div
-                      v-else
-                      class="text-xs text-zinc-500"
-                    >
-                      —
-                    </div>
-                  </td>
-                  <td
-                    v-if="authStore.isAdmin"
-                    class="py-4 px-4 text-xs text-zinc-400 whitespace-nowrap"
-                  >
-                    {{ item.requesterUsername || item.userId.slice(0, 8) }}
-                  </td>
-                  <td class="py-4 px-4 whitespace-nowrap text-xs text-zinc-400">
-                    {{ formatDate(item.requestedAt) }}
-                  </td>
-                  <td class="py-4 px-4 whitespace-nowrap text-center">
-                    <span
-                      class="text-amber-400 text-xs font-medium inline-flex items-center gap-1"
-                      title="Private downloads are permanently kept and immune to auto-cleanup"
-                    >
-                      <span>🔒</span> Permanent
-                    </span>
-                  </td>
-                  <td class="py-4 px-4 whitespace-nowrap text-right">
-                    <div class="flex items-center justify-end gap-1.5">
-                      <button
-                        v-if="canTranscribe(item)"
-                        type="button"
-                        :disabled="transcribingId === item.id || item.transcriptionStatus === 'transcribing'"
-                        class="px-2 py-1 text-xs font-medium rounded-lg transition cursor-pointer flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                        :class="item.transcriptionStatus === 'failed'
-                          ? 'text-rose-300 hover:text-rose-200 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800'
-                          : 'text-indigo-300 hover:text-indigo-200 bg-indigo-950/40 hover:bg-indigo-900/60 border border-indigo-800'"
-                        :title="item.transcriptionStatus === 'failed' ? 'Retry Subtitle Transcription' : 'Generate English Subtitles'"
-                        @click="handleTranscribe(item)"
-                      >
-                        <svg
-                          class="w-3.5 h-3.5"
-                          :class="{ 'animate-spin': transcribingId === item.id || item.transcriptionStatus === 'transcribing' }"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                          />
-                        </svg>
-                        <span>{{ item.transcriptionStatus === 'failed' ? 'Retry Subtitles' : 'Generate Subtitles' }}</span>
-                      </button>
-                      <button
-                        v-if="canReplaceTorrent(item)"
-                        type="button"
-                        data-testid="replace-private-torrent-btn"
-                        class="p-1.5 text-zinc-400 hover:text-amber-400 hover:bg-amber-950/40 rounded-lg transition cursor-pointer"
-                        title="Replace Torrent"
-                        @click="replaceTarget = item"
-                      >
-                        <svg
-                          class="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                          />
-                        </svg>
-                      </button>
-                      <button
-                        v-if="authStore.isAdmin && item.status === 'error'"
-                        type="button"
-                        :disabled="retryingId === item.id"
-                        class="p-1.5 text-zinc-400 hover:text-indigo-400 hover:bg-indigo-950/40 rounded-lg transition cursor-pointer disabled:opacity-50"
-                        title="Retry processing / refresh Jellyfin"
-                        @click="handleRetry(item)"
-                      >
-                        <svg
-                          class="w-4 h-4"
-                          :class="{ 'animate-spin': retryingId === item.id }"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                          />
-                        </svg>
-                      </button>
-                      <button
-                        v-if="canDelete(item)"
-                        type="button"
-                        class="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-950/40 rounded-lg transition cursor-pointer"
-                        title="Delete Request"
-                        @click="promptDelete(item)"
-                      >
-                        <svg
-                          class="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      <!-- Deleted History View -->
+      <section v-else-if="activeTab === 'deleted'">
+        <DeletedRequestsList
+          :items="requestsStore.deletedRequests"
+          :loading="requestsStore.loadingDeleted"
+          @redownload="openRedownloadModal"
+        />
+      </section>
     </main>
 
-    <!-- Delete Confirmation Modal -->
-    <div
-      v-if="itemToDelete"
-      class="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4"
-    >
-      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-md w-full shadow-2xl">
-        <div class="flex items-center gap-3 text-red-400 mb-3">
-          <div class="w-10 h-10 rounded-full bg-red-950/60 border border-red-800/80 flex items-center justify-center shrink-0">
-            <svg
-              class="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-              />
-            </svg>
-          </div>
-          <div>
-            <h3 class="text-lg font-semibold text-white">
-              Delete Download Request?
-            </h3>
-          </div>
-        </div>
+    <!-- Modals -->
+    <DeleteRequestModal
+      :item="itemToDelete"
+      :is-deleting="isDeleting"
+      @close="itemToDelete = null"
+      @confirm="executeDelete"
+    />
 
-        <p class="text-sm text-zinc-300 mb-2">
-          Are you sure you want to delete <strong class="text-white">{{ itemToDelete.title }}</strong>?
-        </p>
-        <p class="text-xs text-zinc-500 mb-6">
-          This will remove the torrent from qBittorrent and delete media files from the library. This action cannot be undone.
-        </p>
+    <RedownloadModal
+      :show="showRedownloadModal"
+      :item="redownloadTarget"
+      @close="showRedownloadModal = false"
+      @redownloaded="handleRedownloaded"
+    />
 
-        <div class="flex items-center justify-end gap-3">
-          <button
-            type="button"
-            class="px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800 rounded-lg transition cursor-pointer"
-            :disabled="isDeleting"
-            @click="itemToDelete = null"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-500 text-white rounded-lg shadow transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
-            :disabled="isDeleting"
-            @click="executeDelete"
-          >
-            <svg
-              v-if="isDeleting"
-              class="animate-spin h-4 w-4 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                class="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                stroke-width="4"
-              />
-              <path
-                class="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8v8H4z"
-              />
-            </svg>
-            <span>{{ isDeleting ? 'Deleting...' : 'Confirm Delete' }}</span>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Stream Progress Modal -->
     <StreamProgressModal
-      :show="showStreamModal"
-      :stream-id="streamModalId"
-      :title="streamModalTitle"
-      :initial-status="streamModalStatus"
-      :error-message="streamModalError"
-      :can-add-to-waitlist="Boolean(activeStreamingItem)"
-      :is-adding-to-waitlist="isAddingToWaitlistFromModal"
-      :waitlist-added="hasAddedToWaitlistFromModal"
-      @close="showStreamModal = false"
-      @promote="handleOpenPromotion"
-      @error="handleStreamPlaybackError"
-      @add-to-waitlist="handleConfirmAddToWaitlist"
+      :show="streamPlayback.showStreamModal.value"
+      :stream-id="streamPlayback.streamModalId.value"
+      :title="streamPlayback.streamModalTitle.value"
+      :initial-status="streamPlayback.streamModalStatus.value"
+      :error-message="streamPlayback.streamModalError.value"
+      :can-add-to-waitlist="Boolean(streamPlayback.activeStreamingItem.value)"
+      :is-adding-to-waitlist="streamPlayback.isAddingToWaitlistFromModal.value"
+      :waitlist-added="streamPlayback.hasAddedToWaitlistFromModal.value"
+      @close="streamPlayback.showStreamModal.value = false"
+      @promote="streamPlayback.handleOpenPromotion"
+      @error="streamPlayback.handleStreamPlaybackError"
+      @add-to-waitlist="streamPlayback.handleConfirmAddToWaitlist"
     />
 
-    <!-- Promotion Modal -->
     <PromotionModal
-      :show="showPromotionModal"
-      :stream="promotionStream"
-      @close="showPromotionModal = false"
-      @promoted="handleStreamPromoted"
+      :show="streamPlayback.showPromotionModal.value"
+      :stream="streamPlayback.promotionStream.value"
+      @close="streamPlayback.showPromotionModal.value = false"
+      @promoted="streamPlayback.handleStreamPromoted"
     />
 
-    <!-- Subtitle Picker Modal -->
     <SubtitlePickerModal
       :show="showSubtitleModal"
       :request-id="subtitleTarget?.id || ''"
@@ -1005,7 +302,6 @@
       @close="showSubtitleModal = false"
     />
 
-    <!-- Torrent Replacement Modal -->
     <TorrentReplacementModal
       :open="!!replaceTarget"
       :item="replaceTarget"
@@ -1025,216 +321,86 @@ import PromotionModal from '../components/PromotionModal.vue';
 import SubtitlePickerModal from '../components/SubtitlePickerModal.vue';
 import TorrentReplacementModal from '../components/TorrentReplacementModal.vue';
 import ActiveStreamsShelf from '../components/ActiveStreamsShelf.vue';
-import type { DiscoveryItem } from '../components/DiscoveryFeed.vue';
+import ActiveRequestsTable from '../components/requests/ActiveRequestsTable.vue';
+import PrivateRequestsTable from '../components/requests/PrivateRequestsTable.vue';
+import DeletedRequestsList from '../components/requests/DeletedRequestsList.vue';
+import DeleteRequestModal from '../components/requests/DeleteRequestModal.vue';
+import RedownloadModal from '../components/requests/RedownloadModal.vue';
+import StorageQuotaBanner, { DiskInfo } from '../components/dashboard/StorageQuotaBanner.vue';
 import { useAuthStore } from '../stores/auth';
 import { useRequestsStore, DownloadRequest } from '../stores/requests';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
+import { useStreamPlayback } from '../composables/useStreamPlayback';
 import { api } from '../lib/api';
-import {
-  formatSpeed,
-  formatEta,
-  formatMediaType,
-  formatDate,
-  formatMediaSubtitle,
-} from '../lib/formatters';
-
-interface DiskInfo {
-  storageQuotaGb: number;
-  storageFootprintGb: number;
-  quotaUsedPercent: number;
-  percentFree: number;
-  warnThreshold: number;
-  rejectThreshold: number;
-}
 
 const authStore = useAuthStore();
 const requestsStore = useRequestsStore();
 const featureFlags = useFeatureFlags();
 
+const activeTab = ref<'active' | 'deleted'>('active');
 const publicRequests = computed(() => requestsStore.requests.filter((r) => r.mediaType !== 'private'));
 const privateRequests = computed(() => requestsStore.requests.filter((r) => r.mediaType === 'private'));
 
 const itemToDelete = ref<DownloadRequest | null>(null);
 const replaceTarget = ref<DownloadRequest | null>(null);
+const redownloadTarget = ref<DownloadRequest | null>(null);
+const showRedownloadModal = ref(false);
 const isDeleting = ref(false);
 const diskInfo = ref<DiskInfo | null>(null);
 
-const showStreamModal = ref(false);
-const streamModalId = ref('');
-const streamModalTitle = ref('');
-const streamModalStatus = ref<'pending' | 'ready' | 'error'>('pending');
-const streamModalError = ref('');
-
-const showPromotionModal = ref(false);
-const promotionStream = ref<{ id: string; title: string; magnetLink?: string } | null>(null);
 const activeStreamsShelfRef = ref<InstanceType<typeof ActiveStreamsShelf> | null>(null);
 const discoveryFeedRef = ref<InstanceType<typeof DiscoveryFeed> | null>(null);
-const activeStreamingItem = ref<DiscoveryItem | null>(null);
-const isAddingToWaitlistFromModal = ref(false);
+
+const streamPlayback = useStreamPlayback({
+  activeStreamsShelfRef,
+  discoveryFeedRef,
+});
 
 const showSubtitleModal = ref(false);
 const subtitleTarget = ref<{ id: string; title: string } | null>(null);
+const transcribingId = ref<string | null>(null);
+const retryingId = ref<string | null>(null);
+
+function setActiveTab(tab: 'active' | 'deleted') {
+  activeTab.value = tab;
+  if (tab === 'deleted' && requestsStore.deletedRequests.length === 0) {
+    requestsStore.fetchDeleted();
+  }
+}
+
+function refreshCurrentTab() {
+  if (activeTab.value === 'deleted') {
+    requestsStore.fetchDeleted();
+  } else {
+    requestsStore.fetchAll();
+  }
+}
 
 function openSubtitlePicker(item: DownloadRequest): void {
   subtitleTarget.value = { id: item.id, title: item.title };
   showSubtitleModal.value = true;
 }
-const hasAddedToWaitlistFromModal = ref(false);
 
-async function handleInstantStream(item: DiscoveryItem) {
-  activeStreamingItem.value = item;
+function openRedownloadModal(item: DownloadRequest) {
+  redownloadTarget.value = item;
+  showRedownloadModal.value = true;
+}
+
+async function handleRedownloaded(newReq: DownloadRequest) {
+  showRedownloadModal.value = false;
+  redownloadTarget.value = null;
+  requestsStore.showToast(`"${newReq.title}" queued for download!`, 'success');
+  await Promise.all([requestsStore.fetchAll(), requestsStore.fetchDeleted()]);
+}
+
+async function handleToggleKeep(item: DownloadRequest) {
+  if (item.mediaType === 'private') return;
   try {
-    streamModalTitle.value = item.title;
-    streamModalStatus.value = 'pending';
-    streamModalError.value = '';
-    showStreamModal.value = true;
-
-    const res = await api.post<{ streamId: string; status: 'pending' | 'ready' }>('/streams', {
-      magnetLink: item.streamUrl || item.downloadUrl,
-      title: item.title,
-      isPrivateTracker: item.streamUrl ? false : item.isPrivateTracker,
-    });
-
-    streamModalId.value = res.streamId;
-    if (res.status === 'ready') {
-      streamModalStatus.value = 'ready';
-    }
-    activeStreamsShelfRef.value?.fetchStreams();
-  } catch (err: unknown) {
-    const errorMsg = (err as Error).message || 'Failed to initialize instant stream';
-    await handleStreamPlaybackError({
-      error: errorMsg,
-      isInfringing: errorMsg.includes('451') || errorMsg.includes('infringing'),
-    });
+    await requestsStore.toggleKeep(item.id);
+  } catch {
+    // Handled by store/api
   }
 }
-
-async function handleStreamPlaybackError(payload: {
-  streamId?: string;
-  error: string;
-  isInfringing?: boolean;
-  infoHash?: string;
-}) {
-  // Keep modal open so user sees what happened
-  streamModalStatus.value = 'error';
-  streamModalError.value = payload.error;
-  hasAddedToWaitlistFromModal.value = false;
-
-  const item = activeStreamingItem.value;
-  if (!item) return;
-
-  const isInfringing =
-    Boolean(payload.isInfringing) ||
-    payload.error.includes('451') ||
-    payload.error.includes('infringing');
-
-  const failedHash = payload.infoHash;
-
-  if (isInfringing && failedHash) {
-    try {
-      await api.post('/requests/mark-infringing', { infoHash: failedHash });
-    } catch {
-      // Non-blocking
-    }
-  }
-
-  // Reload discovery feed silently
-  discoveryFeedRef.value?.fetchFeed?.();
-}
-
-async function handleConfirmAddToWaitlist() {
-  const item = activeStreamingItem.value;
-  if (!item) return;
-  isAddingToWaitlistFromModal.value = true;
-  try {
-    await api.post('/waitlist', {
-      mediaType: item.mediaType,
-      metadataId: item.metadataId,
-      metadataSource: item.metadataSource || (item.mediaType === 'anime' ? 'anilist' : 'tmdb'),
-      title: item.title,
-      year: item.year,
-      posterUrl: item.posterUrl,
-    });
-    hasAddedToWaitlistFromModal.value = true;
-    requestsStore.showToast(`Added "${item.title}" to your waitlist!`, 'success');
-  } catch (err: unknown) {
-    const error = err as { status?: number; message?: string } | null;
-    if (error?.status === 409 || error?.message?.includes('already')) {
-      hasAddedToWaitlistFromModal.value = true;
-      requestsStore.showToast(`"${item.title}" is already in your library or waitlist.`, 'info');
-    } else {
-      requestsStore.showToast(`Failed to add to waitlist: ${error?.message || 'Unknown error'}`, 'error');
-    }
-  } finally {
-    isAddingToWaitlistFromModal.value = false;
-  }
-}
-
-function handleOpenPromotion(payload: { id?: string; streamId?: string; title: string }) {
-  showStreamModal.value = false;
-  promotionStream.value = {
-    id: payload.id || payload.streamId || '',
-    title: payload.title,
-  };
-  showPromotionModal.value = true;
-}
-
-async function handleStreamPromoted() {
-  showPromotionModal.value = false;
-  requestsStore.showToast('Stream successfully promoted to permanent library!', 'success');
-  await requestsStore.fetchAll();
-  activeStreamsShelfRef.value?.fetchStreams();
-}
-
-onMounted(async () => {
-  featureFlags.ensureFlagsLoaded();
-  await requestsStore.fetchAll();
-  if (authStore.isAdmin) {
-    try {
-      diskInfo.value = await api.get<DiskInfo>('/admin/disk');
-    } catch {
-      // Non-critical, ignore if fails
-    }
-  }
-});
-
-function canDelete(item: DownloadRequest): boolean {
-  if (authStore.isAdmin) return true;
-  if (item.isPrimaryRequester === false) return false;
-  return item.userId === authStore.user?.id;
-}
-
-function canReplaceTorrent(item: DownloadRequest): boolean {
-  if (!['downloading', 'queued', 'error'].includes(item.status)) return false;
-  return authStore.isAdmin || item.userId === authStore.user?.id;
-}
-
-function canTranscribe(item: DownloadRequest): boolean {
-  if (item.mediaType !== 'private') return false;
-  if (item.status !== 'seeding' && item.status !== 'done') return false;
-  if (authStore.isAdmin) return true;
-  if (authStore.isTrusted && item.userId === authStore.user?.id) return true;
-  return false;
-}
-
-const transcribingId = ref<string | null>(null);
-
-async function handleTranscribe(item: DownloadRequest) {
-  transcribingId.value = item.id;
-  try {
-    const res = await api.post<{ request: DownloadRequest }>(`/requests/${item.id}/transcribe`);
-    if (res?.request) {
-      requestsStore.updateRequest(res.request);
-    }
-    requestsStore.showToast('Subtitle transcription queued.', 'success');
-  } catch (err: unknown) {
-    requestsStore.showToast((err as Error).message || 'Failed to queue subtitle transcription.', 'error');
-  } finally {
-    transcribingId.value = null;
-  }
-}
-
-const retryingId = ref<string | null>(null);
 
 async function handleRetry(item: DownloadRequest) {
   retryingId.value = item.id;
@@ -1253,79 +419,43 @@ async function handleRetry(item: DownloadRequest) {
   }
 }
 
-function promptDelete(item: DownloadRequest) {
-  itemToDelete.value = item;
-}
-
 async function executeDelete() {
   if (!itemToDelete.value) return;
   isDeleting.value = true;
   try {
     await requestsStore.deleteRequest(itemToDelete.value.id);
     itemToDelete.value = null;
-  } catch {
-    // Error handling
+    requestsStore.fetchDeleted().catch(() => {});
   } finally {
     isDeleting.value = false;
   }
 }
 
-async function handleToggleKeep(item: DownloadRequest) {
-  if (item.mediaType === 'private') return;
+async function handleTranscribe(item: DownloadRequest) {
+  transcribingId.value = item.id;
   try {
-    await requestsStore.toggleKeep(item.id);
-  } catch {
-    // Silent or handled
-  }
-}
-
-function getProgressPercent(requestId: string): number {
-  const p = requestsStore.progressMap[requestId];
-  if (!p) return 0;
-  return Math.min(100, Math.max(0, Math.round(p.progress * 100)));
-}
-
-function getProgressSpeedEta(requestId: string): string {
-  const p = requestsStore.progressMap[requestId];
-  if (!p) return '—';
-  const speed = formatSpeed(p.speedBps);
-  const eta = formatEta(p.etaSeconds);
-  return `${speed} — ETA ${eta}`;
-}
-
-function formatStatusLabel(item: DownloadRequest): string {
-  if (item.status === 'queued') {
-    if (item.deferredReason === 'waiting_for_space') {
-      return 'Queued (Waiting for Space)';
+    const res = await api.post<{ request: DownloadRequest }>(`/requests/${item.id}/transcribe`);
+    if (res?.request) {
+      requestsStore.updateRequest(res.request);
     }
-    return 'Queued (Waiting for Slot)';
+    requestsStore.showToast('Subtitle transcription queued.', 'success');
+  } catch (err: unknown) {
+    requestsStore.showToast((err as Error).message || 'Failed to queue subtitle transcription.', 'error');
+  } finally {
+    transcribingId.value = null;
   }
-  return item.status;
 }
 
-function getStatusBadgeClass(item: DownloadRequest): string {
-  if (item.status === 'queued') {
-    if (item.deferredReason === 'waiting_for_space') {
-      return 'bg-amber-950/60 text-amber-400 border-amber-800';
+onMounted(async () => {
+  featureFlags.ensureFlagsLoaded();
+  await requestsStore.fetchAll();
+  requestsStore.fetchDeleted().catch(() => {});
+  if (authStore.isAdmin) {
+    try {
+      diskInfo.value = await api.get<DiskInfo>('/admin/disk');
+    } catch {
+      // Non-critical
     }
-    return 'bg-blue-950/50 text-blue-300 border-blue-800/80';
   }
-  switch (item.status) {
-    case 'downloading':
-      return 'bg-blue-950/60 text-blue-400 border-blue-800';
-    case 'hardlinking':
-    case 'unarchiving':
-      return 'bg-indigo-950/60 text-indigo-400 border-indigo-800';
-    case 'seeding':
-      return 'bg-emerald-950/60 text-emerald-400 border-emerald-800';
-    case 'done':
-      return 'bg-green-950/60 text-green-400 border-green-800';
-    case 'error':
-      return 'bg-red-950/60 text-red-400 border-red-800';
-    case 'deleted':
-      return 'bg-zinc-900 text-zinc-500 border-zinc-800';
-    default:
-      return 'bg-zinc-800 text-zinc-400 border-zinc-700';
-  }
-}
+});
 </script>
