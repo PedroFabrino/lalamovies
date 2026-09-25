@@ -21,6 +21,8 @@ import { IRequestStateMachine } from './services/requestStateMachine';
 import { IRequestsRepository } from './services/requestsRepository';
 import { IRequestService } from './services/requestServiceTypes';
 import { IAnimeSeasonService } from './services/animeTypes';
+import { IEpisodesRepository } from './services/episodesRepository';
+import { IEpisodicPruningService } from './services/episodicPruningService';
 import { BroadcastFunction } from './routes/ws';
 
 export interface AppOptions {
@@ -54,6 +56,8 @@ export interface AppOptions {
   openSubtitlesApiKey?: string;
   stateMachine?: IRequestStateMachine;
   requestsRepo?: IRequestsRepository;
+  episodesRepo?: IEpisodesRepository;
+  episodicPruningService?: IEpisodicPruningService;
   requestService?: IRequestService;
   animeSeasonService?: IAnimeSeasonService;
 }
@@ -86,6 +90,8 @@ declare module 'fastify' {
     unarchiveDaemon: UnarchiveDaemon;
     stateMachine: IRequestStateMachine;
     requestsRepo: IRequestsRepository;
+    episodesRepo: IEpisodesRepository;
+    episodicPruning: IEpisodicPruningService;
     requestService: IRequestService;
   }
 }

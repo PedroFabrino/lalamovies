@@ -144,15 +144,15 @@
     "semantic_hash": "05889c827338a61c96928068283d44b4"
   },
   "apps/api/src/db/migrations/meta/_journal.json": {
-    "mtime": 1790333087.169598,
-    "seen": 1790334818.036597,
-    "ast_hash": "006422430ba81424a91b26667274aa37",
+    "mtime": 1790342312.2319665,
+    "seen": 1790344437.7463377,
+    "ast_hash": "af526c694b4ed590b72ec2157297cab4",
     "semantic_hash": ""
   },
   "apps/api/src/db/schema.ts": {
-    "mtime": 1790333072.3259354,
-    "seen": 1790334818.036597,
-    "ast_hash": "7b6a72ff8f83f690603f5f3abb6483cb",
+    "mtime": 1790342304.3428795,
+    "seen": 1790344437.7463377,
+    "ast_hash": "2b93bdb7f9719a13708e105e34097e09",
     "semantic_hash": ""
   },
   "apps/api/src/index.ts": {
@@ -168,9 +168,9 @@
     "semantic_hash": "f2ed05874309e357faa6d0e819f1586a"
   },
   "apps/api/src/jobs/downloadPoller.ts": {
-    "mtime": 1789957484.027898,
-    "seen": 1789958026.720684,
-    "ast_hash": "5121fed43cc62f6146bad9b0eeffc5c9",
+    "mtime": 1790342935.0644019,
+    "seen": 1790344437.7463377,
+    "ast_hash": "0801994a4c68cd196314a69671dc2da5",
     "semantic_hash": ""
   },
   "apps/api/src/jobs/transcriptionCron.ts": {
@@ -258,9 +258,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/cleanup.ts": {
-    "mtime": 1790333234.754331,
-    "seen": 1790334818.0457478,
-    "ast_hash": "34bc569210745716eaa0396336b9131c",
+    "mtime": 1790343095.8940475,
+    "seen": 1790344437.761971,
+    "ast_hash": "374d8b38c42fb0aac05e402bc45f3047",
     "semantic_hash": ""
   },
   "apps/api/src/services/discovery.ts": {
@@ -270,9 +270,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/fileSystem.ts": {
-    "mtime": 1790021614.0598187,
-    "seen": 1790021729.5719578,
-    "ast_hash": "96425c0f23ac7fdbb6f229f82cf4b50d",
+    "mtime": 1790342748.415238,
+    "seen": 1790344437.761971,
+    "ast_hash": "47146ae5b6fc629c07e0f4506493f578",
     "semantic_hash": ""
   },
   "apps/api/src/services/jellyfin.ts": {
@@ -300,9 +300,9 @@
     "semantic_hash": "64f1838ce2c033a1fafa71905a582b4b"
   },
   "apps/api/src/services/qbittorrent.ts": {
-    "mtime": 1789954991.1239536,
-    "seen": 1789956580.6141133,
-    "ast_hash": "229142b0a5013f0e0cb55db259c2f4c8",
+    "mtime": 1790342556.5631702,
+    "seen": 1790344437.7640014,
+    "ast_hash": "782acadcd0678504d909c3f26abc45a3",
     "semantic_hash": ""
   },
   "apps/api/src/services/requestDedup.ts": {
@@ -1692,9 +1692,9 @@
     "semantic_hash": ""
   },
   "apps/api/tests/fixtures/mockQBittorrent.ts": {
-    "mtime": 1789954480.1614313,
-    "seen": 1789956580.6176558,
-    "ast_hash": "ee444c64c277fc1c05118a531c3f153e",
+    "mtime": 1790343467.6502197,
+    "seen": 1790344437.7789583,
+    "ast_hash": "12dee11b6c8ac45d61a53be83de47ae4",
     "semantic_hash": ""
   },
   "apps/streamer/.eslintrc.cjs": {
@@ -1722,9 +1722,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/index.ts": {
-    "mtime": 1790333307.5083423,
-    "seen": 1790334818.042187,
-    "ast_hash": "47a19ba9c9518f97bf3995fd9ce1206a",
+    "mtime": 1790343430.6386065,
+    "seen": 1790344437.7544553,
+    "ast_hash": "faf127992f4857f11cdc4cf690aef9b4",
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/lifecycle.ts": {
@@ -2004,9 +2004,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/appTypes.ts": {
-    "mtime": 1790181922.358329,
-    "seen": 1790182625.5006871,
-    "ast_hash": "78a9ba9ea0a920a152c78f0b94c06012",
+    "mtime": 1790343165.4652727,
+    "seen": 1790344437.7409859,
+    "ast_hash": "56ee728c373f59bd915416048d662282",
     "semantic_hash": ""
   },
   "apps/api/src/services/requestBatch.ts": {
@@ -2046,15 +2046,15 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/serviceContainer.ts": {
-    "mtime": 1790183628.7700267,
-    "seen": 1790183981.60723,
-    "ast_hash": "d749078432c495307c8785541e77b46e",
+    "mtime": 1790343330.7365031,
+    "seen": 1790344437.769624,
+    "ast_hash": "df3c93e7f95870fc4783ff9d87a8cd0b",
     "semantic_hash": ""
   },
   "apps/api/src/startup/onReady.ts": {
-    "mtime": 1790082507.171832,
-    "seen": 1790083216.1097836,
-    "ast_hash": "c3b3c2b48f8bc7f6e449c5fc219e8282",
+    "mtime": 1790343378.45306,
+    "seen": 1790344437.7721963,
+    "ast_hash": "c4b31a630c97dafb80eaf959a1616c15",
     "semantic_hash": ""
   },
   "apps/api/tests/requestPreparation.test.ts": {
@@ -2304,9 +2304,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/requests/ActiveRequestsTable.vue": {
-    "mtime": 1790334362.0375466,
-    "seen": 1790334818.1199048,
-    "ast_hash": "dfe204562043e1480ddf86590b6f3e84",
+    "mtime": 1790344344.5521135,
+    "seen": 1790344437.8338504,
+    "ast_hash": "78f09a49813d6a50d5877a0332b9c2e6",
     "semantic_hash": ""
   },
   "apps/web/src/components/requests/DeleteRequestModal.vue": {
@@ -2397,6 +2397,84 @@
     "mtime": 1790339867.422168,
     "seen": 1790340379.9879987,
     "ast_hash": "3d9a73c659b8e604fc73d3c58ebc4b99",
+    "semantic_hash": ""
+  },
+  "apps/api/src/db/migrations/meta/0011_snapshot.json": {
+    "mtime": 1790342312.229377,
+    "seen": 1790344437.7463377,
+    "ast_hash": "42f4c655e295f4c68df6fa554f45edd2",
+    "semantic_hash": ""
+  },
+  "apps/api/src/routes/requests/episodes.ts": {
+    "mtime": 1790343420.6769414,
+    "seen": 1790344437.7544553,
+    "ast_hash": "3134819c44d000c8e6b659ab38182e07",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/episodesRepository.ts": {
+    "mtime": 1790343715.716081,
+    "seen": 1790344437.761971,
+    "ast_hash": "5441a35aeabe314702e121e3bba894b7",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/episodicPruningService.ts": {
+    "mtime": 1790342967.85171,
+    "seen": 1790344437.761971,
+    "ast_hash": "d4b6c85da9570f449521e61de018c125",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/queuePromoter.ts": {
+    "mtime": 1790342892.2266662,
+    "seen": 1790344437.7640014,
+    "ast_hash": "bab221d7e5635d540b9b6f371b3d0416",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/seriesFolderScanner.ts": {
+    "mtime": 1790342661.9871185,
+    "seen": 1790344437.769624,
+    "ast_hash": "044b62bf73ff5322499ce8d0b92d72bf",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/torrentHash.ts": {
+    "mtime": 1790342543.8191159,
+    "seen": 1790344437.769624,
+    "ast_hash": "a21e4cbda00d59984bc27a4fa36a291c",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/torrentSource.ts": {
+    "mtime": 1790342537.2272224,
+    "seen": 1790344437.7711518,
+    "ast_hash": "cc85e25c44a7872c3aba00af21c8e909",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/torrentSourceItemResolver.ts": {
+    "mtime": 1790342725.8351836,
+    "seen": 1790344437.7711518,
+    "ast_hash": "c170ca6502205b8553447768133b163f",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/episodic_pruning.test.ts": {
+    "mtime": 1790343864.2558458,
+    "seen": 1790344437.7774432,
+    "ast_hash": "f96527037f23e5193297b7bc73a88e01",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/requests/RequestProgressCell.vue": {
+    "mtime": 1790344019.8809454,
+    "seen": 1790344437.8364527,
+    "ast_hash": "41467219bc30bd2503440747fd79de07",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/requests/SeasonPackEpisodesDrawer.vue": {
+    "mtime": 1790344344.5521135,
+    "seen": 1790344437.8364527,
+    "ast_hash": "de9c93c97d0bf8bec16507a81863dcc5",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/SeasonPackEpisodesDrawer.test.ts": {
+    "mtime": 1790344236.9985452,
+    "seen": 1790344437.8593934,
+    "ast_hash": "693dd9d686c2f71a191e4f223b88ae24",
     "semantic_hash": ""
   }
 }

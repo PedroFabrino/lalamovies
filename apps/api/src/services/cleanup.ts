@@ -4,10 +4,12 @@ import { eq } from 'drizzle-orm';
 import { AppDatabase, systemConfig, DownloadRequest, users, requestCoRequesters } from '../db';
 import { IRequestsRepository, RequestsRepository } from './requestsRepository';
 import { IQBittorrentService } from './qbittorrent';
-import { IJellyfinService } from './jellyfin';
+import { IJellyfinService, JellyfinService } from './jellyfin';
 import { INotificationService } from './notifications';
-import { IFileSystemService } from './fileSystem';
+import { IFileSystemService, FileSystemService } from './fileSystem';
 import { IRequestStateMachine, RequestStatus } from './requestStateMachine';
+import { IEpisodesRepository, EpisodesRepository } from './episodesRepository';
+import { IEpisodicPruningService, EpisodicPruningService, PruneEpisodeResult } from './episodicPruningService';
 
 export interface SpaceCheckResult {
   sufficient: boolean;
@@ -24,6 +26,8 @@ export interface ICleanupService {
   executePendingCleanups?(): Promise<DownloadRequest[]>;
   cleanItem(requestId: string): Promise<void>;
   getCandidates?(): Promise<(DownloadRequest & { isFullyConsumed?: boolean })[]>;
+  pruneEpisode?(episodeId: string): Promise<PruneEpisodeResult>;
+  backfillExistingSeasonPacks?(): Promise<number>;
 }
 
 export function matchesLibraryPath(itemPath: string, parentPath: string): boolean {
@@ -35,6 +39,8 @@ export function matchesLibraryPath(itemPath: string, parentPath: string): boolea
 export interface CleanupServiceOptions {
   db: AppDatabase;
   requestsRepo?: IRequestsRepository;
+  episodesRepo?: IEpisodesRepository;
+  episodicPruningService?: IEpisodicPruningService;
   qbittorrent: IQBittorrentService;
   jellyfin?: IJellyfinService;
   notificationService?: INotificationService;
@@ -50,6 +56,8 @@ export class CleanupService implements ICleanupService {
   private fullyConsumedRequestIds = new Set<string>();
   private db: AppDatabase;
   private requestsRepo: IRequestsRepository;
+  private episodesRepo: IEpisodesRepository;
+  private episodicPruningService: IEpisodicPruningService;
   private qbittorrent: IQBittorrentService;
   private jellyfin?: IJellyfinService;
   private notificationService?: INotificationService;
@@ -89,6 +97,7 @@ export class CleanupService implements ICleanupService {
       const opts = optionsOrDb as CleanupServiceOptions;
       this.db = opts.db;
       this.requestsRepo = opts.requestsRepo ?? new RequestsRepository(opts.db);
+      this.episodesRepo = opts.episodesRepo ?? new EpisodesRepository(opts.db);
       this.qbittorrent = opts.qbittorrent;
       this.jellyfin = opts.jellyfin;
       this.notificationService = opts.notificationService;
@@ -98,9 +107,19 @@ export class CleanupService implements ICleanupService {
       this.fileSystemService = opts.fileSystemService;
       this.storageFootprintProvider = opts.storageFootprintProvider;
       this.stateMachine = opts.stateMachine;
+      this.episodicPruningService =
+        opts.episodicPruningService ??
+        new EpisodicPruningService(
+          this.episodesRepo,
+          this.requestsRepo,
+          this.qbittorrent,
+          this.fileSystemService ?? new FileSystemService(),
+          this.jellyfin ?? (new JellyfinService() as unknown as IJellyfinService)
+        );
     } else {
       this.db = optionsOrDb as AppDatabase;
       this.requestsRepo = new RequestsRepository(this.db);
+      this.episodesRepo = new EpisodesRepository(this.db);
       this.qbittorrent = qbittorrent!;
       this.jellyfin = jellyfin;
       this.notificationService = notificationService;
@@ -110,7 +129,22 @@ export class CleanupService implements ICleanupService {
       this.fileSystemService = fileSystemService;
       this.storageFootprintProvider = storageFootprintProvider;
       this.stateMachine = stateMachine;
+      this.episodicPruningService = new EpisodicPruningService(
+        this.episodesRepo,
+        this.requestsRepo,
+        this.qbittorrent,
+        this.fileSystemService ?? new FileSystemService(),
+        this.jellyfin ?? (new JellyfinService() as unknown as IJellyfinService)
+      );
     }
+  }
+
+  async pruneEpisode(episodeId: string): Promise<PruneEpisodeResult> {
+    return this.episodicPruningService.pruneEpisode(episodeId);
+  }
+
+  async backfillExistingSeasonPacks(): Promise<number> {
+    return this.episodicPruningService.backfillExistingSeasonPacks();
   }
 
   getFreeDiskBytes(customPath?: string): number {
@@ -282,6 +316,37 @@ export class CleanupService implements ICleanupService {
 
       for (const req of seedingRequests) {
         if (!req.jellyfinPath) continue;
+
+        const episodes = this.episodesRepo ? this.episodesRepo.findByRequestId(req.id) : [];
+        if (episodes.length > 0) {
+          let latestPlayedOnAnyEp: string | null = null;
+          for (const ep of episodes) {
+            let epLatest = ep.lastPlayedAt || null;
+            for (const [itemPath, playedDate] of Object.entries(globalHistory)) {
+              if (matchesLibraryPath(itemPath, ep.jellyfinPath)) {
+                const validDate = playedDate && !isNaN(new Date(playedDate).getTime())
+                  ? playedDate
+                  : '1970-01-01T00:00:00.000Z';
+                if (!epLatest || new Date(validDate) > new Date(epLatest)) {
+                  epLatest = validDate;
+                }
+              }
+            }
+            if (epLatest && epLatest !== ep.lastPlayedAt) {
+              this.episodesRepo.update(ep.id, { lastPlayedAt: epLatest });
+              ep.lastPlayedAt = epLatest;
+            }
+            if (epLatest && (!latestPlayedOnAnyEp || new Date(epLatest) > new Date(latestPlayedOnAnyEp))) {
+              latestPlayedOnAnyEp = epLatest;
+            }
+          }
+          if (latestPlayedOnAnyEp && latestPlayedOnAnyEp !== req.lastPlayedAt) {
+            this.requestsRepo.update(req.id, { lastPlayedAt: latestPlayedOnAnyEp });
+            req.lastPlayedAt = latestPlayedOnAnyEp;
+          }
+          continue;
+        }
+
         let latestPlayed = req.lastPlayedAt || null;
 
         for (const [itemPath, playedDate] of Object.entries(globalHistory)) {
@@ -310,6 +375,69 @@ export class CleanupService implements ICleanupService {
         if (req.userId) reqUserIds.add(req.userId);
         const coReqs = coReqMap.get(req.id) || [];
         for (const c of coReqs) reqUserIds.add(c);
+
+        const episodes = this.episodesRepo ? this.episodesRepo.findByRequestId(req.id) : [];
+
+        if (episodes.length > 0) {
+          let allEpisodesConsumed = true;
+          let latestEpPlayAcrossRequesters: string | null = null;
+
+          for (const ep of episodes) {
+            if (ep.status === 'pruned') continue;
+
+            let allRequestersWatchedEp = reqUserIds.size > 0;
+            let latestReqEpPlay: string | null = null;
+
+            for (const rUid of reqUserIds) {
+              const u = userMap.get(rUid);
+              const cacheKey = u?.jellyfinUserId || rUid;
+              const userRes = requesterHistoryCache.get(cacheKey);
+
+              if (!userRes || !userRes.accountExists) {
+                continue;
+              }
+
+              let requesterWatchedEp = false;
+              for (const [itemPath, playedDate] of Object.entries(userRes.history)) {
+                if (matchesLibraryPath(itemPath, ep.jellyfinPath)) {
+                  requesterWatchedEp = true;
+                  const validDate = playedDate && !isNaN(new Date(playedDate).getTime())
+                    ? playedDate
+                    : '1970-01-01T00:00:00.000Z';
+                  if (!latestReqEpPlay || new Date(validDate) > new Date(latestReqEpPlay)) {
+                    latestReqEpPlay = validDate;
+                  }
+                }
+              }
+
+              if (!requesterWatchedEp) {
+                allRequestersWatchedEp = false;
+              }
+            }
+
+            if (!allRequestersWatchedEp) {
+              allEpisodesConsumed = false;
+            } else if (latestReqEpPlay && (!ep.lastPlayedAt || new Date(latestReqEpPlay) > new Date(ep.lastPlayedAt))) {
+              this.episodesRepo.update(ep.id, { lastPlayedAt: latestReqEpPlay });
+              ep.lastPlayedAt = latestReqEpPlay;
+            }
+
+            if (latestReqEpPlay && (!latestEpPlayAcrossRequesters || new Date(latestReqEpPlay) > new Date(latestEpPlayAcrossRequesters))) {
+              latestEpPlayAcrossRequesters = latestReqEpPlay;
+            }
+          }
+
+          if (allEpisodesConsumed) {
+            newFullyConsumed.add(req.id);
+          }
+
+          if (latestEpPlayAcrossRequesters && (!req.lastPlayedAt || new Date(latestEpPlayAcrossRequesters) > new Date(req.lastPlayedAt))) {
+            this.requestsRepo.update(req.id, { lastPlayedAt: latestEpPlayAcrossRequesters });
+            req.lastPlayedAt = latestEpPlayAcrossRequesters;
+          }
+
+          continue;
+        }
 
         let allRequestersWatched = reqUserIds.size > 0;
         let latestRequesterPlay: string | null = null;
@@ -447,8 +575,19 @@ export class CleanupService implements ICleanupService {
     // 1. Refresh play history from Jellyfin and evaluate Fully Consumed tier
     await this.refreshPlayHistory();
 
+    // Spec #172 Tier 1: Prune individual consumed episodes under storage pressure
+    let remainingDeficit = deficitBytes;
+    if (this.episodicPruningService && remainingDeficit > 0) {
+      const freedByEpisodes = await this.episodicPruningService.pruneConsumedEpisodesUnderPressure(remainingDeficit);
+      remainingDeficit = Math.max(0, remainingDeficit - freedByEpisodes);
+    }
+
+    if (remainingDeficit <= 0 && deficitBytes > 0) {
+      return [];
+    }
+
     // 2. Select candidates (status='seeding', keepFlag=false, scheduledDeleteAt is null)
-    // Priority: Tier 1 (Fully Consumed) first, then Tier 2 (remaining requests).
+    // Priority: Tier 2 (Fully Consumed whole requests) first, then Tier 3 (remaining requests).
     const candidates = this.requestsRepo.findByCriteria({
       status: RequestStatus.SEEDING,
       keepFlag: false,
@@ -462,7 +601,7 @@ export class CleanupService implements ICleanupService {
     let reclaimedBytes = 0;
 
     for (const item of sortedCandidates) {
-      if (deficitBytes > 0 && reclaimedBytes >= deficitBytes) {
+      if (remainingDeficit > 0 && reclaimedBytes >= remainingDeficit) {
         break;
       }
 

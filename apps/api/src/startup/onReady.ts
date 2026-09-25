@@ -123,6 +123,19 @@ export function registerStartupHooks(app: FastifyInstance, options: AppOptions):
           .catch((hlErr) => {
             app.log.warn(hlErr, 'Non-fatal error in startup hardlink recovery');
           });
+
+        if (app.episodicPruning) {
+          app.episodicPruning
+            .backfillExistingSeasonPacks()
+            .then((count) => {
+              if (count > 0) {
+                app.log.info(`Startup season pack backfill finished: backfilled ${count} episodes`);
+              }
+            })
+            .catch((bfErr) => {
+              app.log.warn(bfErr, 'Non-fatal error in startup season pack backfill');
+            });
+        }
       });
     }
   });

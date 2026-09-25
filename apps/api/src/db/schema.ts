@@ -86,6 +86,33 @@ export const requestCoRequesters = sqliteTable(
   ]
 );
 
+export const requestEpisodes = sqliteTable(
+  'request_episodes',
+  {
+    id: text('id').primaryKey(),
+    requestId: text('request_id')
+      .notNull()
+      .references(() => downloadRequests.id, { onDelete: 'cascade' }),
+    seasonNumber: integer('season_number').notNull(),
+    episodeNumber: integer('episode_number').notNull(),
+    fileIndex: integer('file_index').notNull(),
+    relativePath: text('relative_path').notNull(),
+    jellyfinPath: text('jellyfin_path').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    status: text('status', { enum: ['downloaded', 'pruned'] }).notNull().default('downloaded'),
+    keepFlag: integer('keep_flag', { mode: 'boolean' }).notNull().default(false),
+    lastPlayedAt: text('last_played_at'),
+    prunedAt: text('pruned_at'),
+  },
+  (table) => [
+    uniqueIndex('request_episodes_req_season_ep_unique').on(
+      table.requestId,
+      table.seasonNumber,
+      table.episodeNumber
+    ),
+  ]
+);
+
 export const systemConfig = sqliteTable('system_config', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
@@ -109,6 +136,8 @@ export type DownloadRequest = typeof downloadRequests.$inferSelect;
 export type NewDownloadRequest = typeof downloadRequests.$inferInsert;
 export type RequestCoRequester = typeof requestCoRequesters.$inferSelect;
 export type NewRequestCoRequester = typeof requestCoRequesters.$inferInsert;
+export type RequestEpisode = typeof requestEpisodes.$inferSelect;
+export type NewRequestEpisode = typeof requestEpisodes.$inferInsert;
 export type SystemConfig = typeof systemConfig.$inferSelect;
 export type NewSystemConfig = typeof systemConfig.$inferInsert;
 export type FeatureFlag = typeof featureFlags.$inferSelect;
@@ -117,4 +146,5 @@ export type NewFeatureFlag = typeof featureFlags.$inferInsert;
 export type UserRole = 'user' | 'trusted' | 'admin';
 export type InviteRole = 'user' | 'trusted';
 export type MediaType = 'movie' | 'tv_show' | 'anime' | 'private';
+export type EpisodeStatus = 'downloaded' | 'pruned';
 export type TranscriptionStatus = 'none' | 'pending' | 'transcribing' | 'completed' | 'failed';

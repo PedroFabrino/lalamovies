@@ -9,6 +9,7 @@ export interface TorrentInfo {
 }
 
 import { parseTorrentBuffer } from './torrentParser';
+import { extractHashFromMagnet, resolveTorrentSource } from './torrentSource';
 
 export class QBittorrentError extends Error {
   constructor(message: string, public statusCode = 502) {
@@ -23,7 +24,8 @@ export interface IQBittorrentService {
   getActiveTorrentCount(): Promise<number>;
   getTorrentStatus(hash: string): Promise<TorrentInfo | null>;
   getAllTorrents?(): Promise<TorrentInfo[]>;
-  getTorrentFiles?(hash: string): Promise<Array<{ name: string; size: number }>>;
+  getTorrentFiles?(hash: string): Promise<Array<{ index: number; name: string; size: number; priority?: number }>>;
+  setFilePriority?(hash: string, fileIndex: number, priority: number): Promise<void>;
   removeTorrent(hash: string, deleteFiles?: boolean): Promise<void>;
 }
 
@@ -37,31 +39,6 @@ export class QBittorrentService implements IQBittorrentService {
     this.baseUrl = (baseUrl || process.env.QBITTORRENT_URL || 'http://localhost:8080').replace(/\/$/, '');
     this.username = username || process.env.QBITTORRENT_USER || 'admin';
     this.password = password || process.env.QBITTORRENT_PASSWORD || 'adminadmin';
-  }
-
-  private extractHashFromMagnet(magnetLink: string): string {
-    const match = magnetLink.match(/urn:btih:([a-zA-Z0-9]+)/i);
-    if (!match) return '';
-    const raw = match[1];
-    if (raw.length === 40) {
-      return raw.toLowerCase();
-    }
-    if (raw.length === 32) {
-      // Decode 32-char Base32 RFC 4648 to 40-char hex
-      const base32chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-      let bits = '';
-      for (const char of raw.toUpperCase()) {
-        const val = base32chars.indexOf(char);
-        if (val === -1) return raw.toLowerCase();
-        bits += val.toString(2).padStart(5, '0');
-      }
-      let hex = '';
-      for (let i = 0; i + 4 <= bits.length; i += 4) {
-        hex += parseInt(bits.substring(i, i + 4), 2).toString(16);
-      }
-      return hex.toLowerCase();
-    }
-    return raw.toLowerCase();
   }
 
   private async ensureAuthenticated(): Promise<string | null> {
@@ -136,62 +113,14 @@ export class QBittorrentService implements IQBittorrentService {
     return res;
   }
 
-  private async resolveTorrentSource(source: string): Promise<{
-    resolvedMagnet?: string;
-    torrentBuffer?: Buffer;
-    hash?: string;
-  }> {
-    if (!source.startsWith('http://') && !source.startsWith('https://')) {
-      const hash = this.extractHashFromMagnet(source);
-      return { resolvedMagnet: source, hash };
-    }
-
-    try {
-      let currentUrl = source;
-      for (let i = 0; i < 5; i++) {
-        const res = await fetch(currentUrl, { redirect: 'manual' });
-        if (res.status >= 300 && res.status < 400) {
-          const loc = res.headers.get('location');
-          if (!loc) break;
-          if (loc.startsWith('magnet:')) {
-            const hash = this.extractHashFromMagnet(loc);
-            return { resolvedMagnet: loc, hash };
-          }
-          currentUrl = new URL(loc, currentUrl).toString();
-          continue;
-        }
-
-        if (res.ok) {
-          const arrayBuffer = await res.arrayBuffer();
-          const buffer = Buffer.from(arrayBuffer);
-          // Check if bencoded torrent dictionary starts with 'd' (ASCII 100)
-          if (buffer.length > 0 && buffer[0] === 0x64) {
-            try {
-              const { infoHash } = parseTorrentBuffer(buffer);
-              return { torrentBuffer: buffer, hash: infoHash };
-            } catch {
-              // Not parseable, return buffer anyway
-              return { torrentBuffer: buffer };
-            }
-          }
-        }
-        break;
-      }
-    } catch {
-      // If fetching fails, fallback to passing URL directly
-    }
-
-    return { resolvedMagnet: source, hash: '' };
-  }
-
   async addTorrent(magnetLink: string, savePath?: string): Promise<string> {
-    const resolved = await this.resolveTorrentSource(magnetLink);
+    const resolved = await resolveTorrentSource(magnetLink);
     if (resolved.torrentBuffer) {
       return this.addTorrentFile(resolved.torrentBuffer, savePath);
     }
 
     const effectiveLink = resolved.resolvedMagnet || magnetLink;
-    let hash = resolved.hash || this.extractHashFromMagnet(effectiveLink);
+    let hash = resolved.hash || extractHashFromMagnet(effectiveLink);
 
     const formData = new FormData();
     formData.append('urls', effectiveLink);
@@ -368,15 +297,52 @@ export class QBittorrentService implements IQBittorrentService {
     }
   }
 
-  async getTorrentFiles(hash: string): Promise<Array<{ name: string; size: number }>> {
+  async getTorrentFiles(
+    hash: string
+  ): Promise<Array<{ index: number; name: string; size: number; priority?: number }>> {
     if (!hash) return [];
     try {
       const res = await this.fetchWithAuth(`/api/v2/torrents/files?hash=${encodeURIComponent(hash)}`);
       if (!res.ok) return [];
-      const data = (await res.json()) as Array<{ name: string; size: number }>;
-      return (data || []).map((f) => ({ name: f.name, size: f.size }));
+      const data = (await res.json()) as Array<{
+        index?: number;
+        name: string;
+        size: number;
+        priority?: number;
+      }>;
+      return (data || []).map((f, i) => ({
+        index: typeof f.index === 'number' ? f.index : i,
+        name: f.name,
+        size: f.size,
+        priority: f.priority,
+      }));
     } catch {
       return [];
+    }
+  }
+
+  async setFilePriority(hash: string, fileIndex: number, priority: number): Promise<void> {
+    if (!hash) return;
+    try {
+      const params = new URLSearchParams({
+        hash,
+        id: String(fileIndex),
+        priority: String(priority),
+      });
+
+      const res = await this.fetchWithAuth('/api/v2/torrents/filePrio', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: params.toString(),
+      });
+      if (!res.ok && res.status !== 200) {
+        throw new QBittorrentError(`Failed to set file priority: HTTP ${res.status}`);
+      }
+    } catch (err) {
+      if (err instanceof QBittorrentError) throw err;
+      throw new QBittorrentError(`Failed to set file priority: ${(err as Error).message}`);
     }
   }
 

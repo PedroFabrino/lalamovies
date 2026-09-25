@@ -146,12 +146,20 @@ _Avoid_: registration link, signup link
 The process of removing media from disk, stopping the associated torrent in qBittorrent, and triggering a Jellyfin library rescan. Can be triggered manually by an Admin or automatically by the Cleanup Policy.
 _Avoid_: deletion, purge, removal
 
+**Consumed Episode**:
+An individual episode file within a TV Show or Anime Download Request whose Library path appears in the Jellyfin play history of every requester (the original requester and all co-requesters). A requester whose Jellyfin account no longer exists is treated as having watched. Eligible for Episodic Pruning.
+_Avoid_: watched episode, completed episode, viewed file
+
+**Episodic Pruning**:
+The partial reclamation of disk space from an active episodic Download Request (such as a Season Pack) by unlinking both the Library file and Staging Area file for an individual Consumed Episode, while setting the file's priority to 0 ("do not download") in qBittorrent so remaining unconsumed episodes continue seeding without torrent errors.
+_Avoid_: partial delete, episode trimming, sub-torrent deletion
+
 **Fully Consumed**:
-A DownloadRequest where at least one file under its Library path appears in the play history of every requester (the original requester and all co-requesters). Fully Consumed requests are the first tier of the Cleanup Policy priority order. A requester whose Jellyfin account no longer exists is treated as having watched.
+A Download Request where all media files have been watched by every requester: for Movies, the movie file appears in play history; for episodic series (TV Shows and Anime), all episodes are Consumed Episodes (or have been pruned). Fully Consumed requests are the first tier of the Cleanup Policy priority order.
 _Avoid_: fully watched, completed, seen by all
 
 **Cleanup Policy**:
-The rules governing automatic Cleanup. Evaluated against the Storage Quota (with a secondary safety check on the host disk). Triggers automatic Cleanup when free quota falls below 20%. When free quota falls below 15%, incoming Download Requests are deferred in the ``queued`` state until space is freed. Priority: (1) Fully Consumed requests, ordered by least-recently-played; (2) remaining requests, ordered by least-recently-played then oldest Download Request. Items marked Keep are immune. A 24-hour Notification precedes any automatic deletion.
+The rules governing automatic Cleanup. Evaluated against the Storage Quota (with a secondary safety check on the host disk). Triggers automatic Cleanup when free quota falls below 20%. When free quota falls below 15%, incoming Download Requests are deferred in the ``queued`` state until space is freed. Priority: (1) Consumed Episodes within active episodic requests (Episodic Pruning), ordered by least-recently-played; (2) Fully Consumed requests, ordered by least-recently-played; (3) remaining requests, ordered by least-recently-played then oldest Download Request. Items marked Keep are immune. A 24-hour Notification precedes any automatic deletion.
 _Avoid_: retention policy, eviction policy
 
 **Keep Flag**:

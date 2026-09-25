@@ -77,6 +77,11 @@ export class MockQBittorrentService implements IQBittorrentService {
     this.removedTorrents.push({ hash, deleteFiles });
     this.torrents.delete(hash);
   }
+
+  public filePriorities: Array<{ hash: string; fileIndex: number; priority: number }> = [];
+  async setFilePriority(hash: string, fileIndex: number, priority: number): Promise<void> {
+    this.filePriorities.push({ hash, fileIndex, priority });
+  }
 }
 
 export const MockQBittorrent = MockQBittorrentService;

@@ -8,9 +8,20 @@ import {
   buildLibraryPath as buildLibraryPathHelper,
 } from './libraryPathBuilder';
 import { StorageFootprintService } from './storageFootprint';
+import { resolveExistingSeriesFolder } from './seriesFolderScanner';
+import { resolveSourceItem } from './torrentSourceItemResolver';
 
 export { reconstructFilesFromDisk };
 export type { BuildLibraryPathParams };
+
+export interface HardlinkedEpisodeInfo {
+  seasonNumber: number;
+  episodeNumber: number;
+  fileIndex: number;
+  relativePath: string;
+  jellyfinPath: string;
+  sizeBytes: number;
+}
 
 export interface ProcessAndHardlinkTorrentInput {
   request: {
@@ -25,7 +36,7 @@ export interface ProcessAndHardlinkTorrentInput {
   torrentStatus: {
     name: string;
   };
-  files?: Array<{ name: string; size: number }>;
+  files?: Array<{ index?: number; name: string; size: number }>;
   stagingPath?: string;
   existingShowFolder?: string;
   subtitleInspection?: ISubtitleInspectionService;
@@ -44,6 +55,7 @@ export interface ProcessAndHardlinkTorrentResult {
   transcriptionStatus: 'none' | 'pending';
   targetMediaType: 'movie' | 'tv_show' | 'anime' | 'private';
   effectiveTitle: string;
+  episodes?: HardlinkedEpisodeInfo[];
 }
 
 export type ProcessAndHardlinkResult = ProcessAndHardlinkTorrentResult;
@@ -187,144 +199,31 @@ export class FileSystemService implements IFileSystemService {
       path.resolve(process.cwd(), 'downloads', 'staging');
     const files = input.files || [];
 
-    let sourceItem = path.join(stagingPath, torrentStatus.name);
-    let isDirectory = false;
-    let ext = path.extname(torrentStatus.name) || '.mkv';
+    const { sourceItem, isDirectory, ext } = resolveSourceItem({
+      stagingPath,
+      torrentName: torrentStatus.name,
+      files,
+      mediaType: req.mediaType,
+      seasonNumber: req.seasonNumber,
+      episodeNumber: req.episodeNumber,
+    });
 
-    if (files.length > 0) {
-      const videoExtensions = ['.mkv', '.mp4', '.avi', '.ts', '.mov', '.webm', '.m4v'];
-      const videoFiles = files
-        .filter((f) => videoExtensions.includes(path.extname(f.name).toLowerCase()))
-        .sort((a, b) => b.size - a.size);
+    const mediaBase =
+      (this.getMediaBasePath ? this.getMediaBasePath() : null) ||
+      this.defaultMediaBasePath ||
+      process.env.MEDIA_PATH ||
+      path.resolve(process.cwd(), 'media');
 
-      const firstSegment = files[0].name.split(/[\\/]/)[0];
-      const rootDir = path.join(stagingPath, firstSegment);
-
-      if (
-        req.mediaType === 'movie' ||
-        (req.mediaType === 'private' && req.seasonNumber == null && req.episodeNumber == null)
-      ) {
-        if (videoFiles.length > 0) {
-          sourceItem = path.join(stagingPath, videoFiles[0].name);
-          ext = path.extname(videoFiles[0].name) || '.mkv';
-          isDirectory = false;
-        } else if (fs.existsSync(rootDir) && fs.statSync(rootDir).isDirectory()) {
-          sourceItem = rootDir;
-          isDirectory = true;
-        }
-      } else {
-        if (req.episodeNumber != null) {
-          const matchedVideo = videoFiles.find((f) => {
-            const epInfo = extractEpisodeInfo(path.basename(f.name));
-            return epInfo.episodeNumber === req.episodeNumber;
-          });
-          if (matchedVideo) {
-            sourceItem = path.join(stagingPath, matchedVideo.name);
-            ext = path.extname(matchedVideo.name) || '.mkv';
-            isDirectory = false;
-          } else if (videoFiles.length === 1) {
-            sourceItem = path.join(stagingPath, videoFiles[0].name);
-            ext = path.extname(videoFiles[0].name) || '.mkv';
-            isDirectory = false;
-          } else if (fs.existsSync(rootDir) && fs.statSync(rootDir).isDirectory()) {
-            sourceItem = rootDir;
-            isDirectory = true;
-          }
-        } else if (fs.existsSync(rootDir) && fs.statSync(rootDir).isDirectory()) {
-          sourceItem = rootDir;
-          isDirectory = true;
-        }
-      }
-    } else if (!fs.existsSync(sourceItem)) {
-      if (fs.existsSync(stagingPath)) {
-        const entries = fs.readdirSync(stagingPath);
-        const cleanTorrentName = torrentStatus.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const matched = entries.find((e) => {
-          const cleanEntry = e.toLowerCase().replace(/[^a-z0-9]/g, '');
-          return cleanEntry.includes(cleanTorrentName) || cleanTorrentName.includes(cleanEntry);
-        });
-        if (matched) {
-          sourceItem = path.join(stagingPath, matched);
-          isDirectory = fs.statSync(sourceItem).isDirectory();
-          ext = path.extname(matched) || '.mkv';
-        }
-      }
-    } else {
-      isDirectory = fs.statSync(sourceItem).isDirectory();
-    }
-
-    if (!fs.existsSync(sourceItem) && fs.existsSync(stagingPath)) {
-      const entries = fs.readdirSync(stagingPath);
-      const cleanTorrentName = torrentStatus.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const matched = entries.find((e) => {
-        const cleanEntry = e.toLowerCase().replace(/[^a-z0-9]/g, '');
-        return cleanEntry.includes(cleanTorrentName) || cleanTorrentName.includes(cleanEntry);
-      });
-      if (matched) {
-        sourceItem = path.join(stagingPath, matched);
-        isDirectory = fs.statSync(sourceItem).isDirectory();
-        ext = path.extname(matched) || '.mkv';
-      }
-    }
-
-    if (!fs.existsSync(sourceItem)) {
-      throw new Error(`Source file does not exist for hardlink: ${sourceItem}`);
-    }
-
-    if (fs.existsSync(sourceItem) && !isDirectory) {
-      isDirectory = fs.statSync(sourceItem).isDirectory();
-    }
-
-    let existingShowFolder: string | undefined = input.existingShowFolder;
-    let targetMediaType = req.mediaType;
-    let effectiveTitle = req.title;
-
-    if (['tv_show', 'anime'].includes(req.mediaType)) {
-      if (!existingShowFolder) {
-        try {
-          const mediaBase =
-            (this.getMediaBasePath ? this.getMediaBasePath() : null) ||
-            this.defaultMediaBasePath ||
-            process.env.MEDIA_PATH ||
-            path.resolve(process.cwd(), 'media');
-          const cleanReqTitle = req.title.replace(/[<>:"/\\|?*]/g, '').trim();
-          const baseClean = cleanReqTitle.replace(/\s*-\s*\d+$/, '').trim() || cleanReqTitle;
-          const candidates = [req.year ? `${baseClean} (${req.year})` : baseClean, baseClean];
-          for (const folder of candidates) {
-            if (fs.existsSync(path.join(mediaBase, 'anime', folder))) {
-              existingShowFolder = folder;
-              targetMediaType = 'anime';
-              effectiveTitle = folder.replace(/\s*\(\d{4}\)$/, '').trim();
-              break;
-            }
-            if (fs.existsSync(path.join(mediaBase, 'shows', folder))) {
-              existingShowFolder = folder;
-              targetMediaType = 'tv_show';
-              effectiveTitle = folder.replace(/\s*\(\d{4}\)$/, '').trim();
-              break;
-            }
-          }
-        } catch (scanErr) {
-          logger?.warn?.(`Error scanning disk for existing series folder: ${(scanErr as Error).message}`);
-        }
-      } else {
-        try {
-          const mediaBase =
-            (this.getMediaBasePath ? this.getMediaBasePath() : null) ||
-            this.defaultMediaBasePath ||
-            process.env.MEDIA_PATH ||
-            path.resolve(process.cwd(), 'media');
-          if (fs.existsSync(path.join(mediaBase, 'anime', existingShowFolder))) {
-            targetMediaType = 'anime';
-          } else if (fs.existsSync(path.join(mediaBase, 'shows', existingShowFolder))) {
-            targetMediaType = 'tv_show';
-          }
-          effectiveTitle = existingShowFolder.replace(/\s*\(\d{4}\)$/, '').trim();
-        } catch (scanErr) {
-          logger?.warn?.(`Error checking disk for existing series folder: ${(scanErr as Error).message}`);
-        }
-      }
-    }
+    const {
+      existingShowFolder,
+      targetMediaType,
+      effectiveTitle,
+    } = resolveExistingSeriesFolder({
+      req,
+      existingShowFolder: input.existingShowFolder,
+      mediaBase,
+      logger,
+    });
 
     const destPath = this.buildLibraryPath({
       mediaType: targetMediaType,
@@ -371,6 +270,50 @@ export class FileSystemService implements IFileSystemService {
       }
     }
 
+    const episodes: HardlinkedEpisodeInfo[] = [];
+    if (
+      ['tv_show', 'anime'].includes(targetMediaType) ||
+      (req.mediaType === 'private' && (req.seasonNumber != null || req.episodeNumber != null))
+    ) {
+      const videoExtensions = ['.mkv', '.mp4', '.avi', '.ts', '.mov', '.webm', '.m4v'];
+      if (isDirectory && files.length > 0) {
+        let epIdx = 0;
+        for (const f of files) {
+          const fileExt = path.extname(f.name).toLowerCase();
+          if (!videoExtensions.includes(fileExt)) continue;
+          const epInfo = extractEpisodeInfo(path.basename(f.name));
+          if (epInfo.episodeNumber != null) {
+            const seasonNum = epInfo.seasonNumber || req.seasonNumber || 1;
+            const episodeNum = epInfo.episodeNumber;
+            const fIndex = typeof f.index === 'number' ? f.index : epIdx;
+            const relToSource = path.relative(sourceItem, path.join(stagingPath, f.name));
+            const epJellyfinPath = relToSource && !relToSource.startsWith('..')
+              ? path.join(destPath, relToSource)
+              : path.join(destPath, path.basename(f.name));
+            episodes.push({
+              seasonNumber: seasonNum,
+              episodeNumber: episodeNum,
+              fileIndex: fIndex,
+              relativePath: f.name,
+              jellyfinPath: epJellyfinPath,
+              sizeBytes: f.size,
+            });
+          }
+          epIdx++;
+        }
+      } else if (!isDirectory && req.seasonNumber != null && req.episodeNumber != null) {
+        const f = files[0];
+        episodes.push({
+          seasonNumber: req.seasonNumber,
+          episodeNumber: req.episodeNumber,
+          fileIndex: f && typeof f.index === 'number' ? f.index : 0,
+          relativePath: f ? f.name : path.basename(destPath),
+          jellyfinPath: destPath,
+          sizeBytes: f ? f.size : (fs.existsSync(destPath) ? fs.statSync(destPath).size : 0),
+        });
+      }
+    }
+
     let transcriptionStatus: 'none' | 'pending' = 'none';
     if (req.mediaType === 'private') {
       if (subtitleInspection) {
@@ -392,6 +335,7 @@ export class FileSystemService implements IFileSystemService {
       transcriptionStatus,
       targetMediaType,
       effectiveTitle,
+      episodes: episodes.length > 0 ? episodes : undefined,
     };
   }
 }

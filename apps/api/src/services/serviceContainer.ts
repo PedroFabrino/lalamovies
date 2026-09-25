@@ -23,6 +23,8 @@ import { RequestService } from './requestService';
 import { IAnimeSeasonService } from './animeTypes';
 import { AnimeSeasonService } from './animeSeasonService';
 import { AnimeHistoryMatcher } from './animeHistoryMatcher';
+import { IEpisodesRepository, EpisodesRepository } from './episodesRepository';
+import { IEpisodicPruningService, EpisodicPruningService } from './episodicPruningService';
 import { DownloadPoller } from '../jobs/downloadPoller';
 import { UnarchiveDaemon } from '../jobs/unarchiveDaemon';
 import { CleanupCron } from '../jobs/cleanupCron';
@@ -35,6 +37,8 @@ export interface CreatedServices {
   notifications: INotificationService;
   fileSystem: IFileSystemService;
   requestsRepo: IRequestsRepository;
+  episodesRepo: IEpisodesRepository;
+  episodicPruning: IEpisodicPruningService;
   stateMachine: IRequestStateMachine;
   cleanup: ICleanupService;
   metadata: IMetadataService;
@@ -69,6 +73,10 @@ export function setupServices(
   });
   const fileSystem = options.fileSystemService ?? new FileSystemService();
   const requestsRepo = options.requestsRepo ?? new RequestsRepository(db);
+  const episodesRepo = options.episodesRepo ?? new EpisodesRepository(db);
+  const episodicPruning =
+    options.episodicPruningService ??
+    new EpisodicPruningService(episodesRepo, requestsRepo, qbittorrent, fileSystem, jellyfin);
   const stateMachine: IRequestStateMachine =
     options.stateMachine ??
     new RequestStateMachine(
@@ -97,6 +105,8 @@ export function setupServices(
     new CleanupService({
       db,
       requestsRepo,
+      episodesRepo,
+      episodicPruningService: episodicPruning,
       qbittorrent,
       jellyfin,
       notificationService: notifications,
@@ -242,6 +252,7 @@ export function setupServices(
     new DownloadPoller({
       db,
       requestsRepo,
+      episodesRepo,
       qbittorrent,
       fileSystem,
       jellyfin,
@@ -339,33 +350,16 @@ export function setupServices(
     jellyfin.setPrivateLibraryId(cachedPrivateLibrary.value);
   }
 
-  app.decorate('db', db);
-  app.decorate('sqlite', sqlite);
-  app.decorate('jellyfin', jellyfin);
-  app.decorate('metadata', metadata);
-  app.decorate('qbittorrent', qbittorrent);
-  app.decorate('cleanup', cleanup);
-  app.decorate('notifications', notifications);
-  app.decorate('cleanupCron', cleanupCron);
-  app.decorate('transcriptionCron', transcriptionCron);
-  app.decorate('fileSystem', fileSystem);
-  app.decorate('prowlarr', prowlarr);
-  app.decorate('discovery', discovery);
-  app.decorate('upNext', upNext);
-  app.decorate('animeSeason', animeSeason);
-  app.decorate('poller', poller);
-  app.decorate('subtitleInspection', subtitleInspection);
-  app.decorate('subgen', subgen);
-  app.decorate('openSubtitles', openSubtitles);
-  app.decorate('unarchive', unarchive);
-  app.decorate('unarchiveDaemon', unarchiveDaemon);
-  app.decorate('stateMachine', stateMachine);
-  app.decorate('requestsRepo', requestsRepo);
-  app.decorate('requestService', requestService);
-
-  app.decorate('serviceApiKey', serviceApiKey);
-  app.decorate('watcherUrl', watcherUrl);
-  app.decorate('streamerUrl', streamerUrl);
+  const decorations: Record<string, unknown> = {
+    db, sqlite, jellyfin, metadata, qbittorrent, cleanup, notifications,
+    cleanupCron, transcriptionCron, fileSystem, prowlarr, discovery,
+    upNext, animeSeason, poller, subtitleInspection, subgen, openSubtitles,
+    unarchive, unarchiveDaemon, stateMachine, requestsRepo, episodesRepo,
+    episodicPruning, requestService, serviceApiKey, watcherUrl, streamerUrl,
+  };
+  for (const [key, val] of Object.entries(decorations)) {
+    app.decorate(key, val);
+  }
 
   return {
     qbittorrent,
@@ -373,6 +367,8 @@ export function setupServices(
     notifications,
     fileSystem,
     requestsRepo,
+    episodesRepo,
+    episodicPruning,
     stateMachine,
     cleanup,
     metadata,

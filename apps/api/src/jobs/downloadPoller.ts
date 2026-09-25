@@ -1,7 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import { eq, inArray } from 'drizzle-orm';
-import { AppDatabase, systemConfig, users, DownloadRequest } from '../db';
+import { AppDatabase, DownloadRequest } from '../db';
 import { IQBittorrentService } from '../services/qbittorrent';
 import { IFileSystemService } from '../services/fileSystem';
 import { IJellyfinService } from '../services/jellyfin';
@@ -11,6 +10,8 @@ import { OpenSubtitlesService } from '../services/openSubtitles';
 import { IUnarchiveService, UnarchiveService } from '../services/unarchive';
 import { IRequestStateMachine, RequestStateMachine, RequestStatus } from '../services/requestStateMachine';
 import { IRequestsRepository, RequestsRepository } from '../services/requestsRepository';
+import { IEpisodesRepository, EpisodesRepository } from '../services/episodesRepository';
+import { promoteQueuedRequests, resolvePollerNotificationRecipients } from '../services/queuePromoter';
 
 export type PollerLogger = {
   info: (msg: string) => void;
@@ -21,6 +22,7 @@ export type PollerLogger = {
 export interface DownloadPollerOptions {
   db: AppDatabase;
   requestsRepo?: IRequestsRepository;
+  episodesRepo?: IEpisodesRepository;
   qbittorrent: IQBittorrentService;
   fileSystem: IFileSystemService;
   jellyfin: IJellyfinService;
@@ -40,6 +42,7 @@ export class DownloadPoller {
   private isPolling = false;
   private db: AppDatabase;
   private requestsRepo: IRequestsRepository;
+  private episodesRepo: IEpisodesRepository;
   private qbittorrent: IQBittorrentService;
   private fileSystem: IFileSystemService;
   private jellyfin: IJellyfinService;
@@ -56,6 +59,7 @@ export class DownloadPoller {
   constructor(options: DownloadPollerOptions) {
     this.db = options.db;
     this.requestsRepo = options.requestsRepo || new RequestsRepository(options.db);
+    this.episodesRepo = options.episodesRepo || new EpisodesRepository(options.db);
     this.qbittorrent = options.qbittorrent;
     this.fileSystem = options.fileSystem;
     this.jellyfin = options.jellyfin;
@@ -191,8 +195,31 @@ export class DownloadPoller {
               logger: this.logger,
             });
 
-            const { destPath, isDirectory, transcriptionStatus, targetMediaType, effectiveTitle } = result;
+            const { destPath, isDirectory, transcriptionStatus, targetMediaType, effectiveTitle, episodes } = result;
             completedDestPath = destPath;
+
+            if (episodes && episodes.length > 0) {
+              for (const ep of episodes) {
+                const epId = `${req.id}-s${ep.seasonNumber}e${ep.episodeNumber}`;
+                const existing = this.episodesRepo.findById(epId);
+                if (!existing) {
+                  this.episodesRepo.create({
+                    id: epId,
+                    requestId: req.id,
+                    seasonNumber: ep.seasonNumber,
+                    episodeNumber: ep.episodeNumber,
+                    fileIndex: ep.fileIndex,
+                    relativePath: ep.relativePath,
+                    jellyfinPath: ep.jellyfinPath,
+                    sizeBytes: ep.sizeBytes,
+                    status: 'downloaded',
+                    keepFlag: false,
+                    lastPlayedAt: null,
+                    prunedAt: null,
+                  });
+                }
+              }
+            }
 
 
             // Auto-fetch subtitle from OpenSubtitles (fire-and-forget)
@@ -226,33 +253,7 @@ export class DownloadPoller {
                 });
             }
 
-            let requestedBy: string | undefined;
-            let reqUserEmail: string | null | undefined;
-            if (req.userId) {
-              const reqUser = this.db
-                .select({ username: users.username, email: users.email })
-                .from(users)
-                .where(eq(users.id, req.userId))
-                .get();
-              requestedBy = reqUser?.username;
-              reqUserEmail = reqUser?.email;
-            }
-
-            let recipientEmails: string[] | undefined;
-            if (req.mediaType === 'private') {
-              const recipients = this.db
-                .select({ email: users.email })
-                .from(users)
-                .where(inArray(users.role, ['admin', 'trusted']))
-                .all();
-              const allEmails = recipients
-                .map((r) => r.email)
-                .filter((e): e is string => Boolean(e));
-              if (reqUserEmail && !allEmails.includes(reqUserEmail)) {
-                allEmails.push(reqUserEmail);
-              }
-              recipientEmails = allEmails;
-            }
+            const { requestedBy, recipientEmails } = resolvePollerNotificationRecipients(this.db, req);
 
             await this.stateMachine.transition(req.id, RequestStatus.SEEDING, {
               refreshJellyfin: true,
@@ -304,93 +305,15 @@ export class DownloadPoller {
       }
 
       // 2. Check for queued items to start if quota headroom and concurrent limit allow
-      const quotaRow = this.db
-        .select()
-        .from(systemConfig)
-        .where(eq(systemConfig.key, 'storage_quota_gb'))
-        .get();
-
-      const storageQuotaGb = quotaRow ? parseInt(quotaRow.value, 10) : parseInt(process.env.STORAGE_QUOTA_GB || '150', 10);
-      const storageQuotaBytes = storageQuotaGb * 1024 * 1024 * 1024;
-      const currentFootprintBytes = this.fileSystem.getStorageFootprintBytes ? await this.fileSystem.getStorageFootprintBytes() : 0;
-
-      const quotaCapBytes = storageQuotaBytes > 0 ? Math.floor(storageQuotaBytes * 0.85) : Infinity;
-      let availableHeadroom = quotaCapBytes === Infinity ? Infinity : Math.max(0, quotaCapBytes - currentFootprintBytes);
-
-      const configRow = this.db
-        .select()
-        .from(systemConfig)
-        .where(eq(systemConfig.key, 'concurrent_limit'))
-        .get();
-
-      const concurrentLimit = configRow ? parseInt(configRow.value, 10) : 2;
-      const activeCount = await this.qbittorrent.getActiveTorrentCount();
-      let slotsAvailable = Math.max(0, concurrentLimit - activeCount);
-
-      if (availableHeadroom <= 0) {
-        // Quota usage >= 85%, cannot promote any requests; mark non-deferred items as waiting_for_space
-        const queuedItems = this.requestsRepo.findByStatus(RequestStatus.QUEUED);
-
-        for (const item of queuedItems) {
-          if (item.deferredReason !== 'waiting_for_space') {
-            this.requestsRepo.update(item.id, { deferredReason: 'waiting_for_space' });
-          }
-        }
-      } else if (slotsAvailable > 0) {
-        // Query all queued requests in FIFO order
-        const queuedRequests = this.requestsRepo.findByStatus(RequestStatus.QUEUED, 'requestedAtAsc');
-
-        for (const queuedReq of queuedRequests) {
-          if (slotsAvailable <= 0) break;
-
-          const reqSize = queuedReq.sizeBytes ?? 0;
-
-          // Greedy Best-Fit: if item exceeds remaining headroom, skip it and continue checking smaller items
-          if (reqSize > availableHeadroom) {
-            if (queuedReq.deferredReason !== 'waiting_for_space') {
-              this.requestsRepo.update(queuedReq.id, { deferredReason: 'waiting_for_space' });
-            }
-            continue;
-          }
-
-          // Item fits within available headroom and slot available! Promote to downloading
-          try {
-            let hash: string;
-            if (queuedReq.torrentFilePath && fs.existsSync(queuedReq.torrentFilePath)) {
-              const torrentBuffer = fs.readFileSync(queuedReq.torrentFilePath);
-              hash = await this.qbittorrent.addTorrentFile(
-                torrentBuffer,
-                this.stagingPath,
-                path.basename(queuedReq.torrentFilePath)
-              );
-              try {
-                fs.unlinkSync(queuedReq.torrentFilePath);
-              } catch (unlinkErr) {
-                this.logger?.error(`Failed to delete temp torrent file ${queuedReq.torrentFilePath}:`, unlinkErr);
-              }
-            } else {
-              hash = await this.qbittorrent.addTorrent(queuedReq.magnetLink, this.stagingPath);
-            }
-
-            await this.stateMachine.transition(queuedReq.id, RequestStatus.DOWNLOADING, {
-              extraFields: {
-                qbTorrentHash: hash,
-                torrentFilePath: null,
-                deferredReason: null,
-              },
-            });
-
-            this.logger?.info(`Started queued request: ${queuedReq.title} (hash: ${hash})`);
-
-            if (availableHeadroom !== Infinity) {
-              availableHeadroom -= reqSize;
-            }
-            slotsAvailable--;
-          } catch (err) {
-            this.logger?.error(`Failed to start queued request ${queuedReq.title}:`, err);
-          }
-        }
-      }
+      await promoteQueuedRequests({
+        db: this.db,
+        requestsRepo: this.requestsRepo,
+        qbittorrent: this.qbittorrent,
+        fileSystem: this.fileSystem,
+        stateMachine: this.stateMachine,
+        stagingPath: this.stagingPath,
+        logger: this.logger,
+      });
     } catch (pollErr) {
       this.logger?.error('Error in DownloadPoller loop:', pollErr);
     } finally {
