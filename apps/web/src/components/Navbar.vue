@@ -143,10 +143,12 @@
     </div>
 
     <!-- User Invite Modal -->
-    <UserInviteModal
-      v-if="showInviteModal"
-      @close="showInviteModal = false"
-    />
+    <Teleport to="body">
+      <UserInviteModal
+        v-if="showInviteModal"
+        @close="showInviteModal = false"
+      />
+    </Teleport>
   </header>
 </template>
 
