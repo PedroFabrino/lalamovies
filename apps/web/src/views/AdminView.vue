@@ -102,6 +102,7 @@
         @run-scan="admin.handleRunScan"
         @dismiss-scan-feedback="admin.scanFeedback.value = null"
         @clean-item="admin.confirmCleanItem"
+        @refresh="admin.loadDiskAndCandidates"
       />
 
       <!-- Tab 4: Feature Flags -->

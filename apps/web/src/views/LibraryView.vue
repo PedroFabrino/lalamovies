@@ -329,6 +329,28 @@
                     />
                   </svg>
                 </button>
+                <button
+                  v-else-if="item.requestIds && item.requestIds.length > 0"
+                  type="button"
+                  data-testid="library-episodes-btn"
+                  class="p-1 text-zinc-400 hover:text-indigo-400 hover:bg-zinc-800/80 rounded transition cursor-pointer shrink-0"
+                  title="Manage Episodes & Pruning"
+                  @click.stop="openEpisodesModal(item)"
+                >
+                  <svg
+                    class="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M4 6h16M4 10h16M4 14h16M4 18h16"
+                    />
+                  </svg>
+                </button>
               </div>
 
               <div class="flex items-center gap-2 text-xs text-zinc-400 mb-3">
@@ -392,7 +414,19 @@
                 >
                   <div class="flex items-center justify-between font-semibold text-zinc-200 mb-1">
                     <span>Season {{ season.seasonNumber }}</span>
-                    <span class="text-[11px] font-mono text-zinc-400">{{ formatBytes(season.sizeBytes) }}</span>
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-[11px] font-mono text-zinc-400">{{ formatBytes(season.sizeBytes) }}</span>
+                      <button
+                        v-if="season.episodes.length > 0"
+                        type="button"
+                        data-testid="season-episodes-btn"
+                        class="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-indigo-300 border border-zinc-700/60 transition cursor-pointer"
+                        title="Manage Episodes & Pruning"
+                        @click.stop="openEpisodesModal(item, season.episodes[0].id)"
+                      >
+                        Episodes
+                      </button>
+                    </div>
                   </div>
                   <div class="space-y-1 pl-1">
                     <div
@@ -753,6 +787,17 @@
       :title="subtitleTarget?.title"
       @close="showSubtitleModal = false"
     />
+
+    <!-- Season Pack Episodes Modal -->
+    <SeasonPackEpisodesModal
+      :show="!!activeEpisodeRequestId"
+      :request-id="activeEpisodeRequestId || ''"
+      :title="activeEpisodeTitle"
+      :is-admin="authStore.isAdmin"
+      :can-manage="activeEpisodeCanManage"
+      @close="activeEpisodeRequestId = null"
+      @episode-pruned="handleLibraryEpisodePruned"
+    />
   </div>
 </template>
 
@@ -760,6 +805,7 @@
 import { ref, computed, onMounted } from 'vue';
 import Navbar from '../components/Navbar.vue';
 import SubtitlePickerModal from '../components/SubtitlePickerModal.vue';
+import SeasonPackEpisodesModal from '../components/requests/SeasonPackEpisodesModal.vue';
 import { useAuthStore } from '../stores/auth';
 import { useRequestsStore } from '../stores/requests';
 import { api } from '../lib/api';
@@ -833,6 +879,23 @@ const subtitleTarget = ref<{ id: string; title: string } | null>(null);
 function openSubtitlePicker(id: string, title: string): void {
   subtitleTarget.value = { id, title };
   showSubtitleModal.value = true;
+}
+
+const activeEpisodeRequestId = ref<string | null>(null);
+const activeEpisodeTitle = ref('');
+const activeEpisodeCanManage = ref(false);
+
+function openEpisodesModal(item: LibraryMediaItem, reqId?: string): void {
+  activeEpisodeRequestId.value = reqId || item.requestIds[0] || item.id;
+  activeEpisodeTitle.value = item.title;
+  activeEpisodeCanManage.value = item.canManage;
+}
+
+function handleLibraryEpisodePruned(payload: { episodeId: string; wholeRequestDeleted: boolean }): void {
+  if (payload.wholeRequestDeleted) {
+    activeEpisodeRequestId.value = null;
+    fetchLibrary();
+  }
 }
 
 const showDeleteModal = ref(false);

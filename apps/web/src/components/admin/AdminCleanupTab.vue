@@ -246,55 +246,88 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-zinc-800/70 text-zinc-200">
-            <tr
+            <template
               v-for="cand in candidatesList"
               :key="cand.id"
-              class="hover:bg-zinc-800/30 transition"
             >
-              <td class="py-3.5 px-4 sm:px-6">
-                <div class="flex items-center gap-2">
-                  <div class="font-medium text-white">
-                    {{ cand.title }}
+              <tr class="hover:bg-zinc-800/30 transition">
+                <td class="py-3.5 px-4 sm:px-6">
+                  <div class="flex items-center gap-2">
+                    <div class="font-medium text-white">
+                      {{ cand.title }}
+                    </div>
+                    <span
+                      v-if="cand.isFullyConsumed"
+                      class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-800"
+                      title="Fully Consumed"
+                    >
+                      Fully Consumed
+                    </span>
                   </div>
-                  <span
-                    v-if="cand.isFullyConsumed"
-                    class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-800"
-                    title="Fully Consumed"
-                  >
-                    Fully Consumed
+                  <div class="text-xs text-zinc-500">
+                    <span v-if="formatMediaSubtitle(cand)">{{ formatMediaSubtitle(cand) }}</span>
+                    <span
+                      v-if="cand.scheduledDeleteAt"
+                      class="ml-2 text-amber-400 font-semibold"
+                    >
+                      Scheduled for deletion: {{ formatDate(cand.scheduledDeleteAt) }}
+                    </span>
+                  </div>
+                </td>
+                <td class="py-3.5 px-4 whitespace-nowrap">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-zinc-800 text-zinc-300 border border-zinc-700">
+                    {{ formatMediaType(cand.mediaType) }}
                   </span>
-                </div>
-                <div class="text-xs text-zinc-500">
-                  <span v-if="formatMediaSubtitle(cand)">{{ formatMediaSubtitle(cand) }}</span>
-                  <span
-                    v-if="cand.scheduledDeleteAt"
-                    class="ml-2 text-amber-400 font-semibold"
-                  >
-                    Scheduled for deletion: {{ formatDate(cand.scheduledDeleteAt) }}
-                  </span>
-                </div>
-              </td>
-              <td class="py-3.5 px-4 whitespace-nowrap">
-                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-zinc-800 text-zinc-300 border border-zinc-700">
-                  {{ formatMediaType(cand.mediaType) }}
-                </span>
-              </td>
-              <td class="py-3.5 px-4 whitespace-nowrap text-xs text-zinc-400">
-                {{ cand.lastPlayedAt ? formatDate(cand.lastPlayedAt) : 'Never played' }}
-              </td>
-              <td class="py-3.5 px-4 whitespace-nowrap text-xs font-mono text-zinc-400">
-                {{ formatSpeed(cand.sizeBytes || 0).replace('/s', '') }}
-              </td>
-              <td class="py-3.5 px-4 whitespace-nowrap text-right">
-                <button
-                  type="button"
-                  class="px-3 py-1.5 text-xs font-medium bg-red-950/50 hover:bg-red-900/60 text-red-300 border border-red-800 rounded-lg transition cursor-pointer"
-                  @click="$emit('cleanItem', cand)"
+                </td>
+                <td class="py-3.5 px-4 whitespace-nowrap text-xs text-zinc-400">
+                  {{ cand.lastPlayedAt ? formatDate(cand.lastPlayedAt) : 'Never played' }}
+                </td>
+                <td class="py-3.5 px-4 whitespace-nowrap text-xs font-mono text-zinc-400">
+                  {{ formatSpeed(cand.sizeBytes || 0).replace('/s', '') }}
+                </td>
+                <td class="py-3.5 px-4 whitespace-nowrap text-right">
+                  <div class="flex items-center justify-end gap-2">
+                    <button
+                      v-if="isSeasonPack(cand)"
+                      type="button"
+                      :data-testid="`toggle-episodes-${cand.id}`"
+                      class="px-2.5 py-1.5 text-xs font-medium rounded-lg border transition cursor-pointer"
+                      :class="expandedEpisodeId === cand.id
+                        ? 'bg-indigo-600 text-white border-indigo-500'
+                        : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-zinc-700'"
+                      @click="toggleEpisodes(cand.id)"
+                    >
+                      {{ expandedEpisodeId === cand.id ? 'Hide Episodes' : 'Episodes' }}
+                    </button>
+                    <button
+                      type="button"
+                      class="px-3 py-1.5 text-xs font-medium bg-red-950/50 hover:bg-red-900/60 text-red-300 border border-red-800 rounded-lg transition cursor-pointer"
+                      @click="$emit('cleanItem', cand)"
+                    >
+                      Clean Now
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <tr
+                v-if="expandedEpisodeId === cand.id"
+                :key="`episodes-${cand.id}`"
+                class="bg-zinc-950/50"
+              >
+                <td
+                  colspan="5"
+                  class="p-4 bg-zinc-950/80 border-b border-zinc-800"
                 >
-                  Clean Now
-                </button>
-              </td>
-            </tr>
+                  <SeasonPackEpisodesDrawer
+                    :request-id="cand.id"
+                    :media-title="cand.title"
+                    :is-admin="true"
+                    @close="expandedEpisodeId = null"
+                    @episode-pruned="handleEpisodePruned"
+                  />
+                </td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>
@@ -303,7 +336,22 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import type { DownloadRequest, MediaType } from '../../stores/requests';
+import SeasonPackEpisodesDrawer from '../requests/SeasonPackEpisodesDrawer.vue';
+
+const expandedEpisodeId = ref<string | null>(null);
+
+function isSeasonPack(cand: DownloadRequest): boolean {
+  return (cand.mediaType === 'tv_show' || cand.mediaType === 'anime') &&
+    cand.seasonNumber !== null &&
+    cand.seasonNumber !== undefined &&
+    cand.episodeNumber == null;
+}
+
+function toggleEpisodes(id: string) {
+  expandedEpisodeId.value = expandedEpisodeId.value === id ? null : id;
+}
 
 export interface DiskInfo {
   percentFree: number;
@@ -329,10 +377,18 @@ defineProps<{
   formatSpeed: (bytesPerSec: number) => string;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'switchTab', tab: 'config'): void;
   (e: 'runScan'): void;
   (e: 'dismissScanFeedback'): void;
   (e: 'cleanItem', cand: DownloadRequest): void;
+  (e: 'refresh'): void;
 }>();
+
+function handleEpisodePruned(payload: { episodeId: string; wholeRequestDeleted: boolean }) {
+  if (payload.wholeRequestDeleted) {
+    expandedEpisodeId.value = null;
+  }
+  emit('refresh');
+}
 </script>
