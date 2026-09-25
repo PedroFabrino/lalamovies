@@ -8968,7 +8968,7 @@
       "file_type": "code",
       "norm_label": "handlelogout()",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L183"
+      "source_location": "L185"
     },
     {
       "id": "apps_web_src_components_navbar_isrouteactive",
@@ -8980,7 +8980,7 @@
       "file_type": "code",
       "norm_label": "isrouteactive()",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L179"
+      "source_location": "L181"
     },
     {
       "id": "apps_web_src_composables_usefeatureflags_handlefeatureflagswsmessage",
@@ -20146,7 +20146,7 @@
       "file_type": "code",
       "norm_label": "authstore",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L163"
+      "source_location": "L165"
     },
     {
       "id": "apps_web_src_components_navbar_featureflags",
@@ -20157,7 +20157,7 @@
       "file_type": "code",
       "norm_label": "featureflags",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L165"
+      "source_location": "L167"
     },
     {
       "id": "apps_web_src_components_navbar_isconnected",
@@ -20168,7 +20168,7 @@
       "file_type": "code",
       "norm_label": "{ isconnected }",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L164"
+      "source_location": "L166"
     },
     {
       "id": "apps_web_src_components_navbar_islibraryenabled",
@@ -20179,7 +20179,7 @@
       "file_type": "code",
       "norm_label": "islibraryenabled",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L169"
+      "source_location": "L171"
     },
     {
       "id": "apps_web_src_components_navbar_isrequestenabled",
@@ -20190,7 +20190,7 @@
       "file_type": "code",
       "norm_label": "isrequestenabled",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L170"
+      "source_location": "L172"
     },
     {
       "id": "apps_web_src_components_navbar_isseasonalanimeenabled",
@@ -20201,7 +20201,7 @@
       "file_type": "code",
       "norm_label": "isseasonalanimeenabled",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L172"
+      "source_location": "L174"
     },
     {
       "id": "apps_web_src_components_navbar_isuserinvitesenabled",
@@ -20212,7 +20212,7 @@
       "file_type": "code",
       "norm_label": "isuserinvitesenabled",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L173"
+      "source_location": "L175"
     },
     {
       "id": "apps_web_src_components_navbar_iswaitlistenabled",
@@ -20223,7 +20223,7 @@
       "file_type": "code",
       "norm_label": "iswaitlistenabled",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L171"
+      "source_location": "L173"
     },
     {
       "id": "apps_web_src_components_navbar_route",
@@ -20234,7 +20234,7 @@
       "file_type": "code",
       "norm_label": "route",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L161"
+      "source_location": "L163"
     },
     {
       "id": "apps_web_src_components_navbar_router",
@@ -20245,7 +20245,7 @@
       "file_type": "code",
       "norm_label": "router",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L162"
+      "source_location": "L164"
     },
     {
       "id": "apps_web_src_components_navbar_showinvitemodal",
@@ -20256,7 +20256,7 @@
       "file_type": "code",
       "norm_label": "showinvitemodal",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L167"
+      "source_location": "L169"
     },
     {
       "id": "apps_web_src_composables_usefeatureflags",
@@ -32774,20 +32774,9 @@
       "type": "external"
     },
     {
-      "id": "ref_drizzle_kit",
-      "label": "ref_drizzle_kit",
-      "_origin": "semantic",
-      "community": 81,
-      "community_name": "ref_drizzle_kit",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "ref_drizzle_kit",
-      "source_file": "",
-      "type": "external"
-    },
-    {
       "id": "apps_api_src_routes_admin_adminroutes",
       "label": "apps_api_src_routes_admin_adminroutes",
+      "_origin": "semantic",
       "community": 76,
       "community_name": "api/src/app.ts",
       "external": true,
@@ -32799,11 +32788,24 @@
     {
       "id": "apps_api_src_routes_invites_inviteroutes",
       "label": "apps_api_src_routes_invites_inviteroutes",
+      "_origin": "semantic",
       "community": 76,
       "community_name": "api/src/app.ts",
       "external": true,
       "file_type": "concept",
       "norm_label": "apps_api_src_routes_invites_inviteroutes",
+      "source_file": "",
+      "type": "external"
+    },
+    {
+      "id": "ref_drizzle_kit",
+      "label": "ref_drizzle_kit",
+      "_origin": "semantic",
+      "community": 81,
+      "community_name": "ref_drizzle_kit",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "ref_drizzle_kit",
       "source_file": "",
       "type": "external"
     }
@@ -59817,7 +59819,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L156",
+      "source_location": "L158",
       "weight": 1.0
     },
     {
@@ -59829,7 +59831,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L157",
+      "source_location": "L159",
       "weight": 1.0
     },
     {
@@ -59841,7 +59843,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L158",
+      "source_location": "L160",
       "weight": 1.0
     },
     {
@@ -76811,7 +76813,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L154",
+      "source_location": "L156",
       "weight": 1.0
     },
     {
@@ -76823,7 +76825,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L155",
+      "source_location": "L157",
       "weight": 1.0
     },
     {
@@ -76835,7 +76837,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L156",
+      "source_location": "L158",
       "weight": 1.0
     },
     {
@@ -76847,7 +76849,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L157",
+      "source_location": "L159",
       "weight": 1.0
     },
     {
@@ -76859,7 +76861,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L158",
+      "source_location": "L160",
       "weight": 1.0
     },
     {
@@ -76871,7 +76873,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L159",
+      "source_location": "L161",
       "weight": 1.0
     },
     {
@@ -91793,7 +91795,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L161",
+      "source_location": "L163",
       "weight": 1.0
     },
     {
@@ -91804,7 +91806,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L162",
+      "source_location": "L164",
       "weight": 1.0
     },
     {
@@ -91815,7 +91817,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L163",
+      "source_location": "L165",
       "weight": 1.0
     },
     {
@@ -91826,7 +91828,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L164",
+      "source_location": "L166",
       "weight": 1.0
     },
     {
@@ -91837,7 +91839,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L165",
+      "source_location": "L167",
       "weight": 1.0
     },
     {
@@ -91848,7 +91850,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L167",
+      "source_location": "L169",
       "weight": 1.0
     },
     {
@@ -91859,7 +91861,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L169",
+      "source_location": "L171",
       "weight": 1.0
     },
     {
@@ -91870,7 +91872,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L170",
+      "source_location": "L172",
       "weight": 1.0
     },
     {
@@ -91881,7 +91883,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L171",
+      "source_location": "L173",
       "weight": 1.0
     },
     {
@@ -91892,7 +91894,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L172",
+      "source_location": "L174",
       "weight": 1.0
     },
     {
@@ -91903,7 +91905,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L173",
+      "source_location": "L175",
       "weight": 1.0
     },
     {
@@ -91914,7 +91916,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L179",
+      "source_location": "L181",
       "weight": 1.0
     },
     {
@@ -91925,7 +91927,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "apps/web/src/components/Navbar.vue",
-      "source_location": "L183",
+      "source_location": "L185",
       "weight": 1.0
     },
     {
@@ -110274,5 +110276,5 @@
       "source_file": "docs/spec/private-media-type-and-trusted-role.md"
     }
   ],
-  "built_at_commit": "8212b10f8008fdee4effdc2529474095760f6746"
+  "built_at_commit": "0ce9ea67c71356c9206ba72c8f913f19cf9154df"
 }
