@@ -540,10 +540,10 @@
     "semantic_hash": "cfac32735a0e2ae03dd36242c44df7ec"
   },
   "apps/api/tests/waitlist_proxy.test.ts": {
-    "mtime": 1789190274.9252937,
-    "seen": 1789780156.9478219,
-    "ast_hash": "c16a70ed50ae0fb92d1c08db80fde04e",
-    "semantic_hash": "c16a70ed50ae0fb92d1c08db80fde04e"
+    "mtime": 1790340199.8577797,
+    "seen": 1790340379.9319804,
+    "ast_hash": "db0e6643d7fd0fd3b77e1fa77bdbac67",
+    "semantic_hash": ""
   },
   "apps/api/tests/waitlist_series_unification.test.ts": {
     "mtime": 1789181087.711092,
@@ -792,9 +792,9 @@
     "semantic_hash": ""
   },
   "apps/watcher/src/routes/waitlist.ts": {
-    "mtime": 1789955594.1512406,
-    "seen": 1789956580.6336353,
-    "ast_hash": "2855a5959b22ce9543b82dd0d89a31dc",
+    "mtime": 1790340033.5636358,
+    "seen": 1790340379.9443018,
+    "ast_hash": "2b3447e944619fd86dd599024ab528be",
     "semantic_hash": ""
   },
   "apps/watcher/src/services/episodicTracking.ts": {
@@ -816,9 +816,9 @@
     "semantic_hash": "120a0201ab9d946392f3deaad0b3be9d"
   },
   "apps/watcher/src/services/releaseGating.ts": {
-    "mtime": 1789955653.008431,
-    "seen": 1789956580.6346035,
-    "ast_hash": "d91645bc734181b71908d5d75dee1456",
+    "mtime": 1790340277.8133936,
+    "seen": 1790340379.9443018,
+    "ast_hash": "3e35342a02ce270a5ed426a8954cf4ee",
     "semantic_hash": ""
   },
   "apps/watcher/src/utils/gracePeriod.ts": {
@@ -894,16 +894,16 @@
     "semantic_hash": "bb0b504c643a76884a0951b6c13d86bc"
   },
   "apps/watcher/tests/release_gating.test.ts": {
-    "mtime": 1789161028.896323,
-    "seen": 1789780156.9478219,
-    "ast_hash": "de9ec1cdb94426007a1f3c7a14513988",
-    "semantic_hash": "de9ec1cdb94426007a1f3c7a14513988"
+    "mtime": 1790340044.622551,
+    "seen": 1790340379.9489634,
+    "ast_hash": "a364fb10ce7225601cc11a9e6662e360",
+    "semantic_hash": ""
   },
   "apps/watcher/tests/waitlist_crud.test.ts": {
-    "mtime": 1789288395.4215252,
-    "seen": 1789780156.9478219,
-    "ast_hash": "a66e2c9f7ebf51663335bbb2863bb3a0",
-    "semantic_hash": "a66e2c9f7ebf51663335bbb2863bb3a0"
+    "mtime": 1790340099.6058629,
+    "seen": 1790340379.9489634,
+    "ast_hash": "8f7d19f55bb219150bd5da1c84e14902",
+    "semantic_hash": ""
   },
   "apps/watcher/tests/watcher_coordinated_pause.test.ts": {
     "mtime": 1789415204.7508855,
@@ -1128,9 +1128,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/WaitlistView.vue": {
-    "mtime": 1790021120.9635193,
-    "seen": 1790021216.2227635,
-    "ast_hash": "7d9948c8c78221a1bdc6ad4764907d1a",
+    "mtime": 1790339777.5715213,
+    "seen": 1790340379.979408,
+    "ast_hash": "8d537ba3cf7221cfe633dc03770cf011",
     "semantic_hash": ""
   },
   "apps/web/src/vite-env.d.ts": {
@@ -1236,10 +1236,10 @@
     "semantic_hash": "9882e97e819280362fa581265a68c07a"
   },
   "apps/web/tests/WaitlistView.test.ts": {
-    "mtime": 1789779162.0313084,
-    "seen": 1789780156.9478219,
-    "ast_hash": "de5be1892b50192331fd780b21058af7",
-    "semantic_hash": "de5be1892b50192331fd780b21058af7"
+    "mtime": 1790339908.6931112,
+    "seen": 1790340379.9879987,
+    "ast_hash": "8734f6ab1baeb921e84a5bcdceca4f52",
+    "semantic_hash": ""
   },
   "apps/web/tests/degraded_navigation.test.ts": {
     "mtime": 1789455553.147688,
@@ -1314,9 +1314,9 @@
     "semantic_hash": "a831cf3669f1e6ab85d8a80ebe655f99"
   },
   "CONTEXT.md": {
-    "mtime": 1790182700.617322,
-    "seen": 1790182733.015783,
-    "ast_hash": "c3eaa864df45f97624b463fb9860f6ef",
+    "mtime": 1790337444.9207284,
+    "seen": 1790338061.0878787,
+    "ast_hash": "6dcbf5f96761823e4a01555174e30f17",
     "semantic_hash": ""
   },
   "README.md": {
@@ -2361,6 +2361,42 @@
     "mtime": 1790334363.385079,
     "seen": 1790334818.16848,
     "ast_hash": "f7dd58549b5684c5b0b8c2553bc35c4b",
+    "semantic_hash": ""
+  },
+  "docs/adr/0021-per-episode-consumption-and-selective-torrent-pruning.md": {
+    "mtime": 1790337639.8344233,
+    "seen": 1790338061.0987258,
+    "ast_hash": "5ff7f7daf82c087b10852d0e7c2d2766",
+    "semantic_hash": ""
+  },
+  "docs/spec/multi-use-revocable-user-invites.md": {
+    "mtime": 1790336508.3285816,
+    "seen": 1790338061.103372,
+    "ast_hash": "44bdf3bd8a9d7e6e0c0942deade2d060",
+    "semantic_hash": ""
+  },
+  "docs/spec/per-episode-consumption-and-selective-pruning.md": {
+    "mtime": 1790337918.0139177,
+    "seen": 1790338061.103919,
+    "ast_hash": "cc17378e6f6afe321cbf70bf33508737",
+    "semantic_hash": ""
+  },
+  "apps/watcher/src/services/airDateFetcher.ts": {
+    "mtime": 1790339972.0396812,
+    "seen": 1790340379.9443018,
+    "ast_hash": "3379fc794c69b203eb535b94e5c0e9b1",
+    "semantic_hash": ""
+  },
+  "apps/watcher/tests/unconfirmed_release_dates.test.ts": {
+    "mtime": 1790340058.4248285,
+    "seen": 1790340379.9489634,
+    "ast_hash": "137756373e1bc7c5c22587de5c4a37bf",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/WaitlistDateGating.test.ts": {
+    "mtime": 1790339867.422168,
+    "seen": 1790340379.9879987,
+    "ast_hash": "3d9a73c659b8e604fc73d3c58ebc4b99",
     "semantic_hash": ""
   }
 }

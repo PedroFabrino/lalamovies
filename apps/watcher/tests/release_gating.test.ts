@@ -29,7 +29,7 @@ describe('TMDB Release-Date Gating', () => {
 
     // Null
     const empty = evaluateInitialStatus(null, today);
-    expect(empty.status).toBe('checking');
+    expect(empty.status).toBe('pending_release');
     expect(empty.tmdbReleaseDate).toBeNull();
   });
 

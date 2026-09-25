@@ -46,7 +46,7 @@ describe('Watcher Waitlist CRUD & Authorization', () => {
     const created = createRes.json();
     expect(created.title).toBe('Spider-Man');
     expect(created.userId).toBe('user-1');
-    expect(created.status).toBe('checking');
+    expect(created.status).toBe('pending_release');
     const entryId = created.id;
 
     // 3. Create episodic entry as user-1

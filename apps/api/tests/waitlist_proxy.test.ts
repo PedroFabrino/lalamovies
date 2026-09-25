@@ -107,7 +107,7 @@ describe('Waitlist Proxy & UpNext Suppression Integration', () => {
     const body = res.json();
     expect(body.title).toBe('Avatar 3');
     expect(body.userId).toBe('user-alice');
-    expect(body.status).toBe('checking');
+    expect(body.status).toBe('pending_release');
   });
 
   it('filters entries by caller for user and shows all for admin', async () => {

@@ -199,18 +199,22 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
 
     if (!body.status && app.releaseGating) {
       try {
-        const fetchedDate = body.tmdbReleaseDate || await app.releaseGating.fetchReleaseDate(
-          body.mediaType,
-          body.metadataId,
-          body.seasonNumber,
-          effectiveTargetEpisode
-        );
+        const fetchedDate = body.tmdbReleaseDate !== undefined
+          ? body.tmdbReleaseDate
+          : await app.releaseGating.fetchReleaseDate(
+              body.mediaType,
+              body.metadataId,
+              body.seasonNumber,
+              effectiveTargetEpisode,
+              body.metadataSource
+            );
         const evaluated = evaluateInitialStatus(fetchedDate, undefined, Boolean(body.isNextSeason));
         initialStatus = evaluated.status;
         tmdbReleaseDate = evaluated.tmdbReleaseDate;
       } catch (err) {
-        app.log.warn(err, 'Failed to fetch release date from TMDB, defaulting to checking');
-        initialStatus = body.isNextSeason ? 'pending_release' : 'checking';
+        app.log.warn(err, 'Failed to fetch release date from metadata API, defaulting to pending_release');
+        initialStatus = 'pending_release';
+        tmdbReleaseDate = null;
       }
     }
 
@@ -815,16 +819,37 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const now = new Date().toISOString();
-    if (entry.status === 'pending_release') {
-      app.db
-        .update(watchRequests)
-        .set({
-          status: 'checking',
-          updatedAt: now,
-        })
+    // If pending_release or missing air date or higher season, verify against metadata API first & self-heal
+    if (
+      entry.status === 'pending_release' ||
+      !entry.tmdbReleaseDate ||
+      (entry.seasonNumber && entry.seasonNumber > 1)
+    ) {
+      let checkMessage = 'Checked APIs';
+      if (app.releaseGating) {
+        const result = await app.releaseGating.checkOrHealEntry(entry);
+        checkMessage = result.message;
+      }
+
+      const updated = app.db
+        .select()
+        .from(watchRequests)
         .where(eq(watchRequests.id, id))
-        .run();
+        .get();
+
+      if (updated?.status === 'checking') {
+        try {
+          await app.poller?.pollOnce();
+        } catch (err: unknown) {
+          app.log.warn(err, 'Manual poller tick failed');
+        }
+      }
+
+      return reply.send({
+        ok: true,
+        message: checkMessage,
+        entry: updated,
+      });
     }
 
     try {

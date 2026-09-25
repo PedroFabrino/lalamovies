@@ -1,13 +1,10 @@
 import cron, { ScheduledTask } from 'node-cron';
 import { and, eq, isNotNull, isNull, lte } from 'drizzle-orm';
 import { WatcherDatabase } from '../db';
-import { watchRequests } from '../db/schema';
+import { watchRequests, WatchRequest } from '../db/schema';
+import { fetchAirDate, AirDateFetcherLogger } from './airDateFetcher';
 
-export interface ReleaseGatingLogger {
-  info: (msg: string) => void;
-  warn: (msg: string) => void;
-  error: (msg: string, err?: unknown) => void;
-}
+export type ReleaseGatingLogger = AirDateFetcherLogger;
 
 export interface ReleaseGatingOptions {
   db: WatcherDatabase;
@@ -25,6 +22,7 @@ export function evaluateInitialStatus(
   status: 'pending_release' | 'checking';
   tmdbReleaseDate: string | null;
 } {
+  void isNextSeason;
   const currentDay = today || new Date().toISOString().slice(0, 10);
   if (releaseDate && releaseDate > currentDay) {
     return {
@@ -32,7 +30,7 @@ export function evaluateInitialStatus(
       tmdbReleaseDate: releaseDate,
     };
   }
-  if (!releaseDate && isNextSeason) {
+  if (!releaseDate) {
     return {
       status: 'pending_release',
       tmdbReleaseDate: null,
@@ -40,7 +38,7 @@ export function evaluateInitialStatus(
   }
   return {
     status: 'checking',
-    tmdbReleaseDate: releaseDate || null,
+    tmdbReleaseDate: releaseDate,
   };
 }
 
@@ -65,94 +63,18 @@ export class ReleaseGatingService {
     mediaType: 'movie' | 'tv_show' | 'anime',
     metadataId: string,
     seasonNumber?: number | null,
-    targetEpisode?: number | null
+    targetEpisode?: number | null,
+    metadataSource?: 'tmdb' | 'anilist'
   ): Promise<string | null> {
-    if (!this.tmdbApiKey) {
-      this.logger?.warn('TMDB_API_KEY is not configured; skipping release date lookup');
-      return null;
-    }
-
-    try {
-      if (mediaType === 'movie') {
-        const url = `https://api.themoviedb.org/3/movie/${encodeURIComponent(
-          metadataId
-        )}?api_key=${encodeURIComponent(this.tmdbApiKey)}&append_to_response=release_dates`;
-        const res = await fetch(url);
-        if (!res.ok) {
-          this.logger?.warn(`TMDB returned HTTP ${res.status} for movie ${metadataId}`);
-          return null;
-        }
-        interface TmdbMovieReleaseResponse {
-          release_date?: string;
-          release_dates?: {
-            results?: Array<{
-              release_dates?: Array<{
-                type?: number;
-                release_date?: string;
-              }>;
-            }>;
-          };
-        }
-        const data = (await res.json()) as TmdbMovieReleaseResponse;
-
-        const candidateDates: string[] = [];
-        if (data.release_date) {
-          candidateDates.push(data.release_date.slice(0, 10));
-        }
-
-        if (data.release_dates?.results && Array.isArray(data.release_dates.results)) {
-          for (const country of data.release_dates.results) {
-            if (Array.isArray(country.release_dates)) {
-              for (const rd of country.release_dates) {
-                // type 3: Theatrical, type 4: Digital, type 5: Physical
-                if (rd.release_date && rd.type && [3, 4, 5].includes(rd.type)) {
-                  candidateDates.push(rd.release_date.slice(0, 10));
-                }
-              }
-            }
-          }
-        }
-
-        if (candidateDates.length === 0) return null;
-        candidateDates.sort();
-        return candidateDates[0];
-      } else {
-        const sNum = seasonNumber ?? 1;
-        const url = `https://api.themoviedb.org/3/tv/${encodeURIComponent(
-          metadataId
-        )}/season/${encodeURIComponent(sNum)}?api_key=${encodeURIComponent(this.tmdbApiKey)}`;
-        const res = await fetch(url);
-        if (!res.ok) {
-          this.logger?.warn(`TMDB returned HTTP ${res.status} for tv ${metadataId} season ${sNum}`);
-          return null;
-        }
-        interface TmdbEpisodeInfo {
-          episode_number?: number;
-          air_date?: string | null;
-        }
-        interface TmdbSeasonResponse {
-          air_date?: string | null;
-          episodes?: TmdbEpisodeInfo[];
-        }
-        const data = (await res.json()) as TmdbSeasonResponse;
-
-        // If targetEpisode is provided, look up that specific episode's air date first
-        if (targetEpisode && Array.isArray(data.episodes)) {
-          const ep = data.episodes.find((e: TmdbEpisodeInfo) => e.episode_number === targetEpisode);
-          if (ep && ep.air_date) {
-            return ep.air_date.slice(0, 10);
-          }
-        }
-
-        if (data.air_date) {
-          return data.air_date.slice(0, 10);
-        }
-        return null;
-      }
-    } catch (err) {
-      this.logger?.error(`Failed to fetch TMDB release date for ${mediaType} ${metadataId}:`, err);
-      return null;
-    }
+    return fetchAirDate({
+      mediaType,
+      metadataId,
+      metadataSource,
+      seasonNumber,
+      targetEpisode,
+      tmdbApiKey: this.tmdbApiKey,
+      logger: this.logger,
+    });
   }
 
   async promoteDueEntries(today?: string): Promise<number> {
@@ -185,7 +107,6 @@ export class ReleaseGatingService {
   }
 
   async pollUnconfirmedFutureSeasons(today?: string): Promise<number> {
-    if (!this.tmdbApiKey) return 0;
     const currentDay = today || new Date().toISOString().slice(0, 10);
 
     const unconfirmedEntries = this.db
@@ -204,55 +125,13 @@ export class ReleaseGatingService {
 
     for (const entry of unconfirmedEntries) {
       try {
-        const targetSeason = entry.seasonNumber ?? 1;
-        let foundAirDate: string | null = null;
-
-        // 1. Query /tv/{id}/season/{seasonNumber} for air_date
-        const seasonUrl = `https://api.themoviedb.org/3/tv/${encodeURIComponent(
-          entry.metadataId
-        )}/season/${encodeURIComponent(targetSeason)}?api_key=${encodeURIComponent(this.tmdbApiKey)}`;
-        const seasonRes = await fetch(seasonUrl);
-        if (seasonRes.ok) {
-          interface TmdbEp {
-            episode_number?: number;
-            air_date?: string | null;
-          }
-          interface TmdbSeason {
-            air_date?: string | null;
-            episodes?: TmdbEp[];
-          }
-          const seasonData = (await seasonRes.json()) as TmdbSeason;
-          if (entry.targetEpisode && Array.isArray(seasonData.episodes)) {
-            const ep = seasonData.episodes.find((e: TmdbEp) => e.episode_number === entry.targetEpisode);
-            if (ep && ep.air_date) {
-              foundAirDate = ep.air_date.slice(0, 10);
-            }
-          }
-          if (!foundAirDate && seasonData.air_date) {
-            foundAirDate = seasonData.air_date.slice(0, 10);
-          }
-        }
-
-        // 2. Also check /tv/{id} next_episode_to_air as fallback
-        if (!foundAirDate) {
-          const url = `https://api.themoviedb.org/3/tv/${encodeURIComponent(
-            entry.metadataId
-          )}?api_key=${encodeURIComponent(this.tmdbApiKey)}`;
-          const res = await fetch(url);
-          if (res.ok) {
-            interface TmdbShow {
-              next_episode_to_air?: {
-                season_number?: number;
-                air_date?: string;
-              } | null;
-            }
-            const data = (await res.json()) as TmdbShow;
-            const nextEpisode = data.next_episode_to_air;
-            if (nextEpisode && nextEpisode.season_number === targetSeason && nextEpisode.air_date) {
-              foundAirDate = nextEpisode.air_date.slice(0, 10);
-            }
-          }
-        }
+        const foundAirDate = await this.fetchReleaseDate(
+          entry.mediaType,
+          entry.metadataId,
+          entry.seasonNumber,
+          entry.targetEpisode,
+          entry.metadataSource
+        );
 
         if (foundAirDate) {
           const newStatus = foundAirDate <= currentDay ? 'checking' : 'pending_release';
@@ -270,11 +149,71 @@ export class ReleaseGatingService {
           updatedCount++;
         }
       } catch (err) {
-        this.logger?.warn(`Failed checking unconfirmed season for entry ${entry.id}: ${(err as Error).message}`);
+        this.logger?.warn?.(`Failed checking unconfirmed season for entry ${entry.id}: ${(err as Error).message}`);
       }
     }
 
     return updatedCount;
+  }
+
+  async checkOrHealEntry(
+    entry: WatchRequest,
+    today?: string
+  ): Promise<{
+    healed: boolean;
+    status: 'pending_release' | 'checking';
+    tmdbReleaseDate: string | null;
+    message: string;
+  }> {
+    const currentDay = today || new Date().toISOString().slice(0, 10);
+    const upstreamDate = await this.fetchReleaseDate(
+      entry.mediaType,
+      entry.metadataId,
+      entry.seasonNumber,
+      entry.targetEpisode,
+      entry.metadataSource
+    );
+    const now = new Date().toISOString();
+
+    if (upstreamDate) {
+      const newStatus = upstreamDate <= currentDay ? 'checking' : 'pending_release';
+      this.db
+        .update(watchRequests)
+        .set({
+          tmdbReleaseDate: upstreamDate,
+          status: newStatus,
+          updatedAt: now,
+        })
+        .where(eq(watchRequests.id, entry.id))
+        .run();
+
+      return {
+        healed: false,
+        status: newStatus,
+        tmdbReleaseDate: upstreamDate,
+        message: newStatus === 'checking'
+          ? `Confirmed release date arrived (${upstreamDate})! Now checking trackers.`
+          : `Confirmed release date announced (${upstreamDate}). Starts checking on release day.`,
+      };
+    } else {
+      const wasCorrupted = entry.tmdbReleaseDate !== null || entry.status === 'checking';
+      this.db
+        .update(watchRequests)
+        .set({
+          tmdbReleaseDate: null,
+          status: 'pending_release',
+          updatedAt: now,
+        })
+        .where(eq(watchRequests.id, entry.id))
+        .run();
+
+      return {
+        healed: wasCorrupted,
+        status: 'pending_release',
+        tmdbReleaseDate: null,
+        message: 'Checked APIs — still no confirmed release date announced',
+      };
+    }
   }
 
   startCrons(): void {
@@ -282,7 +221,7 @@ export class ReleaseGatingService {
       try {
         await this.promoteDueEntries();
       } catch (err) {
-        this.logger?.error('Error running promoteDueEntries cron:', err);
+        this.logger?.error?.('Error running promoteDueEntries cron:', err);
       }
     });
 
@@ -290,13 +229,13 @@ export class ReleaseGatingService {
       try {
         await this.pollUnconfirmedFutureSeasons();
       } catch (err) {
-        this.logger?.error('Error running pollUnconfirmedFutureSeasons cron:', err);
+        this.logger?.error?.('Error running pollUnconfirmedFutureSeasons cron:', err);
       }
     });
 
     // Run promotion check on startup
     this.promoteDueEntries().catch((err) => {
-      this.logger?.error('Error running startup promoteDueEntries:', err);
+      this.logger?.error?.('Error running startup promoteDueEntries:', err);
     });
   }
 

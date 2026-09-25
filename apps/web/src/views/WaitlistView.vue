@@ -273,6 +273,15 @@
                   <span>{{ formatDateOnly(entry.tmdbReleaseDate) }}</span>
                 </span>
                 <span
+                  v-else
+                  class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-900 text-amber-300 border border-amber-800/50 flex items-center gap-1"
+                  data-testid="entry-release-date-badge"
+                  title="Release date to be announced"
+                >
+                  <span>📅</span>
+                  <span>Date TBA</span>
+                </span>
+                <span
                   v-if="entry.requesterUsername"
                   class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-300 border border-zinc-700 flex items-center gap-1"
                   data-testid="entry-requester"
@@ -315,7 +324,7 @@
                   >
                     ⏳ Unreleased • Starts searching trackers on {{ formatDateOnly(entry.tmdbReleaseDate) }}
                   </span>
-                  <span v-else>Awaiting confirmed release date from TMDB</span>
+                  <span v-else>No release date announced as of yet • Checking APIs for updates</span>
                 </template>
                 <template v-else-if="entry.status === 'checking'">
                   <span v-if="entry.tmdbReleaseDate">Released {{ formatDateOnly(entry.tmdbReleaseDate) }} • Actively checking trackers</span>
@@ -786,7 +795,6 @@
 
           <!-- TMDB Air Date / Release Date Display -->
           <div
-            v-if="targetAirDate"
             class="p-3 bg-zinc-950/60 rounded-xl border border-zinc-800/80 text-xs flex items-center justify-between"
             data-testid="confirm-air-date-info"
           >
@@ -803,7 +811,8 @@
               data-testid="confirm-air-date-value"
             >
               <span>📅</span>
-              <span>{{ formatDateOnly(targetAirDate) }}</span>
+              <span v-if="targetAirDate">{{ formatDateOnly(targetAirDate) }}</span>
+              <span v-else>Date TBA</span>
             </span>
           </div>
 
@@ -1008,9 +1017,7 @@ async function checkCandidateGuards() {
       if (selectedEpisodeNumber.value === null) {
         selectedEpisodeNumber.value = data?.hasExisting ? (data.suggestedEpisode || 1) : 1;
       }
-      if (data?.airDate) {
-        targetAirDate.value = data.airDate;
-      }
+      targetAirDate.value = data?.airDate || null;
     }
   } catch {
     libraryStatus.value = null;
@@ -1152,7 +1159,7 @@ async function submitWaitlistEntry() {
       year: selectedCandidate.value.year || undefined,
       seasonNumber: ['tv_show', 'anime'].includes(selectedMediaType.value) ? (selectedSeasonNumber.value || 1) : undefined,
       targetEpisode: ['tv_show', 'anime'].includes(selectedMediaType.value) ? (selectedEpisodeNumber.value || 1) : undefined,
-      tmdbReleaseDate: targetAirDate.value || undefined,
+      tmdbReleaseDate: targetAirDate.value || null,
       posterUrl: selectedCandidate.value.posterUrl || undefined,
     });
     closeModal();
@@ -1169,10 +1176,12 @@ const isCheckingAll = ref(false);
 async function handleCheckEntry(entry: WaitlistEntry) {
   checkingEntryId.value = entry.id;
   try {
-    const res = await api.post<{ entry?: { status?: string } }>(`/waitlist/${entry.id}/check`);
+    const res = await api.post<{ entry?: { status?: string }; message?: string }>(`/waitlist/${entry.id}/check`);
     await loadEntries();
     if (res?.entry?.status === 'notified') {
       waitlistStore.showToast(`Found release for "${entry.title}"! Auto-downloading soon.`, 'success');
+    } else if (res?.message) {
+      waitlistStore.showToast(res.message, 'info');
     } else {
       waitlistStore.showToast(`Checked trackers for "${entry.title}". Still waiting for quality release.`, 'info');
     }

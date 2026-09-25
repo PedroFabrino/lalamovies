@@ -280,6 +280,7 @@ describe('WaitlistView - Dedicated Waitlist Page', () => {
       year: 2026,
       seasonNumber: 5,
       targetEpisode: 1,
+      tmdbReleaseDate: null,
       posterUrl: 'https://image.tmdb.org/t/p/w500/theboys.jpg',
     });
 
@@ -335,6 +336,8 @@ describe('WaitlistView - Dedicated Waitlist Page', () => {
       title: 'Avatar 3',
       year: 2025,
       seasonNumber: undefined,
+      targetEpisode: undefined,
+      tmdbReleaseDate: null,
       posterUrl: 'https://image.tmdb.org/t/p/w500/avatar3.jpg',
     });
 
