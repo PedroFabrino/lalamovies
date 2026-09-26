@@ -121,20 +121,23 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       : (body.targetEpisode !== undefined ? body.targetEpisode : (body.isNextSeason ? null : 1));
 
     // Guard 3: Cross-user duplicate active waitlist check with asymmetry and title normalization
+    const isBodySeries = body.mediaType === 'tv_show' || body.mediaType === 'anime';
     const activeEntries = app.db
       .select()
       .from(watchRequests)
       .where(
-        and(
-          eq(watchRequests.mediaType, body.mediaType),
-          inArray(watchRequests.status, ['pending_release', 'checking', 'notified', 'triggered'])
-        )
+        inArray(watchRequests.status, ['pending_release', 'checking', 'notified', 'triggered'])
       )
       .all();
 
     const normBodyTitle = body.title ? normalizeTitle(body.title) : '';
 
     const candidateEntries = activeEntries.filter((e) => {
+      const isEntrySeries = e.mediaType === 'tv_show' || e.mediaType === 'anime';
+      if (isBodySeries !== isEntrySeries && (!body.metadataId || e.metadataId !== body.metadataId)) {
+        return false;
+      }
+
       if (e.metadataId && e.metadataId === body.metadataId) {
         return true;
       }

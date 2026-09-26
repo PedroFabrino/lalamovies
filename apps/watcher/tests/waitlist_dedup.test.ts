@@ -67,4 +67,70 @@ describe('Watcher Waitlist Deduplication Hardening', () => {
 
     await app.close();
   });
+
+  it('deduplicates across mediaType series variants (tv_show vs anime) for same show and season', async () => {
+    const app = buildWatcherApp({ dbPath: ':memory:', serviceApiKey: 'test-secret' });
+
+    // 1. User adds show as tv_show from Discovery or Search
+    const res1 = await app.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: {
+        'x-service-key': 'test-secret',
+        'x-user-id': 'user-1',
+      },
+      payload: {
+        mediaType: 'tv_show',
+        metadataId: '230050',
+        metadataSource: 'tmdb',
+        title: "A Returner's Magic Should Be Special",
+        seasonNumber: 2,
+        targetEpisode: 1,
+      },
+    });
+    expect(res1.statusCode).toBe(201);
+    const existingEntry = res1.json().entry;
+
+    // 2. User tries to add from Anime tab as anime with the same TMDB ID
+    const res2 = await app.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: {
+        'x-service-key': 'test-secret',
+        'x-user-id': 'user-1',
+      },
+      payload: {
+        mediaType: 'anime',
+        metadataId: '230050',
+        metadataSource: 'tmdb',
+        title: "A Returner's Magic Should Be Special",
+        seasonNumber: 2,
+        targetEpisode: 1,
+      },
+    });
+    expect(res2.statusCode).toBe(200);
+    expect(res2.json().entry.id).toBe(existingEntry.id);
+
+    // 3. User tries to add from Anime tab as anime with same normalized title but anilist metadata
+    const res3 = await app.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: {
+        'x-service-key': 'test-secret',
+        'x-user-id': 'user-1',
+      },
+      payload: {
+        mediaType: 'anime',
+        metadataId: '172192',
+        metadataSource: 'anilist',
+        title: "A Returner's Magic Should Be Special",
+        seasonNumber: 2,
+        targetEpisode: 1,
+      },
+    });
+    expect(res3.statusCode).toBe(200);
+    expect(res3.json().entry.id).toBe(existingEntry.id);
+
+    await app.close();
+  });
 });

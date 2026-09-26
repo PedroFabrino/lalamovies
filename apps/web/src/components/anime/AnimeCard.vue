@@ -33,7 +33,7 @@
             {{ statusLabel }}
           </span>
 
-          <WaitlistBadge v-if="isWaitlisted" />
+          <WaitlistBadge v-if="isWaitlistedEffective" />
         </div>
 
         <span
@@ -83,7 +83,7 @@
           </button>
 
           <button
-            v-if="isWaitlisted"
+            v-if="isWaitlistedEffective"
             type="button"
             disabled
             class="w-full py-1.5 px-3 rounded-lg text-xs font-semibold bg-zinc-800/80 text-zinc-400 flex items-center justify-center gap-1.5 border border-zinc-700/40 cursor-not-allowed opacity-80"
@@ -104,7 +104,7 @@
         <!-- Upcoming Quick Action -->
         <template v-else>
           <button
-            v-if="isWaitlisted"
+            v-if="isWaitlistedEffective"
             type="button"
             disabled
             class="w-full py-2 px-3 rounded-lg text-xs font-bold bg-zinc-800/80 text-zinc-400 flex items-center justify-center gap-1.5 border border-zinc-700/40 cursor-not-allowed opacity-80"
@@ -162,6 +162,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { SeasonalAnimeItem } from '../../composables/useSeasonalAnime';
+import { useWaitlistMatching } from '../../composables/useWaitlistMatching';
 import WaitlistBadge from '../WaitlistBadge.vue';
 
 const props = withDefaults(
@@ -177,6 +178,9 @@ const props = withDefaults(
     isWaitlisted: false,
   }
 );
+
+const { isItemWaitlisted } = useWaitlistMatching();
+const isWaitlistedEffective = computed(() => props.isWaitlisted || isItemWaitlisted(props.anime));
 
 defineEmits<{
   (e: 'select', anime: SeasonalAnimeItem): void;

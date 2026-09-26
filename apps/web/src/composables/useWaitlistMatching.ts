@@ -1,5 +1,6 @@
 import { computed } from 'vue';
 import { useWaitlistStore, type WaitlistEntry, type WaitlistStatus } from '../stores/waitlist';
+import { parseAnimeTitleAndSeason } from '../lib/animeTitleCleaner';
 
 export interface MatchableMediaItem {
   id?: number | string | null;
@@ -21,6 +22,11 @@ export function normalizeTitle(value?: string | null): string {
     .replace(/[^\w\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function isSeries(mediaType?: string | null): boolean {
+  if (!mediaType) return true;
+  return mediaType === 'tv_show' || mediaType === 'anime' || mediaType === 'tv';
 }
 
 export function useWaitlistMatching() {
@@ -54,36 +60,59 @@ export function useWaitlistMatching() {
     }
 
     const candidateTitles = new Set<string>();
-    if (typeof item.title === 'string' && item.title.trim()) {
-      candidateTitles.add(normalizeTitle(item.title));
+    let detectedSeasonFromTitle: number | null = null;
+
+    const addTitle = (raw?: string | null) => {
+      if (!raw || typeof raw !== 'string' || !raw.trim()) return;
+      candidateTitles.add(normalizeTitle(raw));
+      const parsed = parseAnimeTitleAndSeason(raw);
+      if (parsed.cleanTitle) {
+        candidateTitles.add(normalizeTitle(parsed.cleanTitle));
+        if (parsed.seasonNumber > 1 && detectedSeasonFromTitle === null) {
+          detectedSeasonFromTitle = parsed.seasonNumber;
+        }
+      }
+    };
+
+    if (typeof item.title === 'string') {
+      addTitle(item.title);
     } else if (item.title && typeof item.title === 'object') {
-      if (item.title.english) candidateTitles.add(normalizeTitle(item.title.english));
-      if (item.title.romaji) candidateTitles.add(normalizeTitle(item.title.romaji));
+      addTitle(item.title.english);
+      addTitle(item.title.romaji);
       if (item.title.native) candidateTitles.add(normalizeTitle(item.title.native));
     }
-    if (item.showTitle && item.showTitle.trim()) {
-      candidateTitles.add(normalizeTitle(item.showTitle));
+    if (item.showTitle) {
+      addTitle(item.showTitle);
     }
+
+    const itemEffectiveSeason = typeof item.seasonNumber === 'number'
+      ? item.seasonNumber
+      : (detectedSeasonFromTitle ?? 1);
 
     return activeEntries.value.some((entry: WaitlistEntry) => {
       // 1. Check ID equality if available
-      const idMatch = entry.metadataId && targetMetadataIds.has(String(entry.metadataId));
+      const idMatch = Boolean(entry.metadataId && targetMetadataIds.has(String(entry.metadataId)));
 
-      // 2. Check title equality if ID did not match
+      // 2. Check title equality if ID did not match (check raw and cleaned title)
       const entryTitleNorm = normalizeTitle(entry.title);
-      const titleMatch = entryTitleNorm && candidateTitles.has(entryTitleNorm);
+      const parsedEntry = parseAnimeTitleAndSeason(entry.title);
+      const entryCleanNorm = normalizeTitle(parsedEntry.cleanTitle);
+      const titleMatch = (entryTitleNorm && candidateTitles.has(entryTitleNorm)) ||
+                         (entryCleanNorm && candidateTitles.has(entryCleanNorm));
 
       if (!idMatch && !titleMatch) {
         return false;
       }
 
-      // 3. For episodic media (tv/anime), if season is specified on both, verify season match
-      if (
-        entry.mediaType !== 'movie' &&
-        typeof entry.seasonNumber === 'number' &&
-        typeof item.seasonNumber === 'number'
-      ) {
-        return entry.seasonNumber === item.seasonNumber;
+      // 3. For series (tv_show / anime), match on season number
+      const isEntrySeries = isSeries(entry.mediaType);
+      const isItemSeries = isSeries(item.mediaType);
+
+      if (isEntrySeries && isItemSeries) {
+        const entryEffectiveSeason = typeof entry.seasonNumber === 'number'
+          ? entry.seasonNumber
+          : parsedEntry.seasonNumber;
+        return entryEffectiveSeason === itemEffectiveSeason;
       }
 
       return true;

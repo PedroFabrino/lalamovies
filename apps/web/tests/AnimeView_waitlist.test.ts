@@ -7,6 +7,7 @@ import AnimeDetailModal from '../src/components/anime/AnimeDetailModal.vue';
 import DiscoveryFeed from '../src/components/DiscoveryFeed.vue';
 import UpNextShelf from '../src/components/UpNextShelf.vue';
 import { api } from '../src/lib/api';
+import { useWaitlistStore } from '../src/stores/waitlist';
 
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
@@ -276,5 +277,98 @@ describe('Anime Tab Waitlist Integration', () => {
         title: 'A Wild Last Boss Appeared!',
       }),
     }));
+  });
+
+  it('matches sequels with season titles across tv_show and anime types (e.g. A Returner\'s Magic Should Be Special Season 2)', async () => {
+    const returnerWaitlistEntry = {
+      id: 'w-returner-s2',
+      userId: 'u1',
+      mediaType: 'tv_show' as const,
+      metadataId: '230050',
+      metadataSource: 'tmdb' as const,
+      title: "A Returner's Magic Should Be Special",
+      seasonNumber: 2,
+      targetEpisode: 1,
+      status: 'pending_release' as const,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    vi.mocked(api.get).mockImplementation(async (url: string) => {
+      if (url === '/waitlist') return { entries: [returnerWaitlistEntry] };
+      return {};
+    });
+
+    const waitlistStore = useWaitlistStore();
+    await waitlistStore.fetchAll();
+
+    const sequelAnime = {
+      id: 172192,
+      title: {
+        romaji: 'Kikansha no Mahou wa Tokubetsu desu 2nd Season',
+        english: "A Returner's Magic Should be Special Season 2",
+        native: '帰還者の魔法は特別です 第2期',
+      },
+      format: 'TV',
+      status: 'NOT_YET_RELEASED',
+      episodes: 12,
+      season: 'FALL' as const,
+      seasonYear: 2026,
+      startDate: { year: 2026, month: 10, day: 1 },
+      coverImage: {
+        extraLarge: 'https://img/returner-2.jpg',
+        large: 'https://img/returner-2.jpg',
+        medium: 'https://img/returner-2.jpg',
+      },
+      bannerImage: null,
+      genres: ['Action', 'Fantasy'],
+      averageScore: 75,
+      popularity: 30000,
+      description: 'Season 2...',
+      trailer: null,
+    };
+
+    const cardWrapper = mount(AnimeCard, {
+      ...mountOptions,
+      props: {
+        anime: sequelAnime,
+      },
+    });
+
+    // Card should have waitlist badge and disabled button
+    expect(cardWrapper.find('[data-testid="waitlist-badge"]').exists()).toBe(true);
+    expect(cardWrapper.text()).toContain('Waitlisted');
+
+    // Detail modal should also be disabled
+    const modalWrapper = mount(AnimeDetailModal, {
+      ...mountOptions,
+      props: {
+        anime: sequelAnime,
+        isWaitlisted: true,
+      },
+    });
+
+    expect(modalWrapper.find('[data-testid="waitlist-badge"]').exists()).toBe(true);
+    expect(modalWrapper.text()).toContain('Waitlisted');
+    expect(modalWrapper.text()).not.toContain('+ Add to Waitlist');
+
+    // Non-matching season (Season 1) should NOT be waitlisted
+    const s1Anime = {
+      ...sequelAnime,
+      id: 163142,
+      title: {
+        romaji: 'Kikansha no Mahou wa Tokubetsu desu',
+        english: "A Returner's Magic Should Be Special",
+        native: '帰還者の魔法は特別です',
+      },
+    };
+
+    const s1CardWrapper = mount(AnimeCard, {
+      ...mountOptions,
+      props: {
+        anime: s1Anime,
+      },
+    });
+    expect(s1CardWrapper.find('[data-testid="waitlist-badge"]').exists()).toBe(false);
   });
 });
