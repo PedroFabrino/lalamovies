@@ -281,7 +281,7 @@ describe('Magic-Link and Web UI Approval & Notification Deduplication', () => {
         json: async () => ({
           episodes: [
             { episode_number: 7, air_date: '2026-09-12' },
-            { episode_number: 8, air_date: '2026-09-26' },
+            { episode_number: 8, air_date: '2027-09-26' },
           ],
         }),
       });
@@ -311,10 +311,10 @@ describe('Magic-Link and Web UI Approval & Notification Deduplication', () => {
       expect(json.ok).toBe(true);
 
       const entryInDb = app.db.select().from(watchRequests).where(eq(watchRequests.id, entryId)).get();
-      // Since next episode 8 is future (2026-09-26), it advanced to episode 8 and became pending_release
+      // Since next episode 8 is future (2027-09-26), it advanced to episode 8 and became pending_release
       expect(entryInDb?.targetEpisode).toBe(8);
       expect(entryInDb?.status).toBe('pending_release');
-      expect(entryInDb?.tmdbReleaseDate).toBe('2026-09-26');
+      expect(entryInDb?.tmdbReleaseDate).toBe('2027-09-26');
     });
   });
 });

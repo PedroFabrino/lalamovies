@@ -25,12 +25,16 @@
 
       <!-- Top Badges Row -->
       <div class="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1.5 pointer-events-none">
-        <span
-          class="px-2 py-0.5 text-[10px] font-semibold rounded-full border shadow-sm"
-          :class="statusBadgeClasses"
-        >
-          {{ statusLabel }}
-        </span>
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <span
+            class="px-2 py-0.5 text-[10px] font-semibold rounded-full border shadow-sm"
+            :class="statusBadgeClasses"
+          >
+            {{ statusLabel }}
+          </span>
+
+          <WaitlistBadge v-if="isWaitlisted" />
+        </div>
 
         <span
           v-if="anime.averageScore"
@@ -79,6 +83,16 @@
           </button>
 
           <button
+            v-if="isWaitlisted"
+            type="button"
+            disabled
+            class="w-full py-1.5 px-3 rounded-lg text-xs font-semibold bg-zinc-800/80 text-zinc-400 flex items-center justify-center gap-1.5 border border-zinc-700/40 cursor-not-allowed opacity-80"
+            title="Already on your waitlist"
+          >
+            <span>✓</span> Waitlisted
+          </button>
+          <button
+            v-else
             type="button"
             class="w-full py-1.5 px-3 rounded-lg text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 flex items-center justify-center gap-1.5 border border-zinc-700/60 transition"
             @click.stop="$emit('waitlist', anime)"
@@ -90,6 +104,16 @@
         <!-- Upcoming Quick Action -->
         <template v-else>
           <button
+            v-if="isWaitlisted"
+            type="button"
+            disabled
+            class="w-full py-2 px-3 rounded-lg text-xs font-bold bg-zinc-800/80 text-zinc-400 flex items-center justify-center gap-1.5 border border-zinc-700/40 cursor-not-allowed opacity-80"
+            title="Already on your waitlist"
+          >
+            <span>✓</span> Waitlisted
+          </button>
+          <button
+            v-else
             type="button"
             class="w-full py-2 px-3 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center gap-1.5 shadow-lg transition"
             @click.stop="$emit('waitlist', anime)"
@@ -138,16 +162,19 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { SeasonalAnimeItem } from '../../composables/useSeasonalAnime';
+import WaitlistBadge from '../WaitlistBadge.vue';
 
 const props = withDefaults(
   defineProps<{
     anime: SeasonalAnimeItem;
     prequelTitle?: string;
     isStreamingEnabled?: boolean;
+    isWaitlisted?: boolean;
   }>(),
   {
     prequelTitle: undefined,
     isStreamingEnabled: true,
+    isWaitlisted: false,
   }
 );
 

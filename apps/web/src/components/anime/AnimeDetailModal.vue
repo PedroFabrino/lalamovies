@@ -57,6 +57,7 @@
               >
                 {{ statusLabel }}
               </span>
+              <WaitlistBadge v-if="isWaitlistedEffective" />
               <span
                 v-if="anime.format"
                 class="text-xs text-zinc-400"
@@ -120,6 +121,16 @@
           <div class="pt-4 border-t border-zinc-800 flex flex-wrap items-center justify-end gap-3">
             <template v-if="isAiringOrFinished">
               <button
+                v-if="isWaitlistedEffective"
+                type="button"
+                disabled
+                class="px-4 py-2 rounded-xl text-xs font-semibold bg-zinc-800/80 text-zinc-400 border border-zinc-700/40 cursor-not-allowed opacity-80"
+                title="Already on your waitlist"
+              >
+                <span>✓</span> Waitlisted
+              </button>
+              <button
+                v-else
                 type="button"
                 class="px-4 py-2 rounded-xl text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition"
                 @click="startWaitlistFlow"
@@ -145,6 +156,16 @@
 
             <template v-else>
               <button
+                v-if="isWaitlistedEffective"
+                type="button"
+                disabled
+                class="w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-bold bg-zinc-800/80 text-zinc-400 flex items-center justify-center gap-2 border border-zinc-700/40 cursor-not-allowed opacity-80 shadow"
+                title="Already on your waitlist"
+              >
+                <span>✓</span> Waitlisted
+              </button>
+              <button
+                v-else
                 type="button"
                 class="w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center gap-2 shadow-lg transition"
                 @click="startWaitlistFlow"
@@ -183,16 +204,21 @@ import { ref, computed, watch } from 'vue';
 import type { SeasonalAnimeItem } from '../../composables/useSeasonalAnime';
 import { api } from '../../lib/api';
 import { useRequestsStore } from '../../stores/requests';
+import { useWaitlistStore } from '../../stores/waitlist';
+import { useWaitlistMatching } from '../../composables/useWaitlistMatching';
 import { parseAnimeTitleAndSeason } from '../../lib/animeTitleCleaner';
 import AnimeTmdbConfirmSection, { type MetadataCandidate } from './AnimeTmdbConfirmSection.vue';
+import WaitlistBadge from '../WaitlistBadge.vue';
 
 const props = withDefaults(
   defineProps<{
     anime: SeasonalAnimeItem | null;
     isStreamingEnabled?: boolean;
+    isWaitlisted?: boolean;
   }>(),
   {
     isStreamingEnabled: true,
+    isWaitlisted: false,
   }
 );
 
@@ -203,6 +229,9 @@ const emit = defineEmits<{
 }>();
 
 const requestsStore = useRequestsStore();
+const waitlistStore = useWaitlistStore();
+const { isItemWaitlisted } = useWaitlistMatching();
+const isWaitlistedEffective = computed(() => props.isWaitlisted || isItemWaitlisted(props.anime));
 
 const showWaitlistConfirmation = ref(false);
 const isResolvingTmdb = ref(false);
@@ -213,15 +242,12 @@ const waitlistMode = ref<'episodic' | 'season_pack'>('episodic');
 const targetSeasonNumber = ref<number>(1);
 const targetEpisodeNumber = ref<number>(1);
 
-const posterUrl = computed(() => {
-  if (!props.anime) return undefined;
-  return (
-    props.anime.coverImage?.extraLarge ||
-    props.anime.coverImage?.large ||
-    props.anime.coverImage?.medium ||
-    undefined
-  );
-});
+const posterUrl = computed(() => (
+  props.anime?.coverImage?.extraLarge ||
+  props.anime?.coverImage?.large ||
+  props.anime?.coverImage?.medium ||
+  undefined
+));
 
 const bannerUrl = computed(() => props.anime?.bannerImage || undefined);
 const displayTitle = computed(() => props.anime?.title?.english || props.anime?.title?.romaji || 'Untitled');
@@ -233,27 +259,23 @@ const cleanDescription = computed(() => {
   return props.anime.description.replace(/<br\s*\/?>/gi, '<br />');
 });
 
-const trailerUrl = computed(() => {
-  if (!props.anime?.trailer?.id || props.anime.trailer.site?.toLowerCase() !== 'youtube') return null;
-  return `https://www.youtube.com/watch?v=${props.anime.trailer.id}`;
-});
+const trailerUrl = computed(() => (
+  props.anime?.trailer?.id && props.anime.trailer.site?.toLowerCase() === 'youtube'
+    ? `https://www.youtube.com/watch?v=${props.anime.trailer.id}`
+    : null
+));
 
 const statusLabel = computed(() => {
-  switch (props.anime?.status) {
-    case 'RELEASING': return 'Airing';
-    case 'FINISHED': return 'Completed';
-    case 'NOT_YET_RELEASED': return 'Upcoming';
-    default: return props.anime?.status || 'Anime';
-  }
+  if (props.anime?.status === 'RELEASING') return 'Airing';
+  if (props.anime?.status === 'FINISHED') return 'Completed';
+  if (props.anime?.status === 'NOT_YET_RELEASED') return 'Upcoming';
+  return props.anime?.status || 'Anime';
 });
 
 const statusBadgeClasses = computed(() => {
-  switch (props.anime?.status) {
-    case 'RELEASING': return 'bg-emerald-950/70 border-emerald-700/60 text-emerald-400';
-    case 'NOT_YET_RELEASED': return 'bg-indigo-950/70 border-indigo-700/60 text-indigo-300';
-    case 'FINISHED': return 'bg-zinc-800/80 border-zinc-700/60 text-zinc-300';
-    default: return 'bg-zinc-800/80 border-zinc-700/60 text-zinc-400';
-  }
+  if (props.anime?.status === 'RELEASING') return 'bg-emerald-950/70 border-emerald-700/60 text-emerald-400';
+  if (props.anime?.status === 'NOT_YET_RELEASED') return 'bg-indigo-950/70 border-indigo-700/60 text-indigo-300';
+  return props.anime?.status === 'FINISHED' ? 'bg-zinc-800/80 border-zinc-700/60 text-zinc-300' : 'bg-zinc-800/80 border-zinc-700/60 text-zinc-400';
 });
 
 const selectedTmdbCandidate = computed(() => {
@@ -339,6 +361,7 @@ async function confirmWaitlistSubmission() {
     });
 
     requestsStore.showToast(`"${finalTitle}" (S${targetSeasonNumber.value}) added to Watcher Waitlist!`, 'success');
+    await waitlistStore.fetchAll();
     handleClose();
   } catch (err: unknown) {
     requestsStore.showToast((err as Error).message || 'Failed to add to waitlist', 'error');
@@ -364,6 +387,7 @@ async function submitDirectWaitlist() {
       posterUrl: posterUrl.value,
     });
     requestsStore.showToast(`"${finalTitle}" (S${targetSeasonNumber.value}) added to Watcher Waitlist!`, 'success');
+    await waitlistStore.fetchAll();
     handleClose();
   } catch (err: unknown) {
     requestsStore.showToast((err as Error).message || 'Failed to add to waitlist', 'error');

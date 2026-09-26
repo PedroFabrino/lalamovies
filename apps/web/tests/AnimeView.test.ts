@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
 import AnimeView from '../src/views/AnimeView.vue';
 import AnimeDetailModal from '../src/components/anime/AnimeDetailModal.vue';
 import { api } from '../src/lib/api';
@@ -90,6 +91,7 @@ describe('AnimeView.vue & Components', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    setActivePinia(createPinia());
   });
 
   it('mounts, fetches /anime/seasonal, and renders sections', async () => {

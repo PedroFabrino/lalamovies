@@ -215,6 +215,14 @@
               {{ item.resolution }}
             </div>
 
+            <!-- Waitlisted Badge -->
+            <div
+              v-if="isItemWaitlisted(item)"
+              class="absolute top-2 left-16 z-10"
+            >
+              <WaitlistBadge />
+            </div>
+
             <!-- Instant Stream Badge (Top-Left under resolution) -->
             <div
               v-if="isStreamingEnabled && !item.isPrivateTracker && getItemCacheStatus(item) === true"
@@ -353,6 +361,8 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '../lib/api';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
+import { useWaitlistMatching } from '../composables/useWaitlistMatching';
+import WaitlistBadge from './WaitlistBadge.vue';
 
 export type CategoryTab = 'movies' | 'tv' | 'anime';
 
@@ -390,6 +400,7 @@ interface DiscoveryFeedResponse {
 
 const router = useRouter();
 const featureFlags = useFeatureFlags();
+const { ensureWaitlistLoaded, isItemWaitlisted } = useWaitlistMatching();
 const isStreamingEnabled = computed(() => featureFlags.isEnabled('streaming'));
 
 const emit = defineEmits<{
@@ -599,6 +610,7 @@ function selectItem(item: DiscoveryItem) {
 }
 
 onMounted(() => {
+  ensureWaitlistLoaded();
   fetchFeed(activeCategory.value);
 });
 

@@ -144,6 +144,7 @@
       v-if="selectedAnime"
       :anime="selectedAnime"
       :is-streaming-enabled="isStreamingEnabled"
+      :is-waitlisted="isItemWaitlisted(selectedAnime)"
       @close="selectedAnime = null"
       @download="handleDownload"
       @stream="handleStream"
@@ -171,10 +172,12 @@ import SeasonalAnimeGrid from '../components/anime/SeasonalAnimeGrid.vue';
 import AnimeDetailModal from '../components/anime/AnimeDetailModal.vue';
 import { useSeasonalAnime, type SeasonalAnimeItem, type MediaSeason } from '../composables/useSeasonalAnime';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
+import { useWaitlistMatching } from '../composables/useWaitlistMatching';
 import { api } from '../lib/api';
 
 const router = useRouter();
 const featureFlags = useFeatureFlags();
+const { ensureWaitlistLoaded, isItemWaitlisted } = useWaitlistMatching();
 
 const isStreamingEnabled = computed(() => featureFlags.isEnabled('streaming'));
 
@@ -287,6 +290,7 @@ async function handleStream(anime: SeasonalAnimeItem) {
 onMounted(() => {
   featureFlags.ensureFlagsLoaded();
   initFromRoute();
+  ensureWaitlistLoaded();
   fetchSeasonalSections();
 });
 </script>

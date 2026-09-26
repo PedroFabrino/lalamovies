@@ -135,6 +135,7 @@
           :key="anime.id"
           :anime="anime"
           :is-streaming-enabled="isStreamingEnabled"
+          :is-waitlisted="isItemWaitlisted(anime)"
           @select="$emit('select', $event)"
           @download="$emit('download', $event)"
           @stream="$emit('stream', $event)"
@@ -176,7 +177,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import type { SeasonalAnimeItem, PageInfo } from '../../composables/useSeasonalAnime';
+import { useWaitlistMatching } from '../../composables/useWaitlistMatching';
 import AnimeCard from './AnimeCard.vue';
+
+const { isItemWaitlisted } = useWaitlistMatching();
 
 const props = withDefaults(
   defineProps<{

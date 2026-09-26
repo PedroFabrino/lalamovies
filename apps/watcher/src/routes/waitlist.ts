@@ -24,6 +24,17 @@ interface CreateWaitlistBody {
   notifyBeforeDownload?: boolean;
 }
 
+function normalizeTitle(value?: string | null): string {
+  if (!value) return '';
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export const waitlistRoutes: FastifyPluginAsync = async (app) => {
   // Service-key verification hook for watcher (bypassed for magic-link rejection & approval)
   app.addHook('preHandler', async (request, reply) => {
@@ -109,46 +120,64 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       ? null
       : (body.targetEpisode !== undefined ? body.targetEpisode : (body.isNextSeason ? null : 1));
 
-    // Guard 3: Cross-user duplicate active waitlist check with asymmetry
+    // Guard 3: Cross-user duplicate active waitlist check with asymmetry and title normalization
     const activeEntries = app.db
       .select()
       .from(watchRequests)
       .where(
         and(
           eq(watchRequests.mediaType, body.mediaType),
-          eq(watchRequests.metadataId, body.metadataId),
-          eq(watchRequests.metadataSource, body.metadataSource),
           inArray(watchRequests.status, ['pending_release', 'checking', 'notified', 'triggered'])
         )
       )
       .all();
 
+    const normBodyTitle = body.title ? normalizeTitle(body.title) : '';
+
+    const candidateEntries = activeEntries.filter((e) => {
+      if (e.metadataId && e.metadataId === body.metadataId) {
+        return true;
+      }
+      if (normBodyTitle && e.title && normalizeTitle(e.title) === normBodyTitle) {
+        return true;
+      }
+      return false;
+    });
+
     let matchingEntry: WatchRequest | undefined;
 
     if (body.mediaType === 'movie') {
-      matchingEntry = activeEntries[0];
+      matchingEntry = candidateEntries[0];
     } else {
       const isSeasonPack = effectiveTargetEpisode === null || effectiveTargetEpisode === undefined;
       const isSingleEpisode = !isSeasonPack;
 
       if (isSingleEpisode) {
         // 1. Season pack covers episode (asymmetry)
-        const pack = activeEntries.find(
+        const pack = candidateEntries.find(
           (e) => (e.seasonNumber ?? 1) === effectiveSeason && (e.targetEpisode === null || e.targetEpisode === undefined)
         );
         if (pack) {
           matchingEntry = pack;
         } else {
           // 2. Exact episode match
-          matchingEntry = activeEntries.find(
+          matchingEntry = candidateEntries.find(
             (e) => (e.seasonNumber ?? 1) === effectiveSeason && e.targetEpisode === effectiveTargetEpisode
           );
         }
       } else {
-        // Exact season pack match only (single episode does not cover pack)
-        matchingEntry = activeEntries.find(
+        // 1. Exact season pack match (applies cross-user)
+        const pack = candidateEntries.find(
           (e) => (e.seasonNumber ?? 1) === effectiveSeason && (e.targetEpisode === null || e.targetEpisode === undefined)
         );
+        if (pack) {
+          matchingEntry = pack;
+        } else {
+          // 2. For the SAME user, an active entry for this season prevents duplicate
+          matchingEntry = candidateEntries.find(
+            (e) => e.userId === userId && (e.seasonNumber ?? 1) === effectiveSeason
+          );
+        }
       }
     }
 

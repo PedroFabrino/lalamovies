@@ -85,15 +85,20 @@
 
           <!-- Prominent Episode Badge (Top-Left) -->
           <div
-            class="absolute top-2 left-2 px-2 py-0.5 rounded text-xs font-extrabold bg-indigo-600 text-white shadow-md border border-indigo-400/40"
-            data-testid="badge-episode"
+            class="absolute top-2 left-2 flex items-center gap-1.5 flex-wrap z-10"
           >
-            <span v-if="item.episodeNumber !== null && item.episodeNumber !== undefined">
-              S{{ String(item.seasonNumber).padStart(2, '0') }}E{{ String(item.episodeNumber).padStart(2, '0') }}
-            </span>
-            <span v-else>
-              Season {{ item.seasonNumber }}
-            </span>
+            <div
+              class="px-2 py-0.5 rounded text-xs font-extrabold bg-indigo-600 text-white shadow-md border border-indigo-400/40"
+              data-testid="badge-episode"
+            >
+              <span v-if="item.episodeNumber !== null && item.episodeNumber !== undefined">
+                S{{ String(item.seasonNumber).padStart(2, '0') }}E{{ String(item.episodeNumber).padStart(2, '0') }}
+              </span>
+              <span v-else>
+                Season {{ item.seasonNumber }}
+              </span>
+            </div>
+            <WaitlistBadge v-if="isItemWaitlisted(item)" />
           </div>
 
           <!-- Rating Badge (Top-Right) -->
@@ -179,6 +184,8 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '../lib/api';
+import { useWaitlistMatching } from '../composables/useWaitlistMatching';
+import WaitlistBadge from './WaitlistBadge.vue';
 
 export interface UpNextItem {
   id: string;
@@ -210,6 +217,7 @@ interface UpNextResponse {
 }
 
 const router = useRouter();
+const { ensureWaitlistLoaded, isItemWaitlisted } = useWaitlistMatching();
 
 const available = ref(true);
 const items = ref<UpNextItem[]>([]);
@@ -229,10 +237,11 @@ async function fetchUpNext() {
 }
 
 function selectItem(item: UpNextItem) {
+  const waitlisted = isItemWaitlisted(item);
   router.push({
     path: '/request',
     query: {
-      fromUpNext: 'true',
+      fromUpNext: waitlisted ? 'false' : 'true',
       title: item.showTitle,
       metadataId: item.metadataId,
       metadataSource: item.metadataSource,
@@ -251,7 +260,7 @@ function selectItem(item: UpNextItem) {
       isPrivateTracker: item.isPrivateTracker ? 'true' : 'false',
     },
     state: {
-      fromUpNext: true,
+      fromUpNext: !waitlisted,
       title: item.showTitle,
       metadataId: item.metadataId,
       metadataSource: item.metadataSource,
@@ -273,6 +282,7 @@ function selectItem(item: UpNextItem) {
 }
 
 onMounted(() => {
+  ensureWaitlistLoaded();
   fetchUpNext();
 });
 </script>
