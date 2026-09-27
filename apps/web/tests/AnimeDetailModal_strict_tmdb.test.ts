@@ -163,4 +163,65 @@ describe('AnimeDetailModal Strict TMDB Ingestion & Manual Search (Ticket 01)', (
       title: 'Correct TMDB Title',
     }));
   });
+
+  it('prompts TMDB resolution when clicking Download Torrent and emits canonical TMDB metadata upon confirmation', async () => {
+    vi.mocked(api.get).mockImplementation(async (url: string) => {
+      if (url === '/waitlist') return { entries: [] };
+      return {};
+    });
+
+    vi.mocked(api.post).mockImplementation(async (url: string) => {
+      if (url === '/anime/resolve-tmdb') {
+        return {
+          candidates: [
+            {
+              id: '54321',
+              title: 'Resolved Show TMDB',
+              year: 2026,
+              posterUrl: 'https://img/54321.jpg',
+            },
+          ],
+          recommended: {
+            id: '54321',
+            title: 'Resolved Show TMDB',
+            year: 2026,
+            posterUrl: 'https://img/54321.jpg',
+          },
+          detectedSeason: 1,
+        };
+      }
+      return {};
+    });
+
+    const wrapper = mount(AnimeDetailModal, {
+      props: {
+        anime: {
+          ...mockAnime,
+          status: 'RELEASING' as const,
+        },
+      },
+    });
+
+    // 1. Click Download Torrent
+    const downloadBtn = wrapper.findAll('button').find((b) => b.text().includes('Download Torrent'));
+    expect(downloadBtn).toBeDefined();
+    await downloadBtn!.trigger('click');
+    await flushPromises();
+
+    // 2. TMDB confirmation section is displayed with actionType download
+    const confirmDownloadBtn = wrapper.findAll('button').find((b) => b.text().includes('Confirm & Download Torrent'));
+    expect(confirmDownloadBtn).toBeDefined();
+
+    // 3. Confirm download
+    await confirmDownloadBtn!.trigger('click');
+    await flushPromises();
+
+    // 4. Assert download event emitted with TMDB candidate
+    const emitted = wrapper.emitted('download');
+    expect(emitted).toBeDefined();
+    expect(emitted![0][1]).toMatchObject({
+      id: '54321',
+      title: 'Resolved Show TMDB',
+    });
+  });
 });

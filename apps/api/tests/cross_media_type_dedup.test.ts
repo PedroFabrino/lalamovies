@@ -260,4 +260,22 @@ describe('Cross-Media-Type Unified Series Deduplication (#179)', () => {
     expect(body.exists).toBe(true);
     expect(body.request.mediaType).toBe('tv_show');
   });
+
+  it('rejects POST /requests with metadataSource anilist with 400 Bad Request', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/requests',
+      cookies: { token: aliceCookie },
+      payload: {
+        magnetLink: 'magnet:?xt=urn:btih:anime-anilist',
+        mediaType: 'anime',
+        metadataId: '12345',
+        metadataSource: 'anilist',
+        title: 'Anilist Ingest Attempt',
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().message).toContain("metadataSource must be 'tmdb'");
+  });
 });

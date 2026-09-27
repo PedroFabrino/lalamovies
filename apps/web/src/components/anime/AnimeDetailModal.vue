@@ -69,9 +69,7 @@
               <span
                 v-if="anime.averageScore"
                 class="text-xs font-semibold text-amber-400"
-              >
-                • ★ {{ anime.averageScore }}%
-              </span>
+              >• ★ {{ anime.averageScore }}%</span>
             </div>
           </div>
         </div>
@@ -148,7 +146,7 @@
               <button
                 type="button"
                 class="px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 shadow transition"
-                @click="$emit('download', anime)"
+                @click="handleDownloadClick"
               >
                 <span>⬇️</span> Download Torrent
               </button>
@@ -187,12 +185,13 @@
           :waitlist-mode="waitlistMode"
           :is-submitting-waitlist="isSubmittingWaitlist"
           :is-candidate-waitlisted="isCandidateWaitlisted"
+          :action-type="pendingAction"
           @back="showWaitlistConfirmation = false"
           @update:selected-candidate-id="selectedCandidateId = $event"
           @update:target-season-number="targetSeasonNumber = $event"
           @update:target-episode-number="targetEpisodeNumber = $event"
           @update:waitlist-mode="waitlistMode = $event"
-          @confirm="confirmWaitlistSubmission"
+          @confirm="handleConfirmAction"
           @search-manual="handleManualTmdbSearch"
         />
       </div>
@@ -218,7 +217,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: 'close'): void;
-  (e: 'download', anime: SeasonalAnimeItem): void;
+  (e: 'download', anime: SeasonalAnimeItem, tmdb?: MetadataCandidate): void;
   (e: 'stream', anime: SeasonalAnimeItem): void;
 }>();
 
@@ -234,6 +233,7 @@ onMounted(() => {
 const showWaitlistConfirmation = ref(false);
 const isResolvingTmdb = ref(false);
 const isSubmittingWaitlist = ref(false);
+const pendingAction = ref<'waitlist' | 'download'>('waitlist');
 const tmdbCandidates = ref<MetadataCandidate[]>([]);
 const selectedCandidateId = ref<string>('');
 const waitlistMode = ref<'episodic' | 'season_pack'>('episodic');
@@ -263,6 +263,7 @@ watch(
   () => props.anime,
   (newVal) => {
     showWaitlistConfirmation.value = false;
+    pendingAction.value = 'waitlist';
     tmdbCandidates.value = [];
     selectedCandidateId.value = '';
     waitlistMode.value = newVal?.status === 'RELEASING' ? 'episodic' : 'episodic';
@@ -275,6 +276,14 @@ watch(
 function handleClose() {
   showWaitlistConfirmation.value = false;
   emit('close');
+}
+
+function applyResolveResult(res: { candidates: MetadataCandidate[]; recommended: MetadataCandidate | null; detectedSeason?: number }) {
+  tmdbCandidates.value = res.candidates || [];
+  selectedCandidateId.value = res.recommended?.id || tmdbCandidates.value[0]?.id || '';
+  if (typeof res.detectedSeason === 'number' && res.detectedSeason >= 1) {
+    targetSeasonNumber.value = res.detectedSeason;
+  }
 }
 
 async function startWaitlistFlow() {
@@ -299,21 +308,30 @@ async function startWaitlistFlow() {
       year: props.anime.startDate?.year || props.anime.seasonYear,
       format: props.anime.format,
     });
-
-    tmdbCandidates.value = res.candidates || [];
-    if (res.recommended) {
-      selectedCandidateId.value = res.recommended.id;
-    } else if (tmdbCandidates.value[0]) {
-      selectedCandidateId.value = tmdbCandidates.value[0].id;
-    }
-
-    if (typeof res.detectedSeason === 'number' && res.detectedSeason >= 1) {
-      targetSeasonNumber.value = res.detectedSeason;
-    }
+    applyResolveResult(res);
   } catch {
     tmdbCandidates.value = [];
   } finally {
     isResolvingTmdb.value = false;
+  }
+}
+
+function handleDownloadClick() {
+  if (selectedTmdbCandidate.value) {
+    emit('download', props.anime!, selectedTmdbCandidate.value);
+    handleClose();
+  } else {
+    pendingAction.value = 'download';
+    startWaitlistFlow();
+  }
+}
+
+function handleConfirmAction() {
+  if (pendingAction.value === 'download') {
+    emit('download', props.anime!, selectedTmdbCandidate.value || undefined);
+    handleClose();
+  } else {
+    confirmWaitlistSubmission();
   }
 }
 
@@ -369,17 +387,7 @@ async function handleManualTmdbSearch(query: string) {
       title: query.trim(),
       format: props.anime?.format,
     });
-
-    tmdbCandidates.value = res.candidates || [];
-    if (res.recommended) {
-      selectedCandidateId.value = res.recommended.id;
-    } else if (tmdbCandidates.value[0]) {
-      selectedCandidateId.value = tmdbCandidates.value[0].id;
-    }
-
-    if (typeof res.detectedSeason === 'number' && res.detectedSeason >= 1) {
-      targetSeasonNumber.value = res.detectedSeason;
-    }
+    applyResolveResult(res);
   } catch {
     tmdbCandidates.value = [];
   } finally {

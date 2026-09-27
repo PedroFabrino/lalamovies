@@ -3,6 +3,7 @@ import { initDatabase, users, downloadRequests } from '../src/db';
 import { RequestsRepository } from '../src/services/requestsRepository';
 import { runLegacyAnilistMigration } from '../src/services/legacyAnilistMigration';
 import { IMetadataService, MetadataCandidate } from '../src/services/metadata';
+import { buildApp } from '../src/app';
 
 describe('Legacy AniList Database Migration (#180) - API', () => {
   let db: ReturnType<typeof initDatabase>['db'];
@@ -175,5 +176,59 @@ describe('Legacy AniList Database Migration (#180) - API', () => {
     const row = repo.findById('req-unknown-1');
     expect(row?.metadataSource).toBe('anilist');
     expect(row?.metadataId).toBe('999999');
+  });
+
+  it('runs migration on startup even when startPoller is false', async () => {
+    const testApp = buildApp({
+      dbPath: ':memory:',
+      startPoller: false,
+      startCleanupCron: false,
+      metadataService: {
+        searchMovies: async () => [],
+        searchSeries: async (title: string) => {
+          if (title.includes('Frieren')) {
+            return [
+              {
+                id: '209867',
+                source: 'tmdb',
+                title: "Frieren: Beyond Journey's End",
+                year: 2023,
+                posterUrl: null,
+                overview: null,
+              } as MetadataCandidate,
+            ];
+          }
+          return [];
+        },
+      } as any,
+    });
+
+    testApp.db.insert(users).values({
+      id: 'user-app-1',
+      username: 'testapp',
+      role: 'user',
+      jellyfinUserId: 'jf-app-1',
+      createdAt: new Date().toISOString(),
+    }).run();
+
+    testApp.db.insert(downloadRequests).values({
+      id: 'req-app-series-1',
+      userId: 'user-app-1',
+      magnetLink: 'magnet:?xt=urn:btih:s-app',
+      mediaType: 'anime',
+      metadataId: '5678',
+      metadataSource: 'anilist',
+      title: "Frieren: Beyond Journey's End",
+      year: 2023,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    await testApp.ready();
+
+    const migratedRow = testApp.requestsRepo.findById('req-app-series-1');
+    expect(migratedRow?.metadataSource).toBe('tmdb');
+    expect(migratedRow?.metadataId).toBe('209867');
+
+    await testApp.close();
   });
 });

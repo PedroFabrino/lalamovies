@@ -77,6 +77,20 @@ export function registerStartupHooks(app: FastifyInstance, options: AppOptions):
       }
     }
 
+    try {
+      await runLegacyAnilistMigration({
+        requestsRepo,
+        metadataService: app.metadata,
+        logger: {
+          info: (msg) => app.log.info(msg),
+          warn: (msg) => app.log.warn(msg),
+          error: (msg, err) => app.log.error(err, msg),
+        },
+      });
+    } catch (err) {
+      app.log.warn(err, 'Non-fatal error in startup legacy AniList migration');
+    }
+
     if (options.startPoller) {
       setImmediate(() => {
         runCorruptedArchiveRecovery({
@@ -137,18 +151,6 @@ export function registerStartupHooks(app: FastifyInstance, options: AppOptions):
               app.log.warn(bfErr, 'Non-fatal error in startup season pack backfill');
             });
         }
-
-        runLegacyAnilistMigration({
-          requestsRepo,
-          metadataService: app.metadata,
-          logger: {
-            info: (msg) => app.log.info(msg),
-            warn: (msg) => app.log.warn(msg),
-            error: (msg, err) => app.log.error(err, msg),
-          },
-        }).catch((err) => {
-          app.log.warn(err, 'Non-fatal error in startup legacy AniList migration');
-        });
       });
     }
   });

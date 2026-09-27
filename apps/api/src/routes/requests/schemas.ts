@@ -35,7 +35,7 @@ export const createRequestSchema = z.object({
   torrentFileName: z.string().optional(),
   mediaType: z.enum(['movie', 'tv_show', 'anime', 'private']),
   metadataId: z.string().min(1, 'Metadata ID is required'),
-  metadataSource: z.enum(['tmdb', 'anilist']),
+  metadataSource: z.literal('tmdb', { message: "metadataSource must be 'tmdb'" }),
   title: z.string().min(1, 'Title is required'),
   year: z.number().int().optional(),
   seasonNumber: z.number().int().optional(),

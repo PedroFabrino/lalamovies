@@ -253,14 +253,19 @@ function openAnimeWaitlist(anime: SeasonalAnimeItem) {
   selectedAnime.value = anime;
 }
 
-function handleDownload(anime: SeasonalAnimeItem) {
-  const title = anime.title?.english || anime.title?.romaji || '';
+function handleDownload(anime: SeasonalAnimeItem, tmdb?: { id: string | number; title?: string }) {
+  const title = tmdb?.title || anime.title?.english || anime.title?.romaji || '';
+  const query: Record<string, string> = {
+    query: title,
+    mediaType: 'anime',
+  };
+  if (tmdb?.id) {
+    query.metadataId = String(tmdb.id);
+    query.metadataSource = 'tmdb';
+  }
   router.push({
     path: '/request',
-    query: {
-      query: title,
-      mediaType: 'anime',
-    },
+    query,
   });
 }
 

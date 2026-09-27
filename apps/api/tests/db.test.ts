@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { eq } from 'drizzle-orm';
 import { initDatabase, users, invites, downloadRequests, systemConfig, requestCoRequesters } from '../src/db';
+import { RequestsRepository } from '../src/services/requestsRepository';
 import { buildApp } from '../src/app';
 
 describe('Database Schema & Migrations', () => {
@@ -350,6 +351,37 @@ describe('Database Schema & Migrations', () => {
         requestedAt: now,
       }).run();
     }).not.toThrow();
+  });
+
+  it('RequestsRepository addCoRequester and isCoRequester works idempotently', () => {
+    const repo = new RequestsRepository(dbInstance.db as any);
+    const now = new Date().toISOString();
+
+    dbInstance.db.insert(users).values([
+      { id: 'usr_main', jellyfinUserId: 'jf_main', username: 'alice', createdAt: now },
+      { id: 'usr_sub', jellyfinUserId: 'jf_sub', username: 'bob', createdAt: now },
+    ]).run();
+
+    repo.create({
+      id: 'req_repo_co',
+      userId: 'usr_main',
+      magnetLink: 'magnet:?xt=urn:btih:repo123',
+      mediaType: 'movie',
+      metadataId: 'tmdb-repo-1',
+      metadataSource: 'tmdb',
+      title: 'Repo Test Movie',
+      status: 'queued',
+      requestedAt: now,
+    });
+
+    expect(repo.isCoRequester('req_repo_co', 'usr_sub')).toBe(false);
+
+    repo.addCoRequester('req_repo_co', 'usr_sub');
+    expect(repo.isCoRequester('req_repo_co', 'usr_sub')).toBe(true);
+
+    // Idempotent call doesn't throw or duplicate
+    expect(() => repo.addCoRequester('req_repo_co', 'usr_sub')).not.toThrow();
+    expect(repo.isCoRequester('req_repo_co', 'usr_sub')).toBe(true);
   });
 
   it('decorates fastify app with db and sqlite instances', async () => {

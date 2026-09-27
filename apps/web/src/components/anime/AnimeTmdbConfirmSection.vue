@@ -199,7 +199,10 @@
       </div>
 
       <!-- Waitlist Mode Selection -->
-      <div class="p-3 rounded-xl bg-zinc-950/40 border border-zinc-800/80 space-y-2">
+      <div
+        v-if="actionType !== 'download'"
+        class="p-3 rounded-xl bg-zinc-950/40 border border-zinc-800/80 space-y-2"
+      >
         <label class="block text-xs font-semibold text-zinc-300">Waitlist Download Mode:</label>
         <label class="flex items-center gap-2.5 text-xs text-zinc-200 cursor-pointer">
           <input
@@ -233,7 +236,7 @@
 
       <!-- Candidate already waitlisted alert -->
       <div
-        v-if="isCandidateWaitlisted"
+        v-if="actionType !== 'download' && isCandidateWaitlisted"
         class="p-3 bg-amber-950/40 border border-amber-800/80 rounded-xl text-xs text-amber-300 flex items-start gap-2.5"
         data-testid="tmdb-already-waitlisted-alert"
       >
@@ -261,15 +264,15 @@
         <button
           type="button"
           class="px-5 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 shadow transition"
-          :class="isCandidateWaitlisted ? 'bg-zinc-800 text-zinc-400 border border-zinc-700/50 cursor-not-allowed opacity-80' : 'bg-indigo-600 hover:bg-indigo-500 cursor-pointer'"
-          :disabled="isSubmittingWaitlist || isCandidateWaitlisted"
+          :class="(actionType !== 'download' && isCandidateWaitlisted) ? 'bg-zinc-800 text-zinc-400 border border-zinc-700/50 cursor-not-allowed opacity-80' : 'bg-indigo-600 hover:bg-indigo-500 cursor-pointer'"
+          :disabled="isSubmittingWaitlist || Boolean(actionType !== 'download' && isCandidateWaitlisted)"
           @click="$emit('confirm')"
         >
           <span
             v-if="isSubmittingWaitlist"
             class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"
           />
-          <span>{{ isCandidateWaitlisted ? '✓ Already on Waitlist' : (isSubmittingWaitlist ? 'Adding...' : 'Confirm & Add to Waitlist') }}</span>
+          <span>{{ actionType === 'download' ? 'Confirm & Download Torrent' : (isCandidateWaitlisted ? '✓ Already on Waitlist' : (isSubmittingWaitlist ? 'Adding...' : 'Confirm & Add to Waitlist')) }}</span>
         </button>
       </div>
     </div>
@@ -278,26 +281,26 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import type { MetadataCandidate } from '../../composables/requestTypes';
 
-export interface MetadataCandidate {
-  id: string;
-  source: 'tmdb' | 'anilist';
-  title: string;
-  year: number | null;
-  posterUrl: string | null;
-  overview: string | null;
-}
+export type { MetadataCandidate };
 
-const props = defineProps<{
-  isResolvingTmdb: boolean;
-  tmdbCandidates: MetadataCandidate[];
-  selectedCandidateId: string;
-  targetSeasonNumber: number;
-  targetEpisodeNumber: number;
-  waitlistMode: 'episodic' | 'season_pack';
-  isSubmittingWaitlist: boolean;
-  isCandidateWaitlisted?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    isResolvingTmdb: boolean;
+    tmdbCandidates: MetadataCandidate[];
+    selectedCandidateId: string;
+    targetSeasonNumber: number;
+    targetEpisodeNumber: number;
+    waitlistMode: 'episodic' | 'season_pack';
+    isSubmittingWaitlist: boolean;
+    isCandidateWaitlisted?: boolean;
+    actionType?: 'waitlist' | 'download';
+  }>(),
+  {
+    actionType: 'waitlist',
+  }
+);
 
 const emit = defineEmits<{
   (e: 'back'): void;

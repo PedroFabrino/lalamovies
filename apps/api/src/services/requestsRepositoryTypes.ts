@@ -49,6 +49,7 @@ export interface IRequestsRepository {
   findAllForUser(userId: string): RequestListItem[];
   findDeleted(userId: string, isPrivileged: { isAdmin: boolean; isTrusted: boolean }): DeletedRequestListItem[];
   isCoRequester(requestId: string, userId: string): boolean;
+  addCoRequester(requestId: string, userId: string): void;
   findRequesterUsername(userId: string): string | undefined;
   findByUserId(userId: string, excludeDeleted?: boolean): DownloadRequest[];
   findByCriteria(filters: FindByCriteriaFilters): DownloadRequest[];

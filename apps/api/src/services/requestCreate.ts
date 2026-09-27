@@ -10,7 +10,6 @@ import { parseTorrentBuffer } from './torrentParser';
 import {
   findMatchingCanonicalRequest,
   findCanonicalSeriesInfo,
-  addCoRequester,
   globalRequestMutex,
   getDedupLockKey,
 } from './requestDedup';
@@ -153,12 +152,13 @@ export async function executeCreateRequest(
     coRequesterUserIds,
   } = input;
 
+  if (metadataSource !== 'tmdb') {
+    throw new RequestServiceError(400, 'Bad Request', "metadataSource must be 'tmdb'");
+  }
+
   if (mediaType === 'private') {
     if (userRole !== 'trusted' && userRole !== 'admin') {
       throw new RequestServiceError(401, 'Unauthorized', 'Only trusted or admin users can submit private requests');
-    }
-    if (metadataSource !== 'tmdb') {
-      throw new RequestServiceError(400, 'Bad Request', 'Private requests only support TMDB metadata source');
     }
   }
 
@@ -206,14 +206,14 @@ export async function executeCreateRequest(
       await triggerNextSeasonWaitlist(waitlistParams);
 
       if (existing.userId !== userId) {
-        addCoRequester(db, existing.id, userId);
+        requestsRepo.addCoRequester(existing.id, userId);
       }
 
       if (coRequesterUserIds && Array.isArray(coRequesterUserIds)) {
         for (const uid of coRequesterUserIds) {
           if (uid && uid !== existing.userId) {
             try {
-              addCoRequester(db, existing.id, uid);
+              requestsRepo.addCoRequester(existing.id, uid);
             } catch (err) {
               logger?.warn(err as object, `Failed to add co-requester ${uid}`);
             }
@@ -323,7 +323,7 @@ export async function executeCreateRequest(
       for (const uid of coRequesterUserIds) {
         if (uid && uid !== userId) {
           try {
-            addCoRequester(db, resultingRequest.id, uid);
+            requestsRepo.addCoRequester(resultingRequest.id, uid);
           } catch (err) {
             logger?.warn(err as object, `Failed to add co-requester ${uid}`);
           }

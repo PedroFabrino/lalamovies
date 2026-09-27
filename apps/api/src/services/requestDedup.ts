@@ -1,6 +1,5 @@
-import { and, eq } from 'drizzle-orm';
 import { AppDatabase } from '../db';
-import { DownloadRequest, requestCoRequesters } from '../db/schema';
+import { DownloadRequest } from '../db/schema';
 import { IRequestsRepository, RequestsRepository } from './requestsRepository';
 
 function toRepo(repoOrDb: IRequestsRepository | AppDatabase): IRequestsRepository {
@@ -74,30 +73,12 @@ export function findMatchingCanonicalRequest(
 }
 
 export function addCoRequester(
-  db: AppDatabase,
+  repoOrDb: IRequestsRepository | AppDatabase,
   requestId: string,
   userId: string
 ): void {
-  const existing = db
-    .select()
-    .from(requestCoRequesters)
-    .where(
-      and(
-        eq(requestCoRequesters.requestId, requestId),
-        eq(requestCoRequesters.userId, userId)
-      )
-    )
-    .get();
-
-  if (!existing) {
-    db.insert(requestCoRequesters)
-      .values({
-        requestId,
-        userId,
-        addedAt: new Date().toISOString(),
-      })
-      .run();
-  }
+  const repo = toRepo(repoOrDb);
+  repo.addCoRequester(requestId, userId);
 }
 
 export class KeyedMutex {

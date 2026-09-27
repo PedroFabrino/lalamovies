@@ -21,6 +21,7 @@ export interface ReleaseCandidate {
   score: number;
   isLowHealth: boolean;
   isPreferred: boolean;
+  infoHash?: string;
 }
 
 export interface ScoreOptions {
@@ -278,6 +279,15 @@ export class WatcherProwlarrService {
         scoreOptions
       );
 
+      let infoHash = (item as { infoHash?: string }).infoHash;
+      if (!infoHash && downloadUrl) {
+        const hashMatch = downloadUrl.match(/urn:btih:([a-zA-Z0-9]+)/i);
+        if (hashMatch) {
+          infoHash = hashMatch[1];
+        }
+      }
+      const normalizedInfoHash = infoHash ? infoHash.toLowerCase() : undefined;
+
       candidates.push({
         guid,
         title: releaseTitle,
@@ -293,6 +303,7 @@ export class WatcherProwlarrService {
         score,
         isLowHealth,
         isPreferred,
+        infoHash: normalizedInfoHash,
       });
     }
 
@@ -337,19 +348,27 @@ export class WatcherProwlarrService {
         seriesQueries.map((sq) => this.executeSingleSearch(sq.query, sq.categories, scoreOptions))
       );
 
-      const seen = new Set<string>();
+      const candidateList: ReleaseCandidate[] = [];
       for (const r of results) {
         if (r.status === 'fulfilled') {
-          for (const cand of r.value) {
-            const key = cand.guid || cand.downloadUrl;
-            if (!seen.has(key)) {
-              seen.add(key);
-              allCandidates.push(cand);
-            }
-          }
+          candidateList.push(...r.value);
         }
       }
+      allCandidates = candidateList;
     }
+
+    // Deduplicate candidates by infoHash (normalized) with fallback to guid/downloadUrl
+    const candidateMap = new Map<string, ReleaseCandidate>();
+    for (const cand of allCandidates) {
+      const key = cand.infoHash ? `hash:${cand.infoHash.toLowerCase()}` : (cand.guid || cand.downloadUrl);
+      const existing = candidateMap.get(key);
+      if (!existing) {
+        candidateMap.set(key, cand);
+      } else if (cand.score > existing.score || (cand.score === existing.score && cand.seeders > existing.seeders)) {
+        candidateMap.set(key, cand);
+      }
+    }
+    allCandidates = Array.from(candidateMap.values());
 
     allCandidates.sort((a, b) => b.score - a.score);
 

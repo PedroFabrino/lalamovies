@@ -1,12 +1,5 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, ne } from 'drizzle-orm';
-import {
-  AppDatabase,
-  downloadRequests,
-  DownloadRequest,
-  NewDownloadRequest,
-  requestCoRequesters,
-  users,
-} from '../db';
+import { AppDatabase, downloadRequests, DownloadRequest, NewDownloadRequest, requestCoRequesters, users } from '../db';
 import { RequestStatus } from './requestStateMachine';
 import {
   RequestListItem,
@@ -30,11 +23,7 @@ export class RequestsRepository implements IRequestsRepository {
   constructor(private db: AppDatabase) {}
 
   findById(id: string): DownloadRequest | undefined {
-    return this.db
-      .select()
-      .from(downloadRequests)
-      .where(eq(downloadRequests.id, id))
-      .get();
+    return this.db.select().from(downloadRequests).where(eq(downloadRequests.id, id)).get();
   }
 
   create(data: NewDownloadRequest): DownloadRequest {
@@ -46,35 +35,16 @@ export class RequestsRepository implements IRequestsRepository {
     return created;
   }
 
-  setStatus(
-    id: string,
-    status: DownloadRequest['status'],
-    extraFields?: Partial<Omit<DownloadRequest, 'id' | 'status'>>
-  ): void {
-    this.db
-      .update(downloadRequests)
-      .set({ status, ...(extraFields || {}) })
-      .where(eq(downloadRequests.id, id))
-      .run();
+  setStatus(id: string, status: DownloadRequest['status'], extraFields?: Partial<Omit<DownloadRequest, 'id' | 'status'>>): void {
+    this.db.update(downloadRequests).set({ status, ...(extraFields || {}) }).where(eq(downloadRequests.id, id)).run();
   }
 
-  update(
-    id: string,
-    fields: Partial<Omit<DownloadRequest, 'id'>>
-  ): void {
-    this.db
-      .update(downloadRequests)
-      .set(fields)
-      .where(eq(downloadRequests.id, id))
-      .run();
+  update(id: string, fields: Partial<Omit<DownloadRequest, 'id'>>): void {
+    this.db.update(downloadRequests).set(fields).where(eq(downloadRequests.id, id)).run();
   }
 
   findPending(): DownloadRequest[] {
-    return this.db
-      .select()
-      .from(downloadRequests)
-      .where(inArray(downloadRequests.status, [...PENDING_STATUSES]))
-      .all();
+    return this.db.select().from(downloadRequests).where(inArray(downloadRequests.status, [...PENDING_STATUSES])).all();
   }
 
   findByStatus(status: DownloadRequest['status'], orderBy?: 'requestedAtAsc'): DownloadRequest[] {
@@ -278,6 +248,20 @@ export class RequestsRepository implements IRequestsRepository {
       )
       .get();
     return Boolean(coReq);
+  }
+
+  addCoRequester(requestId: string, userId: string): void {
+    if (this.isCoRequester(requestId, userId)) {
+      return;
+    }
+    this.db
+      .insert(requestCoRequesters)
+      .values({
+        requestId,
+        userId,
+        addedAt: new Date().toISOString(),
+      })
+      .run();
   }
 
   findRequesterUsername(userId: string): string | undefined {

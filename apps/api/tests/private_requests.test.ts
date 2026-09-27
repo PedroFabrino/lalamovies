@@ -117,7 +117,7 @@ describe('Private Requests & Invisibility Guards', () => {
       });
 
       expect(res.statusCode).toBe(400);
-      expect(res.json().message).toContain('Private requests only support TMDB');
+      expect(res.json().message).toContain("metadataSource must be 'tmdb'");
     });
 
     it('allows trusted user to create private request and forces keepFlag = true', async () => {
