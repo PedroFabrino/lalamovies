@@ -12593,7 +12593,7 @@
       "file_type": "code",
       "norm_label": ".processonce()",
       "source_file": "apps/api/src/jobs/unarchiveDaemon.ts",
-      "source_location": "L250"
+      "source_location": "L278"
     },
     {
       "id": "apps_api_src_jobs_unarchivedaemon_unarchivedaemon_processrequest",
@@ -12617,7 +12617,7 @@
       "file_type": "code",
       "norm_label": ".start()",
       "source_file": "apps/api/src/jobs/unarchiveDaemon.ts",
-      "source_location": "L276"
+      "source_location": "L304"
     },
     {
       "id": "apps_api_src_jobs_unarchivedaemon_unarchivedaemon_stop",
@@ -12629,7 +12629,7 @@
       "file_type": "code",
       "norm_label": ".stop()",
       "source_file": "apps/api/src/jobs/unarchiveDaemon.ts",
-      "source_location": "L285"
+      "source_location": "L313"
     },
     {
       "id": "apps_api_src_services_cleanup_cleanupservice_constructor",
@@ -33379,7 +33379,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "apps/api/src/jobs/unarchiveDaemon.ts",
-      "source_location": "L259",
+      "source_location": "L287",
       "weight": 1.0
     },
     {
@@ -33403,7 +33403,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "apps/api/src/jobs/unarchiveDaemon.ts",
-      "source_location": "L279",
+      "source_location": "L307",
       "weight": 1.0
     },
     {
@@ -100572,7 +100572,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "apps/api/src/jobs/unarchiveDaemon.ts",
-      "source_location": "L250",
+      "source_location": "L278",
       "weight": 1.0
     },
     {
@@ -100583,7 +100583,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "apps/api/src/jobs/unarchiveDaemon.ts",
-      "source_location": "L276",
+      "source_location": "L304",
       "weight": 1.0
     },
     {
@@ -100594,7 +100594,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "apps/api/src/jobs/unarchiveDaemon.ts",
-      "source_location": "L285",
+      "source_location": "L313",
       "weight": 1.0
     },
     {
@@ -111452,5 +111452,5 @@
       "source_file": "docs/spec/private-media-type-and-trusted-role.md"
     }
   ],
-  "built_at_commit": "262725671b64e24eb7760fa0c70b2f9d07c91c0a"
+  "built_at_commit": "fbdcced87ae6034e051f9d77c464fde0498c767b"
 }

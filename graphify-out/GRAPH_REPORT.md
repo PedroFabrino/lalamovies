@@ -1,7 +1,7 @@
-# Graph Report - Plex-auto-download  (2026-09-26)
+# Graph Report - Plex-auto-download  (2026-09-27)
 
 ## Corpus Check
-- 431 files · ~276,136 words
+- 431 files · ~276,373 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 13 file(s) not represented in the graph (top: (none) 8, .example 3, .css 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `26272567`
+- Built from commit: `fbdcced8`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -624,10 +624,10 @@ Nodes (11): Dependency diagram, Implementation Decisions, Out of Scope, Problem 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
+- **Why does `vue` connect `vue` to `Navbar.vue`, `stores/requests.ts`, `AnimeCard.vue`, `LibraryView.vue`, `WaitlistView.vue`, `api.ts`, `DashboardView.vue`, `DiscoveryFeed.vue`, `RequestStep1Input.vue`, `web/package.json`, `PromotionModal.vue`, `InviteView.vue`, `AnimeDetailModal.vue`, `AnimeView.vue`, `StreamProgressModal.vue`, `SubtitlePickerModal.vue`, `AdminView.vue`, `TorrentReplacementModal.vue`, `SeasonPackEpisodesDrawer.vue`, `UserInviteModal.vue`, `ActiveStreamsShelf.vue`, `UpNextShelf.vue`, `AdminFeaturesTab.vue`?**
+  _High betweenness centrality (0.027) - this node is a cross-community bridge._
 - **Why does `CleanupService` connect `CleanupService` to `services/cleanup.ts`, `.pruneEpisode`, `.refreshPlayHistory`, `Implementation Decisions`, `serviceContainer.ts`, `IJellyfinService`?**
   _High betweenness centrality (0.027) - this node is a cross-community bridge._
-- **Why does `vue` connect `vue` to `Navbar.vue`, `stores/requests.ts`, `AnimeCard.vue`, `LibraryView.vue`, `WaitlistView.vue`, `api.ts`, `DashboardView.vue`, `DiscoveryFeed.vue`, `RequestStep1Input.vue`, `web/package.json`, `PromotionModal.vue`, `InviteView.vue`, `AnimeDetailModal.vue`, `AnimeView.vue`, `StreamProgressModal.vue`, `SubtitlePickerModal.vue`, `AdminView.vue`, `TorrentReplacementModal.vue`, `SeasonPackEpisodesDrawer.vue`, `UserInviteModal.vue`, `ActiveStreamsShelf.vue`, `UpNextShelf.vue`, `AdminFeaturesTab.vue`?**
-  _High betweenness centrality (0.025) - this node is a cross-community bridge._
 - **Why does `IJellyfinService` connect `IJellyfinService` to `requestService.ts`, `DummyJellyfinService`, `services/cleanup.ts`, `.pruneEpisode`, `animeTypes.ts`, `ref_vitest`, `DummyJellyfinService`, `.refreshPlayHistory`, `ref_node_path`, `DummyJellyfin`, `JellyfinService`, `serviceContainer.ts`, `DummyJellyfinService`, `upNext.ts`, `api/src/db/index.ts`, `CleanupService`, `api/src/services/prowlarr.ts`?**
   _High betweenness centrality (0.024) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `IRequestsRepository` (e.g. with `Rules for Agents` and `Repository & Query Layer`) actually correct?**

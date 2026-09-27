@@ -207,4 +207,55 @@ describe('Poller Handoff & Background Unarchive Processing Daemon (#112)', () =>
     expect(notifications.sentEvents[0].event).toBe('download.completed');
     expect(notifications.sentEvents[0].payload.recipientEmails).toContain('admin@example.com');
   });
+
+  it('locates staging archive file when torrent filename differs from tracker torrent name or request title', async () => {
+    const daemon = new UnarchiveDaemon({
+      db,
+      unarchiveService,
+      fileSystem,
+      jellyfin,
+      qbittorrent: qb,
+      notificationService: notifications,
+      stagingPath: stagingDir,
+    });
+
+    const hash = 'mismatch_name_hash_123';
+    qb.torrents.set(hash, {
+      hash,
+      name: 'シルバーマウンテン 第01-05巻 [Silver Mountain vol 01-05]',
+      progress: 1,
+      dlspeed: 0,
+      eta: 0,
+      state: 'uploading',
+      size: 704683701,
+    });
+    qb.torrentFiles.set(hash, [
+      { name: 'DLRAW.APP_Silver_Mountain vol 01-05.rar', size: 704683701 },
+    ]);
+
+    // Create staging archive directly in staging root with actual file name
+    const archivePath = path.join(stagingDir, 'DLRAW.APP_Silver_Mountain vol 01-05.rar');
+    fs.writeFileSync(archivePath, 'rar content');
+
+    const reqId = 'req_mismatch_title_1';
+    db.insert(downloadRequests).values({
+      id: reqId,
+      userId: 'admin_user',
+      title: 'The Laid-Off Cheat-Granting Mage Enjoys a Second Lease on Life',
+      mediaType: 'anime',
+      status: 'unarchiving',
+      qbTorrentHash: hash,
+      magnetLink: 'magnet:?xt=urn:btih:mismatch_name_hash_123&dn=%E3%82%B7%E3%83%AB%E3%83%90%E3%83%BC%E3%83%9E%E3%82%A6%E3%83%B3%E3%83%86%E3%83%B3',
+      metadataId: '313346',
+      metadataSource: 'tmdb',
+      seasonNumber: 1,
+      episodeNumber: 1,
+      requestedAt: new Date().toISOString(),
+    }).run();
+
+    await daemon.processOnce();
+
+    const updated = db.select().from(downloadRequests).where(eq(downloadRequests.id, reqId)).get();
+    expect(updated?.status).toBe('seeding');
+  });
 });

@@ -96,8 +96,36 @@ export class UnarchiveDaemon {
     // Locate archive file in staging area
     let archiveFile: string | null = null;
 
+    // 1. Direct inspection of torrent files from qBittorrent
+    if (req.qbTorrentHash && this.qbittorrent?.getTorrentFiles) {
+      try {
+        const torrentFiles = await this.qbittorrent.getTorrentFiles(req.qbTorrentHash);
+        const fileNames = torrentFiles.map((f) => f.name);
+        const headArchive = this.unarchiveService.findHeadArchive(fileNames);
+        if (headArchive) {
+          const candidatePath = path.join(this.stagingPath, headArchive);
+          if (fs.existsSync(candidatePath)) {
+            archiveFile = candidatePath;
+          }
+        }
+        if (!archiveFile) {
+          for (const f of torrentFiles) {
+            if (this.unarchiveService.isArchiveFile(f.name)) {
+              const candidatePath = path.join(this.stagingPath, f.name);
+              if (fs.existsSync(candidatePath)) {
+                archiveFile = candidatePath;
+                break;
+              }
+            }
+          }
+        }
+      } catch (err) {
+        this.logger?.warn?.(`Failed to get files from qBittorrent for hash ${req.qbTorrentHash}: ${(err as Error).message}`);
+      }
+    }
+
     // Check directory matching torrent name
-    if (torrentName) {
+    if (!archiveFile && torrentName) {
       const torrentDir = path.join(this.stagingPath, torrentName);
       if (fs.existsSync(torrentDir)) {
         if (fs.statSync(torrentDir).isDirectory()) {
