@@ -186,6 +186,7 @@
           :target-episode-number="targetEpisodeNumber"
           :waitlist-mode="waitlistMode"
           :is-submitting-waitlist="isSubmittingWaitlist"
+          :is-candidate-waitlisted="isCandidateWaitlisted"
           @back="showWaitlistConfirmation = false"
           @update:selected-candidate-id="selectedCandidateId = $event"
           @update:target-season-number="targetSeasonNumber = $event"
@@ -200,7 +201,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import type { SeasonalAnimeItem } from '../../composables/useSeasonalAnime';
 import { api } from '../../lib/api';
 import { useRequestsStore } from '../../stores/requests';
@@ -211,15 +212,8 @@ import AnimeTmdbConfirmSection, { type MetadataCandidate } from './AnimeTmdbConf
 import WaitlistBadge from '../WaitlistBadge.vue';
 
 const props = withDefaults(
-  defineProps<{
-    anime: SeasonalAnimeItem | null;
-    isStreamingEnabled?: boolean;
-    isWaitlisted?: boolean;
-  }>(),
-  {
-    isStreamingEnabled: true,
-    isWaitlisted: false,
-  }
+  defineProps<{ anime: SeasonalAnimeItem | null; isStreamingEnabled?: boolean; isWaitlisted?: boolean }>(),
+  { isStreamingEnabled: true, isWaitlisted: false }
 );
 
 const emit = defineEmits<{
@@ -230,8 +224,12 @@ const emit = defineEmits<{
 
 const requestsStore = useRequestsStore();
 const waitlistStore = useWaitlistStore();
-const { isItemWaitlisted } = useWaitlistMatching();
+const { isItemWaitlisted, ensureWaitlistLoaded } = useWaitlistMatching();
 const isWaitlistedEffective = computed(() => props.isWaitlisted || isItemWaitlisted(props.anime));
+
+onMounted(() => {
+  ensureWaitlistLoaded();
+});
 
 const showWaitlistConfirmation = ref(false);
 const isResolvingTmdb = ref(false);
@@ -242,45 +240,24 @@ const waitlistMode = ref<'episodic' | 'season_pack'>('episodic');
 const targetSeasonNumber = ref<number>(1);
 const targetEpisodeNumber = ref<number>(1);
 
-const posterUrl = computed(() => (
-  props.anime?.coverImage?.extraLarge ||
-  props.anime?.coverImage?.large ||
-  props.anime?.coverImage?.medium ||
-  undefined
-));
-
+const posterUrl = computed(() => props.anime?.coverImage?.extraLarge || props.anime?.coverImage?.large || props.anime?.coverImage?.medium || undefined);
 const bannerUrl = computed(() => props.anime?.bannerImage || undefined);
 const displayTitle = computed(() => props.anime?.title?.english || props.anime?.title?.romaji || 'Untitled');
 const subTitle = computed(() => props.anime?.title?.romaji || props.anime?.title?.native || '');
 const isAiringOrFinished = computed(() => props.anime?.status === 'RELEASING' || props.anime?.status === 'FINISHED');
 
-const cleanDescription = computed(() => {
-  if (!props.anime?.description) return 'No synopsis available.';
-  return props.anime.description.replace(/<br\s*\/?>/gi, '<br />');
-});
+const cleanDescription = computed(() => props.anime?.description ? props.anime.description.replace(/<br\s*\/?>/gi, '<br />') : 'No synopsis available.');
+const trailerUrl = computed(() => (props.anime?.trailer?.id && props.anime.trailer.site?.toLowerCase() === 'youtube' ? `https://www.youtube.com/watch?v=${props.anime.trailer.id}` : null));
+const statusLabel = computed(() => props.anime?.status === 'RELEASING' ? 'Airing' : props.anime?.status === 'FINISHED' ? 'Completed' : props.anime?.status === 'NOT_YET_RELEASED' ? 'Upcoming' : (props.anime?.status || 'Anime'));
+const statusBadgeClasses = computed(() => props.anime?.status === 'RELEASING' ? 'bg-emerald-950/70 border-emerald-700/60 text-emerald-400' : props.anime?.status === 'NOT_YET_RELEASED' ? 'bg-indigo-950/70 border-indigo-700/60 text-indigo-300' : props.anime?.status === 'FINISHED' ? 'bg-zinc-800/80 border-zinc-700/60 text-zinc-300' : 'bg-zinc-800/80 border-zinc-700/60 text-zinc-400');
+const selectedTmdbCandidate = computed(() => tmdbCandidates.value.find((c) => c.id === selectedCandidateId.value) || tmdbCandidates.value[0] || null);
 
-const trailerUrl = computed(() => (
-  props.anime?.trailer?.id && props.anime.trailer.site?.toLowerCase() === 'youtube'
-    ? `https://www.youtube.com/watch?v=${props.anime.trailer.id}`
-    : null
-));
-
-const statusLabel = computed(() => {
-  if (props.anime?.status === 'RELEASING') return 'Airing';
-  if (props.anime?.status === 'FINISHED') return 'Completed';
-  if (props.anime?.status === 'NOT_YET_RELEASED') return 'Upcoming';
-  return props.anime?.status || 'Anime';
-});
-
-const statusBadgeClasses = computed(() => {
-  if (props.anime?.status === 'RELEASING') return 'bg-emerald-950/70 border-emerald-700/60 text-emerald-400';
-  if (props.anime?.status === 'NOT_YET_RELEASED') return 'bg-indigo-950/70 border-indigo-700/60 text-indigo-300';
-  return props.anime?.status === 'FINISHED' ? 'bg-zinc-800/80 border-zinc-700/60 text-zinc-300' : 'bg-zinc-800/80 border-zinc-700/60 text-zinc-400';
-});
-
-const selectedTmdbCandidate = computed(() => {
-  return tmdbCandidates.value.find((c) => c.id === selectedCandidateId.value) || tmdbCandidates.value[0] || null;
-});
+const isCandidateWaitlisted = computed(() => isItemWaitlisted({
+  id: selectedTmdbCandidate.value?.id || props.anime?.id,
+  title: selectedTmdbCandidate.value?.title || parseAnimeTitleAndSeason(displayTitle.value).cleanTitle,
+  mediaType: 'anime',
+  seasonNumber: targetSeasonNumber.value,
+}));
 
 watch(
   () => props.anime,
@@ -343,11 +320,17 @@ async function startWaitlistFlow() {
 async function confirmWaitlistSubmission() {
   if (!props.anime) return;
   const candidate = selectedTmdbCandidate.value;
-  isSubmittingWaitlist.value = true;
-
-  const targetEpisode = waitlistMode.value === 'episodic' ? targetEpisodeNumber.value : null;
   const parsed = parseAnimeTitleAndSeason(displayTitle.value);
   const finalTitle = candidate?.title || parsed.cleanTitle;
+
+  if (isCandidateWaitlisted.value) {
+    requestsStore.showToast(`"${finalTitle}" (S${targetSeasonNumber.value}) is already on your waitlist.`, 'info');
+    handleClose();
+    return;
+  }
+
+  isSubmittingWaitlist.value = true;
+  const targetEpisode = waitlistMode.value === 'episodic' ? targetEpisodeNumber.value : null;
 
   try {
     await api.post('/waitlist', {
@@ -372,10 +355,16 @@ async function confirmWaitlistSubmission() {
 
 async function submitDirectWaitlist() {
   if (!props.anime) return;
-  isSubmittingWaitlist.value = true;
   const parsed = parseAnimeTitleAndSeason(displayTitle.value);
   const finalTitle = parsed.cleanTitle;
 
+  if (isCandidateWaitlisted.value) {
+    requestsStore.showToast(`"${finalTitle}" (S${targetSeasonNumber.value}) is already on your waitlist.`, 'info');
+    handleClose();
+    return;
+  }
+
+  isSubmittingWaitlist.value = true;
   try {
     await api.post('/waitlist', {
       mediaType: 'anime',

@@ -297,6 +297,16 @@
             <span>⚡ Switch to Manual Upload</span>
           </button>
           <button
+            v-if="isSelectedCandidateWaitlisted"
+            type="button"
+            disabled
+            data-testid="add-to-waitlist-banner-btn"
+            class="px-3.5 py-1.5 bg-zinc-800 text-zinc-400 border border-zinc-700/50 rounded-lg text-xs font-medium inline-flex items-center gap-1.5 cursor-not-allowed opacity-80 shadow-sm"
+          >
+            <span>✓ Already on Waitlist</span>
+          </button>
+          <button
+            v-else
             type="button"
             data-testid="add-to-waitlist-banner-btn"
             class="px-3.5 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-medium transition inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
@@ -320,12 +330,14 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import ReleaseExplorerDrawer from './ReleaseExplorerDrawer.vue';
 import Step3ManualFallback from './Step3ManualFallback.vue';
 import type { MetadataCandidate, BatchItem } from '../../views/RequestView.vue';
 import type { ReleaseCandidate, CandidateSortOption } from '../../lib/releaseExplorer';
+import { useWaitlistMatching } from '../../composables/useWaitlistMatching';
 
-defineProps<{
+const props = defineProps<{
   inputMode: 'search' | 'magnet' | 'file';
   isSearchingReleases: boolean;
   selectedCandidate: MetadataCandidate | null;
@@ -370,4 +382,14 @@ defineEmits<{
   (e: 'selectRelease', candidate: ReleaseCandidate): void;
   (e: 'navigateToWaitlistWithMetadata'): void;
 }>();
+
+const { isItemWaitlisted } = useWaitlistMatching();
+const isSelectedCandidateWaitlisted = computed(() => {
+  if (!props.selectedCandidate) return false;
+  return isItemWaitlisted({
+    id: props.selectedCandidate.id,
+    title: props.selectedCandidate.title,
+    mediaType: props.selectedCandidate.mediaType,
+  });
+});
 </script>

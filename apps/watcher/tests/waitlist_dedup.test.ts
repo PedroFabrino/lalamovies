@@ -133,4 +133,84 @@ describe('Watcher Waitlist Deduplication Hardening', () => {
 
     await app.close();
   });
+
+  it('prevents duplicate active entry when user adds episode 1 while already tracking episode 2 of the same season', async () => {
+    const app = buildWatcherApp({ dbPath: ':memory:', serviceApiKey: 'test-secret' });
+
+    // 1. User has anime tracking Season 1 Episode 2
+    const res1 = await app.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: {
+        'x-service-key': 'test-secret',
+        'x-user-id': 'user-1',
+      },
+      payload: {
+        mediaType: 'anime',
+        metadataId: '313346',
+        metadataSource: 'tmdb',
+        title: 'The Laid-Off Cheat-Granting Mage Enjoys a Second Lease on Life',
+        seasonNumber: 1,
+        targetEpisode: 2,
+      },
+    });
+    expect(res1.statusCode).toBe(201);
+    const existingEntry = res1.json().entry;
+    expect(existingEntry.targetEpisode).toBe(2);
+
+    // 2. User tries to add Season 1 Episode 1 (e.g. from UI or re-request)
+    const res2 = await app.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: {
+        'x-service-key': 'test-secret',
+        'x-user-id': 'user-1',
+      },
+      payload: {
+        mediaType: 'anime',
+        metadataId: '313346',
+        metadataSource: 'tmdb',
+        title: 'The Laid-Off Cheat-Granting Mage Enjoys a Second Lease on Life',
+        seasonNumber: 1,
+        targetEpisode: 1,
+      },
+    });
+    expect(res2.statusCode).toBe(200);
+    expect(res2.json().entry.id).toBe(existingEntry.id);
+
+    // 3. User tries with AniList title / metadataId for Season 1 Episode 1
+    const res3 = await app.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: {
+        'x-service-key': 'test-secret',
+        'x-user-id': 'user-1',
+      },
+      payload: {
+        mediaType: 'anime',
+        metadataId: '207329',
+        metadataSource: 'anilist',
+        title: 'The Laid-Off Cheat-Granting Mage Enjoys a Second Lease on Life',
+        seasonNumber: 1,
+        targetEpisode: 1,
+      },
+    });
+    expect(res3.statusCode).toBe(200);
+    expect(res3.json().entry.id).toBe(existingEntry.id);
+
+    // Verify only 1 row exists in waitlist for user
+    const listRes = await app.inject({
+      method: 'GET',
+      url: '/waitlist?userId=user-1',
+      headers: {
+        'x-service-key': 'test-secret',
+        'x-user-id': 'user-1',
+      },
+    });
+    expect(listRes.statusCode).toBe(200);
+    expect(listRes.json().entries).toHaveLength(1);
+
+    await app.close();
+  });
 });
+

@@ -604,6 +604,7 @@
                     v-if="candidate.year"
                     class="text-xs text-zinc-400 shrink-0"
                   >({{ candidate.year }})</span>
+                  <WaitlistBadge v-if="isItemWaitlisted({ id: candidate.id, title: candidate.title, mediaType: searchMediaType })" />
                 </div>
                 <p
                   v-if="candidate.overview"
@@ -670,6 +671,23 @@
                   {{ formatMediaType(selectedMediaType) }}
                 </span>
               </div>
+            </div>
+          </div>
+
+          <!-- Guard: Already On Waitlist Alert -->
+          <div
+            v-if="isCandidateAlreadyWaitlisted"
+            class="p-4 bg-amber-950/40 border border-amber-800/80 rounded-xl text-xs text-amber-300 flex items-start gap-3"
+            data-testid="already-on-waitlist-alert"
+          >
+            <span class="text-lg leading-none">⚠️</span>
+            <div class="space-y-1">
+              <div class="font-semibold text-amber-200">
+                Already on your waitlist!
+              </div>
+              <p class="text-zinc-300">
+                This {{ selectedMediaType === 'movie' ? 'movie' : 'series season' }} is already active on your waitlist. You cannot add it again.
+              </p>
             </div>
           </div>
 
@@ -838,9 +856,9 @@
             <button
               type="button"
               data-testid="confirm-add-waitlist-btn"
-              :disabled="isSubmitting || libraryStatus?.inLibrary"
+              :disabled="isSubmitting || libraryStatus?.inLibrary || isCandidateAlreadyWaitlisted"
               class="px-5 py-2 text-white text-xs font-semibold rounded-lg shadow transition flex items-center gap-2"
-              :class="libraryStatus?.inLibrary ? 'opacity-50 cursor-not-allowed bg-zinc-700 hover:bg-zinc-700' : 'bg-indigo-600 hover:bg-indigo-500 cursor-pointer disabled:opacity-50'"
+              :class="libraryStatus?.inLibrary || isCandidateAlreadyWaitlisted ? 'opacity-50 cursor-not-allowed bg-zinc-700 hover:bg-zinc-700' : 'bg-indigo-600 hover:bg-indigo-500 cursor-pointer disabled:opacity-50'"
               @click="submitWaitlistEntry"
             >
               <svg
@@ -863,7 +881,7 @@
                   d="M4 12a8 8 0 018-8v8H4z"
                 />
               </svg>
-              <span>{{ isSubmitting ? 'Adding...' : (libraryStatus?.inLibrary ? 'Already in Library' : 'Confirm & Add to Waitlist') }}</span>
+              <span>{{ isSubmitting ? 'Adding...' : (isCandidateAlreadyWaitlisted ? 'Already on Waitlist' : (libraryStatus?.inLibrary ? 'Already in Library' : 'Confirm & Add to Waitlist')) }}</span>
             </button>
           </div>
         </div>
@@ -873,11 +891,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Navbar from '../components/Navbar.vue';
+import WaitlistBadge from '../components/WaitlistBadge.vue';
 import { useWaitlistStore, WaitlistEntry, WaitlistStatus } from '../stores/waitlist';
 import { useAuthStore } from '../stores/auth';
+import { useWaitlistMatching } from '../composables/useWaitlistMatching';
 import { api } from '../lib/api';
 import { formatMediaType } from '../lib/formatters';
 
@@ -885,6 +905,17 @@ const route = useRoute();
 const router = useRouter();
 const waitlistStore = useWaitlistStore();
 const authStore = useAuthStore();
+const { isItemWaitlisted } = useWaitlistMatching();
+
+const isCandidateAlreadyWaitlisted = computed(() => {
+  if (!selectedCandidate.value) return false;
+  return isItemWaitlisted({
+    id: selectedCandidate.value.id,
+    title: selectedCandidate.value.title,
+    mediaType: selectedMediaType.value,
+    seasonNumber: ['tv_show', 'anime'].includes(selectedMediaType.value) ? (selectedSeasonNumber.value || 1) : undefined,
+  });
+});
 
 // Admin view toggle (Ticket 10)
 const activeView = ref<'mine' | 'all'>(authStore.isAdmin ? 'all' : 'mine');
@@ -1149,6 +1180,10 @@ async function selectCandidate(candidate: WaitlistCandidate) {
 
 async function submitWaitlistEntry() {
   if (!selectedCandidate.value) return;
+  if (isCandidateAlreadyWaitlisted.value) {
+    waitlistStore.showToast('This item is already on your waitlist.', 'info');
+    return;
+  }
   isSubmitting.value = true;
   try {
     await waitlistStore.addEntry({

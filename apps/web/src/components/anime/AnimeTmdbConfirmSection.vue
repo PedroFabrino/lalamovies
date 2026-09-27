@@ -45,10 +45,12 @@
       </div>
       <button
         type="button"
-        class="px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white"
+        class="px-4 py-2 rounded-lg text-xs font-semibold text-white transition"
+        :class="isCandidateWaitlisted ? 'bg-zinc-800 text-zinc-400 border border-zinc-700/50 cursor-not-allowed opacity-80' : 'bg-indigo-600 hover:bg-indigo-500 cursor-pointer'"
+        :disabled="isCandidateWaitlisted"
         @click="$emit('submit-direct')"
       >
-        Submit with Cleaned AniList Title (Season {{ targetSeasonNumber }})
+        {{ isCandidateWaitlisted ? '✓ Already on Waitlist' : `Submit with Cleaned AniList Title (Season ${targetSeasonNumber})` }}
       </button>
     </div>
 
@@ -186,6 +188,23 @@
         </label>
       </div>
 
+      <!-- Candidate already waitlisted alert -->
+      <div
+        v-if="isCandidateWaitlisted"
+        class="p-3 bg-amber-950/40 border border-amber-800/80 rounded-xl text-xs text-amber-300 flex items-start gap-2.5"
+        data-testid="tmdb-already-waitlisted-alert"
+      >
+        <span class="text-base leading-none">⚠️</span>
+        <div class="space-y-0.5">
+          <div class="font-semibold text-amber-200">
+            Already on your waitlist!
+          </div>
+          <p class="text-zinc-300">
+            This anime is already being tracked on your waitlist for Season {{ targetSeasonNumber }}.
+          </p>
+        </div>
+      </div>
+
       <!-- Confirmation Action Buttons -->
       <div class="flex items-center justify-end gap-3 pt-2">
         <button
@@ -198,15 +217,16 @@
         </button>
         <button
           type="button"
-          class="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 shadow"
-          :disabled="isSubmittingWaitlist"
+          class="px-5 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 shadow transition"
+          :class="isCandidateWaitlisted ? 'bg-zinc-800 text-zinc-400 border border-zinc-700/50 cursor-not-allowed opacity-80' : 'bg-indigo-600 hover:bg-indigo-500 cursor-pointer'"
+          :disabled="isSubmittingWaitlist || isCandidateWaitlisted"
           @click="$emit('confirm')"
         >
           <span
             v-if="isSubmittingWaitlist"
             class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"
           />
-          <span>{{ isSubmittingWaitlist ? 'Adding...' : 'Confirm & Add to Waitlist' }}</span>
+          <span>{{ isCandidateWaitlisted ? '✓ Already on Waitlist' : (isSubmittingWaitlist ? 'Adding...' : 'Confirm & Add to Waitlist') }}</span>
         </button>
       </div>
     </div>
@@ -233,6 +253,7 @@ const props = defineProps<{
   targetEpisodeNumber: number;
   waitlistMode: 'episodic' | 'season_pack';
   isSubmittingWaitlist: boolean;
+  isCandidateWaitlisted?: boolean;
 }>();
 
 defineEmits<{

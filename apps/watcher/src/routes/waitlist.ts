@@ -164,9 +164,17 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
           matchingEntry = pack;
         } else {
           // 2. Exact episode match
-          matchingEntry = candidateEntries.find(
+          const exactEp = candidateEntries.find(
             (e) => (e.seasonNumber ?? 1) === effectiveSeason && e.targetEpisode === effectiveTargetEpisode
           );
+          if (exactEp) {
+            matchingEntry = exactEp;
+          } else {
+            // 3. For the SAME user, an active entry for this season prevents duplicate
+            matchingEntry = candidateEntries.find(
+              (e) => e.userId === userId && (e.seasonNumber ?? 1) === effectiveSeason
+            );
+          }
         }
       } else {
         // 1. Exact season pack match (applies cross-user)

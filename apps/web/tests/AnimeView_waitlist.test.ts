@@ -371,4 +371,66 @@ describe('Anime Tab Waitlist Integration', () => {
     });
     expect(s1CardWrapper.find('[data-testid="waitlist-badge"]').exists()).toBe(false);
   });
+
+  it('automatically fetches waitlist on AnimeDetailModal mount and disables confirmation when candidate is already waitlisted', async () => {
+    const existingEntry = {
+      id: 'w-cheat-mage-1',
+      userId: 'u1',
+      mediaType: 'anime' as const,
+      metadataId: '313346',
+      metadataSource: 'tmdb' as const,
+      title: 'The Laid-Off Cheat-Granting Mage Enjoys a Second Lease on Life',
+      seasonNumber: 1,
+      targetEpisode: 2,
+      status: 'pending_release' as const,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    vi.mocked(api.get).mockImplementation(async (url: string) => {
+      if (url === '/waitlist') return { entries: [existingEntry] };
+      return {};
+    });
+
+    const cheatAnime = {
+      id: 207329,
+      title: {
+        romaji: 'Tsuihou Sareta Cheat Fuyo Majutsushi',
+        english: 'The Laid-Off Cheat-Granting Mage Enjoys a Second Lease on Life',
+        native: '追放されたチート付与魔術師',
+      },
+      format: 'TV',
+      status: 'NOT_YET_RELEASED',
+      episodes: 12,
+      season: 'SUMMER' as const,
+      seasonYear: 2026,
+      startDate: { year: 2026, month: 7, day: 1 },
+      coverImage: { extraLarge: '', large: '', medium: '' },
+      bannerImage: null,
+      genres: ['Fantasy'],
+      averageScore: 70,
+      popularity: 20000,
+      description: 'Mage story',
+      trailer: null,
+    };
+
+    const modalWrapper = mount(AnimeDetailModal, {
+      ...mountOptions,
+      props: {
+        anime: cheatAnime,
+      },
+    });
+    await flushPromises();
+
+    // 1. Should fetch waitlist on mount
+    expect(api.get).toHaveBeenCalledWith('/waitlist');
+
+    // 2. Main modal button should show waitlisted & disabled
+    expect(modalWrapper.find('[data-testid="waitlist-badge"]').exists()).toBe(true);
+    const waitlistBtn = modalWrapper.findAll('button').find((b) => b.text().toLowerCase().includes('waitlist'));
+    expect(waitlistBtn).toBeDefined();
+    expect(waitlistBtn!.attributes('disabled')).toBeDefined();
+    expect(modalWrapper.text()).not.toContain('+ Add to Waitlist');
+  });
 });
+
