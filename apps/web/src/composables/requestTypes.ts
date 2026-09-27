@@ -10,6 +10,7 @@ export interface MetadataCandidate {
   overview: string | null;
   romajiTitle?: string | null;
   englishTitle?: string | null;
+  mediaType?: 'movie' | 'tv_show' | 'anime';
 }
 
 export type { ReleaseCandidate };

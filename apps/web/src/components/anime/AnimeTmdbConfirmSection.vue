@@ -27,31 +27,39 @@
     <div
       v-else-if="tmdbCandidates.length === 0"
       class="py-6 text-center text-zinc-400 text-sm space-y-4"
+      data-testid="no-tmdb-match-fallback"
     >
-      <p>No exact TMDB match was found automatically.</p>
-      <div class="max-w-xs mx-auto text-left p-3 rounded-xl bg-zinc-950/40 border border-zinc-800/80">
-        <label class="block text-xs font-semibold text-zinc-300 mb-1">Target Season:</label>
-        <div class="flex items-center gap-2">
-          <span class="text-xs text-zinc-500 font-mono">Season</span>
-          <input
-            type="number"
-            min="1"
-            max="99"
-            :value="targetSeasonNumber"
-            class="w-20 bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white text-center font-bold"
-            @input="$emit('update:targetSeasonNumber', Math.max(1, parseInt(($event.target as HTMLInputElement).value, 10) || 1))"
-          >
-        </div>
+      <div class="w-12 h-12 rounded-full bg-zinc-800/80 border border-zinc-700/60 flex items-center justify-center mx-auto text-xl text-zinc-400">
+        🔍
       </div>
-      <button
-        type="button"
-        class="px-4 py-2 rounded-lg text-xs font-semibold text-white transition"
-        :class="isCandidateWaitlisted ? 'bg-zinc-800 text-zinc-400 border border-zinc-700/50 cursor-not-allowed opacity-80' : 'bg-indigo-600 hover:bg-indigo-500 cursor-pointer'"
-        :disabled="isCandidateWaitlisted"
-        @click="$emit('submit-direct')"
-      >
-        {{ isCandidateWaitlisted ? '✓ Already on Waitlist' : `Submit with Cleaned AniList Title (Season ${targetSeasonNumber})` }}
-      </button>
+      <div>
+        <p class="text-zinc-200 font-semibold text-sm">
+          No TMDB match found automatically
+        </p>
+        <p class="text-xs text-zinc-400 mt-1 max-w-sm mx-auto">
+          A canonical TMDB match is required to track episodes and air dates. Search TMDB manually to find the show:
+        </p>
+      </div>
+
+      <div class="max-w-md mx-auto flex items-center gap-2">
+        <input
+          v-model="manualSearchQuery"
+          type="text"
+          placeholder="Search show title on TMDB..."
+          class="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          data-testid="manual-tmdb-search-input"
+          @keyup.enter="handleManualSearch"
+        >
+        <button
+          type="button"
+          class="px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition disabled:opacity-50"
+          :disabled="!manualSearchQuery.trim() || isResolvingTmdb"
+          data-testid="manual-tmdb-search-btn"
+          @click="handleManualSearch"
+        >
+          Search
+        </button>
+      </div>
     </div>
 
     <div
@@ -83,12 +91,47 @@
         </div>
       </div>
 
+      <!-- Candidate Switcher & Manual Search Toggle -->
+      <div class="flex items-center justify-between text-xs text-zinc-400">
+        <label v-if="tmdbCandidates.length > 1">Alternate TMDB Candidate:</label>
+        <span v-else />
+        <button
+          type="button"
+          class="text-[11px] text-indigo-400 hover:text-indigo-300 underline"
+          @click="isManualSearchOpen = !isManualSearchOpen"
+        >
+          {{ isManualSearchOpen ? 'Hide search' : 'Wrong show? Search TMDB manually' }}
+        </button>
+      </div>
+
+      <div
+        v-if="isManualSearchOpen"
+        class="flex items-center gap-2 pt-1 pb-1"
+      >
+        <input
+          v-model="manualSearchQuery"
+          type="text"
+          placeholder="Search different show title..."
+          class="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          data-testid="manual-tmdb-alt-input"
+          @keyup.enter="handleManualSearch"
+        >
+        <button
+          type="button"
+          class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition disabled:opacity-50"
+          :disabled="!manualSearchQuery.trim() || isResolvingTmdb"
+          data-testid="manual-tmdb-alt-btn"
+          @click="handleManualSearch"
+        >
+          Search
+        </button>
+      </div>
+
       <!-- Candidate Switcher if Multiple -->
       <div
         v-if="tmdbCandidates.length > 1"
         class="text-xs"
       >
-        <label class="block text-zinc-400 mb-1">Alternate TMDB Candidate:</label>
         <select
           :value="selectedCandidateId"
           class="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-xs text-zinc-200"
@@ -234,7 +277,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 
 export interface MetadataCandidate {
   id: string;
@@ -256,15 +299,24 @@ const props = defineProps<{
   isCandidateWaitlisted?: boolean;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'back'): void;
   (e: 'update:selectedCandidateId', id: string): void;
   (e: 'update:targetSeasonNumber', season: number): void;
   (e: 'update:targetEpisodeNumber', episode: number): void;
   (e: 'update:waitlistMode', mode: 'episodic' | 'season_pack'): void;
   (e: 'confirm'): void;
-  (e: 'submit-direct'): void;
+  (e: 'search-manual', query: string): void;
 }>();
+
+const manualSearchQuery = ref('');
+const isManualSearchOpen = ref(false);
+
+function handleManualSearch() {
+  const q = manualSearchQuery.value.trim();
+  if (!q) return;
+  emit('search-manual', q);
+}
 
 const selectedCandidate = computed(() => {
   return (

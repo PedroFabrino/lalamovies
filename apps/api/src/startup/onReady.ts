@@ -4,6 +4,7 @@ import { systemConfig, users } from '../db';
 import { AppOptions } from '../appTypes';
 import { runCorruptedArchiveRecovery } from '../services/unarchiveRecovery';
 import { runHardlinkingRecovery } from '../services/hardlinkRecovery';
+import { runLegacyAnilistMigration } from '../services/legacyAnilistMigration';
 
 export function registerStartupHooks(app: FastifyInstance, options: AppOptions): void {
   app.addHook('onReady', async () => {
@@ -136,6 +137,18 @@ export function registerStartupHooks(app: FastifyInstance, options: AppOptions):
               app.log.warn(bfErr, 'Non-fatal error in startup season pack backfill');
             });
         }
+
+        runLegacyAnilistMigration({
+          requestsRepo,
+          metadataService: app.metadata,
+          logger: {
+            info: (msg) => app.log.info(msg),
+            warn: (msg) => app.log.warn(msg),
+            error: (msg, err) => app.log.error(err, msg),
+          },
+        }).catch((err) => {
+          app.log.warn(err, 'Non-fatal error in startup legacy AniList migration');
+        });
       });
     }
   });

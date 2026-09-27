@@ -376,4 +376,20 @@ export class RequestsRepository implements IRequestsRepository {
       )
       .get();
   }
+
+  findLegacyAnilist(): DownloadRequest[] {
+    return this.db
+      .select()
+      .from(downloadRequests)
+      .where(eq(downloadRequests.metadataSource, 'anilist'))
+      .all();
+  }
+
+  updateMetadataSource(id: string, metadataId: string, metadataSource: 'tmdb' | 'anilist'): void {
+    this.db
+      .update(downloadRequests)
+      .set({ metadataId, metadataSource })
+      .where(eq(downloadRequests.id, id))
+      .run();
+  }
 }

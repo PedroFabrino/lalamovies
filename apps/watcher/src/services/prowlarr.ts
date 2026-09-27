@@ -1,5 +1,6 @@
 import { extractEpisodeInfo } from '../utils/torrentTitleCleaner';
 import { isPreferredIndexer, isQualifiedPreferred } from '../utils/preferredIndexer';
+import { buildSeriesSearchQueries } from '../utils/seriesQueryBuilder';
 
 export type Resolution = '2160p' | '1080p' | '720p' | '480p' | 'unknown';
 export type VideoCodec = 'x265' | 'x264' | 'av1' | 'xvid' | 'unknown';
@@ -206,57 +207,11 @@ export class WatcherProwlarrService {
     return Boolean(this.apiKey && this.apiKey.trim().length > 0);
   }
 
-  async searchForEntry(entry: {
-    mediaType: 'movie' | 'tv_show' | 'anime';
-    title: string;
-    year?: number | null;
-    seasonNumber?: number | null;
-    targetEpisode?: number | null;
-  }): Promise<ReleaseCandidate[]> {
-    if (!this.isConfigured()) {
-      return [];
-    }
-
-    const { mediaType, title, year, seasonNumber, targetEpisode } = entry;
-    const isSingleEpisode = targetEpisode !== undefined && targetEpisode !== null;
-    const effectiveSeason = seasonNumber ?? (mediaType !== 'movie' ? 1 : null);
-    const scoreOptions: ScoreOptions = {
-      mediaType,
-      isSingleEpisode,
-      seasonNumber: effectiveSeason,
-      episodeNumber: targetEpisode ?? null,
-    };
-
-    let query = '';
-    let categories: number[] = [2000];
-
-    if (mediaType === 'movie') {
-      const parts = [title.trim()];
-      if (year) parts.push(String(year));
-      query = parts.join(' ');
-      categories = [2000];
-    } else if (mediaType === 'tv_show') {
-      const sNum = seasonNumber && seasonNumber > 0 ? seasonNumber : 1;
-      const sPad = String(sNum).padStart(2, '0');
-      if (isSingleEpisode) {
-        const ePad = String(targetEpisode).padStart(2, '0');
-        query = `${title.trim()} S${sPad}E${ePad}`;
-      } else {
-        query = `${title.trim()} S${sPad}`;
-      }
-      categories = [5000, 5070];
-    } else if (mediaType === 'anime') {
-      categories = [5070, 2070];
-      const sNum = seasonNumber && seasonNumber > 0 ? seasonNumber : 1;
-      const sPad = String(sNum).padStart(2, '0');
-      if (isSingleEpisode) {
-        const ePad = String(targetEpisode).padStart(2, '0');
-        query = `${title.trim()} S${sPad}E${ePad}`;
-      } else {
-        query = `${title.trim()} S${sPad}`;
-      }
-    }
-
+  private async executeSingleSearch(
+    query: string,
+    categories: number[],
+    scoreOptions: ScoreOptions
+  ): Promise<ReleaseCandidate[]> {
     const catParams = categories.map((c) => `categories=${encodeURIComponent(c)}`).join('&');
     const endpointUrl = `${this.prowlarrUrl}/api/v1/search?query=${encodeURIComponent(query)}&type=search&${catParams}`;
 
@@ -341,11 +296,68 @@ export class WatcherProwlarrService {
       });
     }
 
-    // When PREFERRED_INDEXER_REGEX is configured, filter candidates to preferred only
-    if (process.env.PREFERRED_INDEXER_REGEX?.trim()) {
-      return candidates.filter((c) => c.isPreferred);
+    return candidates;
+  }
+
+  async searchForEntry(entry: {
+    mediaType: 'movie' | 'tv_show' | 'anime';
+    title: string;
+    year?: number | null;
+    seasonNumber?: number | null;
+    targetEpisode?: number | null;
+  }): Promise<ReleaseCandidate[]> {
+    if (!this.isConfigured()) {
+      return [];
     }
 
-    return candidates;
+    const { mediaType, title, year, seasonNumber, targetEpisode } = entry;
+    const isSingleEpisode = targetEpisode !== undefined && targetEpisode !== null;
+    const effectiveSeason = seasonNumber ?? (mediaType !== 'movie' ? 1 : null);
+    const scoreOptions: ScoreOptions = {
+      mediaType,
+      isSingleEpisode,
+      seasonNumber: effectiveSeason,
+      episodeNumber: targetEpisode ?? null,
+    };
+
+    let allCandidates: ReleaseCandidate[] = [];
+
+    if (mediaType === 'movie') {
+      const parts = [title.trim()];
+      if (year) parts.push(String(year));
+      allCandidates = await this.executeSingleSearch(parts.join(' '), [2000], scoreOptions);
+    } else {
+      const seriesQueries = buildSeriesSearchQueries({
+        title,
+        seasonNumber,
+        episodeNumber: targetEpisode,
+      });
+
+      const results = await Promise.allSettled(
+        seriesQueries.map((sq) => this.executeSingleSearch(sq.query, sq.categories, scoreOptions))
+      );
+
+      const seen = new Set<string>();
+      for (const r of results) {
+        if (r.status === 'fulfilled') {
+          for (const cand of r.value) {
+            const key = cand.guid || cand.downloadUrl;
+            if (!seen.has(key)) {
+              seen.add(key);
+              allCandidates.push(cand);
+            }
+          }
+        }
+      }
+    }
+
+    allCandidates.sort((a, b) => b.score - a.score);
+
+    // When PREFERRED_INDEXER_REGEX is configured, filter candidates to preferred only
+    if (process.env.PREFERRED_INDEXER_REGEX?.trim()) {
+      return allCandidates.filter((c) => c.isPreferred);
+    }
+
+    return allCandidates;
   }
 }

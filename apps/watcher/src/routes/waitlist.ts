@@ -115,6 +115,13 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
+    if (body.metadataSource !== 'tmdb') {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: "metadataSource must be 'tmdb'",
+      });
+    }
+
     const effectiveSeason = body.seasonNumber ?? (body.mediaType === 'movie' ? null : 1);
     const effectiveTargetEpisode = body.mediaType === 'movie'
       ? null
@@ -134,7 +141,7 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
 
     const candidateEntries = activeEntries.filter((e) => {
       const isEntrySeries = e.mediaType === 'tv_show' || e.mediaType === 'anime';
-      if (isBodySeries !== isEntrySeries && (!body.metadataId || e.metadataId !== body.metadataId)) {
+      if (isBodySeries !== isEntrySeries) {
         return false;
       }
 

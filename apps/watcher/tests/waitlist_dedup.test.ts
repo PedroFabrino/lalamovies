@@ -2,11 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { buildWatcherApp } from '../src/app';
 
 describe('Watcher Waitlist Deduplication Hardening', () => {
-  it('deduplicates across metadata sources by normalized title and prevents duplicate season entries for the same user', async () => {
+  it('rejects waitlist submission when metadataSource is not tmdb', async () => {
     const app = buildWatcherApp({ dbPath: ':memory:', serviceApiKey: 'test-secret' });
 
-    // 1. User adds anime with anilist source as episodic S1E1
-    const res1 = await app.inject({
+    const res = await app.inject({
       method: 'POST',
       url: '/waitlist',
       headers: {
@@ -17,6 +16,33 @@ describe('Watcher Waitlist Deduplication Hardening', () => {
         mediaType: 'anime',
         metadataId: '177432',
         metadataSource: 'anilist',
+        title: 'A Wild Last Boss Appeared!',
+        seasonNumber: 1,
+        targetEpisode: 1,
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().message).toContain('tmdb');
+
+    await app.close();
+  });
+
+  it('deduplicates across metadata entries by normalized title and prevents duplicate season entries for the same user', async () => {
+    const app = buildWatcherApp({ dbPath: ':memory:', serviceApiKey: 'test-secret' });
+
+    // 1. User adds anime with TMDB source as episodic S1E1
+    const res1 = await app.inject({
+      method: 'POST',
+      url: '/waitlist',
+      headers: {
+        'x-service-key': 'test-secret',
+        'x-user-id': 'user-1',
+      },
+      payload: {
+        mediaType: 'anime',
+        metadataId: 'tmdb-999888',
+        metadataSource: 'tmdb',
         title: 'A Wild Last Boss Appeared!',
         seasonNumber: 1,
         targetEpisode: 1,
@@ -35,8 +61,8 @@ describe('Watcher Waitlist Deduplication Hardening', () => {
       },
       payload: {
         mediaType: 'anime',
-        metadataId: '177432',
-        metadataSource: 'anilist',
+        metadataId: 'tmdb-999888',
+        metadataSource: 'tmdb',
         title: 'A Wild Last Boss Appeared!',
         seasonNumber: 1,
         targetEpisode: null,
@@ -45,8 +71,8 @@ describe('Watcher Waitlist Deduplication Hardening', () => {
     expect(resSameUserSeasonPack.statusCode).toBe(200);
     expect(resSameUserSeasonPack.json().entry.id).toBe(firstEntry.id);
 
-    // 3. Same user tries to add with TMDB metadataId and source, but same normalized title
-    const resSameUserTmdbSource = await app.inject({
+    // 3. Same user tries to add with different TMDB metadataId, but same normalized title
+    const resSameUserDifferentId = await app.inject({
       method: 'POST',
       url: '/waitlist',
       headers: {
@@ -55,15 +81,15 @@ describe('Watcher Waitlist Deduplication Hardening', () => {
       },
       payload: {
         mediaType: 'anime',
-        metadataId: 'tmdb-999888',
+        metadataId: 'tmdb-777666',
         metadataSource: 'tmdb',
         title: 'A Wild Last Boss Appeared!',
         seasonNumber: 1,
         targetEpisode: 1,
       },
     });
-    expect(resSameUserTmdbSource.statusCode).toBe(200);
-    expect(resSameUserTmdbSource.json().entry.id).toBe(firstEntry.id);
+    expect(resSameUserDifferentId.statusCode).toBe(200);
+    expect(resSameUserDifferentId.json().entry.id).toBe(firstEntry.id);
 
     await app.close();
   });
@@ -110,26 +136,6 @@ describe('Watcher Waitlist Deduplication Hardening', () => {
     });
     expect(res2.statusCode).toBe(200);
     expect(res2.json().entry.id).toBe(existingEntry.id);
-
-    // 3. User tries to add from Anime tab as anime with same normalized title but anilist metadata
-    const res3 = await app.inject({
-      method: 'POST',
-      url: '/waitlist',
-      headers: {
-        'x-service-key': 'test-secret',
-        'x-user-id': 'user-1',
-      },
-      payload: {
-        mediaType: 'anime',
-        metadataId: '172192',
-        metadataSource: 'anilist',
-        title: "A Returner's Magic Should Be Special",
-        seasonNumber: 2,
-        targetEpisode: 1,
-      },
-    });
-    expect(res3.statusCode).toBe(200);
-    expect(res3.json().entry.id).toBe(existingEntry.id);
 
     await app.close();
   });
@@ -178,26 +184,6 @@ describe('Watcher Waitlist Deduplication Hardening', () => {
     expect(res2.statusCode).toBe(200);
     expect(res2.json().entry.id).toBe(existingEntry.id);
 
-    // 3. User tries with AniList title / metadataId for Season 1 Episode 1
-    const res3 = await app.inject({
-      method: 'POST',
-      url: '/waitlist',
-      headers: {
-        'x-service-key': 'test-secret',
-        'x-user-id': 'user-1',
-      },
-      payload: {
-        mediaType: 'anime',
-        metadataId: '207329',
-        metadataSource: 'anilist',
-        title: 'The Laid-Off Cheat-Granting Mage Enjoys a Second Lease on Life',
-        seasonNumber: 1,
-        targetEpisode: 1,
-      },
-    });
-    expect(res3.statusCode).toBe(200);
-    expect(res3.json().entry.id).toBe(existingEntry.id);
-
     // Verify only 1 row exists in waitlist for user
     const listRes = await app.inject({
       method: 'GET',
@@ -213,4 +199,3 @@ describe('Watcher Waitlist Deduplication Hardening', () => {
     await app.close();
   });
 });
-

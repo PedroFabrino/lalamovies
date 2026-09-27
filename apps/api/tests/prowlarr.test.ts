@@ -440,10 +440,14 @@ describe('Prowlarr Service - Unit Tests', () => {
       expect(capturedUrl).toContain(encodeURIComponent('Breaking Bad S01E05'));
     });
 
-    it('routes Anime to categories 5070,2070 and uses Romaji title', async () => {
-      let capturedUrl = '';
-      vi.spyOn(global, 'fetch').mockImplementationOnce(async (url) => {
-        capturedUrl = String(url);
+    it('routes Anime to categories 5000,5070,2070 and uses Romaji title', async () => {
+      const urls: string[] = [];
+      vi.spyOn(global, 'fetch').mockImplementation(async (url) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/api/v1/indexer')) {
+          return { ok: true, json: async () => [] } as Response;
+        }
+        urls.push(urlStr);
         return {
           ok: true,
           json: async () => [
@@ -483,8 +487,8 @@ describe('Prowlarr Service - Unit Tests', () => {
         episodeNumber: 1,
       });
 
-      expect(capturedUrl).toContain('categories=5070&categories=2070');
-      expect(capturedUrl).toContain(encodeURIComponent('Sousou no Frieren - 01'));
+      expect(urls.some((u) => u.includes('categories=5000&categories=5070&categories=2070'))).toBe(true);
+      expect(urls.some((u) => u.includes(encodeURIComponent('Sousou no Frieren - 01')))).toBe(true);
       expect(result.totalFound).toBe(3);
       expect(result.recommended?.title).toBe('[SubsPlease] Sousou no Frieren - 01 (1080p)');
     });
@@ -537,9 +541,9 @@ describe('Prowlarr Service - Unit Tests', () => {
         episodeNumber: 1,
       });
 
-      expect(urls.length).toBe(2);
-      expect(urls[0]).toContain(encodeURIComponent('Shingeki no Kyojin - 01'));
-      expect(urls[1]).toContain(encodeURIComponent('Attack on Titan - 01'));
+      expect(urls.length).toBe(6);
+      expect(urls.some((u) => u.includes(encodeURIComponent('Shingeki no Kyojin - 01')))).toBe(true);
+      expect(urls.some((u) => u.includes(encodeURIComponent('Attack on Titan - 01')))).toBe(true);
       expect(result.totalFound).toBe(2);
     });
 
@@ -621,9 +625,9 @@ describe('Prowlarr Service - Unit Tests', () => {
         seasonNumber: 1,
       });
 
-      expect(urls.length).toBe(2);
-      expect(urls[0]).toContain(encodeURIComponent('Original Show Name S01'));
-      expect(urls[1]).toContain(encodeURIComponent('Alternate Show Name S01'));
+      expect(urls.length).toBe(4);
+      expect(urls.some((u) => u.includes(encodeURIComponent('Original Show Name S01')))).toBe(true);
+      expect(urls.some((u) => u.includes(encodeURIComponent('Alternate Show Name S01')))).toBe(true);
       expect(result.totalFound).toBe(2);
     });
 
@@ -739,8 +743,8 @@ describe('Prowlarr Service - Unit Tests', () => {
       });
 
       expect(urls.length).toBe(2);
-      expect(urls[0]).toContain(encodeURIComponent('SomeAnime'));
-      expect(urls[1]).toContain(encodeURIComponent('SomeAnime S01'));
+      expect(urls.some((u) => u.includes(encodeURIComponent('SomeAnime')))).toBe(true);
+      expect(urls.some((u) => u.includes(encodeURIComponent('SomeAnime S01')))).toBe(true);
       expect(result.totalFound).toBe(1);
     });
 

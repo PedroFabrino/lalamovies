@@ -107,6 +107,13 @@ async function forwardToWatcher(request: FastifyRequest, reply: FastifyReply, su
       requesterEmail: outgoingBody.requesterEmail || request.currentUser?.email || undefined,
     };
 
+    if (postBody.metadataSource && postBody.metadataSource !== 'tmdb') {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: "metadataSource must be 'tmdb'",
+      });
+    }
+
     // Clean anime/TV show titles that have embedded season suffixes (e.g. "The Apothecary Diaries Season 3")
     if (postBody.title && ['tv_show', 'anime'].includes(postBody.mediaType || '')) {
       const parsed = parseAnimeTitleAndSeason(postBody.title);

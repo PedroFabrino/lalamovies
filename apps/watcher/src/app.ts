@@ -7,6 +7,7 @@ import { WatcherProwlarrService } from './services/prowlarr';
 import { WatcherPoller } from './jobs/watcherPoller';
 import { AutoDownloadSubmitter } from './jobs/autoDownloadSubmitter';
 import { EpisodicTrackingService } from './services/episodicTracking';
+import { runWatcherLegacyAnilistMigration } from './services/legacyAnilistMigration';
 
 export interface WatcherAppOptions {
   dbPath?: string;
@@ -162,6 +163,20 @@ export function buildWatcherApp(options: WatcherAppOptions = {}): FastifyInstanc
   app.decorate('movieGraceHours', movieGraceHours);
   app.decorate('episodeGraceHours', episodeGraceHours);
   app.decorate('newReleaseThresholdDays', newReleaseThresholdDays);
+
+  app.addHook('onReady', async () => {
+    runWatcherLegacyAnilistMigration({
+      db,
+      tmdbApiKey,
+      logger: {
+        info: (msg) => app.log.info(msg),
+        warn: (msg) => app.log.warn(msg),
+        error: (msg, err) => app.log.error(err, msg),
+      },
+    }).catch((err) => {
+      app.log.warn(err, 'Non-fatal error in watcher legacy AniList migration');
+    });
+  });
 
   app.addHook('onClose', async () => {
     poller.stop();

@@ -66,6 +66,8 @@ export interface IRequestsRepository {
     excludeStatuses?: string[]
   ): DownloadRequest[];
   findWithTorrentHash(hash: string): DownloadRequest | undefined;
+  findLegacyAnilist(): DownloadRequest[];
+  updateMetadataSource(id: string, metadataId: string, metadataSource: 'tmdb' | 'anilist'): void;
 }
 
 export const REQUEST_LIST_SELECT_FIELDS = {

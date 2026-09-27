@@ -66,6 +66,8 @@ export async function executePromoteFromStream(params: ExecutePromoteParams): Pr
     deferredReason: null,
     transcriptionStatus: 'none',
     transcriptionError: null,
+    deletedAt: null,
+    deletionReason: null,
   };
 
   requestsRepo.create(initialRequest);

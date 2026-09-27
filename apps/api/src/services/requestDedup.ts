@@ -23,8 +23,11 @@ export function findMatchingCanonicalRequest(
   const metaId = String(params.metadataId);
   const source = params.metadataSource;
   const isPrivate = params.mediaType === 'private';
-  const matchesMediaType = (r: DownloadRequest) =>
-    isPrivate ? r.mediaType === 'private' : r.mediaType !== 'private';
+  const matchesMediaType = (r: DownloadRequest) => {
+    if (isPrivate) return r.mediaType === 'private';
+    if (params.mediaType === 'movie') return r.mediaType === 'movie';
+    return r.mediaType === 'tv_show' || r.mediaType === 'anime';
+  };
 
   const candidates = repo.findByMetadataId(metaId).filter(
     (r) => r.metadataSource === source && matchesMediaType(r)

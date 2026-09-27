@@ -1,5 +1,6 @@
 import { extractEpisodeInfo } from '../utils/torrentTitleCleaner';
 import { isPreferredIndexer, isQualifiedPreferred } from '../utils/preferredIndexer';
+import { buildSeriesSearchQueries } from '../utils/seriesQueryBuilder';
 
 export type Resolution = '2160p' | '1080p' | '720p' | '480p' | 'unknown';
 export type VideoCodec = 'x265' | 'x264' | 'av1' | 'xvid' | 'unknown';
@@ -556,12 +557,14 @@ export class ProwlarrService implements IProwlarrService {
     let searchError: string | undefined;
 
     const mergeCandidates = (newCandidates: ReleaseCandidate[]) => {
-      const existingGuids = new Set(candidates.map((c) => c.guid || c.downloadUrl));
+      const existingKeys = new Set(
+        candidates.map((c) => (c.infoHash ? `hash:${c.infoHash.toLowerCase()}` : c.guid || c.downloadUrl))
+      );
       for (const item of newCandidates) {
-        const key = item.guid || item.downloadUrl;
-        if (!existingGuids.has(key)) {
+        const key = item.infoHash ? `hash:${item.infoHash.toLowerCase()}` : item.guid || item.downloadUrl;
+        if (!existingKeys.has(key)) {
           candidates.push(item);
-          existingGuids.add(key);
+          existingKeys.add(key);
         }
       }
     };
@@ -596,108 +599,29 @@ export class ProwlarrService implements IProwlarrService {
         const fallbackRes = await this.executeSearch(altParts.join(' '), [2000], scoreOptions);
         mergeCandidates(fallbackRes.candidates);
       }
-    } else if (mediaType === 'tv_show' || (mediaType === 'private' && (seasonNumber || episodeNumber))) {
-      const sNum = seasonNumber && seasonNumber > 0 ? seasonNumber : 1;
-      const sPad = String(sNum).padStart(2, '0');
+    } else {
+      const seriesQueries = buildSeriesSearchQueries({
+        title,
+        seasonNumber,
+        episodeNumber,
+        englishTitle,
+        romajiTitle,
+      });
 
-      let primaryTitle = title.trim();
-      let altTitle = (englishTitle && englishTitle.trim()) || (romajiTitle && romajiTitle.trim());
+      const searchPromises = seriesQueries.map((sq) =>
+        this.executeSearch(sq.query, sq.categories, scoreOptions)
+      );
 
-      // If primaryTitle contains CJK and altTitle is Latin, search Latin first
-      if (hasCjkCharacters(primaryTitle) && altTitle && !hasCjkCharacters(altTitle)) {
-        const temp = primaryTitle;
-        primaryTitle = altTitle;
-        altTitle = temp;
-      }
-
-      let query = '';
-      if (isSingleEpisode) {
-        const ePad = String(episodeNumber).padStart(2, '0');
-        query = `${primaryTitle} S${sPad}E${ePad}`;
-      } else {
-        query = `${primaryTitle} S${sPad}`;
-      }
-
-      const searchRes = await this.executeSearch(query, [5000], scoreOptions);
-      candidates = searchRes.candidates;
-      isReachable = searchRes.isReachable;
-      searchError = searchRes.error;
-
-      // Fallback 1: If fewer than 3 candidates and alternate title is available and distinct
-      if (candidates.length < 3 && altTitle && altTitle.toLowerCase() !== primaryTitle.toLowerCase()) {
-        let altQuery = '';
-        if (isSingleEpisode) {
-          const ePad = String(episodeNumber).padStart(2, '0');
-          altQuery = `${altTitle} S${sPad}E${ePad}`;
-        } else {
-          altQuery = `${altTitle} S${sPad}`;
-        }
-        const fallbackRes = await this.executeSearch(altQuery, [5000], scoreOptions);
-        mergeCandidates(fallbackRes.candidates);
-      }
-
-      // Fallback 2: If Season 1 pack search with "Title S01" found 0 candidates, try "Title" directly
-      if (candidates.length === 0 && !isSingleEpisode && sNum === 1) {
-        const fallbackRes = await this.executeSearch(primaryTitle, [5000], scoreOptions);
-        mergeCandidates(fallbackRes.candidates);
-      }
-    } else if (mediaType === 'anime') {
-      const animeCategories = [5070, 2070];
-      let primaryTitle = (romajiTitle && romajiTitle.trim().length > 0 ? romajiTitle.trim() : title.trim());
-      let altTitle = englishTitle && englishTitle.trim();
-
-      // If primaryTitle contains CJK and altTitle or title is Latin, prefer Latin as primary
-      if (hasCjkCharacters(primaryTitle)) {
-        if (altTitle && !hasCjkCharacters(altTitle)) {
-          const temp = primaryTitle;
-          primaryTitle = altTitle;
-          altTitle = temp;
-        } else if (title && !hasCjkCharacters(title.trim())) {
-          const temp = primaryTitle;
-          primaryTitle = title.trim();
-          altTitle = temp;
+      const settled = await Promise.allSettled(searchPromises);
+      let anyReachable = false;
+      for (const res of settled) {
+        if (res.status === 'fulfilled') {
+          if (res.value.isReachable) anyReachable = true;
+          if (res.value.error && !searchError) searchError = res.value.error;
+          mergeCandidates(res.value.candidates);
         }
       }
-
-      let primaryQuery = '';
-      if (isSingleEpisode) {
-        const ePad = String(episodeNumber).padStart(2, '0');
-        primaryQuery = `${primaryTitle} - ${ePad}`;
-      } else if (seasonNumber && seasonNumber > 1) {
-        const sPad = String(seasonNumber).padStart(2, '0');
-        primaryQuery = `${primaryTitle} S${sPad}`;
-      } else {
-        primaryQuery = primaryTitle;
-      }
-
-      const searchRes = await this.executeSearch(primaryQuery, animeCategories, scoreOptions);
-      candidates = searchRes.candidates;
-      isReachable = searchRes.isReachable;
-      searchError = searchRes.error;
-
-      // Fallback to English title if fewer than 3 candidates found and English title is different
-      if (candidates.length < 3 && altTitle && altTitle.toLowerCase() !== primaryTitle.toLowerCase()) {
-        let altQuery = '';
-        if (isSingleEpisode) {
-          const ePad = String(episodeNumber).padStart(2, '0');
-          altQuery = `${altTitle} - ${ePad}`;
-        } else if (seasonNumber && seasonNumber > 1) {
-          const sPad = String(seasonNumber).padStart(2, '0');
-          altQuery = `${altTitle} S${sPad}`;
-        } else {
-          altQuery = altTitle;
-        }
-
-        const fallbackRes = await this.executeSearch(altQuery, animeCategories, scoreOptions);
-        mergeCandidates(fallbackRes.candidates);
-      }
-
-      // Fallback for Season 1: If search with just primaryTitle found 0 candidates, try with "Title S01"
-      if (candidates.length === 0 && !isSingleEpisode && (!seasonNumber || seasonNumber === 1)) {
-        const altS01Query = `${primaryTitle} S01`;
-        const fallbackRes = await this.executeSearch(altS01Query, animeCategories, scoreOptions);
-        mergeCandidates(fallbackRes.candidates);
-      }
+      isReachable = anyReachable;
     }
 
     // Sort by score descending

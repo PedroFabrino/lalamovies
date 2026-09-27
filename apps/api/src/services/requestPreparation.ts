@@ -119,5 +119,7 @@ export function buildInitialDownloadRequest(params: BuildInitialRequestParams): 
     deferredReason: params.deferredReason ?? null,
     transcriptionStatus: 'none',
     transcriptionError: null,
+    deletedAt: null,
+    deletionReason: null,
   };
 }

@@ -67,6 +67,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           username: authResult.username,
           email: null,
           role,
+          invitedByUserId: null,
+          inviteId: null,
+          invitesEnabled: true,
           createdAt: new Date().toISOString(),
         };
 

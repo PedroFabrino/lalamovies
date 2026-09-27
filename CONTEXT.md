@@ -11,12 +11,16 @@ A user-submitted magnet link paired with a confirmed Metadata Match and a Media 
 _Avoid_: job, task, item
 
 **Metadata Match**:
-The confirmed pairing of a Download Request with a canonical entry from TMDB (for Movies and TV Shows) or AniList (for Anime). Provides the title, year, and season/episode data used to rename files correctly. The user must confirm the match before the download begins.
+The confirmed pairing of a Download Request or Waitlist Entry with a canonical entry from TMDB. Provides the title, year, and season/episode data used to rename files correctly and gate release air dates. All persistent requests and waitlist entries strictly use TMDB as the single canonical source of truth; AniList is used solely as a read-only presentation catalog for the Seasonal Anime Tab.
 _Avoid_: metadata lookup, search result
 
 **Media Type**:
-The classification a user assigns to a Download Request at submission time: ``Movie``, ``TV Show``, ``Anime``, or ``Private``. Determines the metadata source, destination Library path, and the Jellyfin library to which the content is added. Only Trusted and Admin users may submit or see requests of the ``Private`` type.
+The classification assigned to a Download Request or Waitlist Entry: ``Movie``, ``TV Show``, ``Anime``, or ``Private``. For episodic content (``TV Show`` and ``Anime``), both are treated as unified Series sharing identical deduplication, waitlist, and tracking rules, differing only in destination Library path (``/media/shows`` vs ``/media/anime``) to preserve Jellyfin library separation. Only Trusted and Admin users may submit or see requests of the ``Private`` type.
 _Avoid_: content type, category
+
+**Series**:
+Any episodic media content, encompassing both ``TV Show`` and ``Anime`` media types. Evaluated uniformly across all deduplication, waitlist guards, Up Next shelf generation, and episodic progression logic.
+_Avoid_: show, episodic item
 
 **Season Pack**:
 A Download Request whose torrent contains multiple files for an entire season of a TV Show or Anime. Treated as a single request; all files move together to a season subdirectory under the Library.

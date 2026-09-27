@@ -193,7 +193,7 @@
           @update:target-episode-number="targetEpisodeNumber = $event"
           @update:waitlist-mode="waitlistMode = $event"
           @confirm="confirmWaitlistSubmission"
-          @submit-direct="submitDirectWaitlist"
+          @search-manual="handleManualTmdbSearch"
         />
       </div>
     </div>
@@ -320,8 +320,12 @@ async function startWaitlistFlow() {
 async function confirmWaitlistSubmission() {
   if (!props.anime) return;
   const candidate = selectedTmdbCandidate.value;
+  if (!candidate || !candidate.id) {
+    requestsStore.showToast('Please select a valid TMDB match first.', 'error');
+    return;
+  }
   const parsed = parseAnimeTitleAndSeason(displayTitle.value);
-  const finalTitle = candidate?.title || parsed.cleanTitle;
+  const finalTitle = candidate.title || parsed.cleanTitle;
 
   if (isCandidateWaitlisted.value) {
     requestsStore.showToast(`"${finalTitle}" (S${targetSeasonNumber.value}) is already on your waitlist.`, 'info');
@@ -336,11 +340,11 @@ async function confirmWaitlistSubmission() {
     await api.post('/waitlist', {
       mediaType: 'anime',
       title: finalTitle,
-      metadataId: candidate?.id || String(props.anime.id),
-      metadataSource: candidate ? 'tmdb' : 'anilist',
+      metadataId: String(candidate.id),
+      metadataSource: 'tmdb',
       seasonNumber: targetSeasonNumber.value,
       targetEpisode,
-      posterUrl: candidate?.posterUrl || posterUrl.value,
+      posterUrl: candidate.posterUrl || posterUrl.value,
     });
 
     requestsStore.showToast(`"${finalTitle}" (S${targetSeasonNumber.value}) added to Watcher Waitlist!`, 'success');
@@ -353,35 +357,33 @@ async function confirmWaitlistSubmission() {
   }
 }
 
-async function submitDirectWaitlist() {
-  if (!props.anime) return;
-  const parsed = parseAnimeTitleAndSeason(displayTitle.value);
-  const finalTitle = parsed.cleanTitle;
-
-  if (isCandidateWaitlisted.value) {
-    requestsStore.showToast(`"${finalTitle}" (S${targetSeasonNumber.value}) is already on your waitlist.`, 'info');
-    handleClose();
-    return;
-  }
-
-  isSubmittingWaitlist.value = true;
+async function handleManualTmdbSearch(query: string) {
+  if (!query.trim()) return;
+  isResolvingTmdb.value = true;
   try {
-    await api.post('/waitlist', {
-      mediaType: 'anime',
-      title: finalTitle,
-      metadataId: String(props.anime.id),
-      metadataSource: 'anilist',
-      seasonNumber: targetSeasonNumber.value,
-      targetEpisode: waitlistMode.value === 'episodic' ? targetEpisodeNumber.value : null,
-      posterUrl: posterUrl.value,
+    const res = await api.post<{
+      candidates: MetadataCandidate[];
+      recommended: MetadataCandidate | null;
+      detectedSeason?: number;
+    }>('/anime/resolve-tmdb', {
+      title: query.trim(),
+      format: props.anime?.format,
     });
-    requestsStore.showToast(`"${finalTitle}" (S${targetSeasonNumber.value}) added to Watcher Waitlist!`, 'success');
-    await waitlistStore.fetchAll();
-    handleClose();
-  } catch (err: unknown) {
-    requestsStore.showToast((err as Error).message || 'Failed to add to waitlist', 'error');
+
+    tmdbCandidates.value = res.candidates || [];
+    if (res.recommended) {
+      selectedCandidateId.value = res.recommended.id;
+    } else if (tmdbCandidates.value[0]) {
+      selectedCandidateId.value = tmdbCandidates.value[0].id;
+    }
+
+    if (typeof res.detectedSeason === 'number' && res.detectedSeason >= 1) {
+      targetSeasonNumber.value = res.detectedSeason;
+    }
+  } catch {
+    tmdbCandidates.value = [];
   } finally {
-    isSubmittingWaitlist.value = false;
+    isResolvingTmdb.value = false;
   }
 }
 </script>
