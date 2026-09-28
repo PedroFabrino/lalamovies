@@ -173,6 +173,7 @@
         v-model:is-explorer-expanded="isExplorerExpanded"
         v-model:candidate-sort-by="candidateSortBy"
         v-model:hide-infringing="hideInfringing"
+        v-model:force-download="forceDownload"
         :selected-candidate="selectedCandidate"
         :media-type="mediaType"
         :step3-error="step3Error"
@@ -217,6 +218,7 @@
         @handle-fallback-file-change="handleFallbackFileChange"
         @handle-instant-stream-candidate="handleInstantStreamCandidate"
         @season-or-episode-change="onSeasonOrEpisodeChange"
+        @granularity-change="onGranularityChange"
       />
     </main>
 
@@ -292,6 +294,7 @@ const {
   selectedCandidate,
   step2Error,
   existingRequest,
+  forceDownload,
   isCheckingExists,
   seasonNumber,
   downloadGranularity,

@@ -51,15 +51,12 @@ export function useRequestSubmit(options: UseRequestSubmitOptions) {
   const router = useRouter();
   const requestsStore = useRequestsStore();
 
-  const isSubmitting = ref(false);
+  const isSubmitting = ref(false), isCheckingExists = ref(false);
   const submitProgress = ref({ current: 0, total: 0 });
   const step3Error = ref<string | null>(null);
   const existingRequest = ref<CanonicalRequestSummary | null>(null);
-  const isCheckingExists = ref(false);
-
-  const waitlistNextSeason = ref(false);
-  const watchForNextEpisodes = ref(false);
-  const notifyBeforeEachDownload = ref(false);
+  const waitlistNextSeason = ref(false), watchForNextEpisodes = ref(false), notifyBeforeEachDownload = ref(false);
+  const forceDownload = ref(false);
 
   async function checkDuplicateExists(candidate: MetadataCandidate): Promise<CanonicalRequestSummary | null> {
     try {
@@ -182,7 +179,7 @@ export function useRequestSubmit(options: UseRequestSubmitOptions) {
       payload.waitlistNextSeason = true;
     }
 
-    if (existingRequest.value) {
+    if (existingRequest.value && !forceDownload.value) {
       if (magnetLink.value && magnetLink.value.trim()) payload.magnetLink = magnetLink.value.trim();
     } else if (inputMode.value === 'file') {
       const fileToUpload = singleItem?.file || selectedFile.value;
@@ -209,6 +206,7 @@ export function useRequestSubmit(options: UseRequestSubmitOptions) {
     } else {
       payload.magnetLink = magnetLink.value.trim();
     }
+    if (forceDownload.value) payload.force = true;
     return { payload, effectiveSeason, effectiveEpisode };
   }
 
@@ -281,6 +279,7 @@ export function useRequestSubmit(options: UseRequestSubmitOptions) {
     submitProgress,
     step3Error,
     existingRequest,
+    forceDownload,
     isCheckingExists,
     waitlistNextSeason,
     watchForNextEpisodes,

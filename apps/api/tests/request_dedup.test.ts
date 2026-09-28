@@ -277,13 +277,10 @@ describe('Request Deduplication & Co-Requesters (Ticket 02)', () => {
       },
     });
 
-    // Bob absorbs into S1 pack
-    expect(resBob.statusCode).toBe(200);
-    expect(resBob.json().request.id).toBe(s1Id);
-    expect(mockQb.addedTorrents).toHaveLength(1); // No new torrent
-
-    const coRows = app.db.select().from(requestCoRequesters).where(eq(requestCoRequesters.requestId, s1Id)).all();
-    expect(coRows).toHaveLength(1);
+    // Bob does NOT absorb into S1 pack (individual episode requested independently)
+    expect(resBob.statusCode).toBe(201);
+    expect(resBob.json().request.id).not.toBe(s1Id);
+    expect(mockQb.addedTorrents).toHaveLength(2);
   });
 
   it('individual episode does NOT absorb season pack request (asymmetric)', async () => {
@@ -651,7 +648,7 @@ describe('Request Deduplication & Co-Requesters (Ticket 02)', () => {
       expect(res.json().request).toBeUndefined();
     });
 
-    it('returns exists: true for single episode when season pack already exists (asymmetric absorption)', async () => {
+    it('returns exists: false for single episode when season pack already exists (does not block individual episodes)', async () => {
       const res = await app.inject({
         method: 'GET',
         url: '/requests/exists?metadataId=9902&metadataSource=tmdb&mediaType=tv_show&seasonNumber=2&episodeNumber=5',
@@ -659,8 +656,8 @@ describe('Request Deduplication & Co-Requesters (Ticket 02)', () => {
       });
       expect(res.statusCode).toBe(200);
       const data = res.json();
-      expect(data.exists).toBe(true);
-      expect(data.request.id).toBe(seasonPackId);
+      expect(data.exists).toBe(false);
+      expect(data.request).toBeUndefined();
     });
 
     it('returns exists: false for a different season of the same show', async () => {

@@ -253,7 +253,11 @@ function openAnimeWaitlist(anime: SeasonalAnimeItem) {
   selectedAnime.value = anime;
 }
 
-function handleDownload(anime: SeasonalAnimeItem, tmdb?: { id: string | number; title?: string }) {
+function handleDownload(
+  anime: SeasonalAnimeItem,
+  tmdb?: { id: string | number; title?: string },
+  options?: { seasonNumber?: number; episodeNumber?: number; downloadGranularity?: 'season' | 'episode' }
+) {
   const title = tmdb?.title || anime.title?.english || anime.title?.romaji || '';
   const query: Record<string, string> = {
     query: title,
@@ -263,6 +267,9 @@ function handleDownload(anime: SeasonalAnimeItem, tmdb?: { id: string | number; 
     query.metadataId = String(tmdb.id);
     query.metadataSource = 'tmdb';
   }
+  if (options?.seasonNumber) query.seasonNumber = String(options.seasonNumber);
+  if (options?.episodeNumber) query.episodeNumber = String(options.episodeNumber);
+  if (options?.downloadGranularity) query.downloadGranularity = options.downloadGranularity;
   router.push({
     path: '/request',
     query,

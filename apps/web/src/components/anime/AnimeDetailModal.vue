@@ -217,7 +217,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: 'close'): void;
-  (e: 'download', anime: SeasonalAnimeItem, tmdb?: MetadataCandidate): void;
+  (e: 'download', anime: SeasonalAnimeItem, tmdb?: MetadataCandidate, options?: { seasonNumber?: number; episodeNumber?: number; downloadGranularity?: 'season' | 'episode' }): void;
   (e: 'stream', anime: SeasonalAnimeItem): void;
 }>();
 
@@ -226,19 +226,13 @@ const waitlistStore = useWaitlistStore();
 const { isItemWaitlisted, ensureWaitlistLoaded } = useWaitlistMatching();
 const isWaitlistedEffective = computed(() => props.isWaitlisted || isItemWaitlisted(props.anime));
 
-onMounted(() => {
-  ensureWaitlistLoaded();
-});
+onMounted(ensureWaitlistLoaded);
 
-const showWaitlistConfirmation = ref(false);
-const isResolvingTmdb = ref(false);
-const isSubmittingWaitlist = ref(false);
+const showWaitlistConfirmation = ref(false), isResolvingTmdb = ref(false), isSubmittingWaitlist = ref(false);
 const pendingAction = ref<'waitlist' | 'download'>('waitlist');
-const tmdbCandidates = ref<MetadataCandidate[]>([]);
-const selectedCandidateId = ref<string>('');
+const tmdbCandidates = ref<MetadataCandidate[]>([]), selectedCandidateId = ref<string>('');
 const waitlistMode = ref<'episodic' | 'season_pack'>('episodic');
-const targetSeasonNumber = ref<number>(1);
-const targetEpisodeNumber = ref<number>(1);
+const targetSeasonNumber = ref<number>(1), targetEpisodeNumber = ref<number>(1);
 
 const posterUrl = computed(() => props.anime?.coverImage?.extraLarge || props.anime?.coverImage?.large || props.anime?.coverImage?.medium || undefined);
 const bannerUrl = computed(() => props.anime?.bannerImage || undefined);
@@ -248,8 +242,8 @@ const isAiringOrFinished = computed(() => props.anime?.status === 'RELEASING' ||
 
 const cleanDescription = computed(() => props.anime?.description ? props.anime.description.replace(/<br\s*\/?>/gi, '<br />') : 'No synopsis available.');
 const trailerUrl = computed(() => (props.anime?.trailer?.id && props.anime.trailer.site?.toLowerCase() === 'youtube' ? `https://www.youtube.com/watch?v=${props.anime.trailer.id}` : null));
-const statusLabel = computed(() => props.anime?.status === 'RELEASING' ? 'Airing' : props.anime?.status === 'FINISHED' ? 'Completed' : props.anime?.status === 'NOT_YET_RELEASED' ? 'Upcoming' : (props.anime?.status || 'Anime'));
-const statusBadgeClasses = computed(() => props.anime?.status === 'RELEASING' ? 'bg-emerald-950/70 border-emerald-700/60 text-emerald-400' : props.anime?.status === 'NOT_YET_RELEASED' ? 'bg-indigo-950/70 border-indigo-700/60 text-indigo-300' : props.anime?.status === 'FINISHED' ? 'bg-zinc-800/80 border-zinc-700/60 text-zinc-300' : 'bg-zinc-800/80 border-zinc-700/60 text-zinc-400');
+const statusLabel = computed(() => ({ RELEASING: 'Airing', FINISHED: 'Completed', NOT_YET_RELEASED: 'Upcoming' }[props.anime?.status || ''] || props.anime?.status || 'Anime'));
+const statusBadgeClasses = computed(() => ({ RELEASING: 'bg-emerald-950/70 border-emerald-700/60 text-emerald-400', NOT_YET_RELEASED: 'bg-indigo-950/70 border-indigo-700/60 text-indigo-300', FINISHED: 'bg-zinc-800/80 border-zinc-700/60 text-zinc-300' }[props.anime?.status || ''] || 'bg-zinc-800/80 border-zinc-700/60 text-zinc-400'));
 const selectedTmdbCandidate = computed(() => tmdbCandidates.value.find((c) => c.id === selectedCandidateId.value) || tmdbCandidates.value[0] || null);
 
 const isCandidateWaitlisted = computed(() => isItemWaitlisted({
@@ -259,19 +253,16 @@ const isCandidateWaitlisted = computed(() => isItemWaitlisted({
   seasonNumber: targetSeasonNumber.value,
 }));
 
-watch(
-  () => props.anime,
-  (newVal) => {
-    showWaitlistConfirmation.value = false;
-    pendingAction.value = 'waitlist';
-    tmdbCandidates.value = [];
-    selectedCandidateId.value = '';
-    waitlistMode.value = newVal?.status === 'RELEASING' ? 'episodic' : 'episodic';
-    const parsed = parseAnimeTitleAndSeason(displayTitle.value);
-    targetSeasonNumber.value = parsed.seasonNumber;
-    targetEpisodeNumber.value = 1;
-  }
-);
+watch(() => props.anime, () => {
+  showWaitlistConfirmation.value = false;
+  pendingAction.value = 'waitlist';
+  tmdbCandidates.value = [];
+  selectedCandidateId.value = '';
+  waitlistMode.value = 'episodic';
+  const parsed = parseAnimeTitleAndSeason(displayTitle.value);
+  targetSeasonNumber.value = parsed.seasonNumber;
+  targetEpisodeNumber.value = 1;
+});
 
 function handleClose() {
   showWaitlistConfirmation.value = false;
@@ -318,7 +309,11 @@ async function startWaitlistFlow() {
 
 function handleDownloadClick() {
   if (selectedTmdbCandidate.value) {
-    emit('download', props.anime!, selectedTmdbCandidate.value);
+    emit('download', props.anime!, selectedTmdbCandidate.value, {
+      seasonNumber: targetSeasonNumber.value,
+      episodeNumber: waitlistMode.value === 'episodic' ? targetEpisodeNumber.value : undefined,
+      downloadGranularity: waitlistMode.value === 'season_pack' ? 'season' : 'episode',
+    });
     handleClose();
   } else {
     pendingAction.value = 'download';
@@ -328,7 +323,11 @@ function handleDownloadClick() {
 
 function handleConfirmAction() {
   if (pendingAction.value === 'download') {
-    emit('download', props.anime!, selectedTmdbCandidate.value || undefined);
+    emit('download', props.anime!, selectedTmdbCandidate.value || undefined, {
+      seasonNumber: targetSeasonNumber.value,
+      episodeNumber: waitlistMode.value === 'episodic' ? targetEpisodeNumber.value : undefined,
+      downloadGranularity: waitlistMode.value === 'season_pack' ? 'season' : 'episode',
+    });
     handleClose();
   } else {
     confirmWaitlistSubmission();

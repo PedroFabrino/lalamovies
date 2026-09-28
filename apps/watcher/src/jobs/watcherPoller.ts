@@ -50,6 +50,7 @@ export class WatcherPoller {
   private isPolling = false;
   private mainApiUrl?: string;
   private isWaitlistEnabledChecker?: () => Promise<boolean> | boolean;
+  private tmdbApiKey?: string;
 
   constructor(options: WatcherPollerOptions) {
     this.db = options.db;
@@ -58,6 +59,7 @@ export class WatcherPoller {
     this.magicLinkSecret = options.magicLinkSecret;
     this.webhookUrl = options.webhookUrl;
     this.frontendUrl = options.frontendUrl;
+    this.tmdbApiKey = options.tmdbApiKey || process.env.TMDB_API_KEY;
     this.graceHours = options.graceHours || Number(process.env.NOTIFY_GRACE_HOURS) || 6;
     this.movieGraceHours = options.movieGraceHours ?? (process.env.MOVIE_GRACE_HOURS !== undefined ? Number(process.env.MOVIE_GRACE_HOURS) : 6);
     this.episodeGraceHours = options.episodeGraceHours ?? (process.env.EPISODE_GRACE_HOURS !== undefined ? Number(process.env.EPISODE_GRACE_HOURS) : 0);
@@ -104,6 +106,26 @@ export class WatcherPoller {
     }
   }
 
+  private async resolveAlternateTitles(entry: { mediaType: string; metadataId?: string | null; title: string }): Promise<{ englishTitle?: string; romajiTitle?: string }> {
+    if (entry.mediaType !== 'anime' || !entry.metadataId || !this.tmdbApiKey) {
+      return {};
+    }
+    try {
+      const res = await fetch(`https://api.themoviedb.org/3/tv/${encodeURIComponent(entry.metadataId)}?api_key=${this.tmdbApiKey}`, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(3000),
+      });
+      if (!res.ok) return {};
+      const data = (await res.json()) as { name?: string; original_name?: string };
+      return {
+        englishTitle: data.name && data.name.trim() !== entry.title.trim() ? data.name.trim() : undefined,
+        romajiTitle: data.original_name && data.original_name.trim() !== entry.title.trim() ? data.original_name.trim() : undefined,
+      };
+    } catch {
+      return {};
+    }
+  }
+
   async pollOnce(): Promise<{ polled: number; notified: number }> {
     if (this.isPolling) {
       this.logger?.info('Watcher poller: tick skipped, previous run in progress.');
@@ -131,12 +153,17 @@ export class WatcherPoller {
 
       for (const entry of checkingEntries) {
         try {
+          const alternateTitles = entry.mediaType === 'anime' && entry.metadataId && this.tmdbApiKey
+            ? await this.resolveAlternateTitles(entry)
+            : {};
           const candidates = await this.prowlarr.searchForEntry({
             mediaType: entry.mediaType,
             title: entry.title,
             year: entry.year,
             seasonNumber: entry.seasonNumber,
             targetEpisode: entry.targetEpisode,
+            englishTitle: alternateTitles.englishTitle,
+            romajiTitle: alternateTitles.romajiTitle,
           });
 
           // Quality gate: score >= 100 AND seeders >= 10 AND source != cam AND !CAM_REGEX AND matches target episode

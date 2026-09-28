@@ -42,6 +42,7 @@ export const createRequestSchema = z.object({
   episodeNumber: z.number().int().optional(),
   waitlistNextSeason: z.boolean().optional(),
   coRequesterUserIds: z.array(z.string()).optional(),
+  force: z.boolean().optional(),
 });
 
 export const existsRequestSchema = z.object({

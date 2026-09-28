@@ -150,6 +150,7 @@ export async function executeCreateRequest(
     episodeNumber,
     waitlistNextSeason,
     coRequesterUserIds,
+    force,
   } = input;
 
   if (metadataSource !== 'tmdb') {
@@ -203,7 +204,13 @@ export async function executeCreateRequest(
     });
 
     if (existing) {
-      await triggerNextSeasonWaitlist(waitlistParams);
+      if (force) {
+        requestsRepo.setStatus(existing.id, 'deleted', {
+          deletedAt: new Date().toISOString(),
+          deletionReason: 'manual',
+        });
+      } else {
+        await triggerNextSeasonWaitlist(waitlistParams);
 
       if (existing.userId !== userId) {
         requestsRepo.addCoRequester(existing.id, userId);
@@ -222,6 +229,7 @@ export async function executeCreateRequest(
       }
 
       return { request: existing, isExisting: true };
+      }
     }
 
     const diskCheck = checkDiskSafety(cleanup);

@@ -47,8 +47,7 @@ export const redownloadRoutes: FastifyPluginAsync = async (app) => {
       }
       const isSingleEp = item.seasonNumber != null && item.episodeNumber != null;
       if (isSingleEp) {
-        return (act.seasonNumber === item.seasonNumber && act.episodeNumber == null) ||
-               (act.seasonNumber === item.seasonNumber && act.episodeNumber === item.episodeNumber);
+        return act.seasonNumber === item.seasonNumber && act.episodeNumber === item.episodeNumber;
       }
       return act.seasonNumber === item.seasonNumber && act.episodeNumber == null;
     });

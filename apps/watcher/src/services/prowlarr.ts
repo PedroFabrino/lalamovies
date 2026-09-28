@@ -316,12 +316,14 @@ export class WatcherProwlarrService {
     year?: number | null;
     seasonNumber?: number | null;
     targetEpisode?: number | null;
+    englishTitle?: string | null;
+    romajiTitle?: string | null;
   }): Promise<ReleaseCandidate[]> {
     if (!this.isConfigured()) {
       return [];
     }
 
-    const { mediaType, title, year, seasonNumber, targetEpisode } = entry;
+    const { mediaType, title, year, seasonNumber, targetEpisode, englishTitle, romajiTitle } = entry;
     const isSingleEpisode = targetEpisode !== undefined && targetEpisode !== null;
     const effectiveSeason = seasonNumber ?? (mediaType !== 'movie' ? 1 : null);
     const scoreOptions: ScoreOptions = {
@@ -342,6 +344,8 @@ export class WatcherProwlarrService {
         title,
         seasonNumber,
         episodeNumber: targetEpisode,
+        englishTitle,
+        romajiTitle,
       });
 
       const results = await Promise.allSettled(

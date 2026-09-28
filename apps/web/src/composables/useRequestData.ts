@@ -6,6 +6,7 @@ import { useFeatureFlags } from './useFeatureFlags';
 import type { ReleaseCandidate } from '../lib/releaseExplorer';
 
 import type { MetadataCandidate, BatchItem, CanonicalRequestSummary } from './requestTypes';
+import { parseAnimeTitleAndSeason } from '../lib/animeTitleCleaner';
 import { parseFastTrack } from './requestFastTrack';
 import { useRequestStep1 } from './useRequestStep1';
 import { useRequestStep2 } from './useRequestStep2';
@@ -212,6 +213,21 @@ export function useRequestData() {
       step1.customQuery.value = String(route.query.query);
       if (route.query.mediaType && ['movie', 'tv_show', 'anime', 'private'].includes(String(route.query.mediaType))) {
         mediaType.value = route.query.mediaType as MediaType;
+      }
+      if (route.query.seasonNumber) {
+        seasonNumber.value = Number(route.query.seasonNumber);
+      } else {
+        const parsed = parseAnimeTitleAndSeason(String(route.query.query));
+        if (parsed.seasonNumber && parsed.seasonNumber > 1) {
+          seasonNumber.value = parsed.seasonNumber;
+        }
+      }
+      if (route.query.episodeNumber) {
+        episodeNumber.value = Number(route.query.episodeNumber);
+        downloadGranularity.value = 'episode';
+      }
+      if (route.query.downloadGranularity === 'season' || route.query.downloadGranularity === 'episode') {
+        downloadGranularity.value = route.query.downloadGranularity;
       }
       step1.inputMode.value = 'search';
       step2.handleSearchMetadata();

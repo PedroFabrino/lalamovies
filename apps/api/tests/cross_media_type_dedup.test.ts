@@ -160,7 +160,7 @@ describe('Cross-Media-Type Unified Series Deduplication (#179)', () => {
     expect(mockQb.addedTorrents).toHaveLength(1);
   });
 
-  it('covers single episode anime request by existing tv_show season pack', async () => {
+  it('allows single episode anime request when tv_show season pack exists', async () => {
     // Alice requests tv_show Season 1 pack
     const res1 = await app.inject({
       method: 'POST',
@@ -178,7 +178,7 @@ describe('Cross-Media-Type Unified Series Deduplication (#179)', () => {
     expect(res1.statusCode).toBe(201);
     const origId = res1.json().request.id;
 
-    // Bob requests anime Episode 3 for same TMDB ID
+    // Bob requests anime Episode 3 for same TMDB ID - independent download, not blocked by pack
     const res2 = await app.inject({
       method: 'POST',
       url: '/requests',
@@ -194,8 +194,8 @@ describe('Cross-Media-Type Unified Series Deduplication (#179)', () => {
       },
     });
 
-    expect(res2.statusCode).toBe(200);
-    expect(res2.json().request.id).toBe(origId);
+    expect(res2.statusCode).toBe(201);
+    expect(res2.json().request.id).not.toBe(origId);
   });
 
   it('does NOT conflate movies with series having the same TMDB ID', async () => {

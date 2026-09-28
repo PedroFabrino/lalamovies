@@ -41,15 +41,7 @@ export function findMatchingCanonicalRequest(
   const isSeasonPack = params.seasonNumber != null && params.episodeNumber == null;
 
   if (isSingleEpisode) {
-    // 1. Check if a season pack exists for this season (asymmetric: pack covers episode)
-    const packMatch = candidates.find(
-      (r) => r.seasonNumber === params.seasonNumber && r.episodeNumber == null
-    );
-    if (packMatch) {
-      return packMatch;
-    }
-
-    // 2. Check for exact episode match
+    // Exact episode match only (season pack does not absorb or block individual episode)
     const epMatch = candidates.find(
       (r) => r.seasonNumber === params.seasonNumber && r.episodeNumber === params.episodeNumber
     );

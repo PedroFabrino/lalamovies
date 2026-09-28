@@ -99,11 +99,22 @@
           </div>
         </div>
       </div>
+      <div class="pt-3 border-t border-emerald-800/40 flex items-center justify-between">
+        <span class="text-xs text-zinc-400">Need a different release or Part 2?</span>
+        <button
+          type="button"
+          data-testid="toggle-force-download-btn"
+          class="text-xs text-emerald-400 hover:text-emerald-300 underline font-medium cursor-pointer"
+          @click="$emit('update:forceDownload', !forceDownload)"
+        >
+          {{ forceDownload ? 'Cancel custom download' : 'Download alternate release anyway' }}
+        </button>
+      </div>
     </div>
 
     <!-- Release Selection and Explorer Section -->
     <Step3ReleaseSection
-      v-else
+      v-if="!existingRequest || forceDownload"
       :input-mode="inputMode"
       :is-searching-releases="isSearchingReleases"
       :selected-candidate="selectedCandidate"
@@ -158,7 +169,7 @@
       </button>
       <button
         type="button"
-        :disabled="!isManualTorrentsEnabled || isSubmitting || isCheckingExists || (!existingRequest && ((inputMode === 'file' && validBatchItems.length === 0) || (inputMode === 'magnet' && !magnetLink.trim()) || (inputMode === 'search' && (isSearchingReleases || (isManualFallbackInStep3 ? (manualFallbackMode === 'magnet' ? !fallbackMagnetLink.trim() : !fallbackFile) : (!selectedRelease && !recommendedRelease))))))"
+        :disabled="!isManualTorrentsEnabled || isSubmitting || isCheckingExists || ((!existingRequest || forceDownload) && ((inputMode === 'file' && validBatchItems.length === 0) || (inputMode === 'magnet' && !magnetLink.trim()) || (inputMode === 'search' && (isSearchingReleases || (isManualFallbackInStep3 ? (manualFallbackMode === 'magnet' ? !fallbackMagnetLink.trim() : !fallbackFile) : (!selectedRelease && !recommendedRelease))))))"
         class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg shadow transition flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         @click="$emit('confirm')"
       >
@@ -188,11 +199,11 @@
               ? (submitProgress.total > 1
                 ? `Submitting (${submitProgress.current}/${submitProgress.total})...`
                 : 'Submitting...')
-              : existingRequest
+              : (existingRequest && !forceDownload)
                 ? 'Add to My Dashboard'
                 : validBatchItems.length > 1
                   ? `Confirm & Submit Batch (${validBatchItems.length} torrents)`
-                  : 'Confirm & Download'
+                  : (forceDownload ? 'Confirm & Download Anyway' : 'Confirm & Download')
           }}
         </span>
       </button>
@@ -220,6 +231,7 @@ defineProps<{
   mediaType: MediaType;
   step3Error: string | null;
   existingRequest: CanonicalRequestSummary | null;
+  forceDownload?: boolean;
   validBatchItems: BatchItem[];
   batchSeasonInput: number | null;
   totalBatchSize: number;
@@ -266,6 +278,7 @@ defineProps<{
 defineEmits<{
   (e: 'back'): void;
   (e: 'confirm'): void;
+  (e: 'update:forceDownload', val: boolean): void;
   (e: 'setAnimeTitle', title: string): void;
   (e: 'granularityChange', val: 'season' | 'episode'): void;
   (e: 'seasonOrEpisodeChange'): void;
