@@ -113,8 +113,8 @@ export async function advanceWaitlistIfNeeded(params: {
 export function triggerWaitlistActions(params: {
   waitlistParams: WaitlistTriggerParams;
   waitlistId?: string;
-  watcherUrl?: string;
-  serviceApiKey?: string;
+  watcherUrl?: string | (() => string | undefined);
+  serviceApiKey?: string | (() => string | undefined);
   logger?: { warn: (msg: string | object, ...args: unknown[]) => void };
 }): void {
   triggerNextSeasonWaitlist(params.waitlistParams).catch((err) => {

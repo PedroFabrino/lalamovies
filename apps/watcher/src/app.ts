@@ -61,12 +61,13 @@ export function buildWatcherApp(options: WatcherAppOptions = {}): FastifyInstanc
   });
 
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
-    if (!body || (typeof body === 'string' && body.trim() === '')) {
+    const raw = typeof body === 'string' ? body : body?.toString('utf-8');
+    if (!raw || raw.trim() === '') {
       done(null, {});
       return;
     }
     try {
-      done(null, JSON.parse(body));
+      done(null, JSON.parse(raw));
     } catch (err) {
       done(err as Error, undefined);
     }
@@ -122,9 +123,16 @@ export function buildWatcherApp(options: WatcherAppOptions = {}): FastifyInstanc
       releaseGatingService: releaseGating,
       tmdbApiKey,
       logger: {
-        info: (msg) => app.log.info(msg),
-        warn: (msg) => app.log.warn(msg),
-        error: (msg, err) => app.log.error(err, msg),
+        info: (msg) => typeof msg === 'string' ? app.log.info(msg) : app.log.info(msg),
+        warn: (msg) => typeof msg === 'string' ? app.log.warn(msg) : app.log.warn(msg),
+        error: (msg, err) => {
+          const messageStr = typeof msg === 'string' ? msg : JSON.stringify(msg);
+          if (err) {
+            app.log.error(err, messageStr);
+          } else {
+            app.log.error(messageStr);
+          }
+        },
       },
     });
 
