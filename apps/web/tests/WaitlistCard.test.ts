@@ -110,4 +110,21 @@ describe('WaitlistCard.vue (#188)', () => {
     expect(checkBtn.attributes('disabled')).toBeDefined();
     expect(checkBtn.text()).toContain('Checking...');
   });
+
+  it('renders lastCheckResult diagnostic text in checking status subtext when available (#189)', () => {
+    const diagnosticEntry: WaitlistEntry = {
+      ...baseEntry,
+      lastCheckResult: 'Found 52 releases (20 matched S02E02), 0 met seed/quality criteria',
+    };
+
+    const wrapper = mount(WaitlistCard, {
+      props: {
+        entry: diagnosticEntry,
+      },
+    });
+
+    const diag = wrapper.find('[data-testid="entry-diagnostic"]');
+    expect(diag.exists()).toBe(true);
+    expect(diag.text()).toBe('Found 52 releases (20 matched S02E02), 0 met seed/quality criteria');
+  });
 });

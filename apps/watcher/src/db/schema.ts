@@ -38,6 +38,7 @@ export const watchRequests = sqliteTable('watch_requests', {
   cancelledAt: text('cancelled_at'),
   cancelledBy: text('cancelled_by'),
   graceOverrideHours: integer('grace_override_hours'),
+  lastCheckResult: text('last_check_result'),
 });
 
 export type WatchRequest = typeof watchRequests.$inferSelect;

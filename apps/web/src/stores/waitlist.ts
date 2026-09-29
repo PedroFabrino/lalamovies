@@ -40,6 +40,7 @@ export interface WaitlistEntry {
   cancelledBy?: string | null;
   graceHours?: number;
   coRequesterCount?: number;
+  lastCheckResult?: string | null;
 }
 
 export interface CreateWaitlistPayload {

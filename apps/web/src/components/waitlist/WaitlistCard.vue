@@ -115,7 +115,14 @@
             <span v-else>No release date announced as of yet • Checking APIs for updates</span>
           </template>
           <template v-else-if="entry.status === 'checking'">
-            <span v-if="entry.tmdbReleaseDate">Released {{ formatDateOnly(entry.tmdbReleaseDate) }} • Actively checking trackers</span>
+            <span
+              v-if="entry.lastCheckResult"
+              class="text-sky-300/90 font-medium"
+              data-testid="entry-diagnostic"
+            >
+              {{ entry.lastCheckResult }}
+            </span>
+            <span v-else-if="entry.tmdbReleaseDate">Released {{ formatDateOnly(entry.tmdbReleaseDate) }} • Actively checking trackers</span>
             <span v-else>Checking trackers for quality release</span>
           </template>
           <template v-else-if="entry.status === 'notified'">

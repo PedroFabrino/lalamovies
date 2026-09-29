@@ -1,12 +1,12 @@
 import cron, { ScheduledTask } from 'node-cron';
 import { eq } from 'drizzle-orm';
 import { WatcherDatabase } from '../db';
-import { watchRequests } from '../db/schema';
-import { WatcherProwlarrService, CAM_REGEX } from '../services/prowlarr';
+import { watchRequests, WatchRequest } from '../db/schema';
+import { WatcherProwlarrService } from '../services/prowlarr';
 import { sendWaitlistNotification, deleteDiscordMessage } from '../services/notifications';
 import { ReleaseGatingService } from '../services/releaseGating';
 import { computeGraceHours } from '../utils/gracePeriod';
-import { matchesTarget } from '../utils/torrentTitleCleaner';
+import { evaluateCandidatesDiagnostic } from '../utils/candidateDiagnostics';
 
 export interface WatcherPollerLogger {
   info: (msg: string) => void;
@@ -153,125 +153,10 @@ export class WatcherPoller {
 
       for (const entry of checkingEntries) {
         try {
-          const alternateTitles = entry.mediaType === 'anime' && entry.metadataId && this.tmdbApiKey
-            ? await this.resolveAlternateTitles(entry)
-            : {};
-          const candidates = await this.prowlarr.searchForEntry({
-            mediaType: entry.mediaType,
-            title: entry.title,
-            year: entry.year,
-            seasonNumber: entry.seasonNumber,
-            targetEpisode: entry.targetEpisode,
-            englishTitle: alternateTitles.englishTitle,
-            romajiTitle: alternateTitles.romajiTitle,
-          });
-
-          // Quality gate: score >= 100 AND seeders >= 10 AND source != cam AND !CAM_REGEX AND matches target episode
-          const qualifying = candidates.filter((c) => {
-            if (c.score < 100) return false;
-            if (c.seeders < 10) return false;
-            if (c.source === 'cam') return false;
-            if (CAM_REGEX.test(c.title)) return false;
-            if (entry.mediaType === 'tv_show' || entry.mediaType === 'anime') {
-              const sNum = entry.seasonNumber ?? 1;
-              const targetEp = entry.targetEpisode ?? null;
-              if (!matchesTarget(c.title, sNum, targetEp)) {
-                return false;
-              }
-            }
-            return true;
-          });
-
-          if (qualifying.length === 0) {
-            continue;
+          const res = await this.pollEntry(entry);
+          if (res.notified) {
+            notifiedCount++;
           }
-
-          qualifying.sort((a, b) => {
-            if (b.score !== a.score) return b.score - a.score;
-            return b.seeders - a.seeders;
-          });
-
-          const winner = qualifying[0];
-          const now = new Date().toISOString();
-
-          let graceOverrideHours = entry.graceOverrideHours;
-          if (graceOverrideHours === null || graceOverrideHours === undefined) {
-            try {
-              if (this.releaseGating) {
-                const fetchedDate = await this.releaseGating.fetchReleaseDate(
-                  entry.mediaType as 'movie' | 'tv_show' | 'anime',
-                  entry.metadataId,
-                  entry.seasonNumber,
-                  entry.targetEpisode
-                );
-                if (fetchedDate) {
-                  graceOverrideHours = computeGraceHours(entry.mediaType, fetchedDate, {
-                    movieGraceHours: this.movieGraceHours,
-                    episodeGraceHours: this.episodeGraceHours,
-                    thresholdDays: this.newReleaseThresholdDays,
-                  });
-                } else {
-                  this.logger?.warn(`TMDB release date not found for "${entry.title}", defaulting grace to ${this.episodeGraceHours}h`);
-                  graceOverrideHours = this.episodeGraceHours;
-                }
-              } else {
-                this.logger?.warn(`No release gating service available to fetch TMDB date for "${entry.title}", defaulting grace to ${this.episodeGraceHours}h`);
-                graceOverrideHours = this.episodeGraceHours;
-              }
-            } catch (err) {
-              this.logger?.warn(`Failed to fetch TMDB release date for "${entry.title}": ${(err as Error).message}`);
-              graceOverrideHours = this.episodeGraceHours;
-            }
-          }
-
-          let discordMessageId: string | null = null;
-          const secret = this.magicLinkSecret || process.env.MAGIC_LINK_SECRET || 'magic-link-secret-default-change-me';
-          if (secret) {
-            try {
-              if (entry.discordMessageId) {
-                await deleteDiscordMessage(
-                  entry.discordMessageId,
-                  this.webhookUrl,
-                  this.logger
-                );
-              }
-
-              discordMessageId = await sendWaitlistNotification({
-                id: entry.id,
-                title: entry.title,
-                year: entry.year,
-                mediaType: entry.mediaType,
-                releaseTitle: winner.title,
-                score: winner.score,
-                notifyAt: now,
-                secret,
-                webhookUrl: this.webhookUrl,
-                frontendUrl: this.frontendUrl,
-                graceHours: graceOverrideHours ?? this.graceHours,
-                logger: this.logger,
-              });
-            } catch (err) {
-              this.logger?.warn(`Failed to send Discord notification for "${entry.title}": ${(err as Error).message}`);
-            }
-          }
-
-          this.db
-            .update(watchRequests)
-            .set({
-              status: 'notified',
-              prowlarrReleaseTitle: winner.title,
-              prowlarrReleaseMagnet: winner.downloadUrl,
-              prowlarrReleaseScore: winner.score,
-              discordMessageId,
-              notifyAt: now,
-              updatedAt: now,
-              graceOverrideHours,
-            })
-            .where(eq(watchRequests.id, entry.id))
-            .run();
-
-          notifiedCount++;
-          this.logger?.info(`Watcher: found qualifying release for "${entry.title}" (score: ${winner.score}, seeders: ${winner.seeders}). Status -> notified.`);
         } catch (err) {
           this.logger?.error(`Watcher: error searching releases for "${entry.title}":`, err);
         }
@@ -281,6 +166,123 @@ export class WatcherPoller {
     } finally {
       this.isPolling = false;
     }
+  }
+
+  async pollEntry(entry: WatchRequest): Promise<{ notified: boolean; diagnostic: string }> {
+    const alternateTitles = entry.mediaType === 'anime' && entry.metadataId && this.tmdbApiKey
+      ? await this.resolveAlternateTitles(entry)
+      : {};
+    const candidates = await this.prowlarr.searchForEntry({
+      mediaType: entry.mediaType,
+      title: entry.title,
+      year: entry.year,
+      seasonNumber: entry.seasonNumber,
+      targetEpisode: entry.targetEpisode,
+      englishTitle: alternateTitles.englishTitle,
+      romajiTitle: alternateTitles.romajiTitle,
+    });
+
+    const { qualifying, diagnostic } = evaluateCandidatesDiagnostic(entry, candidates);
+    const now = new Date().toISOString();
+
+    if (qualifying.length === 0) {
+      this.db
+        .update(watchRequests)
+        .set({
+          lastCheckResult: diagnostic,
+          updatedAt: now,
+        })
+        .where(eq(watchRequests.id, entry.id))
+        .run();
+      return { notified: false, diagnostic };
+    }
+
+    qualifying.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return b.seeders - a.seeders;
+    });
+
+    const winner = qualifying[0];
+
+    let graceOverrideHours = entry.graceOverrideHours;
+    if (graceOverrideHours === null || graceOverrideHours === undefined) {
+      try {
+        if (this.releaseGating) {
+          const fetchedDate = await this.releaseGating.fetchReleaseDate(
+            entry.mediaType as 'movie' | 'tv_show' | 'anime',
+            entry.metadataId,
+            entry.seasonNumber,
+            entry.targetEpisode
+          );
+          if (fetchedDate) {
+            graceOverrideHours = computeGraceHours(entry.mediaType, fetchedDate, {
+              movieGraceHours: this.movieGraceHours,
+              episodeGraceHours: this.episodeGraceHours,
+              thresholdDays: this.newReleaseThresholdDays,
+            });
+          } else {
+            this.logger?.warn(`TMDB release date not found for "${entry.title}", defaulting grace to ${this.episodeGraceHours}h`);
+            graceOverrideHours = this.episodeGraceHours;
+          }
+        } else {
+          this.logger?.warn(`No release gating service available to fetch TMDB date for "${entry.title}", defaulting grace to ${this.episodeGraceHours}h`);
+          graceOverrideHours = this.episodeGraceHours;
+        }
+      } catch (err) {
+        this.logger?.warn(`Failed to fetch TMDB release date for "${entry.title}": ${(err as Error).message}`);
+        graceOverrideHours = this.episodeGraceHours;
+      }
+    }
+
+    let discordMessageId: string | null = null;
+    const secret = this.magicLinkSecret || process.env.MAGIC_LINK_SECRET || 'magic-link-secret-default-change-me';
+    if (secret) {
+      try {
+        if (entry.discordMessageId) {
+          await deleteDiscordMessage(
+            entry.discordMessageId,
+            this.webhookUrl,
+            this.logger
+          );
+        }
+
+        discordMessageId = await sendWaitlistNotification({
+          id: entry.id,
+          title: entry.title,
+          year: entry.year,
+          mediaType: entry.mediaType,
+          releaseTitle: winner.title,
+          score: winner.score,
+          notifyAt: now,
+          secret,
+          webhookUrl: this.webhookUrl,
+          frontendUrl: this.frontendUrl,
+          graceHours: graceOverrideHours ?? this.graceHours,
+          logger: this.logger,
+        });
+      } catch (err) {
+        this.logger?.warn(`Failed to send Discord notification for "${entry.title}": ${(err as Error).message}`);
+      }
+    }
+
+    this.db
+      .update(watchRequests)
+      .set({
+        status: 'notified',
+        prowlarrReleaseTitle: winner.title,
+        prowlarrReleaseMagnet: winner.downloadUrl,
+        prowlarrReleaseScore: winner.score,
+        discordMessageId,
+        notifyAt: now,
+        updatedAt: now,
+        graceOverrideHours,
+        lastCheckResult: diagnostic,
+      })
+      .where(eq(watchRequests.id, entry.id))
+      .run();
+
+    this.logger?.info(`Watcher: found qualifying release for "${entry.title}" (score: ${winner.score}, seeders: ${winner.seeders}). Status -> notified.`);
+    return { notified: true, diagnostic };
   }
 
   start(): void {

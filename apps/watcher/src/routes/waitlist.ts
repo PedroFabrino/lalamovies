@@ -886,21 +886,34 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
 
       if (updated?.status === 'checking') {
         try {
-          await app.poller?.pollOnce();
+          const pollRes = await app.poller?.pollEntry(updated);
+          if (pollRes?.diagnostic) {
+            checkMessage = pollRes.diagnostic;
+          }
         } catch (err: unknown) {
           app.log.warn(err, 'Manual poller tick failed');
         }
       }
 
+      const finalEntry = app.db
+        .select()
+        .from(watchRequests)
+        .where(eq(watchRequests.id, id))
+        .get();
+
       return reply.send({
         ok: true,
-        message: checkMessage,
-        entry: updated,
+        message: finalEntry?.lastCheckResult || checkMessage,
+        entry: finalEntry,
       });
     }
 
+    let checkMessage = 'Checked trackers';
     try {
-      await app.poller?.pollOnce();
+      const pollRes = await app.poller?.pollEntry(entry);
+      if (pollRes?.diagnostic) {
+        checkMessage = pollRes.diagnostic;
+      }
     } catch (err: unknown) {
       app.log.warn(err, 'Manual poller tick failed');
     }
@@ -911,7 +924,11 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       .where(eq(watchRequests.id, id))
       .get();
 
-    return reply.send({ ok: true, entry: updated });
+    return reply.send({
+      ok: true,
+      message: updated?.lastCheckResult || checkMessage,
+      entry: updated,
+    });
   });
 };
 
