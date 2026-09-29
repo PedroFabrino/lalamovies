@@ -59,9 +59,14 @@ describe('preferredIndexer utility (apps/api)', () => {
   describe('isQualifiedPreferred', () => {
     beforeEach(() => {
       process.env.PREFERRED_INDEXER_REGEX = 'bj[-_ ]?share';
+      delete process.env.PREFERRED_INDEXER_MIN_SEEDERS;
     });
 
-    it('returns true when indexer is preferred, seeders >= 3, and not CAM', () => {
+    afterEach(() => {
+      delete process.env.PREFERRED_INDEXER_MIN_SEEDERS;
+    });
+
+    it('returns true when indexer is preferred, seeders >= 3, and not CAM (default threshold)', () => {
       expect(isQualifiedPreferred({
         indexer: 'BJ-Share',
         seeders: 3,
@@ -75,7 +80,7 @@ describe('preferredIndexer utility (apps/api)', () => {
       })).toBe(true);
     });
 
-    it('returns false when seeders < 3', () => {
+    it('returns false when seeders < default threshold (3)', () => {
       expect(isQualifiedPreferred({
         indexer: 'BJ-Share',
         seeders: 2,
@@ -102,6 +107,38 @@ describe('preferredIndexer utility (apps/api)', () => {
         indexer: 'Nyaa',
         seeders: 100,
         source: 'bluray',
+      })).toBe(false);
+    });
+
+    it('respects PREFERRED_INDEXER_MIN_SEEDERS=1 — 1 seeder qualifies', () => {
+      process.env.PREFERRED_INDEXER_MIN_SEEDERS = '1';
+      expect(isQualifiedPreferred({
+        indexer: 'BJ-Share',
+        seeders: 1,
+        source: 'web',
+      })).toBe(true);
+    });
+
+    it('respects PREFERRED_INDEXER_MIN_SEEDERS=1 — 0 seeders still rejected', () => {
+      process.env.PREFERRED_INDEXER_MIN_SEEDERS = '1';
+      expect(isQualifiedPreferred({
+        indexer: 'BJ-Share',
+        seeders: 0,
+        source: 'web',
+      })).toBe(false);
+    });
+
+    it('respects PREFERRED_INDEXER_MIN_SEEDERS=2 — 2 qualifies, 1 does not', () => {
+      process.env.PREFERRED_INDEXER_MIN_SEEDERS = '2';
+      expect(isQualifiedPreferred({
+        indexer: 'BJ-Share',
+        seeders: 2,
+        source: 'web',
+      })).toBe(true);
+      expect(isQualifiedPreferred({
+        indexer: 'BJ-Share',
+        seeders: 1,
+        source: 'web',
       })).toBe(false);
     });
   });

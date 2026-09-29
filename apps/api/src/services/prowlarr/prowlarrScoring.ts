@@ -89,13 +89,15 @@ export function scoreRelease(
   // Resolution weights
   switch (candidate.resolution) {
     case '1080p':
-      score += 100;
+      // Primary resolution target — ranked above 4K for series to conserve storage
+      score += 105;
       break;
     case '720p':
       score += 50;
       break;
     case '2160p':
-      score += 20;
+      // Qualifies for auto-download (>= 100) but ranked below 1080p for episodic series
+      score += 100;
       break;
     case '480p':
       score += 10;

@@ -51,7 +51,7 @@ The substitution of an in-progress or queued Download Request's underlying torre
 _Avoid_: torrent swap, re-download, update request, change torrent
 
 **Preferred Indexer**:
-A private torrent tracker configured as the operator's preferred download source via `PREFERRED_INDEXER_REGEX`. Release Candidates from the Preferred Indexer receive a Release Scoring bonus and are always favoured as the Recommended Release when they meet the minimum health threshold (>= 3 seeders, non-CAM source). Preferred Indexer releases are excluded from Debrid Provider ingestion by the Private Tracker Airgap. The Watcher Service will only auto-download Waitlist Entries from the Preferred Indexer.
+A private torrent tracker configured as the operator's preferred download source via `PREFERRED_INDEXER_REGEX`. Release Candidates from the Preferred Indexer receive a Release Scoring bonus and are always favoured as the Recommended Release when they meet the configurable minimum health threshold (`PREFERRED_INDEXER_MIN_SEEDERS`, default >= 1 seeder, non-CAM source). Preferred Indexer releases are excluded from Debrid Provider ingestion by the Private Tracker Airgap. The Watcher Service auto-downloads Waitlist Entries from the Preferred Indexer without requiring manual approval.
 _Avoid_: private tracker preference, BJ-Share mode, indexer priority
 
 **Discovery Feed**:
@@ -75,12 +75,16 @@ A user's collection of Waitlist Entries for media that has not yet been released
 _Avoid_: watchlist, pre-order list, download queue
 
 **Waitlist Entry**:
-A single item in the Waitlist representing a user's intent to auto-download a specific Movie, TV Show season, or Anime season once a qualifying release appears. Progresses through lifecycle states (`pending_release`, `checking`, `notified`, `triggered`, `completed`, `rejected`, `cancelled`). Auto-download requires `score ≥ 100` and `seeders ≥ 10` — a stricter bar than the Discovery Feed — because the system acts autonomously on the user's behalf. Each entry carries a `Grace Period` applied between notification and auto-download trigger.
+A single item in the Waitlist representing a user's intent to auto-download a specific Movie, TV Show season, or Anime season once a qualifying release appears. Progresses through lifecycle states (`pending_release`, `checking`, `notified`, `triggered`, `completed`, `rejected`, `cancelled`). Auto-download requires `score ≥ 100` and `seeders ≥ 10` for public indexers, or `seeders >= PREFERRED_INDEXER_MIN_SEEDERS` (default 1) for the Preferred Indexer. Resolution qualification accepts 1080p and 2160p (prioritizing 1080p for series), with 720p accepted for backlog episodes (> 24 hours old) when higher resolutions are absent. Each entry carries a `Grace Period` applied between notification and auto-download trigger.
 _Avoid_: watchlist item, queued download, anticipated release
 
 **Watch for Next Episodes**:
 A mode activated at the Up Next confirm step for single-episode TV Show and Anime requests. When enabled, the system creates a Waitlist Entry for the next sequential episode after the one being downloaded, and the Watcher's episodic tracking automatically advances the entry to subsequent episodes after each successful download. Checkbox is pre-ticked when the request originates from the Up Next shelf; unchecked by default for manual flows.
 _Avoid_: episode subscription, auto-next, auto-queue
+
+**Episodic Waterfall**:
+The automated search-snatch-advance cycle for episodic series without season packs. Upon advancing or creating an episodic Waitlist Entry, the system immediately queries the Preferred Indexer for sequential released episodes, auto-downloads qualifying releases with zero grace period, and advances in-place up to a safety cap of 30 iterations. The waterfall halts when an unreleased episode, missing indexer release, or public tracker candidate is reached (the latter triggering Discord notification and standard grace period).
+_Avoid_: episode cascade, bulk auto-snatch, rapid poller
 
 **Grace Period**:
 The configurable delay (in hours) between a Waitlist Entry entering the `notified` state (a qualifying release found) and the Watcher auto-submitting the download. During this window, a Discord notification with Approve/Reject magic links is sent. A Grace Period of 0 hours triggers an immediate silent auto-download with no notification. Computed per-entry at creation time from the Release Newness Threshold; re-evaluated at notify time for entries whose TMDB air date was not yet known at creation.

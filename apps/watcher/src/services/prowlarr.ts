@@ -24,6 +24,9 @@ export interface ReleaseCandidate {
   infoHash?: string;
 }
 
+/** Alias for ReleaseCandidate — used in diagnostics and test utilities. */
+export type ProwlarrSearchResult = ReleaseCandidate;
+
 export interface ScoreOptions {
   mediaType?: 'movie' | 'tv_show' | 'anime';
   isSingleEpisode?: boolean;
@@ -90,13 +93,15 @@ export function scoreRelease(
 
   switch (candidate.resolution) {
     case '1080p':
-      score += 100;
+      // Primary resolution target — ranked above 4K for series to conserve storage
+      score += 105;
       break;
     case '720p':
       score += 50;
       break;
     case '2160p':
-      score += 20;
+      // Qualifies for auto-download (>= 100) but ranked below 1080p for episodic series
+      score += 100;
       break;
     case '480p':
       score += 10;
