@@ -744,10 +744,10 @@
     "semantic_hash": ""
   },
   "apps/watcher/src/db/index.ts": {
-    "mtime": 1789288180.4455876,
-    "seen": 1789780156.9478219,
-    "ast_hash": "b53a4dfd9abc655a7c129197b78fbf9a",
-    "semantic_hash": "b53a4dfd9abc655a7c129197b78fbf9a"
+    "mtime": 1790680248.9544635,
+    "seen": 1790681702.9740493,
+    "ast_hash": "7aaf795c6be86d942364a23c4c1cbcfa",
+    "semantic_hash": ""
   },
   "apps/watcher/src/db/migrations/0000_smiling_killmonger.sql": {
     "mtime": 1789288205.30976,
@@ -768,10 +768,10 @@
     "semantic_hash": "245653abbf704b86bd2cbcdc930e7035"
   },
   "apps/watcher/src/db/schema.ts": {
-    "mtime": 1789288174.3820312,
-    "seen": 1789780156.9478219,
-    "ast_hash": "76f413021ca8d5f3570eebf7793a41a1",
-    "semantic_hash": "76f413021ca8d5f3570eebf7793a41a1"
+    "mtime": 1790680235.6632752,
+    "seen": 1790681702.9740493,
+    "ast_hash": "99354ffb41003a0b5d9b1d31bebb6854",
+    "semantic_hash": ""
   },
   "apps/watcher/src/index.ts": {
     "mtime": 1789161991.6780577,
@@ -786,15 +786,15 @@
     "semantic_hash": "8d469221b09df675bed2eb9d1f087d30"
   },
   "apps/watcher/src/jobs/watcherPoller.ts": {
-    "mtime": 1790583784.7144327,
-    "seen": 1790583940.7419448,
-    "ast_hash": "8d532be98a52d94cb0498ca87e7ffc10",
+    "mtime": 1790680311.6290703,
+    "seen": 1790681702.9740493,
+    "ast_hash": "50504d85b7c077cb4b14615c480af8e1",
     "semantic_hash": ""
   },
   "apps/watcher/src/routes/waitlist.ts": {
-    "mtime": 1790493148.9454985,
-    "seen": 1790493736.1579804,
-    "ast_hash": "9884cd4a3ec12efb001d48bdcdc90daf",
+    "mtime": 1790681271.4189475,
+    "seen": 1790681702.9740493,
+    "ast_hash": "f2c4e0408d2119546d75a32f4bc2c7bd",
     "semantic_hash": ""
   },
   "apps/watcher/src/services/episodicTracking.ts": {
@@ -1074,9 +1074,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/stores/waitlist.ts": {
-    "mtime": 1789955142.308688,
-    "seen": 1789956580.6431148,
-    "ast_hash": "2bf9d764ee32abbdee70d677e8fa9dd9",
+    "mtime": 1790680358.9271367,
+    "seen": 1790681703.011389,
+    "ast_hash": "927df3a6c15b83d54685ae50bc040e33",
     "semantic_hash": ""
   },
   "apps/web/src/views/AdminView.vue": {
@@ -1128,9 +1128,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/WaitlistView.vue": {
-    "mtime": 1790482549.8883574,
-    "seen": 1790482738.4297347,
-    "ast_hash": "aed9b0344b2ff519b87553a811e98917",
+    "mtime": 1790680914.3965876,
+    "seen": 1790681703.0150766,
+    "ast_hash": "d9ac88ebca1fb16546f411cce938ede8",
     "semantic_hash": ""
   },
   "apps/web/src/vite-env.d.ts": {
@@ -1734,9 +1734,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/schemas.ts": {
-    "mtime": 1790582595.6747997,
-    "seen": 1790583940.6876218,
-    "ast_hash": "84bba62422b88c5cd9ab14b8eab08402",
+    "mtime": 1790681279.737506,
+    "seen": 1790681702.9288545,
+    "ast_hash": "802f5b4a9d870fb1eb2624006e3c7896",
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/search.ts": {
@@ -1830,9 +1830,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/composables/useRequestData.ts": {
-    "mtime": 1790583022.287309,
-    "seen": 1790583940.7683482,
-    "ast_hash": "24dc8732e4c77aab270546a4c63bd720",
+    "mtime": 1790680999.871559,
+    "seen": 1790681703.0036495,
+    "ast_hash": "36a46e6d13654dd3399efbe30d9040be",
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/batch.ts": {
@@ -1950,9 +1950,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/composables/requestFastTrack.ts": {
-    "mtime": 1790020953.969715,
-    "seen": 1790021059.0338314,
-    "ast_hash": "061e1e4cf8a560b91e9dc57f32edbb61",
+    "mtime": 1790680829.7719169,
+    "seen": 1790681703.0021296,
+    "ast_hash": "3d34a8fb0c537d64375280a0276735cb",
     "semantic_hash": ""
   },
   "apps/web/src/composables/requestTypes.ts": {
@@ -1980,9 +1980,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/composables/useRequestSubmit.ts": {
-    "mtime": 1790675114.8161175,
-    "seen": 1790675198.6704497,
-    "ast_hash": "2c4c753cf6e6119a741148b77ad217c0",
+    "mtime": 1790681341.0683217,
+    "seen": 1790681703.0048385,
+    "ast_hash": "76122a41d672e85bd04c9cdcdece536b",
     "semantic_hash": ""
   },
   "apps/web/src/composables/useStreamModal.ts": {
@@ -2040,15 +2040,15 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/requestServiceTypes.ts": {
-    "mtime": 1790582624.8686264,
-    "seen": 1790583940.6996572,
-    "ast_hash": "255a64f6a9b159e541b7011402c782de",
+    "mtime": 1790681290.5963104,
+    "seen": 1790681702.9385216,
+    "ast_hash": "cf73a0f1c5f870d5acb78dba278f0df5",
     "semantic_hash": ""
   },
   "apps/api/src/services/serviceContainer.ts": {
-    "mtime": 1790677453.1226494,
-    "seen": 1790677783.2656832,
-    "ast_hash": "aad199f6c7ec8164e18729e638cd3505",
+    "mtime": 1790677866.3536856,
+    "seen": 1790681702.9400837,
+    "ast_hash": "ec0e8bec26fc1abd957e8cef871dd572",
     "semantic_hash": ""
   },
   "apps/api/src/startup/onReady.ts": {
@@ -2064,15 +2064,15 @@
     "semantic_hash": ""
   },
   "apps/api/tests/requestService.test.ts": {
-    "mtime": 1790675114.8134985,
-    "seen": 1790675198.5933545,
-    "ast_hash": "9743d6b24953088d694fb5d99c65027f",
+    "mtime": 1790681445.375671,
+    "seen": 1790681702.9577286,
+    "ast_hash": "eac5354a78e5c19f487c0ee494a946db",
     "semantic_hash": ""
   },
   "apps/api/src/services/requestCreate.ts": {
-    "mtime": 1790675114.7904265,
-    "seen": 1790675198.5456848,
-    "ast_hash": "bb50ac9884497ef6f87b271fbafafdf3",
+    "mtime": 1790681316.419269,
+    "seen": 1790681702.937006,
+    "ast_hash": "4f8e81cc11e5a4f3690f69b235de8b10",
     "semantic_hash": ""
   },
   "scripts/dev-setup.mjs": {
@@ -2757,6 +2757,60 @@
     "mtime": 1790677509.2401268,
     "seen": 1790677783.3014805,
     "ast_hash": "6682e4a86182559440c885900a70f461",
+    "semantic_hash": ""
+  },
+  "apps/watcher/src/utils/candidateDiagnostics.ts": {
+    "mtime": 1790680226.4439592,
+    "seen": 1790681702.976607,
+    "ast_hash": "b9ce4250bbcbbc6119b9c7dc35ef0039",
+    "semantic_hash": ""
+  },
+  "apps/watcher/tests/candidate_diagnostics.test.ts": {
+    "mtime": 1790680388.226381,
+    "seen": 1790681702.9781277,
+    "ast_hash": "1ad5ac8f29ef44a593ea02ac48ceb3ec",
+    "semantic_hash": ""
+  },
+  "apps/watcher/tests/waitlist_advance.test.ts": {
+    "mtime": 1790681383.7039647,
+    "seen": 1790681702.9811814,
+    "ast_hash": "aa12c60d2cf0331e602dfb2971d41506",
+    "semantic_hash": ""
+  },
+  "apps/watcher/tests/watcher_diagnostics_integration.test.ts": {
+    "mtime": 1790680416.626824,
+    "seen": 1790681702.9827378,
+    "ast_hash": "e339b5b592fac3e743c9dea5dad7dea6",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/waitlist/WaitlistCard.vue": {
+    "mtime": 1790680759.276829,
+    "seen": 1790681703.0021296,
+    "ast_hash": "14eb8efa3f6be86b45e08709e5d9f1a7",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/waitlist/waitlistCardUtils.ts": {
+    "mtime": 1790679873.2348087,
+    "seen": 1790681703.0021296,
+    "ast_hash": "3a18e1dd346d636245c4a907ccfaccbc",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/WaitlistCard.test.ts": {
+    "mtime": 1790680944.6745949,
+    "seen": 1790681703.023924,
+    "ast_hash": "9966a4e27d4ca106882dd09d6d6f95f4",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/WaitlistFastTrack.test.ts": {
+    "mtime": 1790681494.787836,
+    "seen": 1790681703.023924,
+    "ast_hash": "505660cbf3e66fef5fe378930e57a950",
+    "semantic_hash": ""
+  },
+  "docs/spec/waitlist-manual-request-shortcut.md": {
+    "mtime": 1790679575.658454,
+    "seen": 1790681703.0417678,
+    "ast_hash": "95850b34ace439e26b888c21c3789987",
     "semantic_hash": ""
   }
 }
