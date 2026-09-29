@@ -127,4 +127,31 @@ describe('WaitlistCard.vue (#188)', () => {
     expect(diag.exists()).toBe(true);
     expect(diag.text()).toBe('Found 52 releases (20 matched S02E02), 0 met seed/quality criteria');
   });
+
+  it('emits manual-pick when clicking card container (#190)', async () => {
+    const wrapper = mount(WaitlistCard, {
+      props: {
+        entry: baseEntry,
+      },
+    });
+
+    await wrapper.trigger('click');
+    expect(wrapper.emitted('manual-pick')).toBeTruthy();
+    expect(wrapper.emitted('manual-pick')![0]).toEqual([baseEntry]);
+  });
+
+  it('emits manual-pick when clicking manual pick button in footer (#190)', async () => {
+    const wrapper = mount(WaitlistCard, {
+      props: {
+        entry: baseEntry,
+      },
+    });
+
+    const manualBtn = wrapper.find('[data-testid="manual-pick-btn"]');
+    expect(manualBtn.exists()).toBe(true);
+    await manualBtn.trigger('click');
+
+    expect(wrapper.emitted('manual-pick')).toBeTruthy();
+    expect(wrapper.emitted('manual-pick')![0]).toEqual([baseEntry]);
+  });
 });

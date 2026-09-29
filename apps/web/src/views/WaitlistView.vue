@@ -219,6 +219,7 @@
           @approve="handleApprove"
           @check="handleCheckEntry"
           @cancel="handleCancel"
+          @manual-pick="handleManualPick"
         />
       </div>
     </main>
@@ -1033,5 +1034,26 @@ async function handleApprove(entry: WaitlistEntry) {
   } finally {
     approvingEntryId.value = null;
   }
+}
+
+function handleManualPick(entry: WaitlistEntry) {
+  const query: Record<string, string> = {
+    fromWaitlist: 'true',
+    waitlistId: entry.id,
+    mediaType: entry.mediaType,
+    metadataId: String(entry.metadataId),
+    metadataSource: entry.metadataSource || 'tmdb',
+    title: entry.title,
+  };
+  if (entry.year) query.year = String(entry.year);
+  if (entry.seasonNumber !== null && entry.seasonNumber !== undefined) {
+    query.seasonNumber = String(entry.seasonNumber);
+  }
+  if (entry.targetEpisode !== null && entry.targetEpisode !== undefined) {
+    query.episodeNumber = String(entry.targetEpisode);
+  }
+  if (entry.posterUrl) query.posterUrl = entry.posterUrl;
+
+  router.push({ path: '/request', query });
 }
 </script>

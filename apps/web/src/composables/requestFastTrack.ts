@@ -106,3 +106,101 @@ export function parseFastTrack(
     },
   };
 }
+
+export interface WaitlistParsedData {
+  mediaType: MediaType;
+  candidate: MetadataCandidate;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  downloadGranularity: 'season' | 'episode';
+  watchForNextEpisodes: boolean;
+  waitlistId?: string;
+}
+
+export function parseWaitlistParams(
+  query: LocationQuery
+): { data?: WaitlistParsedData; error?: string } {
+  if (query.fromWaitlist !== 'true') return {};
+  const rawTitle = query.title ? String(query.title) : undefined;
+  const rawMetadataId = query.metadataId ? String(query.metadataId) : undefined;
+  const rawMediaType = query.mediaType ? String(query.mediaType) : undefined;
+
+  if (!rawTitle || !rawMetadataId || !rawMediaType) {
+    return { error: 'Incomplete waitlist parameters.' };
+  }
+
+  const validMediaTypes: MediaType[] = ['movie', 'tv_show', 'anime', 'private'];
+  if (!validMediaTypes.includes(rawMediaType as MediaType)) {
+    return { error: 'Invalid media type for waitlist request.' };
+  }
+
+  const mediaType = rawMediaType as MediaType;
+  const rawYear = query.year;
+  const yearNum = rawYear ? parseInt(String(rawYear), 10) : null;
+
+  const candidate: MetadataCandidate = {
+    id: rawMetadataId,
+    source: query.metadataSource === 'anilist' ? 'anilist' : 'tmdb',
+    title: rawTitle,
+    year: yearNum !== null && !isNaN(yearNum) ? yearNum : null,
+    posterUrl: query.posterUrl ? String(query.posterUrl) : null,
+  };
+
+  let seasonNumber: number | null = null;
+  if (query.seasonNumber !== undefined) {
+    const s = parseInt(String(query.seasonNumber), 10);
+    if (!isNaN(s)) seasonNumber = s;
+  } else if (mediaType !== 'movie') {
+    seasonNumber = 1;
+  }
+
+  let episodeNumber: number | null = null;
+  let downloadGranularity: 'season' | 'episode' = 'season';
+  if (query.episodeNumber !== undefined) {
+    const e = parseInt(String(query.episodeNumber), 10);
+    if (!isNaN(e)) {
+      episodeNumber = e;
+      downloadGranularity = 'episode';
+    }
+  }
+
+  const watchForNextEpisodes = ['tv_show', 'anime'].includes(mediaType);
+  const waitlistId = query.waitlistId ? String(query.waitlistId) : undefined;
+
+  return {
+    data: {
+      mediaType,
+      candidate,
+      seasonNumber,
+      episodeNumber,
+      downloadGranularity,
+      watchForNextEpisodes,
+      waitlistId,
+    },
+  };
+}
+
+export async function enrichCandidateMetadata(
+  apiClient: { post: <T>(url: string, body: unknown) => Promise<T> },
+  mediaType: string,
+  candidate: MetadataCandidate
+): Promise<void> {
+  if (candidate.posterUrl && candidate.overview) return;
+  try {
+    const res = await apiClient.post<{ candidates: MetadataCandidate[] }>('/requests/search-metadata', {
+      mediaType,
+      query: candidate.title,
+    });
+    if (res.candidates && res.candidates.length > 0) {
+      const match = res.candidates.find((c) => String(c.id) === String(candidate.id)) || res.candidates[0];
+      if (match) {
+        if (!candidate.posterUrl && match.posterUrl) candidate.posterUrl = match.posterUrl;
+        if (!candidate.overview && match.overview) candidate.overview = match.overview;
+        if (!candidate.year && match.year) candidate.year = match.year;
+      }
+    }
+  } catch {
+    // Non-blocking
+  }
+}
+

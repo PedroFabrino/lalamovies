@@ -55,7 +55,7 @@ export function useRequestSubmit(options: UseRequestSubmitOptions) {
   const submitProgress = ref({ current: 0, total: 0 });
   const step3Error = ref<string | null>(null);
   const existingRequest = ref<CanonicalRequestSummary | null>(null);
-  const waitlistNextSeason = ref(false), watchForNextEpisodes = ref(false), notifyBeforeEachDownload = ref(false);
+  const waitlistNextSeason = ref(false), watchForNextEpisodes = ref(false), notifyBeforeEachDownload = ref(false), waitlistId = ref<string | null>(null);
   const forceDownload = ref(false);
 
   async function checkDuplicateExists(candidate: MetadataCandidate): Promise<CanonicalRequestSummary | null> {
@@ -284,6 +284,7 @@ export function useRequestSubmit(options: UseRequestSubmitOptions) {
     waitlistNextSeason,
     watchForNextEpisodes,
     notifyBeforeEachDownload,
+    waitlistId,
     checkDuplicateExists,
     navigateToWaitlistWithMetadata,
     onGranularityChange,

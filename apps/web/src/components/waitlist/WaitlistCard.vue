@@ -1,7 +1,8 @@
 <template>
   <div
     data-testid="waitlist-card"
-    class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between gap-4 transition hover:border-zinc-700"
+    class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between gap-4 transition hover:border-zinc-700 cursor-pointer"
+    @click="$emit('manual-pick', entry)"
   >
     <div class="flex gap-4">
       <!-- Poster -->
@@ -221,6 +222,30 @@
         <button
           v-if="entry.status !== 'cancelled' && entry.status !== 'completed'"
           type="button"
+          data-testid="manual-pick-btn"
+          title="Manually select torrent from indexers"
+          class="px-2.5 py-1 text-zinc-400 hover:text-indigo-300 hover:bg-indigo-950/30 rounded border border-transparent hover:border-indigo-900/50 transition cursor-pointer flex items-center gap-1 text-xs"
+          @click.stop="$emit('manual-pick', entry)"
+        >
+          <svg
+            class="w-3.5 h-3.5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"
+            />
+          </svg>
+          <span>Manual Pick</span>
+        </button>
+
+        <button
+          v-if="entry.status !== 'cancelled' && entry.status !== 'completed'"
+          type="button"
           data-testid="cancel-waitlist-btn"
           class="px-2.5 py-1 text-zinc-400 hover:text-red-400 hover:bg-red-950/30 rounded border border-transparent hover:border-red-900/50 transition cursor-pointer flex items-center gap-1"
           @click.stop="$emit('cancel', entry)"
@@ -277,5 +302,6 @@ defineEmits<{
   (e: 'approve', entry: WaitlistEntry): void;
   (e: 'check', entry: WaitlistEntry): void;
   (e: 'cancel', entry: WaitlistEntry): void;
+  (e: 'manual-pick', entry: WaitlistEntry): void;
 }>();
 </script>

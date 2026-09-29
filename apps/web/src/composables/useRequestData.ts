@@ -7,7 +7,7 @@ import type { ReleaseCandidate } from '../lib/releaseExplorer';
 
 import type { MetadataCandidate, BatchItem, CanonicalRequestSummary } from './requestTypes';
 import { parseAnimeTitleAndSeason } from '../lib/animeTitleCleaner';
-import { parseFastTrack } from './requestFastTrack';
+import { parseFastTrack, parseWaitlistParams, enrichCandidateMetadata } from './requestFastTrack';
 import { useRequestStep1 } from './useRequestStep1';
 import { useRequestStep2 } from './useRequestStep2';
 import { useRequestReleases } from './useRequestReleases';
@@ -184,6 +184,32 @@ export function useRequestData() {
     return true;
   }
 
+  function initWaitlistFromRoute(): boolean {
+    const { data, error } = parseWaitlistParams(route.query);
+    if (error) {
+      step1.step1Error.value = error;
+      return false;
+    }
+    if (!data) return false;
+
+    mediaType.value = data.mediaType;
+    step2.selectedCandidate.value = data.candidate;
+    seasonNumber.value = data.seasonNumber;
+    episodeNumber.value = data.episodeNumber;
+    downloadGranularity.value = data.downloadGranularity;
+
+    submit.watchForNextEpisodes.value = data.watchForNextEpisodes;
+    submit.notifyBeforeEachDownload.value = false;
+    if (data.waitlistId) {
+      submit.waitlistId.value = data.waitlistId;
+    }
+
+    currentStep.value = 3;
+    step1.inputMode.value = 'search';
+
+    return true;
+  }
+
   onMounted(async () => {
     featureFlags.ensureFlagsLoaded();
     if (route.query.fromUpNext === 'true') {
@@ -191,25 +217,15 @@ export function useRequestData() {
       submit.notifyBeforeEachDownload.value = false;
     }
     const isFastTrack = initFastTrackFromRoute();
+    const isWaitlist = !isFastTrack && initWaitlistFromRoute();
 
-    if (isFastTrack && step2.selectedCandidate.value) {
+    if (isWaitlist && step2.selectedCandidate.value) {
       await submit.checkDuplicateExists(step2.selectedCandidate.value);
-      if (!step2.selectedCandidate.value.posterUrl || !step2.selectedCandidate.value.overview) {
-        api.post<{ candidates: MetadataCandidate[] }>('/requests/search-metadata', {
-          mediaType: mediaType.value,
-          query: step2.selectedCandidate.value.title,
-        }).then((res) => {
-          if (res.candidates && res.candidates.length > 0) {
-            const match = res.candidates.find((c) => String(c.id) === String(step2.selectedCandidate.value?.id)) || res.candidates[0];
-            if (match && step2.selectedCandidate.value) {
-              if (!step2.selectedCandidate.value.posterUrl && match.posterUrl) step2.selectedCandidate.value.posterUrl = match.posterUrl;
-              if (!step2.selectedCandidate.value.overview && match.overview) step2.selectedCandidate.value.overview = match.overview;
-              if (!step2.selectedCandidate.value.year && match.year) step2.selectedCandidate.value.year = match.year;
-            }
-          }
-        }).catch(() => {});
-      }
-    } else if (!isFastTrack && route.query.query) {
+      releases.fetchReleasesForCandidate(step2.selectedCandidate.value);
+    } else if (isFastTrack && step2.selectedCandidate.value) {
+      await submit.checkDuplicateExists(step2.selectedCandidate.value);
+      enrichCandidateMetadata(api, mediaType.value, step2.selectedCandidate.value);
+    } else if (!isFastTrack && !isWaitlist && route.query.query) {
       step1.customQuery.value = String(route.query.query);
       if (route.query.mediaType && ['movie', 'tv_show', 'anime', 'private'].includes(String(route.query.mediaType))) {
         mediaType.value = route.query.mediaType as MediaType;
@@ -237,21 +253,15 @@ export function useRequestData() {
       const status = await api.get<{ isConfigured: boolean; isReachable: boolean }>('/requests/prowlarr-status');
       releases.isProwlarrConfigured.value = status.isConfigured;
       releases.isProwlarrReachable.value = status.isReachable;
-      if (!isFastTrack && (!status.isConfigured || !status.isReachable)) {
-        step1.inputMode.value = 'magnet';
-      }
     } catch (err) {
-      if (err instanceof ApiError && err.data && typeof err.data === 'object') {
-        const d = err.data as { isConfigured?: boolean; isReachable?: boolean };
-        releases.isProwlarrConfigured.value = d.isConfigured ?? false;
-        releases.isProwlarrReachable.value = d.isReachable ?? false;
-      } else {
-        releases.isProwlarrConfigured.value = false;
-        releases.isProwlarrReachable.value = false;
-      }
-      if (!isFastTrack) {
-        step1.inputMode.value = 'magnet';
-      }
+      const d = (err instanceof ApiError && err.data && typeof err.data === 'object')
+        ? (err.data as { isConfigured?: boolean; isReachable?: boolean })
+        : null;
+      releases.isProwlarrConfigured.value = d?.isConfigured ?? false;
+      releases.isProwlarrReachable.value = d?.isReachable ?? false;
+    }
+    if (!isFastTrack && !isWaitlist && (!releases.isProwlarrConfigured.value || !releases.isProwlarrReachable.value)) {
+      step1.inputMode.value = 'magnet';
     }
   });
 
