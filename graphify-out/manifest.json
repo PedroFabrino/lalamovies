@@ -738,9 +738,9 @@
     "semantic_hash": ""
   },
   "apps/watcher/src/app.ts": {
-    "mtime": 1790687161.8306675,
-    "seen": 1790687390.8244767,
-    "ast_hash": "41dc82505210f13caddc70307dca7bef",
+    "mtime": 1790704066.9357393,
+    "seen": 1790704308.3873003,
+    "ast_hash": "d521e551de559780b42c511cb10b83d3",
     "semantic_hash": ""
   },
   "apps/watcher/src/db/index.ts": {
@@ -2070,9 +2070,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/requestCreate.ts": {
-    "mtime": 1790700041.8381472,
-    "seen": 1790700535.7259467,
-    "ast_hash": "d7f260adc63eef312541f478ac28fa8e",
+    "mtime": 1790704148.91014,
+    "seen": 1790704308.3253732,
+    "ast_hash": "7cb8701f8421f1e7bafa95528f313543",
     "semantic_hash": ""
   },
   "scripts/dev-setup.mjs": {
@@ -2883,6 +2883,12 @@
     "mtime": 1790700341.1964686,
     "seen": 1790700535.784347,
     "ast_hash": "913aa525c8db3567ec4e9d052994cd32",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/requestWaitlistIntegration.ts": {
+    "mtime": 1790704018.059062,
+    "seen": 1790704308.330009,
+    "ast_hash": "047083420796d2b1a1a27661421c6299",
     "semantic_hash": ""
   }
 }

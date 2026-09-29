@@ -60,6 +60,18 @@ export function buildWatcherApp(options: WatcherAppOptions = {}): FastifyInstanc
     logger: false,
   });
 
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+    if (!body || (typeof body === 'string' && body.trim() === '')) {
+      done(null, {});
+      return;
+    }
+    try {
+      done(null, JSON.parse(body));
+    } catch (err) {
+      done(err as Error, undefined);
+    }
+  });
+
   const { db, sqlite } = initWatcherDatabase(options.dbPath);
   const serviceApiKey = options.serviceApiKey ?? process.env.SERVICE_API_KEY;
   const tmdbApiKey = options.tmdbApiKey ?? process.env.TMDB_API_KEY;

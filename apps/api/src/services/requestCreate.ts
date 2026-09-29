@@ -25,6 +25,7 @@ import {
   CreateRequestResult,
   RequestServiceError,
 } from './requestServiceTypes';
+import { triggerWaitlistActions } from './requestWaitlistIntegration';
 
 export interface ExecuteCreateRequestOptions {
   input: CreateRequestInput;
@@ -41,135 +42,6 @@ export interface ExecuteCreateRequestOptions {
     warn: (msg: string | object, ...args: unknown[]) => void;
     error: (msg: string | object, ...args: unknown[]) => void;
   };
-}
-
-async function callWatcherEndpoint(params: {
-  endpoint: string;
-  watcherUrl?: string | (() => string | undefined);
-  serviceApiKey?: string | (() => string | undefined);
-  body?: unknown;
-  headers?: Record<string, string>;
-  actionDescription: string;
-  logger?: { warn: (msg: string | object, ...args: unknown[]) => void };
-}): Promise<void> {
-  const { endpoint, watcherUrl: rawUrl, serviceApiKey: rawKey, body, headers, actionDescription, logger } = params;
-  const watcherUrl = typeof rawUrl === 'function' ? rawUrl() : rawUrl || process.env.WATCHER_URL;
-  const serviceApiKey = typeof rawKey === 'function' ? rawKey() : rawKey || process.env.SERVICE_API_KEY;
-  if (!watcherUrl) return;
-
-  try {
-    const cleanUrl = watcherUrl.replace(/\/+$/, '');
-    const res = await fetch(`${cleanUrl}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(serviceApiKey ? { 'x-service-key': serviceApiKey } : {}),
-        ...headers,
-      },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-    });
-    if (!res.ok) logger?.warn(`Failed to ${actionDescription}: HTTP ${res.status}`);
-  } catch (err) {
-    logger?.warn(err as object, `Failed to reach Watcher service for ${actionDescription}`);
-  }
-}
-
-async function triggerNextSeasonWaitlist(params: {
-  userId: string;
-  mediaType: string;
-  metadataId: string;
-  metadataSource: string;
-  title: string;
-  year?: number | null;
-  seasonNumber?: number | null;
-  episodeNumber?: number | null;
-  waitlistNextSeason?: boolean;
-  watcherUrl?: string | (() => string | undefined);
-  serviceApiKey?: string | (() => string | undefined);
-  logger?: {
-    warn: (msg: string | object, ...args: unknown[]) => void;
-  };
-}): Promise<void> {
-  const {
-    userId,
-    mediaType,
-    metadataId,
-    metadataSource,
-    title,
-    year,
-    seasonNumber,
-    episodeNumber,
-    waitlistNextSeason,
-    watcherUrl,
-    serviceApiKey,
-    logger,
-  } = params;
-
-  if (
-    waitlistNextSeason &&
-    ['tv_show', 'anime'].includes(mediaType) &&
-    seasonNumber !== undefined &&
-    seasonNumber !== null &&
-    (episodeNumber === undefined || episodeNumber === null)
-  ) {
-    await callWatcherEndpoint({
-      endpoint: '/waitlist',
-      watcherUrl,
-      serviceApiKey,
-      headers: { 'x-user-id': userId },
-      body: {
-        userId,
-        mediaType,
-        metadataId,
-        metadataSource,
-        title,
-        year,
-        seasonNumber: seasonNumber + 1,
-        isNextSeason: true,
-      },
-      actionDescription: 'create next-season waitlist entry',
-      logger,
-    });
-  }
-}
-
-async function advanceWaitlistIfNeeded(params: {
-  waitlistId?: string;
-  watcherUrl?: string | (() => string | undefined);
-  serviceApiKey?: string | (() => string | undefined);
-  logger?: { warn: (msg: string | object, ...args: unknown[]) => void };
-}): Promise<void> {
-  if (!params.waitlistId) return;
-  await callWatcherEndpoint({
-    endpoint: `/waitlist/${encodeURIComponent(params.waitlistId)}/advance`,
-    watcherUrl: params.watcherUrl,
-    serviceApiKey: params.serviceApiKey,
-    actionDescription: 'advance waitlist entry',
-    logger: params.logger,
-  });
-}
-
-function triggerWaitlistActions(params: {
-  waitlistParams: Parameters<typeof triggerNextSeasonWaitlist>[0];
-  waitlistId?: string;
-  watcherUrl?: string;
-  serviceApiKey?: string;
-  logger?: { warn: (msg: string | object, ...args: unknown[]) => void };
-}): void {
-  triggerNextSeasonWaitlist(params.waitlistParams).catch((err) => {
-    params.logger?.warn(err as object, 'Failed to trigger next season waitlist');
-  });
-
-  if (params.waitlistId) {
-    advanceWaitlistIfNeeded({
-      waitlistId: params.waitlistId,
-      watcherUrl: params.watcherUrl,
-      serviceApiKey: params.serviceApiKey,
-      logger: params.logger,
-    }).catch((err) => {
-      params.logger?.warn(err as object, `Failed to advance waitlist entry ${params.waitlistId}`);
-    });
-  }
 }
 
 export async function executeCreateRequest(
