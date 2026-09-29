@@ -207,6 +207,67 @@ describe('RequestService', () => {
       expect(isCo).toBe(true);
     });
 
+    it('forwards waitlist advancement to Watcher service when waitlistId is provided on existing request match (#192)', async () => {
+      const originalFetch = globalThis.fetch;
+      const fetchSpy = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+      globalThis.fetch = fetchSpy as any;
+
+      try {
+        const service = createService({
+          watcherUrl: 'http://watcher.local',
+          serviceApiKey: 'test-service-key',
+        });
+        db.insert(users).values({
+          id: 'other-user-2',
+          jellyfinUserId: 'jf_other-user-2',
+          username: 'otheruser2',
+          role: 'user',
+          createdAt: new Date().toISOString(),
+        }).run();
+
+        const existing = requestsRepo.create({
+          id: 'existing-series-1',
+          userId: 'other-user-2',
+          magnetLink: 'magnet:?xt=urn:btih:oldseries',
+          mediaType: 'tv_show',
+          status: RequestStatus.DOWNLOADING,
+          metadataId: '300',
+          metadataSource: 'tmdb',
+          title: 'Existing Series',
+          seasonNumber: 1,
+          episodeNumber: 1,
+          requestedAt: new Date().toISOString(),
+        });
+
+        const res = await service.createRequest({
+          userId: 'user-1',
+          mediaType: 'tv_show',
+          metadataId: '300',
+          metadataSource: 'tmdb',
+          title: 'Existing Series',
+          seasonNumber: 1,
+          episodeNumber: 1,
+          magnetLink: 'magnet:?xt=urn:btih:newseries',
+          waitlistId: 'waitlist-existing-match-99',
+        });
+
+        expect(res.isExisting).toBe(true);
+        expect(res.request.id).toBe(existing.id);
+        expect(requestsRepo.isCoRequester(existing.id, 'user-1')).toBe(true);
+        expect(fetchSpy).toHaveBeenCalledWith(
+          'http://watcher.local/waitlist/waitlist-existing-match-99/advance',
+          expect.objectContaining({
+            method: 'POST',
+            headers: expect.objectContaining({
+              'x-service-key': 'test-service-key',
+            }),
+          })
+        );
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
     it('dispatches to qBittorrent and transitions to DOWNLOADING when slots available', async () => {
       const service = createService();
       const res = await service.createRequest({

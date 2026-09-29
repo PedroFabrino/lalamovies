@@ -25,30 +25,37 @@ export function formatGraceRemaining(remainingMs: number): string {
   return `${seconds}s`;
 }
 
+interface MediaTypeStyleConfig {
+  icon: string;
+  badge: string;
+}
+
+const MEDIA_TYPE_CONFIGS: Record<string, MediaTypeStyleConfig> = {
+  movie: {
+    icon: '🎬',
+    badge: 'bg-blue-950/60 text-blue-300 border-blue-800/60',
+  },
+  tv_show: {
+    icon: '📺',
+    badge: 'bg-purple-950/60 text-purple-300 border-purple-800/60',
+  },
+  anime: {
+    icon: '⛩️',
+    badge: 'bg-pink-950/60 text-pink-300 border-pink-800/60',
+  },
+};
+
+const DEFAULT_MEDIA_TYPE_CONFIG: MediaTypeStyleConfig = {
+  icon: '📁',
+  badge: 'bg-zinc-800 text-zinc-300 border-zinc-700',
+};
+
 export function getMediaTypeIcon(type: string): string {
-  switch (type) {
-    case 'movie':
-      return '🎬';
-    case 'tv_show':
-      return '📺';
-    case 'anime':
-      return '⛩️';
-    default:
-      return '📁';
-  }
+  return (MEDIA_TYPE_CONFIGS[type] || DEFAULT_MEDIA_TYPE_CONFIG).icon;
 }
 
 export function getMediaTypeBadgeClasses(type: string): string {
-  switch (type) {
-    case 'movie':
-      return 'bg-blue-950/60 text-blue-300 border-blue-800/60';
-    case 'tv_show':
-      return 'bg-purple-950/60 text-purple-300 border-purple-800/60';
-    case 'anime':
-      return 'bg-pink-950/60 text-pink-300 border-pink-800/60';
-    default:
-      return 'bg-zinc-800 text-zinc-300 border-zinc-700';
-  }
+  return (MEDIA_TYPE_CONFIGS[type] || DEFAULT_MEDIA_TYPE_CONFIG).badge;
 }
 
 interface StatusStyleConfig {

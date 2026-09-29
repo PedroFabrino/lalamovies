@@ -242,8 +242,16 @@ export async function executeCreateRequest(
         });
       } else {
         await triggerNextSeasonWaitlist(waitlistParams);
+        if (input.waitlistId) {
+          await advanceWaitlistIfNeeded({
+            waitlistId: input.waitlistId,
+            watcherUrl,
+            serviceApiKey,
+            logger,
+          });
+        }
 
-      if (existing.userId !== userId) {
+        if (existing.userId !== userId) {
         requestsRepo.addCoRequester(existing.id, userId);
       }
 

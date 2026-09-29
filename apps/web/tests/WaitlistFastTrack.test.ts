@@ -162,4 +162,33 @@ describe('RequestView - Waitlist Manual Pick Fast-Track to Step 3 (#190)', () =>
       magnetLink: 'magnet:?xt=urn:btih:rel123',
     });
   });
+
+  it('navigates backward to Step 2 with customQuery and candidates pre-filled with waitlisted title', async () => {
+    mockRoute.query = {
+      fromWaitlist: 'true',
+      waitlistId: 'entry-back-test',
+      mediaType: 'anime',
+      metadataId: '99999',
+      metadataSource: 'tmdb',
+      title: 'Trapped in a Dating Sim',
+      seasonNumber: '2',
+      episodeNumber: '2',
+    };
+
+    const wrapper = mount(RequestView);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Confirm Download Request');
+
+    const backBtn = wrapper.findAll('button').find((b) => b.text().trim() === 'Back');
+    expect(backBtn?.exists()).toBe(true);
+    await backBtn?.trigger('click');
+    await flushPromises();
+
+    // Now on Step 2
+    expect(wrapper.text()).toContain('Select Metadata Match');
+    const searchInput = wrapper.find('input[placeholder*="Refine title"]');
+    expect(searchInput.exists()).toBe(true);
+    expect((searchInput.element as HTMLInputElement).value).toBe('Trapped in a Dating Sim');
+  });
 });

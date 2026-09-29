@@ -167,10 +167,12 @@ export class EpisodicTrackingService {
           ? Math.max(...seasonData.episodes.map((e: TmdbEpInfo) => e.episode_number))
           : episodeCount;
 
-      const isSeasonComplete =
-        (maxEpisodeNumber > 0 && currentTarget >= maxEpisodeNumber) ||
-        nextEpisodeToAir === null ||
-        newTriggeredCount >= episodeCount;
+      const hasEpisodeCeiling = maxEpisodeNumber > 0;
+      const reachedEpisodeCeiling = hasEpisodeCeiling && currentTarget >= maxEpisodeNumber;
+      const reachedTriggeredCeiling = episodeCount > 0 && newTriggeredCount >= episodeCount;
+      const unannouncedNoCeiling = !hasEpisodeCeiling && nextEpisodeToAir === null;
+
+      const isSeasonComplete = reachedEpisodeCeiling || reachedTriggeredCeiling || unannouncedNoCeiling;
 
       if (!isSeasonComplete) {
         // Next episode exists and more episodes remain in the season

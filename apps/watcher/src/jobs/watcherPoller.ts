@@ -9,9 +9,9 @@ import { computeGraceHours } from '../utils/gracePeriod';
 import { evaluateCandidatesDiagnostic } from '../utils/candidateDiagnostics';
 
 export interface WatcherPollerLogger {
-  info: (msg: string) => void;
-  warn: (msg: string) => void;
-  error: (msg: string, err?: unknown) => void;
+  info: (msg: string | object, ...args: unknown[]) => void;
+  warn: (msg: string | object, ...args: unknown[]) => void;
+  error: (msg: string | object, err?: unknown) => void;
 }
 
 export interface WatcherPollerOptions {
@@ -194,7 +194,10 @@ export class WatcherPoller {
         })
         .where(eq(watchRequests.id, entry.id))
         .run();
-      this.logger?.info(`WatcherPoller: "${entry.title}" - ${diagnostic}`);
+      this.logger?.info(
+        { title: entry.title, diagnostic, entryId: entry.id },
+        `WatcherPoller: "${entry.title}" - ${diagnostic}`
+      );
       return { notified: false, diagnostic };
     }
 

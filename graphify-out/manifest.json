@@ -738,9 +738,9 @@
     "semantic_hash": ""
   },
   "apps/watcher/src/app.ts": {
-    "mtime": 1790493375.8934233,
-    "seen": 1790493736.1564386,
-    "ast_hash": "73750bdc9b1728cccb0432daf405ce78",
+    "mtime": 1790687161.8306675,
+    "seen": 1790687390.8244767,
+    "ast_hash": "41dc82505210f13caddc70307dca7bef",
     "semantic_hash": ""
   },
   "apps/watcher/src/db/index.ts": {
@@ -786,21 +786,21 @@
     "semantic_hash": "8d469221b09df675bed2eb9d1f087d30"
   },
   "apps/watcher/src/jobs/watcherPoller.ts": {
-    "mtime": 1790684347.877052,
-    "seen": 1790685251.6996677,
-    "ast_hash": "3cd446e5312c7af2d1eb929922529db6",
+    "mtime": 1790686659.7530327,
+    "seen": 1790687390.8275435,
+    "ast_hash": "ab3bdecd353630fa272532720aeb919f",
     "semantic_hash": ""
   },
   "apps/watcher/src/routes/waitlist.ts": {
-    "mtime": 1790684892.0568583,
-    "seen": 1790685251.6996677,
-    "ast_hash": "ad00abc1fbc6c992197222d6495cdabd",
+    "mtime": 1790687038.0158553,
+    "seen": 1790687390.8275435,
+    "ast_hash": "65df94c5771a0f78acca3df3fec5fa9b",
     "semantic_hash": ""
   },
   "apps/watcher/src/services/episodicTracking.ts": {
-    "mtime": 1790684902.4656847,
-    "seen": 1790685251.6996677,
-    "ast_hash": "36127de4f74312467665cd93103099d9",
+    "mtime": 1790686349.3143737,
+    "seen": 1790687390.8275435,
+    "ast_hash": "d44833ba6aceefe3c60f131708b2ca26",
     "semantic_hash": ""
   },
   "apps/watcher/src/services/notifications.ts": {
@@ -1128,9 +1128,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/WaitlistView.vue": {
-    "mtime": 1790685165.2582686,
-    "seen": 1790685251.7350638,
-    "ast_hash": "0498d2702806c56516eec999c34cb074",
+    "mtime": 1790686526.535983,
+    "seen": 1790687390.8748302,
+    "ast_hash": "275e5ccb6ebc659b879809aa5c2ba68f",
     "semantic_hash": ""
   },
   "apps/web/src/vite-env.d.ts": {
@@ -1830,9 +1830,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/composables/useRequestData.ts": {
-    "mtime": 1790680999.871559,
-    "seen": 1790681703.0036495,
-    "ast_hash": "36a46e6d13654dd3399efbe30d9040be",
+    "mtime": 1790686511.804806,
+    "seen": 1790687390.8629456,
+    "ast_hash": "f9479ca24b6a83c683907e85decf3260",
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/batch.ts": {
@@ -1950,9 +1950,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/composables/requestFastTrack.ts": {
-    "mtime": 1790680829.7719169,
-    "seen": 1790681703.0021296,
-    "ast_hash": "3d34a8fb0c537d64375280a0276735cb",
+    "mtime": 1790686500.3118052,
+    "seen": 1790687390.860267,
+    "ast_hash": "6eacbc3fb2279b855ed6e0dc6888333d",
     "semantic_hash": ""
   },
   "apps/web/src/composables/requestTypes.ts": {
@@ -2064,15 +2064,15 @@
     "semantic_hash": ""
   },
   "apps/api/tests/requestService.test.ts": {
-    "mtime": 1790681445.375671,
-    "seen": 1790681702.9577286,
-    "ast_hash": "eac5354a78e5c19f487c0ee494a946db",
+    "mtime": 1790686393.28862,
+    "seen": 1790687390.806446,
+    "ast_hash": "8eb0c1dd0dd490393756e5e7b3b850f7",
     "semantic_hash": ""
   },
   "apps/api/src/services/requestCreate.ts": {
-    "mtime": 1790684376.917279,
-    "seen": 1790685251.6542068,
-    "ast_hash": "04a53c3f94e4afa09fdd402fa0d36e25",
+    "mtime": 1790686333.1777618,
+    "seen": 1790687390.7786043,
+    "ast_hash": "7d58638f0f4a9441c41637a9a0a86528",
     "semantic_hash": ""
   },
   "scripts/dev-setup.mjs": {
@@ -2394,9 +2394,9 @@
     "semantic_hash": ""
   },
   "apps/web/tests/WaitlistDateGating.test.ts": {
-    "mtime": 1790339867.422168,
-    "seen": 1790340379.9879987,
-    "ast_hash": "3d9a73c659b8e604fc73d3c58ebc4b99",
+    "mtime": 1790686606.508766,
+    "seen": 1790687390.8856766,
+    "ast_hash": "6643d4fa4fc8228344f3f8cf6f91732c",
     "semantic_hash": ""
   },
   "apps/api/src/db/migrations/meta/0011_snapshot.json": {
@@ -2772,9 +2772,9 @@
     "semantic_hash": ""
   },
   "apps/watcher/tests/waitlist_advance.test.ts": {
-    "mtime": 1790684922.6483347,
-    "seen": 1790685251.7058566,
-    "ast_hash": "93e474c39dc2b951d873dc5dc7b0c30f",
+    "mtime": 1790686367.9947536,
+    "seen": 1790687390.8342326,
+    "ast_hash": "7a54023840974a5dcea4818e4facd78b",
     "semantic_hash": ""
   },
   "apps/watcher/tests/watcher_diagnostics_integration.test.ts": {
@@ -2790,9 +2790,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/waitlist/waitlistCardUtils.ts": {
-    "mtime": 1790684459.3587308,
-    "seen": 1790685251.7246826,
-    "ast_hash": "7307b50c7e31e0997ea8794ffc130a49",
+    "mtime": 1790686676.9156594,
+    "seen": 1790687390.860267,
+    "ast_hash": "ca0b0a84ebeac4d944a8ab2be2e78e0b",
     "semantic_hash": ""
   },
   "apps/web/tests/WaitlistCard.test.ts": {
@@ -2802,9 +2802,9 @@
     "semantic_hash": ""
   },
   "apps/web/tests/WaitlistFastTrack.test.ts": {
-    "mtime": 1790681494.787836,
-    "seen": 1790681703.023924,
-    "ast_hash": "505660cbf3e66fef5fe378930e57a950",
+    "mtime": 1790686573.740269,
+    "seen": 1790687390.8856766,
+    "ast_hash": "602ecbf92e48e4723f2a0faaaa099ff8",
     "semantic_hash": ""
   },
   "docs/spec/waitlist-manual-request-shortcut.md": {
@@ -2835,6 +2835,54 @@
     "mtime": 1790684588.4310174,
     "seen": 1790685251.7246826,
     "ast_hash": "dd5be80044c10e3f268a4f5302f460ca",
+    "semantic_hash": ""
+  },
+  "apps/watcher/src/routes/waitlist/actions.ts": {
+    "mtime": 1790687013.1015875,
+    "seen": 1790687390.8275435,
+    "ast_hash": "95b1b322c3d518c8d979e7e09145d27b",
+    "semantic_hash": ""
+  },
+  "apps/watcher/src/routes/waitlist/create.ts": {
+    "mtime": 1790686834.4457953,
+    "seen": 1790687390.8275435,
+    "ast_hash": "95ad75cc0a52e838725d93f477b6724b",
+    "semantic_hash": ""
+  },
+  "apps/watcher/src/routes/waitlist/crud.ts": {
+    "mtime": 1790687173.338723,
+    "seen": 1790687390.8275435,
+    "ast_hash": "8e0d593ffef5d57eb35dd5620feb9b32",
+    "semantic_hash": ""
+  },
+  "apps/watcher/src/routes/waitlist/html.ts": {
+    "mtime": 1790686962.0144298,
+    "seen": 1790687390.8275435,
+    "ast_hash": "4e27f93220ad25f1e9da64e65b69e2cd",
+    "semantic_hash": ""
+  },
+  "apps/watcher/src/routes/waitlist/index.ts": {
+    "mtime": 1790687019.8787649,
+    "seen": 1790687390.8275435,
+    "ast_hash": "da7f840f73159325e2228d32bfd6d692",
+    "semantic_hash": ""
+  },
+  "apps/watcher/src/routes/waitlist/magicLink.ts": {
+    "mtime": 1790686975.07272,
+    "seen": 1790687390.8275435,
+    "ast_hash": "68b88b189a90527d69fe79f50da55cd7",
+    "semantic_hash": ""
+  },
+  "apps/watcher/src/routes/waitlist/types.ts": {
+    "mtime": 1790686824.177528,
+    "seen": 1790687390.8275435,
+    "ast_hash": "f91bf0df89dd842190b5a917db9196aa",
+    "semantic_hash": ""
+  },
+  "apps/watcher/src/services/waitlistCheck.ts": {
+    "mtime": 1790687144.3457918,
+    "seen": 1790687390.8285625,
+    "ast_hash": "89b12cb7bdb521806eea30744340340a",
     "semantic_hash": ""
   }
 }

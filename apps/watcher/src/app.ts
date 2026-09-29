@@ -7,6 +7,7 @@ import { WatcherProwlarrService } from './services/prowlarr';
 import { WatcherPoller } from './jobs/watcherPoller';
 import { AutoDownloadSubmitter } from './jobs/autoDownloadSubmitter';
 import { EpisodicTrackingService } from './services/episodicTracking';
+import { WaitlistCheckService } from './services/waitlistCheck';
 import { runWatcherLegacyAnilistMigration } from './services/legacyAnilistMigration';
 
 export interface WatcherAppOptions {
@@ -33,6 +34,7 @@ export interface WatcherAppOptions {
   watcherPoller?: WatcherPoller;
   autoDownloadSubmitter?: AutoDownloadSubmitter;
   episodicTrackingService?: EpisodicTrackingService;
+  waitlistCheckService?: WaitlistCheckService;
 }
 
 declare module 'fastify' {
@@ -46,6 +48,7 @@ declare module 'fastify' {
     poller: WatcherPoller;
     submitter: AutoDownloadSubmitter;
     episodic: EpisodicTrackingService;
+    checker: WaitlistCheckService;
     movieGraceHours: number;
     episodeGraceHours: number;
     newReleaseThresholdDays: number;
@@ -151,6 +154,17 @@ export function buildWatcherApp(options: WatcherAppOptions = {}): FastifyInstanc
     submitter.start();
   }
 
+  const checker =
+    options.waitlistCheckService ??
+    new WaitlistCheckService(() => ({
+      db: app.db,
+      releaseGating: app.releaseGating,
+      poller: app.poller,
+      logger: {
+        warn: (msg, ...args) => app.log.warn(args.length ? { msg, args } : msg),
+      },
+    }));
+
   app.decorate('db', db);
   app.decorate('sqlite', sqlite);
   app.decorate('serviceApiKey', serviceApiKey);
@@ -160,6 +174,7 @@ export function buildWatcherApp(options: WatcherAppOptions = {}): FastifyInstanc
   app.decorate('poller', poller);
   app.decorate('submitter', submitter);
   app.decorate('episodic', episodic);
+  app.decorate('checker', checker);
   app.decorate('movieGraceHours', movieGraceHours);
   app.decorate('episodeGraceHours', episodeGraceHours);
   app.decorate('newReleaseThresholdDays', newReleaseThresholdDays);

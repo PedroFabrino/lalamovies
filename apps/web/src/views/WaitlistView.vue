@@ -304,10 +304,10 @@ async function handleCheckEntry(entry: WaitlistEntry) {
   try {
     const res = await api.post<{ entry?: { status?: string }; message?: string }>(`/waitlist/${entry.id}/check`);
     await loadEntries();
-    if (res?.entry?.status === 'notified') {
+    if (res?.message) {
+      waitlistStore.showToast(res.message, res?.entry?.status === 'notified' ? 'success' : 'info');
+    } else if (res?.entry?.status === 'notified') {
       waitlistStore.showToast(`Found release for "${entry.title}"! Auto-downloading soon.`, 'success');
-    } else if (res?.message) {
-      waitlistStore.showToast(res.message, 'info');
     } else {
       waitlistStore.showToast(`Checked trackers for "${entry.title}". Still waiting for quality release.`, 'info');
     }

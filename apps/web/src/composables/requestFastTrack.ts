@@ -14,6 +14,70 @@ export interface FastTrackParsedData {
   watchForNextEpisodes: boolean;
 }
 
+export interface WaitlistParsedData {
+  mediaType: MediaType;
+  candidate: MetadataCandidate;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  downloadGranularity: 'season' | 'episode';
+  watchForNextEpisodes: boolean;
+  waitlistId?: string;
+}
+
+function parseMediaType(raw: unknown): MediaType | null {
+  const validMediaTypes: MediaType[] = ['movie', 'tv_show', 'anime', 'private'];
+  return validMediaTypes.includes(raw as MediaType) ? (raw as MediaType) : null;
+}
+
+function parseYear(raw: unknown): number | null {
+  if (!raw) return null;
+  const num = parseInt(String(raw), 10);
+  return isNaN(num) ? null : num;
+}
+
+function parseSeasonNumber(raw: unknown, mediaType: MediaType): number | null {
+  if (raw !== undefined && raw !== null) {
+    const s = parseInt(String(raw), 10);
+    if (!isNaN(s)) return s;
+  }
+  return mediaType === 'movie' ? null : 1;
+}
+
+function parseEpisodeAndGranularity(raw: unknown): {
+  episodeNumber: number | null;
+  downloadGranularity: 'season' | 'episode';
+} {
+  if (raw !== undefined && raw !== null) {
+    const e = parseInt(String(raw), 10);
+    if (!isNaN(e)) {
+      return { episodeNumber: e, downloadGranularity: 'episode' };
+    }
+  }
+  return { episodeNumber: null, downloadGranularity: 'season' };
+}
+
+function buildCandidate(params: {
+  id: string;
+  source?: unknown;
+  title: string;
+  year?: unknown;
+  posterUrl?: unknown;
+  overview?: unknown;
+  romajiTitle?: unknown;
+  englishTitle?: unknown;
+}): MetadataCandidate {
+  return {
+    id: String(params.id),
+    source: params.source === 'anilist' ? 'anilist' : 'tmdb',
+    title: String(params.title),
+    year: parseYear(params.year),
+    posterUrl: params.posterUrl ? String(params.posterUrl) : null,
+    overview: params.overview ? String(params.overview) : null,
+    romajiTitle: params.romajiTitle ? String(params.romajiTitle) : null,
+    englishTitle: params.englishTitle ? String(params.englishTitle) : null,
+  };
+}
+
 export function parseFastTrack(
   query: LocationQuery,
   state: Record<string, unknown> = {}
@@ -30,43 +94,24 @@ export function parseFastTrack(
     return {};
   }
 
-  const validMediaTypes: MediaType[] = ['movie', 'tv_show', 'anime', 'private'];
-  if (!validMediaTypes.includes(rawMediaType as MediaType)) {
+  const mediaType = parseMediaType(rawMediaType);
+  if (!mediaType) {
     return { error: 'Invalid media type for fast-track request.' };
   }
 
-  const mediaType = rawMediaType as MediaType;
-  const rawYear = query.year || state.year;
-  const yearNum = rawYear ? parseInt(String(rawYear), 10) : null;
+  const candidate = buildCandidate({
+    id: rawMetadataId,
+    source: query.metadataSource || state.metadataSource,
+    title: rawTitle,
+    year: query.year || state.year,
+    posterUrl: query.posterUrl || state.posterUrl,
+    overview: query.overview || state.overview,
+    romajiTitle: query.romajiTitle || state.romajiTitle,
+    englishTitle: query.englishTitle || state.englishTitle,
+  });
 
-  const candidate: MetadataCandidate = {
-    id: String(rawMetadataId),
-    source: (query.metadataSource === 'anilist' || state.metadataSource === 'anilist') ? 'anilist' : 'tmdb',
-    title: String(rawTitle),
-    year: yearNum !== null && !isNaN(yearNum) ? yearNum : null,
-    posterUrl: (query.posterUrl as string) || (typeof state.posterUrl === 'string' ? state.posterUrl : null),
-    overview: (query.overview as string) || (typeof state.overview === 'string' ? state.overview : null),
-    romajiTitle: (query.romajiTitle as string) || (typeof state.romajiTitle === 'string' ? state.romajiTitle : null),
-    englishTitle: (query.englishTitle as string) || (typeof state.englishTitle === 'string' ? state.englishTitle : null),
-  };
-
-  let seasonNumber: number | null = null;
-  if (query.seasonNumber !== undefined || state.seasonNumber !== undefined) {
-    const s = parseInt(String(query.seasonNumber ?? state.seasonNumber), 10);
-    if (!isNaN(s)) seasonNumber = s;
-  } else if (mediaType !== 'movie') {
-    seasonNumber = 1;
-  }
-
-  let episodeNumber: number | null = null;
-  let downloadGranularity: 'season' | 'episode' = 'season';
-  if (query.episodeNumber !== undefined || state.episodeNumber !== undefined) {
-    const e = parseInt(String(query.episodeNumber ?? state.episodeNumber), 10);
-    if (!isNaN(e)) {
-      episodeNumber = e;
-      downloadGranularity = 'episode';
-    }
-  }
+  const seasonNumber = parseSeasonNumber(query.seasonNumber ?? state.seasonNumber, mediaType);
+  const { episodeNumber, downloadGranularity } = parseEpisodeAndGranularity(query.episodeNumber ?? state.episodeNumber);
 
   const rawSeeders = query.seeders ? parseInt(String(query.seeders), 10) : (typeof state.seeders === 'number' ? state.seeders : 10);
   const rawLeechers = query.leechers ? parseInt(String(query.leechers), 10) : (typeof state.leechers === 'number' ? state.leechers : 0);
@@ -107,16 +152,6 @@ export function parseFastTrack(
   };
 }
 
-export interface WaitlistParsedData {
-  mediaType: MediaType;
-  candidate: MetadataCandidate;
-  seasonNumber: number | null;
-  episodeNumber: number | null;
-  downloadGranularity: 'season' | 'episode';
-  watchForNextEpisodes: boolean;
-  waitlistId?: string;
-}
-
 export function parseWaitlistParams(
   query: LocationQuery
 ): { data?: WaitlistParsedData; error?: string } {
@@ -129,41 +164,21 @@ export function parseWaitlistParams(
     return { error: 'Incomplete waitlist parameters.' };
   }
 
-  const validMediaTypes: MediaType[] = ['movie', 'tv_show', 'anime', 'private'];
-  if (!validMediaTypes.includes(rawMediaType as MediaType)) {
+  const mediaType = parseMediaType(rawMediaType);
+  if (!mediaType) {
     return { error: 'Invalid media type for waitlist request.' };
   }
 
-  const mediaType = rawMediaType as MediaType;
-  const rawYear = query.year;
-  const yearNum = rawYear ? parseInt(String(rawYear), 10) : null;
-
-  const candidate: MetadataCandidate = {
+  const candidate = buildCandidate({
     id: rawMetadataId,
-    source: query.metadataSource === 'anilist' ? 'anilist' : 'tmdb',
+    source: query.metadataSource,
     title: rawTitle,
-    year: yearNum !== null && !isNaN(yearNum) ? yearNum : null,
-    posterUrl: query.posterUrl ? String(query.posterUrl) : null,
-  };
+    year: query.year,
+    posterUrl: query.posterUrl,
+  });
 
-  let seasonNumber: number | null = null;
-  if (query.seasonNumber !== undefined) {
-    const s = parseInt(String(query.seasonNumber), 10);
-    if (!isNaN(s)) seasonNumber = s;
-  } else if (mediaType !== 'movie') {
-    seasonNumber = 1;
-  }
-
-  let episodeNumber: number | null = null;
-  let downloadGranularity: 'season' | 'episode' = 'season';
-  if (query.episodeNumber !== undefined) {
-    const e = parseInt(String(query.episodeNumber), 10);
-    if (!isNaN(e)) {
-      episodeNumber = e;
-      downloadGranularity = 'episode';
-    }
-  }
-
+  const seasonNumber = parseSeasonNumber(query.seasonNumber, mediaType);
+  const { episodeNumber, downloadGranularity } = parseEpisodeAndGranularity(query.episodeNumber);
   const watchForNextEpisodes = ['tv_show', 'anime'].includes(mediaType);
   const waitlistId = query.waitlistId ? String(query.waitlistId) : undefined;
 
@@ -203,4 +218,3 @@ export async function enrichCandidateMetadata(
     // Non-blocking
   }
 }
-

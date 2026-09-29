@@ -213,5 +213,69 @@ describe('POST /waitlist/:id/advance (#191)', () => {
     expect(body.entry.status).toBe('completed');
     expect(body.entry.discordMessageId).toBeNull();
   });
+
+  it('advances intermediate episode of concluded series where next_episode_to_air is null', async () => {
+    const app = buildWatcherApp({
+      dbPath: ':memory:',
+      serviceApiKey: 'test-secret',
+      tmdbApiKey: 'tmdb-secret',
+    });
+
+    const now = new Date().toISOString();
+    app.db.insert(watchRequests).values({
+      id: 'waitlist-series-intermediate',
+      userId: 'user-1',
+      mediaType: 'anime',
+      metadataId: '54321',
+      metadataSource: 'tmdb',
+      title: 'Concluded Anime',
+      seasonNumber: 1,
+      targetEpisode: 1,
+      status: 'checking',
+      triggeredCount: 1,
+      discordMessageId: 'disc-msg-456',
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes('/season/1')) {
+        return {
+          ok: true,
+          json: async () => ({
+            episodes: [
+              { episode_number: 1, air_date: '2024-01-01' },
+              { episode_number: 2, air_date: '2024-01-08' },
+              { episode_number: 3, air_date: '2024-01-15' },
+            ],
+            episode_count: 3,
+          }),
+        } as any;
+      }
+      if (url.includes('/tv/54321')) {
+        return {
+          ok: true,
+          json: async () => ({
+            next_episode_to_air: null,
+          }),
+        } as any;
+      }
+      return { ok: false, status: 404 } as any;
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/waitlist/waitlist-series-intermediate/advance',
+      headers: {
+        'x-service-key': 'test-secret',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.ok).toBe(true);
+    expect(body.entry.targetEpisode).toBe(2);
+    expect(body.entry.status).toBe('checking');
+  });
 });
 

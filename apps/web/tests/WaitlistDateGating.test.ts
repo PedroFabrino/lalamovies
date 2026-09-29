@@ -233,4 +233,39 @@ describe('WaitlistDateGating - Unconfirmed Release Dates and TBA Gating (Spec 16
     expect(toast.exists()).toBe(true);
     expect(toast.text()).toContain('Checked APIs — still no confirmed release date announced');
   });
+
+  it('displays backend message in toast when entry reaches notified status (#193)', async () => {
+    const mockEntries = [
+      {
+        id: 'entry-notified-test',
+        userId: 'u1',
+        title: 'Trapped in a Dating Sim S02',
+        mediaType: 'anime',
+        seasonNumber: 2,
+        targetEpisode: 2,
+        status: 'checking',
+        tmdbReleaseDate: '2026-09-01',
+        createdAt: '2026-09-25T00:00:00.000Z',
+      },
+    ];
+
+    vi.mocked(api.get).mockResolvedValue({ entries: mockEntries } as any);
+    vi.mocked(api.post).mockResolvedValue({
+      ok: true,
+      message: 'Found 12 qualifying releases; selecting top scored',
+      entry: { ...mockEntries[0], status: 'notified' },
+    } as any);
+
+    const wrapper = mount(WaitlistView);
+    await flushPromises();
+
+    const checkBtn = wrapper.find('[data-testid="check-now-btn"]');
+    expect(checkBtn.exists()).toBe(true);
+    await checkBtn.trigger('click');
+    await flushPromises();
+
+    const toast = wrapper.find('[data-testid="waitlist-toast"]');
+    expect(toast.exists()).toBe(true);
+    expect(toast.text()).toContain('Found 12 qualifying releases; selecting top scored');
+  });
 });

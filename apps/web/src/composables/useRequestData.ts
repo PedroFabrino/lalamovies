@@ -171,6 +171,11 @@ export function useRequestData() {
     episodeNumber.value = data.episodeNumber;
     downloadGranularity.value = data.downloadGranularity;
 
+    if (data.candidate?.title) {
+      step1.customQuery.value = data.candidate.title;
+      step2.candidates.value = [data.candidate];
+    }
+
     releases.recommendedRelease.value = data.release;
     releases.selectedRelease.value = data.release;
     releases.releaseCandidates.value = [data.release];
@@ -194,6 +199,10 @@ export function useRequestData() {
 
     mediaType.value = data.mediaType;
     step2.selectedCandidate.value = data.candidate;
+    if (data.candidate?.title) {
+      step1.customQuery.value = data.candidate.title;
+      step2.candidates.value = [data.candidate];
+    }
     seasonNumber.value = data.seasonNumber;
     episodeNumber.value = data.episodeNumber;
     downloadGranularity.value = data.downloadGranularity;
