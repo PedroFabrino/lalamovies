@@ -194,6 +194,7 @@ export class WatcherPoller {
         })
         .where(eq(watchRequests.id, entry.id))
         .run();
+      this.logger?.info(`WatcherPoller: "${entry.title}" - ${diagnostic}`);
       return { notified: false, diagnostic };
     }
 

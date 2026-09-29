@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { WatcherDatabase } from '../db';
 import { watchRequests, WatchRequest } from '../db/schema';
+import { deleteDiscordMessage } from './notifications';
 
 export interface EpisodicTrackingLogger {
   info: (msg: string) => void;
@@ -23,6 +24,51 @@ export class EpisodicTrackingService {
     this.db = options.db;
     this.tmdbApiKey = options.tmdbApiKey || process.env.TMDB_API_KEY;
     this.logger = options.logger;
+  }
+
+  async advanceOrCompleteEntry(
+    entryId: string,
+    forcedTriggeredCount?: number
+  ): Promise<WatchRequest | null> {
+    const entry = this.db
+      .select()
+      .from(watchRequests)
+      .where(eq(watchRequests.id, entryId))
+      .get();
+
+    if (!entry) {
+      this.logger?.warn(`EpisodicTracking: entry ${entryId} not found`);
+      return null;
+    }
+
+    if (entry.discordMessageId) {
+      try {
+        await deleteDiscordMessage(entry.discordMessageId);
+      } catch (err: unknown) {
+        this.logger?.warn(`Failed to delete Discord message for entry ${entryId}: ${(err as Error).message}`);
+      }
+    }
+
+    if (entry.mediaType === 'tv_show' || entry.mediaType === 'anime') {
+      const newTriggeredCount = forcedTriggeredCount ?? ((entry.triggeredCount || 0) + 1);
+      return this.advanceEntry(entry.id, newTriggeredCount);
+    }
+
+    const nowIso = new Date().toISOString();
+    this.db
+      .update(watchRequests)
+      .set({
+        status: 'completed',
+        updatedAt: nowIso,
+        discordMessageId: null,
+        prowlarrReleaseTitle: null,
+        prowlarrReleaseMagnet: null,
+        prowlarrReleaseScore: null,
+      })
+      .where(eq(watchRequests.id, entry.id))
+      .run();
+
+    return this.db.select().from(watchRequests).where(eq(watchRequests.id, entry.id)).get() || null;
   }
 
   async advanceEntry(
@@ -115,9 +161,20 @@ export class EpisodicTrackingService {
       const episodeCount = seasonData.episodes ? seasonData.episodes.length : (seasonData.episode_count ?? 0);
       const nextEpisodeToAir = showData.next_episode_to_air ?? null;
 
-      if (nextEpisodeToAir !== null && newTriggeredCount < episodeCount) {
+      const currentTarget = entry.targetEpisode ?? 1;
+      const maxEpisodeNumber =
+        seasonData.episodes && seasonData.episodes.length > 0
+          ? Math.max(...seasonData.episodes.map((e: TmdbEpInfo) => e.episode_number))
+          : episodeCount;
+
+      const isSeasonComplete =
+        (maxEpisodeNumber > 0 && currentTarget >= maxEpisodeNumber) ||
+        nextEpisodeToAir === null ||
+        newTriggeredCount >= episodeCount;
+
+      if (!isSeasonComplete) {
         // Next episode exists and more episodes remain in the season
-        const nextTargetEpisode = (entry.targetEpisode ?? 1) + 1;
+        const nextTargetEpisode = currentTarget + 1;
         const nextEp = seasonData.episodes?.find((e: TmdbEpInfo) => e.episode_number === nextTargetEpisode);
         const nextEpAirDate = nextEp?.air_date ? nextEp.air_date.slice(0, 10) : null;
         const today = new Date().toISOString().slice(0, 10);

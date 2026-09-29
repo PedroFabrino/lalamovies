@@ -148,4 +148,70 @@ describe('POST /waitlist/:id/advance (#191)', () => {
 
     expect(res.statusCode).toBe(404);
   });
+
+  it('marks series entry as completed when advancing the final episode of the season', async () => {
+    const app = buildWatcherApp({
+      dbPath: ':memory:',
+      serviceApiKey: 'test-secret',
+      tmdbApiKey: 'tmdb-secret',
+    });
+
+    const now = new Date().toISOString();
+    app.db.insert(watchRequests).values({
+      id: 'waitlist-series-finale',
+      userId: 'user-1',
+      mediaType: 'tv_show',
+      metadataId: '54321',
+      metadataSource: 'tmdb',
+      title: 'Short Series',
+      seasonNumber: 1,
+      targetEpisode: 4,
+      status: 'checking',
+      triggeredCount: 3,
+      discordMessageId: 'disc-msg-456',
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes('/season/1')) {
+        return {
+          ok: true,
+          json: async () => ({
+            episodes: [
+              { episode_number: 1, air_date: '2026-01-01' },
+              { episode_number: 2, air_date: '2026-01-08' },
+              { episode_number: 3, air_date: '2026-01-15' },
+              { episode_number: 4, air_date: '2026-01-22' },
+            ],
+            episode_count: 4,
+          }),
+        } as any;
+      }
+      if (url.includes('/tv/54321')) {
+        return {
+          ok: true,
+          json: async () => ({
+            next_episode_to_air: null,
+          }),
+        } as any;
+      }
+      return { ok: false, status: 404 } as any;
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/waitlist/waitlist-series-finale/advance',
+      headers: {
+        'x-service-key': 'test-secret',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.ok).toBe(true);
+    expect(body.entry.status).toBe('completed');
+    expect(body.entry.discordMessageId).toBeNull();
+  });
 });
+

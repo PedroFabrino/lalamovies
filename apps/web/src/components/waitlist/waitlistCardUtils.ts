@@ -51,72 +51,75 @@ export function getMediaTypeBadgeClasses(type: string): string {
   }
 }
 
+interface StatusStyleConfig {
+  badge: string;
+  dot: string;
+  label?: string;
+}
+
+const STATUS_CONFIGS: Record<WaitlistStatus, StatusStyleConfig> = {
+  pending_release: {
+    badge: 'bg-amber-950/50 text-amber-300 border-amber-800/50',
+    dot: 'bg-amber-400',
+    label: 'Pending Release',
+  },
+  checking: {
+    badge: 'bg-sky-950/50 text-sky-300 border-sky-800/50',
+    dot: 'bg-sky-400',
+    label: 'Checking Trackers',
+  },
+  notified: {
+    badge: 'bg-indigo-950/50 text-indigo-300 border-indigo-700 animate-pulse',
+    dot: 'bg-indigo-400',
+  },
+  triggered: {
+    badge: 'bg-emerald-950/50 text-emerald-300 border-emerald-800/50',
+    dot: 'bg-emerald-400',
+    label: 'Triggered',
+  },
+  completed: {
+    badge: 'bg-teal-950/50 text-teal-300 border-teal-800/50',
+    dot: 'bg-teal-400',
+    label: 'Completed',
+  },
+  cancelled: {
+    badge: 'bg-zinc-900 text-zinc-400 border-zinc-800',
+    dot: 'bg-zinc-500',
+    label: 'Cancelled',
+  },
+  error: {
+    badge: 'bg-rose-950/50 text-rose-300 border-rose-800/50',
+    dot: 'bg-rose-400',
+    label: 'Error',
+  },
+  rejected: {
+    badge: 'bg-zinc-900 text-zinc-400 border-zinc-800',
+    dot: 'bg-zinc-400',
+    label: 'Rejected',
+  },
+};
+
+const DEFAULT_STATUS_CONFIG: StatusStyleConfig = {
+  badge: 'bg-zinc-900 text-zinc-400 border-zinc-800',
+  dot: 'bg-zinc-400',
+};
+
 export function getStatusBadgeClasses(status: WaitlistStatus): string {
-  switch (status) {
-    case 'pending_release':
-      return 'bg-amber-950/50 text-amber-300 border-amber-800/50';
-    case 'checking':
-      return 'bg-sky-950/50 text-sky-300 border-sky-800/50';
-    case 'notified':
-      return 'bg-indigo-950/50 text-indigo-300 border-indigo-700 animate-pulse';
-    case 'triggered':
-      return 'bg-emerald-950/50 text-emerald-300 border-emerald-800/50';
-    case 'completed':
-      return 'bg-teal-950/50 text-teal-300 border-teal-800/50';
-    case 'cancelled':
-      return 'bg-zinc-900 text-zinc-400 border-zinc-800';
-    case 'error':
-      return 'bg-rose-950/50 text-rose-300 border-rose-800/50';
-    default:
-      return 'bg-zinc-900 text-zinc-400 border-zinc-800';
-  }
+  return (STATUS_CONFIGS[status] || DEFAULT_STATUS_CONFIG).badge;
 }
 
 export function getStatusDotClasses(status: WaitlistStatus): string {
-  switch (status) {
-    case 'pending_release':
-      return 'bg-amber-400';
-    case 'checking':
-      return 'bg-sky-400';
-    case 'notified':
-      return 'bg-indigo-400';
-    case 'triggered':
-      return 'bg-emerald-400';
-    case 'completed':
-      return 'bg-teal-400';
-    case 'cancelled':
-      return 'bg-zinc-500';
-    case 'error':
-      return 'bg-rose-400';
-    default:
-      return 'bg-zinc-400';
-  }
+  return (STATUS_CONFIGS[status] || DEFAULT_STATUS_CONFIG).dot;
 }
 
 export function formatStatusText(entry: WaitlistEntry, nowMs: number = Date.now()): string {
-  switch (entry.status) {
-    case 'pending_release':
-      return 'Pending Release';
-    case 'checking':
-      return 'Checking Trackers';
-    case 'notified': {
-      const remainingMs = getRemainingGraceMs(entry, nowMs);
-      if (remainingMs <= 0) {
-        return 'Release Found (Queued)';
-      }
-      return `Release Found (${formatGraceRemaining(remainingMs)})`;
-    }
-    case 'triggered':
-      return 'Triggered';
-    case 'completed':
-      return 'Completed';
-    case 'cancelled':
-      return 'Cancelled';
-    case 'error':
-      return 'Error';
-    default:
-      return entry.status;
+  if (entry.status === 'notified') {
+    const remainingMs = getRemainingGraceMs(entry, nowMs);
+    return remainingMs <= 0
+      ? 'Release Found (Queued)'
+      : `Release Found (${formatGraceRemaining(remainingMs)})`;
   }
+  return STATUS_CONFIGS[entry.status]?.label || entry.status;
 }
 
 export function formatDateOnly(isoString?: string | null): string {

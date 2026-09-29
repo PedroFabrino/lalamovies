@@ -786,21 +786,21 @@
     "semantic_hash": "8d469221b09df675bed2eb9d1f087d30"
   },
   "apps/watcher/src/jobs/watcherPoller.ts": {
-    "mtime": 1790680311.6290703,
-    "seen": 1790681702.9740493,
-    "ast_hash": "50504d85b7c077cb4b14615c480af8e1",
+    "mtime": 1790684347.877052,
+    "seen": 1790685251.6996677,
+    "ast_hash": "3cd446e5312c7af2d1eb929922529db6",
     "semantic_hash": ""
   },
   "apps/watcher/src/routes/waitlist.ts": {
-    "mtime": 1790681271.4189475,
-    "seen": 1790681702.9740493,
-    "ast_hash": "f2c4e0408d2119546d75a32f4bc2c7bd",
+    "mtime": 1790684892.0568583,
+    "seen": 1790685251.6996677,
+    "ast_hash": "ad00abc1fbc6c992197222d6495cdabd",
     "semantic_hash": ""
   },
   "apps/watcher/src/services/episodicTracking.ts": {
-    "mtime": 1789955609.2980325,
-    "seen": 1789956580.6336353,
-    "ast_hash": "003cc67ccad1be15d6df24b7bff1c993",
+    "mtime": 1790684902.4656847,
+    "seen": 1790685251.6996677,
+    "ast_hash": "36127de4f74312467665cd93103099d9",
     "semantic_hash": ""
   },
   "apps/watcher/src/services/notifications.ts": {
@@ -1128,9 +1128,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/WaitlistView.vue": {
-    "mtime": 1790680914.3965876,
-    "seen": 1790681703.0150766,
-    "ast_hash": "d9ac88ebca1fb16546f411cce938ede8",
+    "mtime": 1790685165.2582686,
+    "seen": 1790685251.7350638,
+    "ast_hash": "0498d2702806c56516eec999c34cb074",
     "semantic_hash": ""
   },
   "apps/web/src/vite-env.d.ts": {
@@ -2070,9 +2070,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/requestCreate.ts": {
-    "mtime": 1790681316.419269,
-    "seen": 1790681702.937006,
-    "ast_hash": "4f8e81cc11e5a4f3690f69b235de8b10",
+    "mtime": 1790684376.917279,
+    "seen": 1790685251.6542068,
+    "ast_hash": "04a53c3f94e4afa09fdd402fa0d36e25",
     "semantic_hash": ""
   },
   "scripts/dev-setup.mjs": {
@@ -2760,9 +2760,9 @@
     "semantic_hash": ""
   },
   "apps/watcher/src/utils/candidateDiagnostics.ts": {
-    "mtime": 1790680226.4439592,
-    "seen": 1790681702.976607,
-    "ast_hash": "b9ce4250bbcbbc6119b9c7dc35ef0039",
+    "mtime": 1790684360.5323505,
+    "seen": 1790685251.7011948,
+    "ast_hash": "cabd2d56c1d5b933b359a3de3dc374a2",
     "semantic_hash": ""
   },
   "apps/watcher/tests/candidate_diagnostics.test.ts": {
@@ -2772,9 +2772,9 @@
     "semantic_hash": ""
   },
   "apps/watcher/tests/waitlist_advance.test.ts": {
-    "mtime": 1790681383.7039647,
-    "seen": 1790681702.9811814,
-    "ast_hash": "aa12c60d2cf0331e602dfb2971d41506",
+    "mtime": 1790684922.6483347,
+    "seen": 1790685251.7058566,
+    "ast_hash": "93e474c39dc2b951d873dc5dc7b0c30f",
     "semantic_hash": ""
   },
   "apps/watcher/tests/watcher_diagnostics_integration.test.ts": {
@@ -2784,21 +2784,21 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/waitlist/WaitlistCard.vue": {
-    "mtime": 1790680759.276829,
-    "seen": 1790681703.0021296,
-    "ast_hash": "14eb8efa3f6be86b45e08709e5d9f1a7",
+    "mtime": 1790684441.5062711,
+    "seen": 1790685251.7246826,
+    "ast_hash": "5ab002dea87b2a04f30e6f5dca2c5e68",
     "semantic_hash": ""
   },
   "apps/web/src/components/waitlist/waitlistCardUtils.ts": {
-    "mtime": 1790679873.2348087,
-    "seen": 1790681703.0021296,
-    "ast_hash": "3a18e1dd346d636245c4a907ccfaccbc",
+    "mtime": 1790684459.3587308,
+    "seen": 1790685251.7246826,
+    "ast_hash": "7307b50c7e31e0997ea8794ffc130a49",
     "semantic_hash": ""
   },
   "apps/web/tests/WaitlistCard.test.ts": {
-    "mtime": 1790680944.6745949,
-    "seen": 1790681703.023924,
-    "ast_hash": "9966a4e27d4ca106882dd09d6d6f95f4",
+    "mtime": 1790684782.1544433,
+    "seen": 1790685251.741358,
+    "ast_hash": "d201dd26e4b0a21a9806dc98829faa74",
     "semantic_hash": ""
   },
   "apps/web/tests/WaitlistFastTrack.test.ts": {
@@ -2811,6 +2811,30 @@
     "mtime": 1790679575.658454,
     "seen": 1790681703.0417678,
     "ast_hash": "95850b34ace439e26b888c21c3789987",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/waitlist/WaitlistAddModal.vue": {
+    "mtime": 1790685040.6705365,
+    "seen": 1790685251.7246826,
+    "ast_hash": "949eebe270ba5c0add0aaebe30f17ddd",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/waitlist/WaitlistModalConfirmStep.vue": {
+    "mtime": 1790684615.7252684,
+    "seen": 1790685251.7246826,
+    "ast_hash": "93aa41579321fe32cb59343034ba2b55",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/waitlist/WaitlistModalSearchStep.vue": {
+    "mtime": 1790684599.6702566,
+    "seen": 1790685251.7246826,
+    "ast_hash": "224f7638ed8d0b2280c939babc0c680f",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/waitlist/waitlistModalTypes.ts": {
+    "mtime": 1790684588.4310174,
+    "seen": 1790685251.7246826,
+    "ast_hash": "dd5be80044c10e3f268a4f5302f460ca",
     "semantic_hash": ""
   }
 }

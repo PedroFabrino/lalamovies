@@ -224,473 +224,30 @@
       </div>
     </main>
 
-    <!-- Add to Waitlist / Confirmation Modal -->
-    <div
-      v-if="isModalOpen"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
-      data-testid="waitlist-modal"
-    >
-      <div
-        class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 max-h-[90vh] flex flex-col"
-      >
-        <!-- Modal Header -->
-        <div class="flex items-center justify-between">
-          <div>
-            <h3 class="text-lg font-bold text-white">
-              {{ modalStep === 'confirm' ? 'Confirm Waitlist Entry' : 'Add to Waitlist' }}
-            </h3>
-            <p class="text-xs text-zinc-400 mt-0.5">
-              {{ modalStep === 'confirm'
-                ? 'Review details before adding to your tracker monitor'
-                : 'Search TMDB for movies or series to monitor' }}
-            </p>
-          </div>
-          <button
-            type="button"
-            class="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition"
-            @click="closeModal"
-          >
-            <svg
-              class="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </div>
-
-        <!-- Step 1: Search TMDB -->
-        <div
-          v-if="modalStep === 'search'"
-          class="space-y-4 flex-1 overflow-y-auto pr-1"
-        >
-          <!-- Search Form -->
-          <form
-            class="space-y-3"
-            @submit.prevent="handleSearch"
-          >
-            <div class="flex gap-2">
-              <input
-                id="searchWaitlistQuery"
-                v-model="searchQuery"
-                type="text"
-                placeholder="Search movie or TV show title..."
-                data-testid="search-waitlist-input"
-                class="flex-1 px-3.5 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                required
-              >
-              <button
-                type="submit"
-                :disabled="isSearching || !searchQuery.trim()"
-                data-testid="search-waitlist-submit"
-                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shrink-0"
-              >
-                <svg
-                  v-if="isSearching"
-                  class="animate-spin h-4 w-4 text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    class="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    stroke-width="4"
-                  />
-                  <path
-                    class="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v8H4z"
-                  />
-                </svg>
-                <span v-else>Search</span>
-              </button>
-            </div>
-
-            <!-- Media Type Selector -->
-            <div class="flex gap-2">
-              <label
-                v-for="type in mediaTypeOptions"
-                :key="type.value"
-                class="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg border text-xs font-medium cursor-pointer transition"
-                :class="searchMediaType === type.value
-                  ? 'bg-indigo-600/20 border-indigo-500 text-white'
-                  : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'"
-              >
-                <input
-                  v-model="searchMediaType"
-                  type="radio"
-                  name="modalMediaType"
-                  :value="type.value"
-                  class="sr-only"
-                >
-                <span>{{ type.icon }}</span>
-                <span>{{ type.label }}</span>
-              </label>
-            </div>
-          </form>
-
-          <!-- Candidate Results -->
-          <div
-            v-if="candidates.length > 0"
-            class="space-y-2 mt-4"
-            data-testid="search-candidates-list"
-          >
-            <h4 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-              Results
-            </h4>
-            <div
-              v-for="candidate in candidates"
-              :key="candidate.id"
-              data-testid="search-candidate-item"
-              class="p-3 bg-zinc-950/60 border border-zinc-800 rounded-xl hover:border-indigo-500/50 hover:bg-zinc-900/80 transition cursor-pointer flex gap-3 items-center group"
-              @click="selectCandidate(candidate)"
-            >
-              <div class="w-10 h-14 bg-zinc-900 rounded overflow-hidden shrink-0 border border-zinc-800 flex items-center justify-center">
-                <img
-                  v-if="candidate.posterUrl"
-                  :src="candidate.posterUrl"
-                  :alt="candidate.title"
-                  class="w-full h-full object-cover"
-                  loading="lazy"
-                >
-                <span
-                  v-else
-                  class="text-sm text-zinc-600"
-                >🎬</span>
-              </div>
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2">
-                  <h5 class="text-sm font-semibold text-white truncate group-hover:text-indigo-300 transition">
-                    {{ candidate.title }}
-                  </h5>
-                  <span
-                    v-if="candidate.year"
-                    class="text-xs text-zinc-400 shrink-0"
-                  >({{ candidate.year }})</span>
-                  <WaitlistBadge v-if="isItemWaitlisted({ id: candidate.id, title: candidate.title, mediaType: searchMediaType })" />
-                </div>
-                <p
-                  v-if="candidate.overview"
-                  class="text-xs text-zinc-400 line-clamp-1 mt-0.5"
-                >
-                  {{ candidate.overview }}
-                </p>
-              </div>
-              <svg
-                class="w-4 h-4 text-zinc-500 group-hover:text-white transition shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            </div>
-          </div>
-          <div
-            v-else-if="hasSearched && !isSearching"
-            class="py-8 text-center text-xs text-zinc-500"
-          >
-            No matches found on TMDB for "{{ searchQuery }}".
-          </div>
-        </div>
-
-        <!-- Step 2: Confirm Selection -->
-        <div
-          v-else-if="modalStep === 'confirm' && selectedCandidate"
-          class="space-y-4 flex-1"
-        >
-          <div class="p-4 bg-zinc-950 rounded-xl border border-zinc-800 flex gap-4 items-center">
-            <div class="w-14 h-20 bg-zinc-900 rounded overflow-hidden shrink-0 border border-zinc-800 flex items-center justify-center">
-              <img
-                v-if="selectedCandidate.posterUrl"
-                :src="selectedCandidate.posterUrl"
-                :alt="selectedCandidate.title"
-                class="w-full h-full object-cover"
-              >
-              <span
-                v-else
-                class="text-xl"
-              >🎬</span>
-            </div>
-            <div class="flex-1 min-w-0">
-              <h4
-                class="text-base font-bold text-white truncate"
-                data-testid="confirm-candidate-title"
-              >
-                {{ selectedCandidate.title }}
-              </h4>
-              <div class="flex items-center gap-2 text-xs text-zinc-400 mt-1">
-                <span v-if="selectedCandidate.year">({{ selectedCandidate.year }})</span>
-                <span>•</span>
-                <span
-                  class="px-1.5 py-0.5 rounded text-[10px] font-medium border"
-                  :class="getMediaTypeBadgeClasses(selectedMediaType)"
-                >
-                  {{ formatMediaType(selectedMediaType) }}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Guard: Already On Waitlist Alert -->
-          <div
-            v-if="isCandidateAlreadyWaitlisted"
-            class="p-4 bg-amber-950/40 border border-amber-800/80 rounded-xl text-xs text-amber-300 flex items-start gap-3"
-            data-testid="already-on-waitlist-alert"
-          >
-            <span class="text-lg leading-none">⚠️</span>
-            <div class="space-y-1">
-              <div class="font-semibold text-amber-200">
-                Already on your waitlist!
-              </div>
-              <p class="text-zinc-300">
-                This {{ selectedMediaType === 'movie' ? 'movie' : 'series season' }} is already active on your waitlist. You cannot add it again.
-              </p>
-            </div>
-          </div>
-
-          <!-- Guard 1: Already In Library Alert -->
-          <div
-            v-if="libraryStatus?.inLibrary"
-            class="p-4 bg-amber-950/40 border border-amber-800/80 rounded-xl text-xs text-amber-300 flex items-start gap-3"
-            data-testid="already-in-library-alert"
-          >
-            <span class="text-lg leading-none">⚠️</span>
-            <div class="space-y-1">
-              <div class="font-semibold text-amber-200">
-                Already in your library!
-              </div>
-              <p class="text-zinc-300">
-                This {{ selectedMediaType === 'movie' ? 'movie' : 'episode' }} is already downloaded or active in your download queue{{ libraryStatus.status ? ` (${libraryStatus.status})` : '' }}. You cannot add it to the waitlist.
-              </p>
-            </div>
-          </div>
-
-          <!-- Guard 2: Tracker Releases Available Alert -->
-          <div
-            v-if="availableReleasesCount > 0 && !libraryStatus?.inLibrary"
-            class="p-4 bg-emerald-950/40 border border-emerald-800/80 rounded-xl text-xs text-emerald-300 flex items-start gap-3"
-            data-testid="releases-available-alert"
-          >
-            <span class="text-lg leading-none">⚡</span>
-            <div class="space-y-2 flex-1 min-w-0">
-              <div>
-                <span class="font-semibold text-emerald-200">
-                  Releases Available on Trackers!
-                </span>
-                <p class="text-zinc-300 mt-0.5">
-                  We found <span class="font-bold text-white">{{ availableReleasesCount }}</span> matching release{{ availableReleasesCount > 1 ? 's' : '' }} on trackers right now. You can download directly instead of waiting on the waitlist.
-                </p>
-              </div>
-              <div class="pt-1">
-                <button
-                  type="button"
-                  data-testid="download-directly-btn"
-                  class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-sm transition inline-flex items-center gap-1.5 cursor-pointer"
-                  @click="downloadDirectly"
-                >
-                  <span>📥 Download Directly Now</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Season & Episode Selectors for TV Show / Anime -->
-          <div
-            v-if="['tv_show', 'anime'].includes(selectedMediaType)"
-            class="p-4 bg-zinc-950/60 rounded-xl border border-zinc-800/80 space-y-4"
-          >
-            <!-- Progress badge if series has existing downloads -->
-            <div
-              v-if="seriesProgress?.hasExisting"
-              class="p-3 bg-indigo-950/40 border border-indigo-800/60 rounded-lg text-xs text-indigo-300 flex items-start gap-2.5"
-              data-testid="series-progress-badge"
-            >
-              <span class="text-base leading-none">💡</span>
-              <div class="space-y-1">
-                <div class="font-medium">
-                  In Library:
-                  <span class="text-white">
-                    Season {{ selectedSeasonNumber }}
-                    <template v-if="seriesProgress.existingEpisodes.length > 0">
-                      (Episode{{ seriesProgress.existingEpisodes.length > 1 ? 's ' : ' ' }}{{ seriesProgress.existingEpisodes.join(', ') }})
-                    </template>
-                    <template v-else>
-                      (No episodes in this season yet)
-                    </template>
-                  </span>
-                </div>
-                <div class="text-[11px] text-zinc-400">
-                  Auto-targeting next episode {{ selectedEpisodeNumber || 1 }}. You can adjust below if needed.
-                </div>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label
-                  for="waitlistSeasonInput"
-                  class="block text-xs font-medium text-zinc-300 mb-1.5"
-                >
-                  Target Season
-                </label>
-                <input
-                  id="waitlistSeasonInput"
-                  v-model.number="selectedSeasonNumber"
-                  type="number"
-                  min="1"
-                  data-testid="waitlist-season-input"
-                  class="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  @change="checkCandidateGuards"
-                >
-              </div>
-
-              <div>
-                <label
-                  for="waitlistEpisodeInput"
-                  class="block text-xs font-medium text-zinc-300 mb-1.5"
-                >
-                  Target Episode
-                </label>
-                <input
-                  id="waitlistEpisodeInput"
-                  v-model.number="selectedEpisodeNumber"
-                  type="number"
-                  min="1"
-                  data-testid="waitlist-episode-input"
-                  class="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  @change="checkCandidateGuards"
-                >
-              </div>
-            </div>
-
-            <p class="text-[11px] text-zinc-400">
-              Monitors S{{ (selectedSeasonNumber || 1) < 10 ? '0' + (selectedSeasonNumber || 1) : selectedSeasonNumber }}E{{ (selectedEpisodeNumber || 1) < 10 ? '0' + (selectedEpisodeNumber || 1) : selectedEpisodeNumber }} releases once available on trackers.
-            </p>
-          </div>
-
-          <!-- TMDB Air Date / Release Date Display -->
-          <div
-            class="p-3 bg-zinc-950/60 rounded-xl border border-zinc-800/80 text-xs flex items-center justify-between"
-            data-testid="confirm-air-date-info"
-          >
-            <span class="text-zinc-400">
-              <template v-if="['tv_show', 'anime'].includes(selectedMediaType)">
-                Episode Air Date:
-              </template>
-              <template v-else>
-                TMDB Release Date:
-              </template>
-            </span>
-            <span
-              class="text-white font-medium flex items-center gap-1.5"
-              data-testid="confirm-air-date-value"
-            >
-              <span>📅</span>
-              <span v-if="targetAirDate">{{ formatDateOnly(targetAirDate) }}</span>
-              <span v-else>Date TBA</span>
-            </span>
-          </div>
-
-          <!-- Action Buttons -->
-          <div class="flex items-center justify-between pt-4 border-t border-zinc-800">
-            <button
-              v-if="!isPrefilled"
-              type="button"
-              class="px-3.5 py-2 text-xs font-medium text-zinc-400 hover:text-white transition"
-              @click="modalStep = 'search'"
-            >
-              ← Back to search
-            </button>
-            <button
-              v-else
-              type="button"
-              class="px-3.5 py-2 text-xs font-medium text-zinc-400 hover:text-white transition"
-              @click="closeModal"
-            >
-              Cancel
-            </button>
-
-            <button
-              type="button"
-              data-testid="confirm-add-waitlist-btn"
-              :disabled="isSubmitting || libraryStatus?.inLibrary || isCandidateAlreadyWaitlisted"
-              class="px-5 py-2 text-white text-xs font-semibold rounded-lg shadow transition flex items-center gap-2"
-              :class="libraryStatus?.inLibrary || isCandidateAlreadyWaitlisted ? 'opacity-50 cursor-not-allowed bg-zinc-700 hover:bg-zinc-700' : 'bg-indigo-600 hover:bg-indigo-500 cursor-pointer disabled:opacity-50'"
-              @click="submitWaitlistEntry"
-            >
-              <svg
-                v-if="isSubmitting"
-                class="animate-spin h-3.5 w-3.5 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  class="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  stroke-width="4"
-                />
-                <path
-                  class="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8v8H4z"
-                />
-              </svg>
-              <span>{{ isSubmitting ? 'Adding...' : (isCandidateAlreadyWaitlisted ? 'Already on Waitlist' : (libraryStatus?.inLibrary ? 'Already in Library' : 'Confirm & Add to Waitlist')) }}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Add to Waitlist Modal -->
+    <WaitlistAddModal
+      ref="addModalRef"
+      :open="isModalOpen"
+      @close="isModalOpen = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Navbar from '../components/Navbar.vue';
-import WaitlistBadge from '../components/WaitlistBadge.vue';
 import WaitlistCard from '../components/waitlist/WaitlistCard.vue';
-import { getMediaTypeBadgeClasses, formatDateOnly } from '../components/waitlist/waitlistCardUtils';
+import WaitlistAddModal from '../components/waitlist/WaitlistAddModal.vue';
+import type { WaitlistCandidate } from '../components/waitlist/waitlistModalTypes';
 import { useWaitlistStore, WaitlistEntry } from '../stores/waitlist';
 import { useAuthStore } from '../stores/auth';
-import { useWaitlistMatching } from '../composables/useWaitlistMatching';
 import { api } from '../lib/api';
-import { formatMediaType } from '../lib/formatters';
 
 const route = useRoute();
 const router = useRouter();
 const waitlistStore = useWaitlistStore();
 const authStore = useAuthStore();
-const { isItemWaitlisted } = useWaitlistMatching();
-
-const isCandidateAlreadyWaitlisted = computed(() => {
-  if (!selectedCandidate.value) return false;
-  return isItemWaitlisted({
-    id: selectedCandidate.value.id,
-    title: selectedCandidate.value.title,
-    mediaType: selectedMediaType.value,
-    seasonNumber: ['tv_show', 'anime'].includes(selectedMediaType.value) ? (selectedSeasonNumber.value || 1) : undefined,
-  });
-});
 
 // Admin view toggle (Ticket 10)
 const activeView = ref<'mine' | 'all'>(authStore.isAdmin ? 'all' : 'mine');
@@ -708,34 +265,17 @@ async function setView(view: 'mine' | 'all') {
   await loadEntries();
 }
 
-interface WaitlistCandidate {
-  id: string | number;
-  source?: string;
-  title: string;
-  year?: number;
-  posterUrl?: string | null;
-  releaseDate?: string | null;
-  [key: string]: unknown;
-}
-
-interface SeriesProgressResponse {
-  inLibrary?: boolean;
-  hasExisting?: boolean;
-  status?: string | null;
-  highestSeason: number | null;
-  highestEpisode: number | null;
-  existingEpisodes: number[];
-  suggestedSeason: number;
-  suggestedEpisode: number;
-  existingMediaType?: string;
-  existingTitle?: string;
-  airDate?: string | null;
-  [key: string]: unknown;
-}
-
 // Live ticker for notification countdowns
 const now = ref(Date.now());
 let tickerInterval: ReturnType<typeof setInterval> | null = null;
+
+const isModalOpen = ref(false);
+const addModalRef = ref<InstanceType<typeof WaitlistAddModal> | null>(null);
+
+function openSearchModal() {
+  addModalRef.value?.openSearchModal();
+  isModalOpen.value = true;
+}
 
 onMounted(async () => {
   tickerInterval = setInterval(() => {
@@ -746,7 +286,7 @@ onMounted(async () => {
 
   // Check if routed with prefilled metadata from RequestView (Ticket 09)
   if (route.query.add === 'true' && route.query.title) {
-    initPrefilledModal();
+    isModalOpen.value = true;
   }
 });
 
@@ -755,230 +295,6 @@ onUnmounted(() => {
     clearInterval(tickerInterval);
   }
 });
-
-// Modal state
-const isModalOpen = ref(false);
-const modalStep = ref<'search' | 'confirm'>('search');
-const isPrefilled = ref(false);
-const isSearching = ref(false);
-const hasSearched = ref(false);
-const isSubmitting = ref(false);
-
-const searchQuery = ref('');
-const searchMediaType = ref<'movie' | 'tv_show' | 'anime'>('movie');
-const candidates = ref<WaitlistCandidate[]>([]);
-
-const selectedCandidate = ref<WaitlistCandidate | null>(null);
-const selectedMediaType = ref<'movie' | 'tv_show' | 'anime'>('movie');
-const selectedSeasonNumber = ref<number>(1);
-const selectedEpisodeNumber = ref<number | null>(1);
-const targetAirDate = ref<string | null>(null);
-const seriesProgress = ref<SeriesProgressResponse | null>(null);
-
-const libraryStatus = ref<{ inLibrary: boolean; hasExisting: boolean; status?: string | null } | null>(null);
-const isCheckingLibrary = ref(false);
-const availableReleasesCount = ref(0);
-const isCheckingReleases = ref(false);
-
-const mediaTypeOptions = [
-  { value: 'movie' as const, label: 'Movie', icon: '🎬' },
-  { value: 'tv_show' as const, label: 'TV Show', icon: '📺' },
-  { value: 'anime' as const, label: 'Anime', icon: '⛩️' },
-];
-
-async function checkCandidateGuards() {
-  if (!selectedCandidate.value) return;
-  libraryStatus.value = null;
-  availableReleasesCount.value = 0;
-
-  // 1. Library check
-  isCheckingLibrary.value = true;
-  try {
-    const params = new URLSearchParams();
-    if (selectedCandidate.value.id) params.append('metadataId', String(selectedCandidate.value.id));
-    if (selectedCandidate.value.title) params.append('title', selectedCandidate.value.title);
-    params.append('mediaType', selectedMediaType.value);
-    if (['tv_show', 'anime'].includes(selectedMediaType.value)) {
-      if (selectedSeasonNumber.value) params.append('seasonNumber', String(selectedSeasonNumber.value));
-      if (selectedEpisodeNumber.value) params.append('episodeNumber', String(selectedEpisodeNumber.value));
-    }
-
-    const data = await api.get<SeriesProgressResponse>(`/requests/series-progress?${params.toString()}`);
-    libraryStatus.value = {
-      inLibrary: Boolean(data?.inLibrary),
-      hasExisting: Boolean(data?.hasExisting),
-      status: data?.status || null,
-    };
-
-    if (['tv_show', 'anime'].includes(selectedMediaType.value)) {
-      seriesProgress.value = data;
-      if (data?.hasExisting) {
-        if (data.existingMediaType && ['tv_show', 'anime'].includes(data.existingMediaType)) {
-          selectedMediaType.value = data.existingMediaType as 'tv_show' | 'anime';
-        }
-        if (data.existingTitle && selectedCandidate.value) {
-          selectedCandidate.value.title = data.existingTitle;
-        }
-      }
-      if (selectedEpisodeNumber.value === null) {
-        selectedEpisodeNumber.value = data?.hasExisting ? (data.suggestedEpisode || 1) : 1;
-      }
-      targetAirDate.value = data?.airDate || null;
-    }
-  } catch {
-    libraryStatus.value = null;
-  } finally {
-    isCheckingLibrary.value = false;
-  }
-
-  // 2. Trackers release check
-  isCheckingReleases.value = true;
-  try {
-    const relData = await api.post<{ releases?: unknown[] }>('/requests/search-releases', {
-      metadataId: String(selectedCandidate.value.id),
-      metadataSource: selectedCandidate.value.source || 'tmdb',
-      mediaType: selectedMediaType.value,
-      title: selectedCandidate.value.title,
-      year: selectedCandidate.value.year,
-      seasonNumber: ['tv_show', 'anime'].includes(selectedMediaType.value) ? (selectedSeasonNumber.value || 1) : undefined,
-      episodeNumber: ['tv_show', 'anime'].includes(selectedMediaType.value) ? (selectedEpisodeNumber.value || 1) : undefined,
-    });
-    if (Array.isArray(relData?.releases)) {
-      availableReleasesCount.value = relData.releases.length;
-    }
-  } catch {
-    availableReleasesCount.value = 0;
-  } finally {
-    isCheckingReleases.value = false;
-  }
-}
-
-function downloadDirectly() {
-  if (!selectedCandidate.value) return;
-  const candidate = selectedCandidate.value;
-  const mType = selectedMediaType.value;
-  const sNum = selectedSeasonNumber.value;
-  const epNum = selectedEpisodeNumber.value;
-  closeModal();
-  router.push({
-    path: '/requests',
-    query: {
-      search: candidate.title,
-      title: candidate.title,
-      year: candidate.year ? String(candidate.year) : undefined,
-      mediaType: mType,
-      metadataId: String(candidate.id),
-      metadataSource: candidate.source || 'tmdb',
-      seasonNumber: ['tv_show', 'anime'].includes(mType) ? String(sNum || 1) : undefined,
-      episodeNumber: ['tv_show', 'anime'].includes(mType) && epNum ? String(epNum) : undefined,
-    },
-  });
-}
-
-function openSearchModal() {
-  isPrefilled.value = false;
-  modalStep.value = 'search';
-  searchQuery.value = '';
-  candidates.value = [];
-  hasSearched.value = false;
-  selectedCandidate.value = null;
-  seriesProgress.value = null;
-  libraryStatus.value = null;
-  availableReleasesCount.value = 0;
-  targetAirDate.value = null;
-  isModalOpen.value = true;
-}
-
-function closeModal() {
-  isModalOpen.value = false;
-  seriesProgress.value = null;
-  libraryStatus.value = null;
-  availableReleasesCount.value = 0;
-  targetAirDate.value = null;
-  if (route.query.add) {
-    router.replace({ path: '/waitlist', query: {} });
-  }
-}
-
-async function initPrefilledModal() {
-  isPrefilled.value = true;
-  modalStep.value = 'confirm';
-  const query = route.query;
-  const mType = typeof query.mediaType === 'string' ? query.mediaType : 'movie';
-  selectedMediaType.value = ['movie', 'tv_show', 'anime'].includes(mType) ? (mType as 'movie' | 'tv_show' | 'anime') : 'movie';
-  selectedSeasonNumber.value = query.seasonNumber ? Number(query.seasonNumber) : 1;
-  selectedEpisodeNumber.value = query.targetEpisode || query.episodeNumber ? Number(query.targetEpisode || query.episodeNumber) : 1;
-  if (query.releaseDate) {
-    targetAirDate.value = String(query.releaseDate);
-  }
-  selectedCandidate.value = {
-    id: String(query.metadataId || ''),
-    source: String(query.metadataSource || 'tmdb'),
-    title: String(query.title || ''),
-    year: query.year ? Number(query.year) : undefined,
-    posterUrl: query.posterUrl ? String(query.posterUrl) : null,
-  };
-  isModalOpen.value = true;
-  await checkCandidateGuards();
-}
-
-async function handleSearch() {
-  if (!searchQuery.value.trim()) return;
-  isSearching.value = true;
-  hasSearched.value = true;
-  candidates.value = [];
-  try {
-    const data = await api.post<{ candidates: WaitlistCandidate[] }>('/requests/search-metadata', {
-      query: searchQuery.value.trim(),
-      mediaType: searchMediaType.value,
-    });
-    candidates.value = data.candidates || [];
-  } catch (err: unknown) {
-    waitlistStore.showToast((err as Error).message || 'Failed to search metadata', 'error');
-  } finally {
-    isSearching.value = false;
-  }
-}
-
-async function selectCandidate(candidate: WaitlistCandidate) {
-  selectedCandidate.value = candidate;
-  selectedMediaType.value = searchMediaType.value;
-  selectedSeasonNumber.value = 1;
-  selectedEpisodeNumber.value = null;
-  targetAirDate.value = candidate.releaseDate || null;
-  seriesProgress.value = null;
-  libraryStatus.value = null;
-  availableReleasesCount.value = 0;
-  modalStep.value = 'confirm';
-  await checkCandidateGuards();
-}
-
-async function submitWaitlistEntry() {
-  if (!selectedCandidate.value) return;
-  if (isCandidateAlreadyWaitlisted.value) {
-    waitlistStore.showToast('This item is already on your waitlist.', 'info');
-    return;
-  }
-  isSubmitting.value = true;
-  try {
-    await waitlistStore.addEntry({
-      mediaType: selectedMediaType.value,
-      metadataId: String(selectedCandidate.value.id),
-      metadataSource: selectedCandidate.value.source === 'anilist' ? 'anilist' : 'tmdb',
-      title: selectedCandidate.value.title,
-      year: selectedCandidate.value.year || undefined,
-      seasonNumber: ['tv_show', 'anime'].includes(selectedMediaType.value) ? (selectedSeasonNumber.value || 1) : undefined,
-      targetEpisode: ['tv_show', 'anime'].includes(selectedMediaType.value) ? (selectedEpisodeNumber.value || 1) : undefined,
-      tmdbReleaseDate: targetAirDate.value || null,
-      posterUrl: selectedCandidate.value.posterUrl || undefined,
-    });
-    closeModal();
-  } catch {
-    // Error is handled and toasted in store
-  } finally {
-    isSubmitting.value = false;
-  }
-}
 
 const checkingEntryId = ref<string | null>(null);
 const isCheckingAll = ref(false);
@@ -1056,4 +372,17 @@ function handleManualPick(entry: WaitlistEntry) {
 
   router.push({ path: '/request', query });
 }
+
+defineExpose({
+  openSearchModal,
+  selectCandidate: (candidate: WaitlistCandidate) => addModalRef.value?.selectCandidate(candidate),
+  get searchMediaType() {
+    return addModalRef.value?.searchMediaType;
+  },
+  set searchMediaType(val: 'movie' | 'tv_show' | 'anime' | undefined) {
+    if (addModalRef.value && val) {
+      addModalRef.value.searchMediaType = val;
+    }
+  },
+});
 </script>

@@ -154,4 +154,40 @@ describe('WaitlistCard.vue (#188)', () => {
     expect(wrapper.emitted('manual-pick')).toBeTruthy();
     expect(wrapper.emitted('manual-pick')![0]).toEqual([baseEntry]);
   });
+
+  it('does not emit manual-pick when clicking card container if status is completed or cancelled', async () => {
+    const completedEntry: WaitlistEntry = {
+      ...baseEntry,
+      status: 'completed',
+    };
+    const wrapper = mount(WaitlistCard, {
+      props: {
+        entry: completedEntry,
+      },
+    });
+
+    await wrapper.trigger('click');
+    expect(wrapper.emitted('manual-pick')).toBeFalsy();
+    expect(wrapper.find('[data-testid="manual-pick-btn"]').exists()).toBe(false);
+  });
+
+  it('renders lastCheckResult diagnostic text in pending_release status subtext when available', () => {
+    const pendingEntry: WaitlistEntry = {
+      ...baseEntry,
+      status: 'pending_release',
+      airDate: '2026-10-01',
+      lastCheckResult: 'Target air date 2026-10-01 is in the future. Polling starts on release day.',
+    };
+
+    const wrapper = mount(WaitlistCard, {
+      props: {
+        entry: pendingEntry,
+      },
+    });
+
+    const diag = wrapper.find('[data-testid="entry-diagnostic"]');
+    expect(diag.exists()).toBe(true);
+    expect(diag.text()).toBe('Target air date 2026-10-01 is in the future. Polling starts on release day.');
+  });
 });
+

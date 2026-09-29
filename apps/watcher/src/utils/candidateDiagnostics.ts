@@ -24,16 +24,11 @@ export function evaluateCandidatesDiagnostic(
     episodeMatches = candidates.filter((c) => matchesTarget(c.title, sNum, targetEp));
   }
 
-  const qualifying = candidates.filter((c) => {
+  const qualifying = episodeMatches.filter((c) => {
     if (c.score < 100) return false;
     if (c.seeders < 10) return false;
     if (c.source === 'cam') return false;
     if (CAM_REGEX.test(c.title)) return false;
-    if (isEpisodic) {
-      if (!matchesTarget(c.title, sNum, targetEp)) {
-        return false;
-      }
-    }
     return true;
   });
 

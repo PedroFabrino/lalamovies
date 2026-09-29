@@ -853,7 +853,7 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
   // POST /waitlist/:id/check - force immediate check of a specific waitlist entry
   app.post('/:id/check', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const entry = app.db
+    let entry = app.db
       .select()
       .from(watchRequests)
       .where(eq(watchRequests.id, id))
@@ -866,49 +866,47 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
+    let checkMessage = 'Checked trackers';
+
     // If pending_release or missing air date or higher season, verify against metadata API first & self-heal
     if (
       entry.status === 'pending_release' ||
       !entry.tmdbReleaseDate ||
       (entry.seasonNumber && entry.seasonNumber > 1)
     ) {
-      let checkMessage = 'Checked APIs';
       if (app.releaseGating) {
         const result = await app.releaseGating.checkOrHealEntry(entry);
         checkMessage = result.message;
       }
 
-      const updated = app.db
-        .select()
-        .from(watchRequests)
-        .where(eq(watchRequests.id, id))
-        .get();
+      entry =
+        app.db
+          .select()
+          .from(watchRequests)
+          .where(eq(watchRequests.id, id))
+          .get() || entry;
 
-      if (updated?.status === 'checking') {
-        try {
-          const pollRes = await app.poller?.pollEntry(updated);
-          if (pollRes?.diagnostic) {
-            checkMessage = pollRes.diagnostic;
-          }
-        } catch (err: unknown) {
-          app.log.warn(err, 'Manual poller tick failed');
-        }
+      if (entry.status !== 'checking') {
+        app.db
+          .update(watchRequests)
+          .set({ lastCheckResult: checkMessage, updatedAt: new Date().toISOString() })
+          .where(eq(watchRequests.id, id))
+          .run();
+
+        const finalEntry = app.db
+          .select()
+          .from(watchRequests)
+          .where(eq(watchRequests.id, id))
+          .get();
+
+        return reply.send({
+          ok: true,
+          message: checkMessage,
+          entry: finalEntry,
+        });
       }
-
-      const finalEntry = app.db
-        .select()
-        .from(watchRequests)
-        .where(eq(watchRequests.id, id))
-        .get();
-
-      return reply.send({
-        ok: true,
-        message: finalEntry?.lastCheckResult || checkMessage,
-        entry: finalEntry,
-      });
     }
 
-    let checkMessage = 'Checked trackers';
     try {
       const pollRes = await app.poller?.pollEntry(entry);
       if (pollRes?.diagnostic) {
@@ -934,12 +932,7 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
   // POST /waitlist/:id/advance - advance episodic entry or complete movie entry
   app.post('/:id/advance', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const entry = app.db
-      .select()
-      .from(watchRequests)
-      .where(eq(watchRequests.id, id))
-      .get();
-
+    const entry = await app.episodic.advanceOrCompleteEntry(id);
     if (!entry) {
       return reply.status(404).send({
         error: 'Not Found',
@@ -947,45 +940,9 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    if (entry.discordMessageId) {
-      try {
-        await deleteDiscordMessage(entry.discordMessageId, undefined, app.log);
-      } catch (err: unknown) {
-        app.log.warn(err, `Failed to delete Discord message for entry ${id}`);
-      }
-    }
-
-    let updatedEntry: WatchRequest | null = null;
-    const newTriggeredCount = (entry.triggeredCount || 0) + 1;
-
-    if (entry.mediaType === 'tv_show' || entry.mediaType === 'anime') {
-      updatedEntry = await app.episodic.advanceEntry(entry.id, newTriggeredCount);
-    } else {
-      const nowIso = new Date().toISOString();
-      app.db
-        .update(watchRequests)
-        .set({
-          status: 'completed',
-          updatedAt: nowIso,
-          discordMessageId: null,
-          prowlarrReleaseTitle: null,
-          prowlarrReleaseMagnet: null,
-          prowlarrReleaseScore: null,
-        })
-        .where(eq(watchRequests.id, entry.id))
-        .run();
-
-      updatedEntry =
-        app.db
-          .select()
-          .from(watchRequests)
-          .where(eq(watchRequests.id, entry.id))
-          .get() || null;
-    }
-
     return reply.send({
       ok: true,
-      entry: updatedEntry,
+      entry,
     });
   });
 };

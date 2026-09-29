@@ -1,8 +1,9 @@
 <template>
   <div
     data-testid="waitlist-card"
-    class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between gap-4 transition hover:border-zinc-700 cursor-pointer"
-    @click="$emit('manual-pick', entry)"
+    class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between gap-4 transition hover:border-zinc-700"
+    :class="{ 'cursor-pointer': isActionable }"
+    @click="handleCardClick"
   >
     <div class="flex gap-4">
       <!-- Poster -->
@@ -108,7 +109,14 @@
         <p class="text-[11px] text-zinc-400 mt-2 line-clamp-2">
           <template v-if="entry.status === 'pending_release'">
             <span
-              v-if="entry.tmdbReleaseDate"
+              v-if="entry.lastCheckResult"
+              class="text-sky-300/90 font-medium"
+              data-testid="entry-diagnostic"
+            >
+              {{ entry.lastCheckResult }}
+            </span>
+            <span
+              v-else-if="entry.tmdbReleaseDate"
               class="text-amber-300/90 font-medium"
             >
               ⏳ Unreleased • Starts searching trackers on {{ formatDateOnly(entry.tmdbReleaseDate) }}
@@ -271,6 +279,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { WaitlistEntry } from '../../stores/waitlist';
 import { formatMediaType } from '../../lib/formatters';
 import {
@@ -284,7 +293,7 @@ import {
   formatDateOnly,
 } from './waitlistCardUtils';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     entry: WaitlistEntry;
     isApproving?: boolean;
@@ -298,10 +307,18 @@ withDefaults(
   }
 );
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'approve', entry: WaitlistEntry): void;
   (e: 'check', entry: WaitlistEntry): void;
   (e: 'cancel', entry: WaitlistEntry): void;
   (e: 'manual-pick', entry: WaitlistEntry): void;
 }>();
+
+const isActionable = computed(() => props.entry.status !== 'cancelled' && props.entry.status !== 'completed');
+
+function handleCardClick() {
+  if (isActionable.value) {
+    emit('manual-pick', props.entry);
+  }
+}
 </script>
