@@ -38,14 +38,15 @@ class MockMetadata extends BaseMetadataService {
 }
 
 class MockCleanup implements ICleanupService {
-  public safe = true;
+  public hostDiskSafe = true;
+  public spaceSufficient = true;
   public percentFree = 50;
 
   isHostDiskSafe(): boolean {
-    return this.safe;
+    return this.hostDiskSafe;
   }
   isSpaceSufficient(): SpaceCheckResult {
-    return { sufficient: this.safe, percentFree: this.percentFree, threshold: 15 };
+    return { sufficient: this.spaceSufficient && this.hostDiskSafe, percentFree: this.percentFree, threshold: 15 };
   }
   async runAutoCleanup() { return { cleanedCount: 0, bytesFreed: 0 }; }
   async scheduleCleanupWarning() {}
@@ -283,8 +284,8 @@ describe('Batch Requests & Directory Structure API (#8)', () => {
       expect(json.requests[0].deferredReason).toBe('waiting_for_space');
     });
 
-    it('rejects with 422 Unprocessable Entity when host disk is not safe', async () => {
-      cleanup.safe = false;
+    it('rejects with 422 when host disk is critically low (< 10 GB hard floor)', async () => {
+      cleanup.hostDiskSafe = false;
 
       const { buffer } = createDummyTorrentBuffer('Test.mkv');
 
@@ -306,6 +307,34 @@ describe('Batch Requests & Directory Structure API (#8)', () => {
       expect(res.statusCode).toBe(422);
       const json = JSON.parse(res.body);
       expect(json.error).toBe('Unprocessable Entity');
+      expect(json.message).toContain('Insufficient host disk space');
+    });
+
+    it('defers all batch items as waiting_for_space when disk percentage is below reject threshold', async () => {
+      cleanup.spaceSufficient = false;
+      cleanup.percentFree = 10;
+
+      const { buffer } = createDummyTorrentBuffer('Test.mkv');
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/requests/batch',
+        cookies: { token: userToken },
+        payload: {
+          mediaType: 'movie',
+          metadataId: 'tmdb_1',
+          metadataSource: 'tmdb',
+          title: 'Inception',
+          items: [
+            { torrentFileBase64: buffer.toString('base64') },
+          ],
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const json = JSON.parse(res.body);
+      expect(json.requests[0].status).toBe('queued');
+      expect(json.requests[0].deferredReason).toBe('waiting_for_space');
     });
   });
 });

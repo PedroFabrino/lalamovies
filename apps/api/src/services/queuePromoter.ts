@@ -56,10 +56,45 @@ export interface QueuePromoterOptions {
   stateMachine: IRequestStateMachine;
   stagingPath: string;
   logger?: PollerLogger;
+  isHostDiskSafe?: () => boolean;
+  isSpaceSufficient?: () => { sufficient: boolean };
+}
+
+function markAllQueuedWaitingForSpace(requestsRepo: IRequestsRepository): void {
+  const queuedItems = requestsRepo.findByStatus(RequestStatus.QUEUED);
+  for (const item of queuedItems) {
+    if (item.deferredReason !== 'waiting_for_space') {
+      requestsRepo.update(item.id, { deferredReason: 'waiting_for_space' });
+    }
+  }
 }
 
 export async function promoteQueuedRequests(options: QueuePromoterOptions): Promise<void> {
-  const { db, requestsRepo, qbittorrent, fileSystem, stateMachine, stagingPath, logger } = options;
+  const {
+    db,
+    requestsRepo,
+    qbittorrent,
+    fileSystem,
+    stateMachine,
+    stagingPath,
+    logger,
+    isHostDiskSafe,
+    isSpaceSufficient,
+  } = options;
+
+  // Hard floor: if host disk is critically low (< 10 GB), nothing can be promoted safely
+  if (isHostDiskSafe && !isHostDiskSafe()) {
+    markAllQueuedWaitingForSpace(requestsRepo);
+    logger?.info?.('Queue promotion skipped: host disk critically low (< 10 GB free)');
+    return;
+  }
+
+  // Soft threshold: if host disk percentage is below reject threshold, wait for space
+  if (isSpaceSufficient && !isSpaceSufficient().sufficient) {
+    markAllQueuedWaitingForSpace(requestsRepo);
+    logger?.info?.('Queue promotion skipped: host disk percentage below threshold');
+    return;
+  }
 
   const quotaRow = db
     .select()
@@ -85,12 +120,7 @@ export async function promoteQueuedRequests(options: QueuePromoterOptions): Prom
   let slotsAvailable = Math.max(0, concurrentLimit - activeCount);
 
   if (availableHeadroom <= 0) {
-    const queuedItems = requestsRepo.findByStatus(RequestStatus.QUEUED);
-    for (const item of queuedItems) {
-      if (item.deferredReason !== 'waiting_for_space') {
-        requestsRepo.update(item.id, { deferredReason: 'waiting_for_space' });
-      }
-    }
+    markAllQueuedWaitingForSpace(requestsRepo);
   } else if (slotsAvailable > 0) {
     const queuedRequests = requestsRepo.findByStatus(RequestStatus.QUEUED, 'requestedAtAsc');
 

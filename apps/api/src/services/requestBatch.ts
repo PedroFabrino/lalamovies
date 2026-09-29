@@ -86,14 +86,14 @@ export async function executeBatchRequests(params: ExecuteBatchParams): Promise<
   }
 
   const diskCheck = checkDiskSafety(cleanup);
-  if (!diskCheck.sufficient) {
+  if (!diskCheck.sufficient && diskCheck.hardFail) {
     throw new RequestServiceError(422, 'Unprocessable Entity', diskCheck.message!);
   }
 
   const isQuotaExceeded = await isStorageQuotaExceeded(db, fileSystem);
   const concurrentLimit = getConcurrentLimit(db);
   const activeCount = await qbittorrent.getActiveTorrentCount();
-  let availableSlots = isQuotaExceeded ? 0 : Math.max(0, concurrentLimit - activeCount);
+  let availableSlots = (!diskCheck.sufficient || isQuotaExceeded) ? 0 : Math.max(0, concurrentLimit - activeCount);
 
   const resultingRequests: DownloadRequest[] = [];
 
@@ -149,7 +149,7 @@ export async function executeBatchRequests(params: ExecuteBatchParams): Promise<
     let qbTorrentHash: string | null = null;
     let torrentFilePath: string | null = null;
 
-    if (isQuotaExceeded) {
+    if (!diskCheck.sufficient || isQuotaExceeded) {
       deferredReason = 'waiting_for_space';
     } else if (availableSlots > 0) {
       try {

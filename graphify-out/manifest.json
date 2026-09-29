@@ -168,9 +168,9 @@
     "semantic_hash": "f2ed05874309e357faa6d0e819f1586a"
   },
   "apps/api/src/jobs/downloadPoller.ts": {
-    "mtime": 1790342935.0644019,
-    "seen": 1790344437.7463377,
-    "ast_hash": "0801994a4c68cd196314a69671dc2da5",
+    "mtime": 1790677440.7160873,
+    "seen": 1790677783.231403,
+    "ast_hash": "4fdd801a902206dcf21fc76a6bd76576",
     "semantic_hash": ""
   },
   "apps/api/src/jobs/transcriptionCron.ts": {
@@ -360,9 +360,9 @@
     "semantic_hash": ""
   },
   "apps/api/tests/batch_requests.test.ts": {
-    "mtime": 1789957616.7043545,
-    "seen": 1789958026.7291968,
-    "ast_hash": "19fc2522bd4464453a9702a5f52d5bef",
+    "mtime": 1790675114.7958987,
+    "seen": 1790675198.5625815,
+    "ast_hash": "b7585e856a1348bc6daf2c0019668dd3",
     "semantic_hash": ""
   },
   "apps/api/tests/cleanup.test.ts": {
@@ -384,9 +384,9 @@
     "semantic_hash": "50be63cb734236afad35d79222bdc0d0"
   },
   "apps/api/tests/download_requests.test.ts": {
-    "mtime": 1790020223.534089,
-    "seen": 1790020268.6934183,
-    "ast_hash": "cff3d6e278c36bc53961eefa2346dd16",
+    "mtime": 1790677558.8735166,
+    "seen": 1790677783.284407,
+    "ast_hash": "f906d041bf739837a4083e5ffe318fdf",
     "semantic_hash": ""
   },
   "apps/api/tests/features.test.ts": {
@@ -1980,9 +1980,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/composables/useRequestSubmit.ts": {
-    "mtime": 1790583237.4049747,
-    "seen": 1790583940.7694907,
-    "ast_hash": "6120d779fb3b3a65c7847cfbe7f47a71",
+    "mtime": 1790675114.8161175,
+    "seen": 1790675198.6704497,
+    "ast_hash": "2c4c753cf6e6119a741148b77ad217c0",
     "semantic_hash": ""
   },
   "apps/web/src/composables/useStreamModal.ts": {
@@ -2010,15 +2010,15 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/requestBatch.ts": {
-    "mtime": 1790082314.6695652,
-    "seen": 1790083216.1071746,
-    "ast_hash": "c607555e6c3611d7f00feb2fb4b38acd",
+    "mtime": 1790675114.7882488,
+    "seen": 1790675198.5456848,
+    "ast_hash": "89852ef8ccccfa9b80548bbbec13475f",
     "semantic_hash": ""
   },
   "apps/api/src/services/requestPreparation.ts": {
-    "mtime": 1790492451.3179476,
-    "seen": 1790492540.9580674,
-    "ast_hash": "97c36eddc9c7ab0ee7bf9538e703d892",
+    "mtime": 1790677372.6352894,
+    "seen": 1790677783.26176,
+    "ast_hash": "f768d746d4dca03c2e6f8d2533e4d8a9",
     "semantic_hash": ""
   },
   "apps/api/src/services/requestPromote.ts": {
@@ -2046,9 +2046,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/serviceContainer.ts": {
-    "mtime": 1790343330.7365031,
-    "seen": 1790344437.769624,
-    "ast_hash": "df3c93e7f95870fc4783ff9d87a8cd0b",
+    "mtime": 1790677453.1226494,
+    "seen": 1790677783.2656832,
+    "ast_hash": "aad199f6c7ec8164e18729e638cd3505",
     "semantic_hash": ""
   },
   "apps/api/src/startup/onReady.ts": {
@@ -2058,21 +2058,21 @@
     "semantic_hash": ""
   },
   "apps/api/tests/requestPreparation.test.ts": {
-    "mtime": 1790082218.6579595,
-    "seen": 1790083216.1202567,
-    "ast_hash": "44bbc64c2e2bd2c7d1b8aaa7041645f6",
+    "mtime": 1790677383.7593143,
+    "seen": 1790677783.3014805,
+    "ast_hash": "a1ca4838be79ec895f11923387ff2189",
     "semantic_hash": ""
   },
   "apps/api/tests/requestService.test.ts": {
-    "mtime": 1790082461.327068,
-    "seen": 1790083216.1202567,
-    "ast_hash": "a989c6e95a7dcd27cc842f978957b069",
+    "mtime": 1790675114.8134985,
+    "seen": 1790675198.5933545,
+    "ast_hash": "9743d6b24953088d694fb5d99c65027f",
     "semantic_hash": ""
   },
   "apps/api/src/services/requestCreate.ts": {
-    "mtime": 1790582897.447654,
-    "seen": 1790583940.69703,
-    "ast_hash": "e6127c287bf9d2e2558f26c6f9476068",
+    "mtime": 1790675114.7904265,
+    "seen": 1790675198.5456848,
+    "ast_hash": "bb50ac9884497ef6f87b271fbafafdf3",
     "semantic_hash": ""
   },
   "scripts/dev-setup.mjs": {
@@ -2094,9 +2094,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/requestReplaceTorrent.ts": {
-    "mtime": 1790175615.4903817,
-    "seen": 1790175893.3101106,
-    "ast_hash": "989ebf89f872da4b769a39dbb0eca0c4",
+    "mtime": 1790677389.6405108,
+    "seen": 1790677783.26176,
+    "ast_hash": "aeadbac21c7ed9f4ed5d2ff940c5d72f",
     "semantic_hash": ""
   },
   "apps/api/tests/replaceTorrentRoute.test.ts": {
@@ -2424,9 +2424,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/queuePromoter.ts": {
-    "mtime": 1790342892.2266662,
-    "seen": 1790344437.7640014,
-    "ast_hash": "bab221d7e5635d540b9b6f371b3d0416",
+    "mtime": 1790677405.3438742,
+    "seen": 1790677783.26017,
+    "ast_hash": "684564ba58448da74bc04c6249fc0dc7",
     "semantic_hash": ""
   },
   "apps/api/src/services/seriesFolderScanner.ts": {
@@ -2733,6 +2733,30 @@
     "mtime": 1790582905.4668334,
     "seen": 1790583940.7252846,
     "ast_hash": "5e2356d92023f92efeb15739c87cdd88",
+    "semantic_hash": ""
+  },
+  "docs/adr/0023-soft-queue-on-percentage-disk-threshold.md": {
+    "mtime": 1790677684.3911822,
+    "seen": 1790677783.4397285,
+    "ast_hash": "7be5bcf396cfe9ae0b625a9c4dc9fceb",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/queuePromoter.test.ts": {
+    "mtime": 1790677467.6408617,
+    "seen": 1790677783.3004415,
+    "ast_hash": "ae9da0c7e148555c2e7ab36ddc271b23",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/requestCoRequesters.test.ts": {
+    "mtime": 1790677609.807035,
+    "seen": 1790677783.3014805,
+    "ast_hash": "445b2f63c59db8dbca157e6ed356b55a",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/requestRetryRoute.test.ts": {
+    "mtime": 1790677509.2401268,
+    "seen": 1790677783.3014805,
+    "ast_hash": "6682e4a86182559440c885900a70f461",
     "semantic_hash": ""
   }
 }

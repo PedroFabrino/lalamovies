@@ -233,7 +233,7 @@ export async function executeCreateRequest(
     }
 
     const diskCheck = checkDiskSafety(cleanup);
-    if (!diskCheck.sufficient) {
+    if (!diskCheck.sufficient && diskCheck.hardFail) {
       throw new RequestServiceError(422, 'Unprocessable Entity', diskCheck.message!);
     }
 
@@ -264,7 +264,7 @@ export async function executeCreateRequest(
     let torrentFilePath: string | null = null;
     const requestId = randomUUID();
 
-    if (isQuotaExceeded) {
+    if (!diskCheck.sufficient || isQuotaExceeded) {
       deferredReason = 'waiting_for_space';
     } else {
       const concurrentLimit = getConcurrentLimit(db);

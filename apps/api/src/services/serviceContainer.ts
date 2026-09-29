@@ -270,6 +270,8 @@ export function setupServices(
           app.broadcast(msg);
         }
       },
+      isHostDiskSafe: cleanup.isHostDiskSafe ? () => cleanup.isHostDiskSafe!() : undefined,
+      isSpaceSufficient: cleanup.isSpaceSufficient ? () => cleanup.isSpaceSufficient() : undefined,
     });
 
   if (options.startPoller) {

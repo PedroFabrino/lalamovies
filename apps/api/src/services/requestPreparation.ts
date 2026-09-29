@@ -7,6 +7,8 @@ import { RequestStatus } from './requestStateMachine';
 
 export interface DiskSafetyCheckResult {
   sufficient: boolean;
+  /** true → hard 422 reject (host < 10 GB); false → soft queue as waiting_for_space */
+  hardFail: boolean;
   message?: string;
 }
 
@@ -19,16 +21,23 @@ export function checkDiskSafety(cleanup: {
     ? cleanup.isSpaceSufficient()
     : { sufficient: true, percentFree: 100, threshold: 15 };
 
-  if (!hostDiskSafe || !space.sufficient) {
+  if (!hostDiskSafe) {
     return {
       sufficient: false,
-      message: !hostDiskSafe
-        ? 'Insufficient host disk space (< 10 GB free)'
-        : `Insufficient disk space (${space.percentFree}% free, minimum required is ${space.threshold}%)`,
+      hardFail: true,
+      message: 'Insufficient host disk space (< 10 GB free)',
     };
   }
 
-  return { sufficient: true };
+  if (!space.sufficient) {
+    return {
+      sufficient: false,
+      hardFail: false,
+      message: `Insufficient disk space (${space.percentFree}% free, minimum required is ${space.threshold}%)`,
+    };
+  }
+
+  return { sufficient: true, hardFail: false };
 }
 
 export async function isStorageQuotaExceeded(

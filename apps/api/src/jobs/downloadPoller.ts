@@ -35,6 +35,8 @@ export interface DownloadPollerOptions {
   intervalMs?: number;
   logger?: PollerLogger;
   broadcast?: (msg: object) => void;
+  isHostDiskSafe?: () => boolean;
+  isSpaceSufficient?: () => { sufficient: boolean };
 }
 
 export class DownloadPoller {
@@ -55,6 +57,8 @@ export class DownloadPoller {
   private intervalMs: number;
   private logger?: PollerLogger;
   private broadcast?: (msg: object) => void;
+  private isHostDiskSafe?: () => boolean;
+  private isSpaceSufficient?: () => { sufficient: boolean };
 
   constructor(options: DownloadPollerOptions) {
     this.db = options.db;
@@ -79,6 +83,8 @@ export class DownloadPoller {
     this.intervalMs = options.intervalMs || 5000;
     this.logger = options.logger;
     this.broadcast = options.broadcast;
+    this.isHostDiskSafe = options.isHostDiskSafe;
+    this.isSpaceSufficient = options.isSpaceSufficient;
   }
 
   async pollOnce(): Promise<void> {
@@ -313,6 +319,8 @@ export class DownloadPoller {
         stateMachine: this.stateMachine,
         stagingPath: this.stagingPath,
         logger: this.logger,
+        isHostDiskSafe: this.isHostDiskSafe,
+        isSpaceSufficient: this.isSpaceSufficient,
       });
     } catch (pollErr) {
       this.logger?.error('Error in DownloadPoller loop:', pollErr);

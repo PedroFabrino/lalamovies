@@ -109,7 +109,7 @@ describe('RequestService', () => {
       ).rejects.toMatchObject({ statusCode: 400 });
     });
 
-    it('rejects if disk safety check fails with 422', async () => {
+    it('rejects with 422 if host disk is critically low (< 10 GB hard floor)', async () => {
       const service = createService({
         cleanup: {
           isHostDiskSafe: () => false,

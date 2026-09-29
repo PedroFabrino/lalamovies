@@ -264,7 +264,7 @@ export function useRequestSubmit(options: UseRequestSubmitOptions) {
     } catch (err) {
       if (err instanceof ApiError) {
         step3Error.value = err.statusCode === 422
-          ? 'Not enough disk space — please ask an admin to free up space.'
+          ? (err.message || 'Not enough disk space — please ask an admin to free up space.')
           : err.message;
       } else {
         step3Error.value = (err as Error).message || 'Failed to submit download request.';

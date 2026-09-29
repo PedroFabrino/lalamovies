@@ -98,7 +98,7 @@ export async function executeReplaceTorrent(
   }
 
   const diskCheck = checkDiskSafety(cleanup);
-  if (!diskCheck.sufficient) {
+  if (!diskCheck.sufficient && diskCheck.hardFail) {
     throw new RequestServiceError(422, 'Unprocessable Entity', diskCheck.message!);
   }
 
@@ -127,7 +127,7 @@ export async function executeReplaceTorrent(
   let torrentFilePath: string | null = null;
   let targetStatus: RequestStatusValue = RequestStatus.QUEUED;
 
-  if (isQuotaExceeded) {
+  if (!diskCheck.sufficient || isQuotaExceeded) {
     deferredReason = 'waiting_for_space';
   } else {
     const concurrentLimit = getConcurrentLimit(db);

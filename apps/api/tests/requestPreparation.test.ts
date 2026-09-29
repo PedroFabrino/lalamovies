@@ -43,25 +43,28 @@ describe('requestPreparation helpers', () => {
       const res = checkDiskSafety(cleanup);
       expect(res.sufficient).toBe(true);
       expect(res.message).toBeUndefined();
+      expect(res.hardFail).toBe(false);
     });
 
-    it('returns sufficient=false when host disk is unsafe (<10GB)', () => {
+    it('returns sufficient=false with hardFail=true when host disk is unsafe (<10GB)', () => {
       const cleanup = {
         isHostDiskSafe: () => false,
         isSpaceSufficient: () => ({ sufficient: true, percentFree: 50, threshold: 15 }),
       };
       const res = checkDiskSafety(cleanup);
       expect(res.sufficient).toBe(false);
+      expect(res.hardFail).toBe(true);
       expect(res.message).toContain('Insufficient host disk space (< 10 GB free)');
     });
 
-    it('returns sufficient=false when space percentFree is below threshold', () => {
+    it('returns sufficient=false with hardFail=false when space percentFree is below threshold', () => {
       const cleanup = {
         isHostDiskSafe: () => true,
         isSpaceSufficient: () => ({ sufficient: false, percentFree: 10, threshold: 15 }),
       };
       const res = checkDiskSafety(cleanup);
       expect(res.sufficient).toBe(false);
+      expect(res.hardFail).toBe(false);
       expect(res.message).toContain('Insufficient disk space (10% free, minimum required is 15%)');
     });
 
