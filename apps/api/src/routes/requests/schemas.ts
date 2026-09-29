@@ -41,6 +41,7 @@ export const createRequestSchema = z.object({
   seasonNumber: z.number().int().optional(),
   episodeNumber: z.number().int().optional(),
   waitlistNextSeason: z.boolean().optional(),
+  waitlistId: z.string().optional(),
   coRequesterUserIds: z.array(z.string()).optional(),
   force: z.boolean().optional(),
 });

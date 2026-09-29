@@ -175,6 +175,8 @@ export function useRequestSubmit(options: UseRequestSubmitOptions) {
       episodeNumber: effectiveEpisode ?? undefined,
     };
 
+    if (waitlistId.value) payload.waitlistId = waitlistId.value;
+
     if (waitlistNextSeason.value && ['tv_show', 'anime'].includes(mediaType.value) && downloadGranularity.value === 'season') {
       payload.waitlistNextSeason = true;
     }
@@ -217,7 +219,7 @@ export function useRequestSubmit(options: UseRequestSubmitOptions) {
 
     const res = await api.post<{ request: DownloadRequest }>('/requests', payload);
 
-    if (watchForNextEpisodes.value && ['tv_show', 'anime'].includes(mediaType.value) && downloadGranularity.value === 'episode') {
+    if (!waitlistId.value && watchForNextEpisodes.value && ['tv_show', 'anime'].includes(mediaType.value) && downloadGranularity.value === 'episode') {
       try {
         const currentEp = effectiveEpisode ?? 1;
         await api.post('/waitlist', {

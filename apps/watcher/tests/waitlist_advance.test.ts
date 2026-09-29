@@ -1,0 +1,151 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { buildWatcherApp } from '../src/app';
+import { watchRequests } from '../src/db/schema';
+import { eq } from 'drizzle-orm';
+
+describe('POST /waitlist/:id/advance (#191)', () => {
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('advances episodic series entry in place (targetEpisode N -> N+1)', async () => {
+    const app = buildWatcherApp({
+      dbPath: ':memory:',
+      serviceApiKey: 'test-secret',
+      tmdbApiKey: 'tmdb-secret',
+    });
+
+    const now = new Date().toISOString();
+    app.db.insert(watchRequests).values({
+      id: 'waitlist-series-1',
+      userId: 'user-1',
+      mediaType: 'anime',
+      metadataId: '54321',
+      metadataSource: 'tmdb',
+      title: 'Trapped in a Dating Sim',
+      seasonNumber: 2,
+      targetEpisode: 2,
+      status: 'checking',
+      triggeredCount: 1,
+      discordMessageId: 'disc-msg-456',
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+
+    // Mock TMDB season & show responses
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes('/season/2')) {
+        return {
+          ok: true,
+          json: async () => ({
+            episodes: [
+              { episode_number: 1, air_date: '2026-01-01' },
+              { episode_number: 2, air_date: '2026-01-08' },
+              { episode_number: 3, air_date: '2026-01-15' },
+              { episode_number: 4, air_date: '2026-01-22' },
+            ],
+            episode_count: 4,
+          }),
+        } as any;
+      }
+      if (url.includes('/tv/54321')) {
+        return {
+          ok: true,
+          json: async () => ({
+            next_episode_to_air: { episode_number: 3 },
+          }),
+        } as any;
+      }
+      return { ok: false, status: 404 } as any;
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/waitlist/waitlist-series-1/advance',
+      headers: {
+        'x-service-key': 'test-secret',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.ok).toBe(true);
+    expect(body.entry.targetEpisode).toBe(3);
+    expect(body.entry.discordMessageId).toBeNull();
+
+    const inDb = app.db
+      .select()
+      .from(watchRequests)
+      .where(eq(watchRequests.id, 'waitlist-series-1'))
+      .get()!;
+    expect(inDb.targetEpisode).toBe(3);
+    expect(inDb.discordMessageId).toBeNull();
+  });
+
+  it('marks movie entry as completed upon advance', async () => {
+    const app = buildWatcherApp({
+      dbPath: ':memory:',
+      serviceApiKey: 'test-secret',
+    });
+
+    const now = new Date().toISOString();
+    app.db.insert(watchRequests).values({
+      id: 'waitlist-movie-1',
+      userId: 'user-1',
+      mediaType: 'movie',
+      metadataId: '99999',
+      metadataSource: 'tmdb',
+      title: 'Inception 2',
+      status: 'checking',
+      discordMessageId: 'disc-msg-789',
+      prowlarrReleaseTitle: 'Inception.2.1080p',
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/waitlist/waitlist-movie-1/advance',
+      headers: {
+        'x-service-key': 'test-secret',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.ok).toBe(true);
+    expect(body.entry.status).toBe('completed');
+    expect(body.entry.discordMessageId).toBeNull();
+
+    const inDb = app.db
+      .select()
+      .from(watchRequests)
+      .where(eq(watchRequests.id, 'waitlist-movie-1'))
+      .get()!;
+    expect(inDb.status).toBe('completed');
+    expect(inDb.discordMessageId).toBeNull();
+  });
+
+  it('returns 404 when advancing nonexistent entry', async () => {
+    const app = buildWatcherApp({
+      dbPath: ':memory:',
+      serviceApiKey: 'test-secret',
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/waitlist/nonexistent-id/advance',
+      headers: {
+        'x-service-key': 'test-secret',
+      },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+});

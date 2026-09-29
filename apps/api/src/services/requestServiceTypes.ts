@@ -25,6 +25,7 @@ export interface CreateRequestInput {
   seasonNumber?: number | null;
   episodeNumber?: number | null;
   waitlistNextSeason?: boolean;
+  waitlistId?: string;
   coRequesterUserIds?: string[];
   force?: boolean;
 }

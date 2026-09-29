@@ -130,6 +130,45 @@ describe('RequestService', () => {
       ).rejects.toMatchObject({ statusCode: 422 });
     });
 
+    it('forwards waitlist advancement to Watcher service when waitlistId is provided on creation (#191)', async () => {
+      const originalFetch = globalThis.fetch;
+      const fetchSpy = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+      globalThis.fetch = fetchSpy as any;
+
+      try {
+        const service = createService({
+          watcherUrl: 'http://watcher.local',
+          serviceApiKey: 'test-service-key',
+        });
+
+        const res = await service.createRequest({
+          userId: 'user-1',
+          userRole: 'user',
+          mediaType: 'anime',
+          metadataId: '900',
+          metadataSource: 'tmdb',
+          title: 'Dating Sim Episode 2',
+          seasonNumber: 2,
+          episodeNumber: 2,
+          magnetLink: 'magnet:?xt=urn:btih:advancehash',
+          waitlistId: 'waitlist-entry-42',
+        });
+
+        expect(res.isExisting).toBe(false);
+        expect(fetchSpy).toHaveBeenCalledWith(
+          'http://watcher.local/waitlist/waitlist-entry-42/advance',
+          expect.objectContaining({
+            method: 'POST',
+            headers: expect.objectContaining({
+              'x-service-key': 'test-service-key',
+            }),
+          })
+        );
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
     it('returns existing canonical request with isExisting=true and adds co-requester', async () => {
       const service = createService();
       db.insert(users).values({

@@ -930,6 +930,64 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       entry: updated,
     });
   });
+
+  // POST /waitlist/:id/advance - advance episodic entry or complete movie entry
+  app.post('/:id/advance', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const entry = app.db
+      .select()
+      .from(watchRequests)
+      .where(eq(watchRequests.id, id))
+      .get();
+
+    if (!entry) {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: 'Waitlist entry not found',
+      });
+    }
+
+    if (entry.discordMessageId) {
+      try {
+        await deleteDiscordMessage(entry.discordMessageId, undefined, app.log);
+      } catch (err: unknown) {
+        app.log.warn(err, `Failed to delete Discord message for entry ${id}`);
+      }
+    }
+
+    let updatedEntry: WatchRequest | null = null;
+    const newTriggeredCount = (entry.triggeredCount || 0) + 1;
+
+    if (entry.mediaType === 'tv_show' || entry.mediaType === 'anime') {
+      updatedEntry = await app.episodic.advanceEntry(entry.id, newTriggeredCount);
+    } else {
+      const nowIso = new Date().toISOString();
+      app.db
+        .update(watchRequests)
+        .set({
+          status: 'completed',
+          updatedAt: nowIso,
+          discordMessageId: null,
+          prowlarrReleaseTitle: null,
+          prowlarrReleaseMagnet: null,
+          prowlarrReleaseScore: null,
+        })
+        .where(eq(watchRequests.id, entry.id))
+        .run();
+
+      updatedEntry =
+        app.db
+          .select()
+          .from(watchRequests)
+          .where(eq(watchRequests.id, entry.id))
+          .get() || null;
+    }
+
+    return reply.send({
+      ok: true,
+      entry: updatedEntry,
+    });
+  });
 };
 
 function renderStatusHtml(options: {

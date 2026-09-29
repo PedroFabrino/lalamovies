@@ -97,4 +97,69 @@ describe('RequestView - Waitlist Manual Pick Fast-Track to Step 3 (#190)', () =>
     expect(wrapper.text()).toContain('Incomplete waitlist parameters.');
     expect(wrapper.text()).toContain('Find Matches & Continue');
   });
+
+  it('submits request with waitlistId included in payload (#191)', async () => {
+    mockRoute.query = {
+      fromWaitlist: 'true',
+      waitlistId: 'waitlist-entry-789',
+      mediaType: 'anime',
+      metadataId: '99999',
+      metadataSource: 'tmdb',
+      title: 'Trapped in a Dating Sim',
+      seasonNumber: '2',
+      episodeNumber: '2',
+    };
+
+    const mockRelease = {
+      guid: 'rel-1',
+      title: 'Trapped.in.a.Dating.Sim.S02E02.1080p',
+      downloadUrl: 'magnet:?xt=urn:btih:rel123',
+      seeders: 50,
+      sizeBytes: 1000000000,
+      indexer: 'AnimeIndexer',
+    };
+
+    let submittedPayload: Record<string, any> | null = null;
+    vi.mocked(api.post).mockImplementation(async (endpoint: string, body?: any) => {
+      if (endpoint === '/requests/search-releases') {
+        return {
+          recommended: mockRelease,
+          candidates: [mockRelease],
+          isConfigured: true,
+          isReachable: true,
+        } as any;
+      }
+      if (endpoint === '/requests') {
+        submittedPayload = body;
+        return {
+          request: {
+            id: 'req-fast-waitlist',
+            title: 'Trapped in a Dating Sim',
+            status: 'downloading',
+          },
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const wrapper = mount(RequestView);
+    await flushPromises();
+
+    const confirmBtn = wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('Confirm & Download'));
+    expect(confirmBtn?.exists()).toBe(true);
+    await confirmBtn?.trigger('click');
+    await flushPromises();
+
+    expect(submittedPayload).not.toBeNull();
+    expect(submittedPayload).toMatchObject({
+      waitlistId: 'waitlist-entry-789',
+      title: 'Trapped in a Dating Sim',
+      metadataId: '99999',
+      seasonNumber: 2,
+      episodeNumber: 2,
+      magnetLink: 'magnet:?xt=urn:btih:rel123',
+    });
+  });
 });
