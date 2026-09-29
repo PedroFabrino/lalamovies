@@ -4,6 +4,8 @@ import { WatcherDatabase } from '../db';
 import { watchRequests, WatchRequest, waitlistCoRequesters } from '../db/schema';
 import { deleteDiscordMessage, sendWaitlistErrorNotification } from '../services/notifications';
 import { EpisodicTrackingService } from '../services/episodicTracking';
+import { executeEpisodicWaterfall } from '../services/episodicWaterfall';
+import type { WatcherPoller } from './watcherPoller';
 
 export interface AutoDownloadSubmitterLogger {
   info: (msg: string) => void;
@@ -21,6 +23,7 @@ export interface AutoDownloadSubmitterOptions {
   schedule?: string;
   adminRoleMention?: string | null;
   episodicService?: EpisodicTrackingService;
+  poller?: WatcherPoller;
   logger?: AutoDownloadSubmitterLogger;
 }
 
@@ -34,6 +37,7 @@ export class AutoDownloadSubmitter {
   private schedule: string;
   private adminRoleMention?: string | null;
   private episodicService: EpisodicTrackingService;
+  private poller?: WatcherPoller;
   private logger?: AutoDownloadSubmitterLogger;
   private task: ScheduledTask | null = null;
   private isSubmitting = false;
@@ -52,6 +56,7 @@ export class AutoDownloadSubmitter {
     this.schedule = options.schedule || '*/15 * * * *';
     this.adminRoleMention = options.adminRoleMention;
     this.logger = options.logger;
+    this.poller = options.poller;
 
     this.episodicService =
       options.episodicService ??
@@ -169,7 +174,23 @@ export class AutoDownloadSubmitter {
         const newTriggeredCount = (entry.triggeredCount || 0) + 1;
 
         if (entry.mediaType === 'tv_show' || entry.mediaType === 'anime') {
-          await this.episodicService.advanceEntry(entry.id, newTriggeredCount);
+          const advancedEntry = await this.episodicService.advanceEntry(entry.id, newTriggeredCount);
+
+          // Invoke waterfall to chain subsequent episodes if poller is available
+          if (this.poller && advancedEntry) {
+            setImmediate(() => {
+              executeEpisodicWaterfall({
+                entryId: entry.id,
+                initialEntry: advancedEntry,
+                skipFirstAdvance: true, // advancedEntry is already at the next episode
+                advance: (eid) => this.episodicService.advanceOrCompleteEntry(eid),
+                poll: (e) => this.poller!.pollEntry(e),
+                logger: this.logger,
+              }).catch((err) => {
+                this.logger?.error(`AutoDownloadSubmitter: Waterfall failed for entry ${entry.id}:`, err);
+              });
+            });
+          }
         } else {
           const nowIso = new Date().toISOString();
           this.db

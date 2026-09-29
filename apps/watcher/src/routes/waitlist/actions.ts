@@ -52,6 +52,7 @@ export const waitlistActionRoutes: FastifyPluginAsync = async (app) => {
       executeEpisodicWaterfall({
         entryId: id,
         initialEntry: entry,
+        skipFirstAdvance: true, // entry is already advanced by advanceOrCompleteEntry above
         advance: (eid) => app.episodic.advanceOrCompleteEntry(eid),
         poll: (e) => app.poller.pollEntry(e),
         logger: app.log,

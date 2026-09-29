@@ -4,6 +4,8 @@ export interface WaterfallDeps {
   entryId: string;
   /** Already-fetched entry to avoid a redundant DB read on the first iteration. */
   initialEntry?: WatchRequest | null;
+  /** If true, skip the first advance() call since initialEntry is already at the target episode. */
+  skipFirstAdvance?: boolean;
   /** Advances the entry to the next episode; returns updated entry or null if not found/completed. */
   advance: (entryId: string) => Promise<WatchRequest | null>;
   /** Polls Prowlarr for a qualifying release on the entry; returns whether one was found. */
@@ -58,7 +60,12 @@ export async function executeEpisodicWaterfall(deps: WaterfallDeps): Promise<Wat
     iterations++;
 
     // 1. Advance to next episode (or complete the season)
-    const advanced = await advance(entryId);
+    let advanced: WatchRequest | null = null;
+    if (iterations === 1 && deps.skipFirstAdvance && initialEntry) {
+      advanced = initialEntry;
+    } else {
+      advanced = await advance(entryId);
+    }
 
     if (!advanced) {
       return { iterations, stoppedBecause: 'entry_not_found' };

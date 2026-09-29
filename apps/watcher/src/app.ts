@@ -163,6 +163,7 @@ export function buildWatcherApp(options: WatcherAppOptions = {}): FastifyInstanc
       graceHours: options.notifyGraceHours,
       schedule: options.submitSchedule,
       episodicService: episodic,
+      poller,
       logger: {
         info: (msg) => app.log.info(msg),
         warn: (msg) => app.log.warn(msg),
