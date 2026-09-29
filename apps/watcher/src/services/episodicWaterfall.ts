@@ -24,6 +24,7 @@ export type WaterfallStopReason =
   | 'completed'
   | 'pending_release'
   | 'no_release_found'
+  | 'release_found'
   | 'max_iterations';
 
 export interface WaterfallResult {
@@ -31,71 +32,55 @@ export interface WaterfallResult {
   stoppedBecause: WaterfallStopReason;
 }
 
-const DEFAULT_MAX_ITERATIONS = 30;
-
 /**
  * Episodic Waterfall Engine.
  *
- * After an episode is downloaded (request created), immediately advance the waitlist
- * entry and poll for the next episode. Repeat until no qualifying release is found,
- * the season completes, or the safety cap is reached.
- *
- * @param deps.entryId   - ID of the waitlist entry to waterfall.
- * @param deps.initialEntry - Optional pre-fetched entry (avoids extra DB read).
- * @param deps.advance   - Calls advanceOrCompleteEntry and returns updated WatchRequest.
- * @param deps.poll      - Calls pollEntry and returns whether a qualifying release was found.
- * @param deps.maxIterations - Safety cap (default 30).
+ * After an episode is downloaded (request created), advance the waitlist
+ * entry to the next episode and poll it once. If a release is found, set to notified and stop
+ * so it can be downloaded. If no release is found or season completes, stop accordingly.
  */
 export async function executeEpisodicWaterfall(deps: WaterfallDeps): Promise<WaterfallResult> {
-  const { entryId, initialEntry, advance, poll, logger, maxIterations = DEFAULT_MAX_ITERATIONS } = deps;
+  const { entryId, initialEntry, skipFirstAdvance, advance, poll, logger } = deps;
 
   // Guard: skip non-episodic entries immediately (check on initialEntry if provided)
   if (initialEntry && initialEntry.mediaType !== 'tv_show' && initialEntry.mediaType !== 'anime') {
     return { iterations: 0, stoppedBecause: 'not_episodic' };
   }
 
-  let iterations = 0;
-
-  while (iterations < maxIterations) {
-    iterations++;
-
-    // 1. Advance to next episode (or complete the season)
-    let advanced: WatchRequest | null = null;
-    if (iterations === 1 && deps.skipFirstAdvance && initialEntry) {
-      advanced = initialEntry;
-    } else {
-      advanced = await advance(entryId);
-    }
-
-    if (!advanced) {
-      return { iterations, stoppedBecause: 'entry_not_found' };
-    }
-
-    if (advanced.status === 'completed') {
-      logger?.info(`Waterfall: entry "${advanced.title}" season completed after ${iterations} iteration(s).`);
-      return { iterations, stoppedBecause: 'completed' };
-    }
-
-    if (advanced.status === 'pending_release') {
-      logger?.info(`Waterfall: next episode of "${advanced.title}" not yet aired — stopping waterfall.`);
-      return { iterations, stoppedBecause: 'pending_release' };
-    }
-
-    if (advanced.mediaType !== 'tv_show' && advanced.mediaType !== 'anime') {
-      return { iterations, stoppedBecause: 'not_episodic' };
-    }
-
-    // 2. Poll for a qualifying release on the new episode
-    const pollResult = await poll(advanced);
-
-    if (!pollResult.notified) {
-      logger?.info(`Waterfall: no qualifying release for "${advanced.title}" E${advanced.targetEpisode ?? '?'} — stopping after ${iterations} iteration(s).`);
-      return { iterations, stoppedBecause: 'no_release_found' };
-    }
-
-    logger?.info(`Waterfall: found release for "${advanced.title}" E${advanced.targetEpisode ?? '?'} — continuing (iteration ${iterations}).`);
+  // 1. Advance to next episode (or use initialEntry if skipFirstAdvance is true)
+  let advanced: WatchRequest | null = null;
+  if (skipFirstAdvance && initialEntry) {
+    advanced = initialEntry;
+  } else {
+    advanced = await advance(entryId);
   }
 
-  logger?.warn(`Waterfall: reached maximum of ${maxIterations} iterations for entry "${entryId}" — stopping.`);
-  return { iterations, stoppedBecause: 'max_iterations' };
+  if (!advanced) {
+    return { iterations: 1, stoppedBecause: 'entry_not_found' };
+  }
+
+  if (advanced.status === 'completed') {
+    logger?.info(`Waterfall: entry "${advanced.title}" season completed.`);
+    return { iterations: 1, stoppedBecause: 'completed' };
+  }
+
+  if (advanced.status === 'pending_release') {
+    logger?.info(`Waterfall: next episode of "${advanced.title}" E${advanced.targetEpisode ?? '?'} not yet aired — stopping.`);
+    return { iterations: 1, stoppedBecause: 'pending_release' };
+  }
+
+  if (advanced.mediaType !== 'tv_show' && advanced.mediaType !== 'anime') {
+    return { iterations: 1, stoppedBecause: 'not_episodic' };
+  }
+
+  // 2. Poll for a qualifying release on the episode
+  const pollResult = await poll(advanced);
+
+  if (!pollResult.notified) {
+    logger?.info(`Waterfall: no qualifying release for "${advanced.title}" E${advanced.targetEpisode ?? '?'} — stopping.`);
+    return { iterations: 1, stoppedBecause: 'no_release_found' };
+  }
+
+  logger?.info(`Waterfall: found release for "${advanced.title}" E${advanced.targetEpisode ?? '?'} — set to notified.`);
+  return { iterations: 1, stoppedBecause: 'release_found' };
 }

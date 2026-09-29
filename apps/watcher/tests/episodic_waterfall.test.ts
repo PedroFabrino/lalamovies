@@ -67,7 +67,6 @@ describe('executeEpisodicWaterfall (#200)', () => {
     mockAdvance.mockResolvedValueOnce(null);
     const result = await executeEpisodicWaterfall({
       entryId: 'missing',
-      initialEntry: makeEntry(),
       advance: mockAdvance,
       poll: mockPoll,
       logger: mockLogger,
@@ -82,7 +81,6 @@ describe('executeEpisodicWaterfall (#200)', () => {
     mockAdvance.mockResolvedValueOnce(completed);
     const result = await executeEpisodicWaterfall({
       entryId: 'entry-1',
-      initialEntry: makeEntry({ targetEpisode: 3 }),
       advance: mockAdvance,
       poll: mockPoll,
       logger: mockLogger,
@@ -92,14 +90,13 @@ describe('executeEpisodicWaterfall (#200)', () => {
     expect(mockPoll).not.toHaveBeenCalled();
   });
 
-  it('polls after advancing — stops when no qualifying release found', async () => {
+  it('advances, polls once, and stops when no qualifying release found', async () => {
     const ep2 = makeEntry({ targetEpisode: 2, status: 'checking' });
     mockAdvance.mockResolvedValueOnce(ep2);
     mockPoll.mockResolvedValueOnce({ notified: false, diagnostic: 'Found 0 releases' });
 
     const result = await executeEpisodicWaterfall({
       entryId: 'entry-1',
-      initialEntry: makeEntry({ targetEpisode: 1 }),
       advance: mockAdvance,
       poll: mockPoll,
       logger: mockLogger,
@@ -111,37 +108,33 @@ describe('executeEpisodicWaterfall (#200)', () => {
     expect(mockPoll).toHaveBeenCalledWith(ep2);
   });
 
-  it('loops: advances again when qualifying release found', async () => {
-    const ep2 = makeEntry({ targetEpisode: 2, status: 'checking' });
-    const ep3 = makeEntry({ targetEpisode: 3, status: 'checking' });
-    mockAdvance
-      .mockResolvedValueOnce(ep2)
-      .mockResolvedValueOnce(ep3);
-    mockPoll
-      .mockResolvedValueOnce({ notified: true, diagnostic: 'Found 1 qualifying releases; selecting top scored' })
-      .mockResolvedValueOnce({ notified: false, diagnostic: 'Found 0 releases' });
+  it('advances, polls once, and stops with release_found when qualifying release found', async () => {
+    const ep9 = makeEntry({ targetEpisode: 9, status: 'checking' });
+    const initialE9 = makeEntry({ targetEpisode: 9, status: 'checking' });
+
+    mockPoll.mockResolvedValueOnce({ notified: true, diagnostic: 'Found 1 qualifying release' });
 
     const result = await executeEpisodicWaterfall({
       entryId: 'entry-1',
-      initialEntry: makeEntry({ targetEpisode: 1 }),
+      initialEntry: initialE9,
+      skipFirstAdvance: true,
       advance: mockAdvance,
       poll: mockPoll,
       logger: mockLogger,
     });
 
-    expect(result.iterations).toBe(2);
-    expect(result.stoppedBecause).toBe('no_release_found');
-    expect(mockAdvance).toHaveBeenCalledTimes(2);
-    expect(mockPoll).toHaveBeenCalledTimes(2);
+    expect(result.iterations).toBe(1);
+    expect(result.stoppedBecause).toBe('release_found');
+    expect(mockAdvance).not.toHaveBeenCalled();
+    expect(mockPoll).toHaveBeenCalledWith(expect.objectContaining({ targetEpisode: 9 }));
   });
 
   it('stops when poll returns notified=false and entry is in pending_release (future episode)', async () => {
     const ep2Future = makeEntry({ targetEpisode: 2, status: 'pending_release' });
     mockAdvance.mockResolvedValueOnce(ep2Future);
-    // Poll won't be called since entry is pending_release (not yet aired)
+
     const result = await executeEpisodicWaterfall({
       entryId: 'entry-1',
-      initialEntry: makeEntry({ targetEpisode: 1 }),
       advance: mockAdvance,
       poll: mockPoll,
       logger: mockLogger,
@@ -150,89 +143,5 @@ describe('executeEpisodicWaterfall (#200)', () => {
     expect(result.iterations).toBe(1);
     expect(result.stoppedBecause).toBe('pending_release');
     expect(mockPoll).not.toHaveBeenCalled();
-  });
-
-  it('caps at 30 iterations to prevent infinite loops', async () => {
-    const checkingEntry = makeEntry({ targetEpisode: 2, status: 'checking' });
-    // Always advance to same checking entry + always find a release
-    mockAdvance.mockResolvedValue(checkingEntry);
-    mockPoll.mockResolvedValue({ notified: true, diagnostic: 'Found 1 qualifying' });
-
-    const result = await executeEpisodicWaterfall({
-      entryId: 'entry-1',
-      initialEntry: makeEntry({ targetEpisode: 1 }),
-      advance: mockAdvance,
-      poll: mockPoll,
-      logger: mockLogger,
-      maxIterations: 30,
-    });
-
-    expect(result.iterations).toBe(30);
-    expect(result.stoppedBecause).toBe('max_iterations');
-    expect(mockLogger.warn).toHaveBeenCalled();
-  });
-
-  it('processes series starting at e08 without skipping e09: checks e09, e10, e11 and stops at e12 when no release found', async () => {
-    const ep10 = makeEntry({ targetEpisode: 10, status: 'checking' });
-    const ep11 = makeEntry({ targetEpisode: 11, status: 'checking' });
-    const ep12 = makeEntry({ targetEpisode: 12, status: 'checking' });
-
-    // initialEntry is e09 (already advanced from e08)
-    const initialE09 = makeEntry({ targetEpisode: 9, status: 'checking' });
-
-    mockAdvance
-      .mockResolvedValueOnce(ep10)
-      .mockResolvedValueOnce(ep11)
-      .mockResolvedValueOnce(ep12);
-
-    mockPoll
-      .mockResolvedValueOnce({ notified: true, diagnostic: 'Found release for e09' })
-      .mockResolvedValueOnce({ notified: true, diagnostic: 'Found release for e10' })
-      .mockResolvedValueOnce({ notified: true, diagnostic: 'Found release for e11' })
-      .mockResolvedValueOnce({ notified: false, diagnostic: 'No release for e12' });
-
-    const result = await executeEpisodicWaterfall({
-      entryId: 'entry-1',
-      initialEntry: initialE09,
-      skipFirstAdvance: true, // e09 is already the target, don't advance it again
-      advance: mockAdvance,
-      poll: mockPoll,
-      logger: mockLogger,
-    });
-
-    expect(result.iterations).toBe(4);
-    expect(result.stoppedBecause).toBe('no_release_found');
-    expect(mockPoll).toHaveBeenCalledTimes(4);
-    expect(mockPoll).toHaveBeenNthCalledWith(1, expect.objectContaining({ targetEpisode: 9 }));
-    expect(mockPoll).toHaveBeenNthCalledWith(2, expect.objectContaining({ targetEpisode: 10 }));
-    expect(mockPoll).toHaveBeenNthCalledWith(3, expect.objectContaining({ targetEpisode: 11 }));
-    expect(mockPoll).toHaveBeenNthCalledWith(4, expect.objectContaining({ targetEpisode: 12 }));
-  });
-
-  it('successfully processes all 12 episodes of a series from e01 to season completion', async () => {
-    const episodes = Array.from({ length: 12 }, (_, i) => makeEntry({ targetEpisode: i + 1, status: 'checking' }));
-
-    episodes.slice(1).forEach((ep) => mockAdvance.mockResolvedValueOnce(ep));
-    mockAdvance.mockResolvedValueOnce(makeEntry({ status: 'completed', targetEpisode: 12 }));
-
-    for (let i = 0; i < 12; i++) {
-      mockPoll.mockResolvedValueOnce({ notified: true, diagnostic: `Found release e${i + 1}` });
-    }
-
-    const result = await executeEpisodicWaterfall({
-      entryId: 'entry-1',
-      initialEntry: episodes[0], // e01
-      skipFirstAdvance: true,
-      advance: mockAdvance,
-      poll: mockPoll,
-      logger: mockLogger,
-    });
-
-    expect(result.iterations).toBe(13);
-    expect(result.stoppedBecause).toBe('completed');
-    expect(mockPoll).toHaveBeenCalledTimes(12);
-    for (let i = 0; i < 12; i++) {
-      expect(mockPoll).toHaveBeenNthCalledWith(i + 1, expect.objectContaining({ targetEpisode: i + 1 }));
-    }
   });
 });
