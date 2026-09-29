@@ -1,4 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
+import { executeEpisodicWaterfall } from '../../services/episodicWaterfall';
 
 export const waitlistActionRoutes: FastifyPluginAsync = async (app) => {
   // POST /waitlist/poll-now - trigger immediate release check and promotion
@@ -34,7 +35,8 @@ export const waitlistActionRoutes: FastifyPluginAsync = async (app) => {
     });
   });
 
-  // POST /waitlist/:id/advance - advance episodic entry or complete movie entry
+  // POST /waitlist/:id/advance - advance episodic entry or complete movie entry,
+  // then immediately run the episodic waterfall to chain subsequent episodes.
   app.post('/:id/advance', async (request, reply) => {
     const { id } = request.params as { id: string };
     const entry = await app.episodic.advanceOrCompleteEntry(id);
@@ -44,6 +46,19 @@ export const waitlistActionRoutes: FastifyPluginAsync = async (app) => {
         message: 'Waitlist entry not found',
       });
     }
+
+    // Fire waterfall asynchronously — responds immediately, chains in background.
+    setImmediate(() => {
+      executeEpisodicWaterfall({
+        entryId: id,
+        initialEntry: entry,
+        advance: (eid) => app.episodic.advanceOrCompleteEntry(eid),
+        poll: (e) => app.poller.pollEntry(e),
+        logger: app.log,
+      }).catch((err) => {
+        app.log.error(err, `Waterfall failed for entry ${id}`);
+      });
+    });
 
     return reply.send({
       ok: true,
