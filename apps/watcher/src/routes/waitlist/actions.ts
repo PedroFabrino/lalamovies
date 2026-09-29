@@ -1,19 +1,11 @@
 import { FastifyPluginAsync } from 'fastify';
-import { eq } from 'drizzle-orm';
-import { watchRequests } from '../../db/schema';
 
 export const waitlistActionRoutes: FastifyPluginAsync = async (app) => {
   // POST /waitlist/poll-now - trigger immediate release check and promotion
   app.post('/poll-now', async (request, reply) => {
     try {
-      const promoted = await app.releaseGating?.promoteDueEntries();
-      const pollResult = await app.poller?.pollOnce();
-      return reply.send({
-        ok: true,
-        promoted: promoted || 0,
-        polled: pollResult?.polled || 0,
-        notified: pollResult?.notified || 0,
-      });
+      const result = await app.checker.pollNow();
+      return reply.send(result);
     } catch (err: unknown) {
       app.log.error(err, 'Failed running poll-now');
       return reply.status(500).send({
@@ -26,20 +18,14 @@ export const waitlistActionRoutes: FastifyPluginAsync = async (app) => {
   // POST /waitlist/:id/check - force immediate check of a specific waitlist entry
   app.post('/:id/check', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const entry = app.db
-      .select()
-      .from(watchRequests)
-      .where(eq(watchRequests.id, id))
-      .get();
+    const result = await app.checker.checkAndDiagnoseEntry(id);
 
-    if (!entry) {
+    if (!result) {
       return reply.status(404).send({
         error: 'Not Found',
         message: 'Waitlist entry not found',
       });
     }
-
-    const result = await app.checker.checkAndDiagnoseEntry(entry);
 
     return reply.send({
       ok: true,

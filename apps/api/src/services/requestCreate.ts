@@ -149,6 +149,29 @@ async function advanceWaitlistIfNeeded(params: {
   });
 }
 
+function triggerWaitlistActions(params: {
+  waitlistParams: Parameters<typeof triggerNextSeasonWaitlist>[0];
+  waitlistId?: string;
+  watcherUrl?: string;
+  serviceApiKey?: string;
+  logger?: { warn: (msg: string | object, ...args: unknown[]) => void };
+}): void {
+  triggerNextSeasonWaitlist(params.waitlistParams).catch((err) => {
+    params.logger?.warn(err as object, 'Failed to trigger next season waitlist');
+  });
+
+  if (params.waitlistId) {
+    advanceWaitlistIfNeeded({
+      waitlistId: params.waitlistId,
+      watcherUrl: params.watcherUrl,
+      serviceApiKey: params.serviceApiKey,
+      logger: params.logger,
+    }).catch((err) => {
+      params.logger?.warn(err as object, `Failed to advance waitlist entry ${params.waitlistId}`);
+    });
+  }
+}
+
 export async function executeCreateRequest(
   options: ExecuteCreateRequestOptions
 ): Promise<CreateRequestResult> {
@@ -241,15 +264,13 @@ export async function executeCreateRequest(
           deletionReason: 'manual',
         });
       } else {
-        await triggerNextSeasonWaitlist(waitlistParams);
-        if (input.waitlistId) {
-          await advanceWaitlistIfNeeded({
-            waitlistId: input.waitlistId,
-            watcherUrl,
-            serviceApiKey,
-            logger,
-          });
-        }
+        triggerWaitlistActions({
+          waitlistParams,
+          waitlistId: input.waitlistId,
+          watcherUrl,
+          serviceApiKey,
+          logger,
+        });
 
         if (existing.userId !== userId) {
         requestsRepo.addCoRequester(existing.id, userId);
@@ -378,15 +399,13 @@ export async function executeCreateRequest(
       }
     }
 
-    await triggerNextSeasonWaitlist(waitlistParams);
-    if (input.waitlistId) {
-      await advanceWaitlistIfNeeded({
-        waitlistId: input.waitlistId,
-        watcherUrl,
-        serviceApiKey,
-        logger,
-      });
-    }
+    triggerWaitlistActions({
+      waitlistParams,
+      waitlistId: input.waitlistId,
+      watcherUrl,
+      serviceApiKey,
+      logger,
+    });
 
     return { request: resultingRequest, isExisting: false };
   });

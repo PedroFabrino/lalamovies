@@ -314,4 +314,44 @@ describe('Unconfirmed Release Dates and TBA Gating (Spec 164)', () => {
     expect(body.entry.tmdbReleaseDate).toBe('2026-09-01');
     expect(searchSpy).toHaveBeenCalled();
   });
+
+  it('POST /waitlist/poll-now delegates to WaitlistCheckService.pollNow and returns counts', async () => {
+    const promoteSpy = vi.spyOn(app.releaseGating, 'promoteDueEntries').mockResolvedValue(2);
+    const pollSpy = vi.spyOn(app.poller, 'pollOnce').mockResolvedValue({ polled: 3, notified: 1 });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/waitlist/poll-now',
+      headers: {
+        'x-service-key': 'test-service-key',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      ok: true,
+      promoted: 2,
+      polled: 3,
+      notified: 1,
+    });
+    expect(promoteSpy).toHaveBeenCalled();
+    expect(pollSpy).toHaveBeenCalled();
+  });
+
+  it('POST /waitlist/:id/check returns 404 when entry is not found', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/waitlist/non-existent-id/check',
+      headers: {
+        'x-service-key': 'test-service-key',
+      },
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({
+      error: 'Not Found',
+      message: 'Waitlist entry not found',
+    });
+  });
 });
+

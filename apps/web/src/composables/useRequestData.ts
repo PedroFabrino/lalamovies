@@ -50,7 +50,7 @@ export function useRequestData() {
     isSearching: step1.isSearching,
     onCandidateSelected: async (candidate) => {
       submit.waitlistNextSeason.value = false;
-      submit.watchForNextEpisodes.value = route.query.fromUpNext === 'true';
+      submit.watchForNextEpisodes.value = route.query.fromUpNext === 'true' || (route.query.fromWaitlist === 'true' && ['tv_show', 'anime'].includes(mediaType.value));
       submit.notifyBeforeEachDownload.value = false;
       if (step1.validBatchItems.value.length <= 1) {
         const exists = await submit.checkDuplicateExists(candidate);

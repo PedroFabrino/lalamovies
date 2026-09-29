@@ -277,5 +277,129 @@ describe('POST /waitlist/:id/advance (#191)', () => {
     expect(body.entry.targetEpisode).toBe(2);
     expect(body.entry.status).toBe('checking');
   });
+
+  it('falls back to episode_count when TMDB returns empty episodes: []', async () => {
+    const app = buildWatcherApp({
+      dbPath: ':memory:',
+      serviceApiKey: 'test-secret',
+      tmdbApiKey: 'tmdb-secret',
+    });
+
+    const now = new Date().toISOString();
+    app.db.insert(watchRequests).values({
+      id: 'waitlist-empty-episodes-arr',
+      userId: 'user-1',
+      mediaType: 'tv_show',
+      metadataId: '77777',
+      metadataSource: 'tmdb',
+      title: 'Series With Empty Episodes',
+      seasonNumber: 1,
+      targetEpisode: 1,
+      status: 'checking',
+      triggeredCount: 1,
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes('/season/1')) {
+        return {
+          ok: true,
+          json: async () => ({
+            episodes: [],
+            episode_count: 8,
+          }),
+        } as any;
+      }
+      if (url.includes('/tv/77777')) {
+        return {
+          ok: true,
+          json: async () => ({
+            next_episode_to_air: null,
+          }),
+        } as any;
+      }
+      return { ok: false, status: 404 } as any;
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/waitlist/waitlist-empty-episodes-arr/advance',
+      headers: {
+        'x-service-key': 'test-secret',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.ok).toBe(true);
+    expect(body.entry.targetEpisode).toBe(2);
+    expect(body.entry.status).toBe('checking');
+  });
+
+  it('does not complete ongoing show when TMDB only returns currently-aired episodes and next_episode_to_air exists', async () => {
+    const app = buildWatcherApp({
+      dbPath: ':memory:',
+      serviceApiKey: 'test-secret',
+      tmdbApiKey: 'tmdb-secret',
+    });
+
+    const now = new Date().toISOString();
+    app.db.insert(watchRequests).values({
+      id: 'waitlist-ongoing-partial-episodes',
+      userId: 'user-1',
+      mediaType: 'tv_show',
+      metadataId: '88888',
+      metadataSource: 'tmdb',
+      title: 'Ongoing Show',
+      seasonNumber: 1,
+      targetEpisode: 2,
+      status: 'checking',
+      triggeredCount: 2,
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes('/season/1')) {
+        return {
+          ok: true,
+          json: async () => ({
+            episodes: [
+              { episode_number: 1, air_date: '2024-01-01' },
+              { episode_number: 2, air_date: '2024-01-08' },
+            ],
+            episode_count: 2,
+          }),
+        } as any;
+      }
+      if (url.includes('/tv/88888')) {
+        return {
+          ok: true,
+          json: async () => ({
+            next_episode_to_air: {
+              season_number: 1,
+              episode_number: 3,
+            },
+          }),
+        } as any;
+      }
+      return { ok: false, status: 404 } as any;
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/waitlist/waitlist-ongoing-partial-episodes/advance',
+      headers: {
+        'x-service-key': 'test-secret',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.ok).toBe(true);
+    expect(body.entry.targetEpisode).toBe(3);
+    expect(body.entry.status).toBe('checking');
+  });
 });
 

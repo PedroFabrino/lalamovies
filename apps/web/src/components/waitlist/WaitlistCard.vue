@@ -136,6 +136,13 @@
           </template>
           <template v-else-if="entry.status === 'notified'">
             <span
+              v-if="entry.lastCheckResult"
+              class="text-sky-300/90 font-medium block truncate"
+              data-testid="entry-diagnostic"
+            >
+              {{ entry.lastCheckResult }}
+            </span>
+            <span
               v-if="entry.prowlarrReleaseTitle"
               class="text-indigo-300 font-mono text-[10px] block truncate"
             >
@@ -228,7 +235,7 @@
         </button>
 
         <button
-          v-if="entry.status !== 'cancelled' && entry.status !== 'completed'"
+          v-if="isActionable"
           type="button"
           data-testid="manual-pick-btn"
           title="Manually select torrent from indexers"
@@ -252,7 +259,7 @@
         </button>
 
         <button
-          v-if="entry.status !== 'cancelled' && entry.status !== 'completed'"
+          v-if="isActionable"
           type="button"
           data-testid="cancel-waitlist-btn"
           class="px-2.5 py-1 text-zinc-400 hover:text-red-400 hover:bg-red-950/30 rounded border border-transparent hover:border-red-900/50 transition cursor-pointer flex items-center gap-1"

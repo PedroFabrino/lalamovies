@@ -54,21 +54,31 @@ export class EpisodicTrackingService {
       return this.advanceEntry(entry.id, newTriggeredCount);
     }
 
-    const nowIso = new Date().toISOString();
+    return this.completeEntry(entry.id);
+  }
+
+  private completeEntry(
+    id: string,
+    options?: { triggeredCount?: number }
+  ): WatchRequest | null {
+    const now = new Date().toISOString();
     this.db
       .update(watchRequests)
       .set({
         status: 'completed',
-        updatedAt: nowIso,
+        triggeredCount: options?.triggeredCount,
+        failureCount: 0,
+        notifyAt: null,
         discordMessageId: null,
         prowlarrReleaseTitle: null,
         prowlarrReleaseMagnet: null,
         prowlarrReleaseScore: null,
+        updatedAt: now,
       })
-      .where(eq(watchRequests.id, entry.id))
+      .where(eq(watchRequests.id, id))
       .run();
 
-    return this.db.select().from(watchRequests).where(eq(watchRequests.id, entry.id)).get() || null;
+    return this.db.select().from(watchRequests).where(eq(watchRequests.id, id)).get() || null;
   }
 
   async advanceEntry(
@@ -152,13 +162,19 @@ export class EpisodicTrackingService {
         episode_count?: number;
       }
       interface TmdbShowData {
-        next_episode_to_air?: unknown;
+        next_episode_to_air?: {
+          season_number?: number;
+          episode_number?: number;
+        } | null;
       }
 
       const seasonData = (await seasonRes.json()) as TmdbSeasonData;
       const showData = (await showRes.json()) as TmdbShowData;
 
-      const episodeCount = seasonData.episodes ? seasonData.episodes.length : (seasonData.episode_count ?? 0);
+      const episodeCount =
+        seasonData.episodes && seasonData.episodes.length > 0
+          ? seasonData.episodes.length
+          : (seasonData.episode_count ?? 0);
       const nextEpisodeToAir = showData.next_episode_to_air ?? null;
 
       const currentTarget = entry.targetEpisode ?? 1;
@@ -168,11 +184,20 @@ export class EpisodicTrackingService {
           : episodeCount;
 
       const hasEpisodeCeiling = maxEpisodeNumber > 0;
-      const reachedEpisodeCeiling = hasEpisodeCeiling && currentTarget >= maxEpisodeNumber;
-      const reachedTriggeredCeiling = episodeCount > 0 && newTriggeredCount >= episodeCount;
-      const unannouncedNoCeiling = !hasEpisodeCeiling && nextEpisodeToAir === null;
+      const hasNextEpisodeThisSeason = Boolean(
+        nextEpisodeToAir &&
+          (nextEpisodeToAir.season_number === undefined || nextEpisodeToAir.season_number === sNum)
+      );
 
-      const isSeasonComplete = reachedEpisodeCeiling || reachedTriggeredCeiling || unannouncedNoCeiling;
+      let isSeasonComplete = false;
+      if (hasNextEpisodeThisSeason) {
+        isSeasonComplete = false;
+      } else if (hasEpisodeCeiling) {
+        isSeasonComplete =
+          currentTarget >= maxEpisodeNumber || (episodeCount > 0 && newTriggeredCount >= episodeCount);
+      } else {
+        isSeasonComplete = true;
+      }
 
       if (!isSeasonComplete) {
         // Next episode exists and more episodes remain in the season
@@ -204,22 +229,7 @@ export class EpisodicTrackingService {
           `EpisodicTracking: advanced "${entry.title}" to episode ${nextTargetEpisode} (${newTriggeredCount}/${episodeCount}). Status -> checking.`
         );
       } else {
-        // Season complete: next_episode_to_air is null OR triggered_count >= episode_count
-        this.db
-          .update(watchRequests)
-          .set({
-            status: 'completed',
-            triggeredCount: newTriggeredCount,
-            failureCount: 0,
-            notifyAt: null,
-            prowlarrReleaseTitle: null,
-            prowlarrReleaseMagnet: null,
-            prowlarrReleaseScore: null,
-            discordMessageId: null,
-            updatedAt: now,
-          })
-          .where(eq(watchRequests.id, entry.id))
-          .run();
+        this.completeEntry(entry.id, { triggeredCount: newTriggeredCount });
 
         this.logger?.info(
           `EpisodicTracking: completed season for "${entry.title}" (${newTriggeredCount}/${episodeCount} episodes). Status -> completed.`

@@ -189,5 +189,26 @@ describe('WaitlistCard.vue (#188)', () => {
     expect(diag.exists()).toBe(true);
     expect(diag.text()).toBe('Target air date 2026-10-01 is in the future. Polling starts on release day.');
   });
+
+  it('renders lastCheckResult diagnostic text in notified status subtext when available', () => {
+    const notifiedEntry: WaitlistEntry = {
+      ...baseEntry,
+      status: 'notified',
+      lastCheckResult: 'Found 12 qualifying releases; selecting top scored',
+      prowlarrReleaseTitle: 'Trapped.in.a.Dating.Sim.S02E02.1080p.CR.WEB-DL',
+      notifyAt: new Date(Date.now() - 1000).toISOString(),
+    };
+
+    const wrapper = mount(WaitlistCard, {
+      props: {
+        entry: notifiedEntry,
+      },
+    });
+
+    const diag = wrapper.find('[data-testid="entry-diagnostic"]');
+    expect(diag.exists()).toBe(true);
+    expect(diag.text()).toBe('Found 12 qualifying releases; selecting top scored');
+  });
 });
+
 

@@ -27,9 +27,30 @@ export class WaitlistCheckService {
     return typeof this.context === 'function' ? this.context() : this.context;
   }
 
-  async checkAndDiagnoseEntry(entry: WatchRequest): Promise<WaitlistCheckResult> {
+  async pollNow(): Promise<{ ok: boolean; promoted: number; polled: number; notified: number }> {
+    const { releaseGating, poller } = this.ctx;
+    const promoted = await releaseGating?.promoteDueEntries();
+    const pollResult = await poller?.pollOnce();
+    return {
+      ok: true,
+      promoted: promoted || 0,
+      polled: pollResult?.polled || 0,
+      notified: pollResult?.notified || 0,
+    };
+  }
+
+  async checkAndDiagnoseEntry(idOrEntry: string | WatchRequest): Promise<WaitlistCheckResult | null> {
     const { db, releaseGating, poller, logger } = this.ctx;
-    let currentEntry = entry;
+    const id = typeof idOrEntry === 'string' ? idOrEntry : idOrEntry.id;
+    let currentEntry =
+      typeof idOrEntry === 'string'
+        ? db.select().from(watchRequests).where(eq(watchRequests.id, id)).get()
+        : idOrEntry;
+
+    if (!currentEntry) {
+      return null;
+    }
+
     let checkMessage = 'Checked trackers';
 
     if (
@@ -46,7 +67,7 @@ export class WaitlistCheckService {
         db
           .select()
           .from(watchRequests)
-          .where(eq(watchRequests.id, entry.id))
+          .where(eq(watchRequests.id, id))
           .get() || currentEntry;
 
       if (currentEntry.status !== 'checking') {
@@ -54,14 +75,14 @@ export class WaitlistCheckService {
         db
           .update(watchRequests)
           .set({ lastCheckResult: checkMessage, updatedAt: now })
-          .where(eq(watchRequests.id, entry.id))
+          .where(eq(watchRequests.id, id))
           .run();
 
         const finalEntry =
           db
             .select()
             .from(watchRequests)
-            .where(eq(watchRequests.id, entry.id))
+            .where(eq(watchRequests.id, id))
             .get() || currentEntry;
 
         return {
@@ -84,7 +105,7 @@ export class WaitlistCheckService {
       db
         .select()
         .from(watchRequests)
-        .where(eq(watchRequests.id, entry.id))
+        .where(eq(watchRequests.id, id))
         .get() || currentEntry;
 
     return {
