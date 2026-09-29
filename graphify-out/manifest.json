@@ -738,9 +738,9 @@
     "semantic_hash": ""
   },
   "apps/watcher/src/app.ts": {
-    "mtime": 1790704066.9357393,
-    "seen": 1790704308.3873003,
-    "ast_hash": "d521e551de559780b42c511cb10b83d3",
+    "mtime": 1790711168.5081387,
+    "seen": 1790711319.6803868,
+    "ast_hash": "6a141e2cd7e5893e7b9b8f3d27a17a98",
     "semantic_hash": ""
   },
   "apps/watcher/src/db/index.ts": {
@@ -2838,15 +2838,15 @@
     "semantic_hash": ""
   },
   "apps/watcher/src/routes/waitlist/actions.ts": {
-    "mtime": 1790700350.7724104,
-    "seen": 1790700535.7805598,
-    "ast_hash": "012e02ea531b3ed423ad14f5b3bd6579",
+    "mtime": 1790710932.6975043,
+    "seen": 1790711319.685594,
+    "ast_hash": "421dc95e09c0354fe3b12a3d8b565ec8",
     "semantic_hash": ""
   },
   "apps/watcher/src/routes/waitlist/create.ts": {
-    "mtime": 1790686834.4457953,
-    "seen": 1790687390.8275435,
-    "ast_hash": "95ad75cc0a52e838725d93f477b6724b",
+    "mtime": 1790711138.8928106,
+    "seen": 1790711319.685594,
+    "ast_hash": "7d7e4452501b33553e415e17b99dff6d",
     "semantic_hash": ""
   },
   "apps/watcher/src/routes/waitlist/crud.ts": {
@@ -2886,9 +2886,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/requestWaitlistIntegration.ts": {
-    "mtime": 1790704018.059062,
-    "seen": 1790704308.330009,
-    "ast_hash": "047083420796d2b1a1a27661421c6299",
+    "mtime": 1790711224.281951,
+    "seen": 1790711319.6334083,
+    "ast_hash": "a8f7e5ce49ed4c4a33efe24deee48873",
     "semantic_hash": ""
   },
   "docs/adr/0024-preferred-indexer-qualification-and-episodic-waterfall.md": {
@@ -2901,6 +2901,18 @@
     "mtime": 1790709780.1557865,
     "seen": 1790710652.3174703,
     "ast_hash": "b5e3000a4cda374ce2dbfaeb378c471a",
+    "semantic_hash": ""
+  },
+  "apps/watcher/src/services/episodicWaterfall.ts": {
+    "mtime": 1790710865.123469,
+    "seen": 1790711319.6871219,
+    "ast_hash": "04a48d414a7153c30188d080a3826ff3",
+    "semantic_hash": ""
+  },
+  "apps/watcher/tests/episodic_waterfall.test.ts": {
+    "mtime": 1790710890.0276532,
+    "seen": 1790711319.693825,
+    "ast_hash": "8a1d1d62595706bc2eb9cc040e640f67",
     "semantic_hash": ""
   }
 }
