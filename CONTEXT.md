@@ -266,6 +266,36 @@ _Avoid_: wrapper, mobile container, native port
 The authentication flow where a Leanback Client displays a temporary pairing code and QR code, allowing an authenticated User on a secondary device (phone or browser) to authorize the session without entering credentials on the TV.
 _Avoid_: TV login, code auth, device link
 
+### Watch Party & Playback Synchronization
+
+**Watch Party**:
+A synchronized collaborative viewing session across multiple authenticated users watching the same media item on Jellyfin with real-time shared playback timeline (play, pause, seek, and buffer lock).
+_Avoid_: movie night, shared screen, co-viewing session
+
+**Watch Party Room**:
+The application-level room session managed by MDM that tracks active party participants, current media item, control policy, and associated Jellyfin SyncPlay Group. Displayed on the Dashboard under the "Active Watch Parties" shelf.
+_Avoid_: watch room, party lobby, viewing channel
+
+**SyncPlay Group**:
+The underlying Jellyfin server-side synchronization group managing real-time playback states, buffer alignment, and drift correction across connected Jellyfin player clients via WebSockets.
+_Avoid_: Jellyfin room, sync channel, player group
+
+**Party Host**:
+The authenticated user who creates a Watch Party Room, possessing authority to change media in-place, switch playback control modes, and end the party session.
+_Avoid_: party owner, room creator, session master
+
+**Playback Control Mode**:
+The permission setting configured for a Watch Party Room determining who may pause, resume, or seek: either "Everyone" (democratic control, where any member's play/pause affects all participants) or "Host Only" (where only the Party Host controls timeline actions).
+_Avoid_: control policy, player permission, sync mode
+
+**Party Timeline**:
+The chronological progression of media items watched within a single persistent Watch Party Room. Enables a Party Host to switch from one movie or episode to the next without disbanding the group or creating a new room, reflected as a sequential history (with completed items marked finished and the active item marked playing) in both the application UI and Discord announcements.
+_Avoid_: party playlist, watch queue, marathon log
+
+**Context-Specific Webhook**:
+A Discord notification routing pattern where specialized environment variables (e.g. `DISCORD_WEBHOOK_URL_WATCH_PARTY`, `WAITLIST_DISCORD_WEBHOOK_URL`) route announcements to dedicated Discord channels, falling back to the master `DISCORD_WEBHOOK_URL` if the specific context webhook is unset.
+_Avoid_: custom webhook, channel redirect, multi-webhook
+
 
 
 
