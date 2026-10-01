@@ -18,15 +18,15 @@
     "semantic_hash": "26454771a910c1087406c3e92e30c8f9"
   },
   "apps/api/src/app.ts": {
-    "mtime": 1790182028.1570463,
-    "seen": 1790182625.5006871,
-    "ast_hash": "1675620d8232fd4d5f3c88ace4d4eb82",
+    "mtime": 1790892746.4165223,
+    "seen": 1790893468.8096106,
+    "ast_hash": "bf4cd854ec89f6c60ed0a120a41876a8",
     "semantic_hash": ""
   },
   "apps/api/src/db/index.ts": {
-    "mtime": 1790183557.0537617,
-    "seen": 1790183981.5747313,
-    "ast_hash": "990711b977aa4060a4f959869ff4d61c",
+    "mtime": 1790891710.2048812,
+    "seen": 1790893468.810124,
+    "ast_hash": "61deed9738d0b16a56b2030c4a9a457a",
     "semantic_hash": ""
   },
   "apps/api/src/db/migrations/0000_complex_ghost_rider.sql": {
@@ -144,15 +144,15 @@
     "semantic_hash": "05889c827338a61c96928068283d44b4"
   },
   "apps/api/src/db/migrations/meta/_journal.json": {
-    "mtime": 1790365173.2257278,
-    "seen": 1790366067.186094,
-    "ast_hash": "817068830d2df8221a65317f0fb2c2d5",
+    "mtime": 1790891735.0148845,
+    "seen": 1790893468.812952,
+    "ast_hash": "9139478a61a0d470f61d52fcb5d06c89",
     "semantic_hash": ""
   },
   "apps/api/src/db/schema.ts": {
-    "mtime": 1790365165.7988348,
-    "seen": 1790366067.186094,
-    "ast_hash": "99b5dffb415a0d85ec4ebb5e908ec093",
+    "mtime": 1790891700.1317484,
+    "seen": 1790893468.812952,
+    "ast_hash": "b932ede87a10847d933b3000df373433",
     "semantic_hash": ""
   },
   "apps/api/src/index.ts": {
@@ -288,10 +288,10 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/notifications.ts": {
-    "mtime": 1789540275.218454,
-    "seen": 1789780156.9478219,
-    "ast_hash": "a5cde68c68819ebf0999c93a587f24e4",
-    "semantic_hash": "a5cde68c68819ebf0999c93a587f24e4"
+    "mtime": 1790891573.1828744,
+    "seen": 1790893468.8293855,
+    "ast_hash": "fe510d54ff262f32dc8a81ba9a91c7e5",
+    "semantic_hash": ""
   },
   "apps/api/src/services/prowlarr.ts": {
     "mtime": 1790495742.8048863,
@@ -390,9 +390,9 @@
     "semantic_hash": ""
   },
   "apps/api/tests/features.test.ts": {
-    "mtime": 1790182417.4576783,
-    "seen": 1790182625.534619,
-    "ast_hash": "002478a23fc32bbf46a1015c74625793",
+    "mtime": 1790893015.0960886,
+    "seen": 1790893468.844122,
+    "ast_hash": "644d35e9d3c39358ff64b0e5e3b8b3ca",
     "semantic_hash": ""
   },
   "apps/api/tests/fileSystem_poller.test.ts": {
@@ -1086,9 +1086,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/DashboardView.vue": {
-    "mtime": 1790334362.0375466,
-    "seen": 1790334818.1302133,
-    "ast_hash": "6802ca96820f9a9889c52bd8e8b4dbe6",
+    "mtime": 1790892201.173015,
+    "seen": 1790893468.9099529,
+    "ast_hash": "43c96fbcb60338b5a98155648514e232",
     "semantic_hash": ""
   },
   "apps/web/src/views/ForbiddenView.vue": {
@@ -1344,9 +1344,9 @@
     "semantic_hash": ""
   },
   "docker/docker-compose.yml": {
-    "mtime": 1790888836.2561436,
-    "seen": 1790888968.115621,
-    "ast_hash": "73ab8ff0b2be42b581faddc2e9933575",
+    "mtime": 1790891610.9357638,
+    "seen": 1790893468.929293,
+    "ast_hash": "61ac1f3eb92c40abff375b7fb170245d",
     "semantic_hash": ""
   },
   "docs/adr/0001-jellyfin-as-auth-source-of-truth.md": {
@@ -2004,9 +2004,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/appTypes.ts": {
-    "mtime": 1790343165.4652727,
-    "seen": 1790344437.7409859,
-    "ast_hash": "56ee728c373f59bd915416048d662282",
+    "mtime": 1790892671.6241713,
+    "seen": 1790893468.8096106,
+    "ast_hash": "08f01a52a66137116aeddcc8f126e9a6",
     "semantic_hash": ""
   },
   "apps/api/src/services/requestBatch.ts": {
@@ -2046,9 +2046,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/serviceContainer.ts": {
-    "mtime": 1790677866.3536856,
-    "seen": 1790681702.9400837,
-    "ast_hash": "ec0e8bec26fc1abd957e8cef871dd572",
+    "mtime": 1790892721.8705504,
+    "seen": 1790893468.835473,
+    "ast_hash": "4bfd24f00ab106b77f08cbf2da5caa7d",
     "semantic_hash": ""
   },
   "apps/api/src/startup/onReady.ts": {
@@ -2937,6 +2937,102 @@
     "mtime": 1790872271.2146747,
     "seen": 1790886448.6914423,
     "ast_hash": "bba670d0aba344d605a1ef7f8137dc99",
+    "semantic_hash": ""
+  },
+  "apps/api/src/db/migrations/meta/0013_snapshot.json": {
+    "mtime": 1790891735.01226,
+    "seen": 1790893468.812952,
+    "ast_hash": "15bc3f53783bb1bed5f91a9a0826f755",
+    "semantic_hash": ""
+  },
+  "apps/api/src/jobs/watchPartyCleanup.ts": {
+    "mtime": 1790893233.5623844,
+    "seen": 1790893468.8145258,
+    "ast_hash": "999c6b83cadb95bca33a627c95afd55b",
+    "semantic_hash": ""
+  },
+  "apps/api/src/routes/watchParties.ts": {
+    "mtime": 1790893248.1244512,
+    "seen": 1790893468.8253477,
+    "ast_hash": "e07bd37541b743c337450fa243b3c32a",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/jellyfinSyncPlay.ts": {
+    "mtime": 1790893259.2692218,
+    "seen": 1790893468.828379,
+    "ast_hash": "1afa1682ad00ed61771e04b0de9ac455",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/watchPartyNotifications.ts": {
+    "mtime": 1790891561.407992,
+    "seen": 1790893468.8384984,
+    "ast_hash": "d71076fda23ce6c0c279dc8c3c9df57a",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/watchPartyRepository.ts": {
+    "mtime": 1790891763.8178566,
+    "seen": 1790893468.8384984,
+    "ast_hash": "56b75d92f5a9bb759a937c51d005b78e",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/discord_channel_routing.test.ts": {
+    "mtime": 1790891540.6844609,
+    "seen": 1790893468.842604,
+    "ast_hash": "7caf8f4f0d7b5c15626f89bbb3691c0f",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/watch_parties.test.ts": {
+    "mtime": 1790892766.7683513,
+    "seen": 1790893468.8600073,
+    "ast_hash": "55c572d8e168db1f32835a042bedc23f",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/watch_party_cleanup.test.ts": {
+    "mtime": 1790892792.003413,
+    "seen": 1790893468.8600073,
+    "ast_hash": "2842bb2a4d7b24ba9d76a13bc597c877",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/ActiveWatchPartiesShelf.vue": {
+    "mtime": 1790893285.7892222,
+    "seen": 1790893468.8866177,
+    "ast_hash": "ac2ed643fe30d82ed4abde37cb3451f3",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/CreateWatchPartyModal.vue": {
+    "mtime": 1790893312.2664444,
+    "seen": 1790893468.8866177,
+    "ast_hash": "d398197fdbcd6a7f2d74adaf8cc77a46",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/WatchPartyLobbyModal.vue": {
+    "mtime": 1790893329.985333,
+    "seen": 1790893468.8911552,
+    "ast_hash": "d62f60f7227c2042161c7803bd0a0178",
+    "semantic_hash": ""
+  },
+  "apps/web/src/composables/useDashboardActions.ts": {
+    "mtime": 1790892087.6812136,
+    "seen": 1790893468.903888,
+    "ast_hash": "df8afdb03ae86a8367146e40bc7f78fc",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/ActiveWatchPartiesShelf.test.ts": {
+    "mtime": 1790892235.9544945,
+    "seen": 1790893468.9140086,
+    "ast_hash": "85687c03aaa3581d602ef1f09151a4fc",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/CreateWatchPartyModal.test.ts": {
+    "mtime": 1790892246.0004046,
+    "seen": 1790893468.9155228,
+    "ast_hash": "64e2e1065a0d8e72734a24a9d7053f3f",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/WatchPartyLobbyModal.test.ts": {
+    "mtime": 1790892435.668177,
+    "seen": 1790893468.922034,
+    "ast_hash": "39c11ca98bd622f30f350ec2b9366e1a",
     "semantic_hash": ""
   }
 }

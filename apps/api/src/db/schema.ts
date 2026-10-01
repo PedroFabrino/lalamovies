@@ -132,6 +132,31 @@ export const featureFlags = sqliteTable('feature_flags', {
   updatedByUserId: text('updated_by_user_id').references(() => users.id, { onDelete: 'set null' }),
 });
 
+export const watchPartyRooms = sqliteTable('watch_party_rooms', {
+  id: text('id').primaryKey(),
+  hostUserId: text('host_user_id')
+    .notNull()
+    .references((): AnySQLiteColumn => users.id, { onDelete: 'cascade' }),
+  jellyfinGroupId: text('jellyfin_group_id').notNull(),
+  jellyfinGroupName: text('jellyfin_group_name').notNull(),
+  mediaType: text('media_type').notNull(),
+  metadataId: text('metadata_id'),
+  jellyfinItemId: text('jellyfin_item_id').notNull(),
+  title: text('title').notNull(),
+  year: integer('year'),
+  seasonNumber: integer('season_number'),
+  episodeNumber: integer('episode_number'),
+  posterUrl: text('poster_url'),
+  controlMode: text('control_mode', { enum: ['everyone', 'host_only'] }).notNull().default('everyone'),
+  status: text('status', { enum: ['active', 'ended'] }).notNull().default('active'),
+  discordMessageId: text('discord_message_id'),
+  discordChannelId: text('discord_channel_id'),
+  historyJson: text('history_json'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  endedAt: text('ended_at'),
+});
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Invite = typeof invites.$inferSelect;
@@ -146,9 +171,13 @@ export type SystemConfig = typeof systemConfig.$inferSelect;
 export type NewSystemConfig = typeof systemConfig.$inferInsert;
 export type FeatureFlag = typeof featureFlags.$inferSelect;
 export type NewFeatureFlag = typeof featureFlags.$inferInsert;
+export type WatchPartyRoom = typeof watchPartyRooms.$inferSelect;
+export type NewWatchPartyRoom = typeof watchPartyRooms.$inferInsert;
 
 export type UserRole = 'user' | 'trusted' | 'admin';
 export type InviteRole = 'user' | 'trusted';
 export type MediaType = 'movie' | 'tv_show' | 'anime' | 'private';
 export type EpisodeStatus = 'downloaded' | 'pruned';
 export type TranscriptionStatus = 'none' | 'pending' | 'transcribing' | 'completed' | 'failed';
+export type WatchPartyControlMode = 'everyone' | 'host_only';
+export type WatchPartyStatus = 'active' | 'ended';

@@ -51,6 +51,7 @@
       </div>
 
       <!-- Feature Shelves -->
+      <ActiveWatchPartiesShelf v-if="featureFlags.isEnabled('watch_parties')" />
       <UpNextShelf v-if="featureFlags.isEnabled('up_next')" />
       <DiscoveryFeed
         v-if="featureFlags.isEnabled('discovery_feed')"
@@ -321,6 +322,7 @@ import PromotionModal from '../components/PromotionModal.vue';
 import SubtitlePickerModal from '../components/SubtitlePickerModal.vue';
 import TorrentReplacementModal from '../components/TorrentReplacementModal.vue';
 import ActiveStreamsShelf from '../components/ActiveStreamsShelf.vue';
+import ActiveWatchPartiesShelf from '../components/ActiveWatchPartiesShelf.vue';
 import ActiveRequestsTable from '../components/requests/ActiveRequestsTable.vue';
 import PrivateRequestsTable from '../components/requests/PrivateRequestsTable.vue';
 import DeletedRequestsList from '../components/requests/DeletedRequestsList.vue';
@@ -331,6 +333,7 @@ import { useAuthStore } from '../stores/auth';
 import { useRequestsStore, DownloadRequest } from '../stores/requests';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { useStreamPlayback } from '../composables/useStreamPlayback';
+import { useDashboardActions } from '../composables/useDashboardActions';
 import { api } from '../lib/api';
 
 const authStore = useAuthStore();
@@ -341,11 +344,7 @@ const activeTab = ref<'active' | 'deleted'>('active');
 const publicRequests = computed(() => requestsStore.requests.filter((r) => r.mediaType !== 'private'));
 const privateRequests = computed(() => requestsStore.requests.filter((r) => r.mediaType === 'private'));
 
-const itemToDelete = ref<DownloadRequest | null>(null);
 const replaceTarget = ref<DownloadRequest | null>(null);
-const redownloadTarget = ref<DownloadRequest | null>(null);
-const showRedownloadModal = ref(false);
-const isDeleting = ref(false);
 const diskInfo = ref<DiskInfo | null>(null);
 
 const activeStreamsShelfRef = ref<InstanceType<typeof ActiveStreamsShelf> | null>(null);
@@ -356,10 +355,12 @@ const streamPlayback = useStreamPlayback({
   discoveryFeedRef,
 });
 
-const showSubtitleModal = ref(false);
-const subtitleTarget = ref<{ id: string; title: string } | null>(null);
-const transcribingId = ref<string | null>(null);
-const retryingId = ref<string | null>(null);
+const {
+  showSubtitleModal, subtitleTarget, openSubtitlePicker, showRedownloadModal,
+  redownloadTarget, openRedownloadModal, handleRedownloaded, itemToDelete,
+  isDeleting, executeDelete, handleToggleKeep, retryingId, handleRetry,
+  transcribingId, handleTranscribe,
+} = useDashboardActions();
 
 function setActiveTab(tab: 'active' | 'deleted') {
   activeTab.value = tab;
@@ -373,76 +374,6 @@ function refreshCurrentTab() {
     requestsStore.fetchDeleted();
   } else {
     requestsStore.fetchAll();
-  }
-}
-
-function openSubtitlePicker(item: DownloadRequest): void {
-  subtitleTarget.value = { id: item.id, title: item.title };
-  showSubtitleModal.value = true;
-}
-
-function openRedownloadModal(item: DownloadRequest) {
-  redownloadTarget.value = item;
-  showRedownloadModal.value = true;
-}
-
-async function handleRedownloaded(newReq: DownloadRequest) {
-  showRedownloadModal.value = false;
-  redownloadTarget.value = null;
-  requestsStore.showToast(`"${newReq.title}" queued for download!`, 'success');
-  await Promise.all([requestsStore.fetchAll(), requestsStore.fetchDeleted()]);
-}
-
-async function handleToggleKeep(item: DownloadRequest) {
-  if (item.mediaType === 'private') return;
-  try {
-    await requestsStore.toggleKeep(item.id);
-  } catch {
-    // Handled by store/api
-  }
-}
-
-async function handleRetry(item: DownloadRequest) {
-  retryingId.value = item.id;
-  try {
-    const updated = await requestsStore.retryRequest(item.id);
-    requestsStore.showToast(
-      updated.status === 'seeding'
-        ? `"${item.title}" successfully completed and synced to Jellyfin!`
-        : `"${item.title}" reset to downloading.`,
-      'success'
-    );
-  } catch (err: unknown) {
-    requestsStore.showToast((err as Error).message || 'Failed to retry request', 'error');
-  } finally {
-    retryingId.value = null;
-  }
-}
-
-async function executeDelete() {
-  if (!itemToDelete.value) return;
-  isDeleting.value = true;
-  try {
-    await requestsStore.deleteRequest(itemToDelete.value.id);
-    itemToDelete.value = null;
-    requestsStore.fetchDeleted().catch(() => {});
-  } finally {
-    isDeleting.value = false;
-  }
-}
-
-async function handleTranscribe(item: DownloadRequest) {
-  transcribingId.value = item.id;
-  try {
-    const res = await api.post<{ request: DownloadRequest }>(`/requests/${item.id}/transcribe`);
-    if (res?.request) {
-      requestsStore.updateRequest(res.request);
-    }
-    requestsStore.showToast('Subtitle transcription queued.', 'success');
-  } catch (err: unknown) {
-    requestsStore.showToast((err as Error).message || 'Failed to queue subtitle transcription.', 'error');
-  } finally {
-    transcribingId.value = null;
   }
 }
 

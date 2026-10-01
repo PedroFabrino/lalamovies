@@ -1,0 +1,23 @@
+CREATE TABLE `watch_party_rooms` (
+	`id` text PRIMARY KEY NOT NULL,
+	`host_user_id` text NOT NULL,
+	`jellyfin_group_id` text NOT NULL,
+	`jellyfin_group_name` text NOT NULL,
+	`media_type` text NOT NULL,
+	`metadata_id` text,
+	`jellyfin_item_id` text NOT NULL,
+	`title` text NOT NULL,
+	`year` integer,
+	`season_number` integer,
+	`episode_number` integer,
+	`poster_url` text,
+	`control_mode` text DEFAULT 'everyone' NOT NULL,
+	`status` text DEFAULT 'active' NOT NULL,
+	`discord_message_id` text,
+	`discord_channel_id` text,
+	`history_json` text,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL,
+	`ended_at` text,
+	FOREIGN KEY (`host_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);

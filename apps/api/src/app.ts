@@ -18,6 +18,7 @@ import { streamsRoutes } from './routes/streams';
 import { libraryRoutes } from './routes/library';
 import { internalRoutes } from './routes/internal';
 import { animeSeasonalRoutes } from './routes/anime';
+import { watchPartyRoutes } from './routes/watchParties';
 import { validateConfig, getConfig } from './config';
 
 export * from './appTypes';
@@ -37,6 +38,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     services.unarchiveDaemon.stop();
     services.cleanupCron.stop();
     services.transcriptionCron.stop();
+    services.watchPartyCleanup.stop();
     sqlite.close();
   });
 
@@ -99,6 +101,8 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.register(libraryRoutes, { prefix: '/api/library' });
   app.register(animeSeasonalRoutes, { prefix: '/anime' });
   app.register(animeSeasonalRoutes, { prefix: '/api/anime' });
+  app.register(watchPartyRoutes, { prefix: '/watch-parties' });
+  app.register(watchPartyRoutes, { prefix: '/api/watch-parties' });
   app.register(internalRoutes, { prefix: '/internal' });
   app.register(internalRoutes, { prefix: '/api/internal' });
   app.register(wsRoutes);

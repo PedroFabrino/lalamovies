@@ -65,7 +65,7 @@ describe('Feature Flags Foundation (Subtask #85)', () => {
 
   it('automatically seeds all default feature flags with enabled: true', async () => {
     const all = app.db.select().from(featureFlags).all();
-    expect(all).toHaveLength(12);
+    expect(all).toHaveLength(13);
 
     const expectedFlags = [
       'discovery_feed',
@@ -80,6 +80,7 @@ describe('Feature Flags Foundation (Subtask #85)', () => {
       'discord_notifications',
       'user_invites',
       'transcription_enabled',
+      'watch_parties',
     ];
 
     for (const flagId of expectedFlags) {
@@ -120,7 +121,7 @@ describe('Feature Flags Foundation (Subtask #85)', () => {
     });
     expect(resAdmin.statusCode).toBe(200);
     const body = resAdmin.json();
-    expect(body.features).toHaveLength(12);
+    expect(body.features).toHaveLength(13);
     expect(body.features[0]).toHaveProperty('id');
     expect(body.features[0]).toHaveProperty('name');
     expect(body.features[0]).toHaveProperty('category');

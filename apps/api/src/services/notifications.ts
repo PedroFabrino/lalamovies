@@ -55,6 +55,38 @@ export interface DiscordEmbed {
   };
 }
 
+export type NotificationContext = 'default' | 'waitlist' | 'watch_party';
+
+export function resolveDiscordWebhookUrl(
+  context: NotificationContext = 'default',
+  overrideUrl?: string
+): string | undefined {
+  if (overrideUrl && overrideUrl.trim()) {
+    return overrideUrl.trim();
+  }
+
+  if (context === 'watch_party') {
+    const partyUrl = process.env.DISCORD_WEBHOOK_URL_WATCH_PARTY;
+    if (partyUrl && partyUrl.trim()) {
+      return partyUrl.trim();
+    }
+  }
+
+  if (context === 'waitlist') {
+    const waitlistUrl = process.env.WAITLIST_DISCORD_WEBHOOK_URL;
+    if (waitlistUrl && waitlistUrl.trim()) {
+      return waitlistUrl.trim();
+    }
+  }
+
+  const defaultUrl = process.env.DISCORD_WEBHOOK_URL;
+  if (defaultUrl && defaultUrl.trim()) {
+    return defaultUrl.trim();
+  }
+
+  return undefined;
+}
+
 export class DiscordNotifier implements INotificationService {
   constructor(
     private webhookUrl?: string,
@@ -73,8 +105,8 @@ export class DiscordNotifier implements INotificationService {
       }
     }
 
-    const url = this.webhookUrl || process.env.DISCORD_WEBHOOK_URL;
-    if (!url || !url.trim()) {
+    const url = resolveDiscordWebhookUrl('default', this.webhookUrl);
+    if (!url) {
       return; // Silently no-op if no URL configured
     }
 

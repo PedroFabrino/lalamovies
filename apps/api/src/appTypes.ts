@@ -23,6 +23,9 @@ import { IRequestService } from './services/requestServiceTypes';
 import { IAnimeSeasonService } from './services/animeTypes';
 import { IEpisodesRepository } from './services/episodesRepository';
 import { IEpisodicPruningService } from './services/episodicPruningService';
+import { IWatchPartyRepository } from './services/watchPartyRepository';
+import { IJellyfinSyncPlayService } from './services/jellyfinSyncPlay';
+import { WatchPartyCleanupJob } from './jobs/watchPartyCleanup';
 import { BroadcastFunction } from './routes/ws';
 
 export interface AppOptions {
@@ -60,6 +63,10 @@ export interface AppOptions {
   episodicPruningService?: IEpisodicPruningService;
   requestService?: IRequestService;
   animeSeasonService?: IAnimeSeasonService;
+  watchPartyRepo?: IWatchPartyRepository;
+  syncPlayService?: IJellyfinSyncPlayService;
+  watchPartyCleanupJob?: WatchPartyCleanupJob;
+  startWatchPartyCleanup?: boolean;
 }
 
 declare module 'fastify' {
@@ -93,5 +100,8 @@ declare module 'fastify' {
     episodesRepo: IEpisodesRepository;
     episodicPruning: IEpisodicPruningService;
     requestService: IRequestService;
+    watchPartyRepo: IWatchPartyRepository;
+    syncPlay: IJellyfinSyncPlayService;
+    watchPartyCleanup: WatchPartyCleanupJob;
   }
 }

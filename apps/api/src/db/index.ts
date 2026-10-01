@@ -180,6 +180,13 @@ export const DEFAULT_FEATURE_FLAGS: Array<{
     category: 'automation',
     enabled: true,
   },
+  {
+    id: 'watch_parties',
+    name: 'Watch Parties',
+    description: 'Synchronized group viewing sessions backed by Jellyfin SyncPlay',
+    category: 'discovery',
+    enabled: true,
+  },
 ];
 
 export function seedDefaultFeatureFlags(db: AppDatabase) {

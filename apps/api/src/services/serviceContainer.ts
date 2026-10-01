@@ -25,10 +25,13 @@ import { AnimeSeasonService } from './animeSeasonService';
 import { AnimeHistoryMatcher } from './animeHistoryMatcher';
 import { IEpisodesRepository, EpisodesRepository } from './episodesRepository';
 import { IEpisodicPruningService, EpisodicPruningService } from './episodicPruningService';
+import { IWatchPartyRepository, WatchPartyRepository } from './watchPartyRepository';
+import { IJellyfinSyncPlayService, JellyfinSyncPlayService } from './jellyfinSyncPlay';
 import { DownloadPoller } from '../jobs/downloadPoller';
 import { UnarchiveDaemon } from '../jobs/unarchiveDaemon';
 import { CleanupCron } from '../jobs/cleanupCron';
 import { TranscriptionCron } from '../jobs/transcriptionCron';
+import { WatchPartyCleanupJob } from '../jobs/watchPartyCleanup';
 import { isFeatureEnabled } from '../middleware/featureFlags';
 
 export interface CreatedServices {
@@ -55,6 +58,9 @@ export interface CreatedServices {
   unarchiveDaemon: UnarchiveDaemon;
   cleanupCron: CleanupCron;
   transcriptionCron: TranscriptionCron;
+  watchPartyRepo: IWatchPartyRepository;
+  syncPlay: IJellyfinSyncPlayService;
+  watchPartyCleanup: WatchPartyCleanupJob;
 }
 
 export function setupServices(
@@ -339,17 +345,32 @@ export function setupServices(
       },
     });
 
-  if (options.startTranscriptionCron) {
-    transcriptionCron.start();
-  }
+  if (options.startTranscriptionCron) transcriptionCron.start();
 
-  const cachedPrivateLibrary = db
-    .select()
-    .from(systemConfig)
-    .where(eq(systemConfig.key, 'jellyfin_private_library_id'))
-    .get();
+  const cachedPrivateLibrary = db.select().from(systemConfig).where(eq(systemConfig.key, 'jellyfin_private_library_id')).get();
   if (cachedPrivateLibrary?.value && jellyfin.setPrivateLibraryId) {
     jellyfin.setPrivateLibraryId(cachedPrivateLibrary.value);
+  }
+
+  const watchPartyRepo = options.watchPartyRepo ?? new WatchPartyRepository(db);
+  const syncPlay = options.syncPlayService ?? new JellyfinSyncPlayService(
+    options.jellyfinService?.getPublicJellyfinUrl?.() || process.env.JELLYFIN_URL,
+    process.env.JELLYFIN_API_KEY
+  );
+
+  const watchPartyCleanup = options.watchPartyCleanupJob ?? new WatchPartyCleanupJob({
+    watchPartyRepo,
+    syncPlay,
+    broadcast: (msg) => { if (typeof app.broadcast === 'function') app.broadcast(msg); },
+    logger: {
+      info: (msg) => app.log.info(msg),
+      warn: (msg) => app.log.warn(msg),
+      error: (msg, err) => app.log.error(err, msg),
+    },
+  });
+
+  if (options.startWatchPartyCleanup ?? (process.env.NODE_ENV !== 'test')) {
+    watchPartyCleanup.start();
   }
 
   const decorations: Record<string, unknown> = {
@@ -358,34 +379,17 @@ export function setupServices(
     upNext, animeSeason, poller, subtitleInspection, subgen, openSubtitles,
     unarchive, unarchiveDaemon, stateMachine, requestsRepo, episodesRepo,
     episodicPruning, requestService, serviceApiKey, watcherUrl, streamerUrl,
+    watchPartyRepo, syncPlay, watchPartyCleanup,
   };
   for (const [key, val] of Object.entries(decorations)) {
     app.decorate(key, val);
   }
 
   return {
-    qbittorrent,
-    jellyfin,
-    notifications,
-    fileSystem,
-    requestsRepo,
-    episodesRepo,
-    episodicPruning,
-    stateMachine,
-    cleanup,
-    metadata,
-    prowlarr,
-    discovery,
-    upNext,
-    animeSeason,
-    subtitleInspection,
-    subgen,
-    openSubtitles,
-    unarchive,
-    requestService,
-    poller,
-    unarchiveDaemon,
-    cleanupCron,
-    transcriptionCron,
+    qbittorrent, jellyfin, notifications, fileSystem, requestsRepo, episodesRepo,
+    episodicPruning, stateMachine, cleanup, metadata, prowlarr, discovery,
+    upNext, animeSeason, subtitleInspection, subgen, openSubtitles, unarchive,
+    requestService, poller, unarchiveDaemon, cleanupCron, transcriptionCron,
+    watchPartyRepo, syncPlay, watchPartyCleanup,
   };
 }
