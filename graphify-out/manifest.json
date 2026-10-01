@@ -1344,9 +1344,9 @@
     "semantic_hash": ""
   },
   "docker/docker-compose.yml": {
-    "mtime": 1790886928.780049,
-    "seen": 1790887687.7450736,
-    "ast_hash": "eeebc992e63c9ab0c05fbc4c7c50953b",
+    "mtime": 1790888836.2561436,
+    "seen": 1790888968.115621,
+    "ast_hash": "73ab8ff0b2be42b581faddc2e9933575",
     "semantic_hash": ""
   },
   "docs/adr/0001-jellyfin-as-auth-source-of-truth.md": {

@@ -198,27 +198,6 @@ services:
     depends_on:
       - jellyfin
 
-  # Caddy acts as a reverse proxy / TLS terminator for Jellyfin ONLY.
-  # The Fastify API continues to be exposed via the cloudflared tunnel above.
-  # Caddy obtains and auto-renews a free Let's Encrypt certificate for JELLYFIN_DOMAIN.
-  # Requires: port 80 and 443 forwarded on your home router to this host.
-  caddy:
-    image: caddy:latest
-    container_name: mdm-caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"  # HTTP/3 (QUIC)
-    environment:
-      - JELLYFIN_DOMAIN=${JELLYFIN_DOMAIN}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - jellyfin
-
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: mdm-cloudflared
@@ -228,23 +207,6 @@ services:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
     depends_on:
       - api
-
-  # Automatically updates the Cloudflare DNS A record for watch.lalamovies.stream
-  # whenever the home public IP changes. Checks every 5 minutes.
-  # Requires a Cloudflare API token with Zone:DNS:Edit permission for lalamovies.stream.
-  ddns:
-    image: favonia/cloudflare-ddns:latest
-    container_name: mdm-ddns
-    restart: unless-stopped
-    read_only: true
-    cap_drop:
-      - all
-    environment:
-      - CF_API_TOKEN=${CLOUDFLARE_API_TOKEN}
-      - DOMAINS=watch.lalamovies.stream
-      - PROXIED=false
-      - IP6_PROVIDER=none
-      - TZ=${TZ:-UTC}
 
   subgen:
     image: mccloud/subgen:latest
@@ -278,10 +240,6 @@ services:
 volumes:
   app_db:
     name: docker_app_db
-  caddy_data:
-    name: docker_caddy_data
-  caddy_config:
-    name: docker_caddy_config
   watcher_db:
     name: docker_watcher_db
   streamer_db:

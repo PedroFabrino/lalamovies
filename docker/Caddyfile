@@ -1,18 +1,13 @@
-# Caddyfile — Jellyfin HTTPS reverse proxy
+# Caddyfile — Jellyfin HTTPS reverse proxy (Oracle VPS Relay)
 #
-# This Caddyfile is used exclusively for Jellyfin (media streaming).
-# The Fastify backend API is NOT routed through Caddy; it remains
-# accessible via the Cloudflare Tunnel to avoid routing video traffic
-# through Cloudflare's proxy network (which violates their ToS).
+# This Caddyfile represents the production configuration deployed on the
+# Oracle Linux Always Free VPS (167.126.3.136).
+# It terminates TLS for watch.lalamovies.stream using Let's Encrypt and
+# reverse-proxies video streaming traffic across the WireGuard tunnel
+# to the local Jellyfin container at 10.13.13.2:8096.
 #
-# Requirements before starting:
-#   1. Set JELLYFIN_DOMAIN in your .env (e.g. watch.yourdomain.com)
-#   2. Create a DNS A record in Cloudflare pointing JELLYFIN_DOMAIN to
-#      your home public IP — set proxy status to "DNS Only" (Grey Cloud).
-#   3. Forward ports 80 and 443 on your home router to this host machine.
-#
-# Caddy will automatically obtain and renew a free Let's Encrypt TLS
-# certificate for the domain — no manual certificate management needed.
+# Inbound ports 80 and 443 are freed on all home routers, completely
+# bypassing CGNAT and ISP port restrictions.
 {
     email pfabrino@gmail.com
     servers {
