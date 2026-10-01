@@ -960,9 +960,9 @@
     "semantic_hash": "be095c257ca29c0745f1c290b5be6f14"
   },
   "apps/web/src/components/ActiveStreamsShelf.vue": {
-    "mtime": 1790021120.96195,
-    "seen": 1790021216.2106388,
-    "ast_hash": "5d3cd2deebf95cab2aece00db86e9ee1",
+    "mtime": 1790895873.9872875,
+    "seen": 1790896577.6588247,
+    "ast_hash": "358420a0e358b82aef07604ea3b44b68",
     "semantic_hash": ""
   },
   "apps/web/src/components/DiscoveryFeed.vue": {
@@ -1086,9 +1086,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/DashboardView.vue": {
-    "mtime": 1790892201.173015,
-    "seen": 1790893468.9099529,
-    "ast_hash": "43c96fbcb60338b5a98155648514e232",
+    "mtime": 1790896344.59217,
+    "seen": 1790896577.683086,
+    "ast_hash": "b53494130dcb1471be2e617b6a3e3ef4",
     "semantic_hash": ""
   },
   "apps/web/src/views/ForbiddenView.vue": {
@@ -1146,10 +1146,10 @@
     "semantic_hash": "bf79071defb5286294ec950f827945eb"
   },
   "apps/web/tests/ActiveStreamsShelf.test.ts": {
-    "mtime": 1789385249.531964,
-    "seen": 1789780156.9478219,
-    "ast_hash": "f22c767ab84c6837c2bf3eaf904a594e",
-    "semantic_hash": "f22c767ab84c6837c2bf3eaf904a594e"
+    "mtime": 1790895838.9017327,
+    "seen": 1790896577.6852782,
+    "ast_hash": "00672c6182c25c048edfe88a183ed074",
+    "semantic_hash": ""
   },
   "apps/web/tests/AdminView_features.test.ts": {
     "mtime": 1789413708.6753514,
@@ -1170,10 +1170,10 @@
     "semantic_hash": "47e034f7b851a67e934d4ec398cd8c27"
   },
   "apps/web/tests/DashboardView.test.ts": {
-    "mtime": 1789618284.650688,
-    "seen": 1789780156.9478219,
-    "ast_hash": "02e198ad6e85b7a2e3f85c3e4953dc8a",
-    "semantic_hash": "02e198ad6e85b7a2e3f85c3e4953dc8a"
+    "mtime": 1790896374.7237203,
+    "seen": 1790896577.6874,
+    "ast_hash": "683e100ed4732c02970a1630c8b16646",
+    "semantic_hash": ""
   },
   "apps/web/tests/DashboardView_shelves.test.ts": {
     "mtime": 1789414494.5458465,
@@ -2934,9 +2934,9 @@
     "semantic_hash": ""
   },
   "docs/spec/watch-party-syncplay-integration.md": {
-    "mtime": 1790872271.2146747,
-    "seen": 1790886448.6914423,
-    "ast_hash": "bba670d0aba344d605a1ef7f8137dc99",
+    "mtime": 1790895449.3108838,
+    "seen": 1790896577.7162292,
+    "ast_hash": "76c2f930a92422f3d1707facbcaee18f",
     "semantic_hash": ""
   },
   "apps/api/src/db/migrations/meta/0013_snapshot.json": {
@@ -2994,15 +2994,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/ActiveWatchPartiesShelf.vue": {
-    "mtime": 1790893285.7892222,
-    "seen": 1790893468.8866177,
-    "ast_hash": "ac2ed643fe30d82ed4abde37cb3451f3",
+    "mtime": 1790896205.898837,
+    "seen": 1790896577.6588247,
+    "ast_hash": "9334d9c9f9af9799574a17f4c84657b3",
     "semantic_hash": ""
   },
   "apps/web/src/components/CreateWatchPartyModal.vue": {
-    "mtime": 1790893312.2664444,
-    "seen": 1790893468.8866177,
-    "ast_hash": "d398197fdbcd6a7f2d74adaf8cc77a46",
+    "mtime": 1790896471.9808128,
+    "seen": 1790896577.6588247,
+    "ast_hash": "3071d10e05fc0346d96939f6d406e13d",
     "semantic_hash": ""
   },
   "apps/web/src/components/WatchPartyLobbyModal.vue": {
@@ -3012,27 +3012,33 @@
     "semantic_hash": ""
   },
   "apps/web/src/composables/useDashboardActions.ts": {
-    "mtime": 1790892087.6812136,
-    "seen": 1790893468.903888,
-    "ast_hash": "df8afdb03ae86a8367146e40bc7f78fc",
+    "mtime": 1790896273.6103785,
+    "seen": 1790896577.6742437,
+    "ast_hash": "051124a806ee9d9381062d63c897acaf",
     "semantic_hash": ""
   },
   "apps/web/tests/ActiveWatchPartiesShelf.test.ts": {
-    "mtime": 1790892235.9544945,
-    "seen": 1790893468.9140086,
-    "ast_hash": "85687c03aaa3581d602ef1f09151a4fc",
+    "mtime": 1790896190.289208,
+    "seen": 1790896577.6852782,
+    "ast_hash": "fa918a31b2c88b97f988d692367bce49",
     "semantic_hash": ""
   },
   "apps/web/tests/CreateWatchPartyModal.test.ts": {
-    "mtime": 1790892246.0004046,
-    "seen": 1790893468.9155228,
-    "ast_hash": "64e2e1065a0d8e72734a24a9d7053f3f",
+    "mtime": 1790896083.5764856,
+    "seen": 1790896577.6874,
+    "ast_hash": "47f99159dc068c765c9801fc54f8f8d7",
     "semantic_hash": ""
   },
   "apps/web/tests/WatchPartyLobbyModal.test.ts": {
     "mtime": 1790892435.668177,
     "seen": 1790893468.922034,
     "ast_hash": "39c11ca98bd622f30f350ec2b9366e1a",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/SyncPlayBridgeModal.vue": {
+    "mtime": 1790895784.9612298,
+    "seen": 1790896577.6598287,
+    "ast_hash": "db75b8c31f068a0c975f3d4c5ad0f6f3",
     "semantic_hash": ""
   }
 }

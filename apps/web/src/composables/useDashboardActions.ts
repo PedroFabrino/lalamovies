@@ -87,7 +87,27 @@ export function useDashboardActions() {
     }
   }
 
+  const activeTab = ref<'active' | 'deleted'>('active');
+
+  function setActiveTab(tab: 'active' | 'deleted') {
+    activeTab.value = tab;
+    if (tab === 'deleted' && requestsStore.deletedRequests.length === 0) {
+      requestsStore.fetchDeleted();
+    }
+  }
+
+  function refreshCurrentTab() {
+    if (activeTab.value === 'deleted') {
+      requestsStore.fetchDeleted();
+    } else {
+      requestsStore.fetchAll();
+    }
+  }
+
   return {
+    activeTab,
+    setActiveTab,
+    refreshCurrentTab,
     showSubtitleModal,
     subtitleTarget,
     openSubtitlePicker,

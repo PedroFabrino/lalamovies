@@ -253,4 +253,51 @@ describe('DashboardView - Co-Requester Action Gating (Ticket 03)', () => {
       expect(row2.findAll('[data-testid="co-requester-badge"]').length).toBe(0);
     });
   });
+
+  describe('Watch Party Action in Dashboard Header (#212)', () => {
+    it('renders Host Watch Party button in header when watch_parties is enabled', async () => {
+      const { useFeatureFlags } = await import('../src/composables/useFeatureFlags');
+      const ff = useFeatureFlags();
+      ff.setFlag('watch_parties', true);
+
+      vi.mocked(api.get).mockResolvedValue({ requests: [], watchParties: [] });
+
+      const wrapper = mount(DashboardView, {
+        global: {
+          stubs: {
+            'router-link': true,
+            ActiveWatchPartiesShelf: {
+              template: '<div data-testid="active-watch-parties-shelf"></div>',
+              methods: { openGenericHostModal: vi.fn() },
+            },
+          },
+        },
+      });
+      await flushPromises();
+
+      const btn = wrapper.find('[data-testid="button-dashboard-host-party"]');
+      expect(btn.exists()).toBe(true);
+      expect(btn.text()).toContain('Host Watch Party');
+    });
+
+    it('hides Host Watch Party button when watch_parties is disabled', async () => {
+      const { useFeatureFlags } = await import('../src/composables/useFeatureFlags');
+      const ff = useFeatureFlags();
+      ff.setFlag('watch_parties', false);
+
+      vi.mocked(api.get).mockResolvedValue({ requests: [] });
+
+      const wrapper = mount(DashboardView, {
+        global: {
+          stubs: {
+            'router-link': true,
+            ActiveWatchPartiesShelf: true,
+          },
+        },
+      });
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="button-dashboard-host-party"]').exists()).toBe(false);
+    });
+  });
 });

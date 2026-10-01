@@ -23,10 +23,13 @@
         </button>
       </div>
 
-      <!-- Media Preview -->
-      <div class="flex items-center gap-4 bg-zinc-950/60 p-3 rounded-xl border border-zinc-800/80">
+      <!-- Pre-Selected Media Preview -->
+      <div
+        v-if="item"
+        class="flex items-center gap-4 bg-zinc-950/60 p-3 rounded-xl border border-zinc-800/80"
+      >
         <img
-          v-if="item?.posterUrl"
+          v-if="item.posterUrl"
           :src="item.posterUrl"
           :alt="item.title"
           class="w-14 h-20 object-cover rounded-lg shrink-0 border border-zinc-800"
@@ -39,15 +42,114 @@
         </div>
         <div class="min-w-0 flex-1">
           <h4 class="font-bold text-sm text-white truncate">
-            {{ item?.title }}
+            {{ item.title }}
           </h4>
           <p class="text-xs text-zinc-400 mt-0.5">
-            <span v-if="item?.year">{{ item.year }} • </span>
-            <span class="capitalize">{{ item?.mediaType?.replace('_', ' ') }}</span>
-            <span v-if="item?.seasonNumber && item?.episodeNumber">
+            <span v-if="item.year">{{ item.year }} • </span>
+            <span class="capitalize">{{ item.mediaType?.replace('_', ' ') }}</span>
+            <span v-if="item.seasonNumber && item.episodeNumber">
               • S{{ String(item.seasonNumber).padStart(2, '0') }}E{{ String(item.episodeNumber).padStart(2, '0') }}
             </span>
           </p>
+        </div>
+      </div>
+
+      <!-- Generic Mode (Pick from Streams / Library or Manual) -->
+      <div
+        v-else
+        class="space-y-3 bg-zinc-950/60 p-3.5 rounded-xl border border-zinc-800/80"
+      >
+        <div class="flex items-center justify-between">
+          <label class="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+            Select Media
+          </label>
+          <button
+            type="button"
+            class="text-xs text-purple-400 hover:text-purple-300 transition cursor-pointer"
+            data-testid="toggle-manual-entry"
+            @click="isManualEntry = !isManualEntry"
+          >
+            {{ isManualEntry ? '← Choose from Media' : 'Enter Manually...' }}
+          </button>
+        </div>
+
+        <!-- Dropdown Mode -->
+        <div
+          v-if="!isManualEntry"
+          class="space-y-2"
+        >
+          <select
+            v-model="selectedItemId"
+            class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
+            data-testid="media-select"
+          >
+            <option
+              value=""
+              disabled
+            >
+              Select an active stream or library item...
+            </option>
+            <option
+              v-for="opt in availableOptions"
+              :key="opt.jellyfinItemId"
+              :value="opt.jellyfinItemId"
+            >
+              {{ opt.label }}
+            </option>
+          </select>
+          <p
+            v-if="availableOptions.length === 0"
+            class="text-[11px] text-zinc-500 italic"
+          >
+            No active streams or library items found. Click "Enter Manually" above.
+          </p>
+        </div>
+
+        <!-- Manual Mode -->
+        <div
+          v-else
+          class="space-y-2.5"
+        >
+          <div>
+            <label class="text-[11px] text-zinc-400 block mb-1">Title</label>
+            <input
+              v-model="manualTitle"
+              type="text"
+              placeholder="e.g. Spirited Away"
+              class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-purple-500"
+              data-testid="manual-title-input"
+            >
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-[11px] text-zinc-400 block mb-1">Jellyfin Item ID</label>
+              <input
+                v-model="manualItemId"
+                type="text"
+                placeholder="Item GUID"
+                class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-purple-500"
+                data-testid="manual-item-id-input"
+              >
+            </div>
+            <div>
+              <label class="text-[11px] text-zinc-400 block mb-1">Media Type</label>
+              <select
+                v-model="manualMediaType"
+                class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-purple-500"
+                data-testid="manual-media-type-select"
+              >
+                <option value="movie">
+                  Movie
+                </option>
+                <option value="tv_show">
+                  Series
+                </option>
+                <option value="anime">
+                  Anime
+                </option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -121,7 +223,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { api } from '../lib/api';
 import type { WatchParty } from './ActiveWatchPartiesShelf.vue';
 
@@ -133,6 +235,14 @@ export interface WatchPartyMediaItem {
   year?: number;
   seasonNumber?: number;
   episodeNumber?: number;
+  posterUrl?: string;
+}
+
+interface GenericOption {
+  label: string;
+  jellyfinItemId: string;
+  title: string;
+  mediaType: string;
   posterUrl?: string;
 }
 
@@ -150,21 +260,111 @@ const controlMode = ref<'everyone' | 'host_only'>('everyone');
 const submitting = ref(false);
 const errorMessage = ref<string | null>(null);
 
+const isManualEntry = ref(false);
+const selectedItemId = ref('');
+const manualTitle = ref('');
+const manualItemId = ref('');
+const manualMediaType = ref<'movie' | 'tv_show' | 'anime'>('movie');
+const availableOptions = ref<GenericOption[]>([]);
+
+async function loadGenericOptions() {
+  if (props.item) return;
+  try {
+    const [streamsRes, requestsRes] = await Promise.all([
+      api.get<{ streams?: Array<{ title: string; status: string; jellyfinItemId?: string }> }>('/streams').catch(() => ({ streams: [] })),
+      api.get<{ requests?: Array<{ id?: string; title: string; status: string; mediaType?: string; jellyfinItemId?: string; jellyfinPath?: string }> }>('/requests').catch(() => ({ requests: [] })),
+    ]);
+
+    const opts: GenericOption[] = [];
+    if (streamsRes?.streams) {
+      for (const s of streamsRes.streams) {
+        if (s.status === 'ready' && s.jellyfinItemId) {
+          opts.push({
+            label: `[Stream] ${s.title}`,
+            jellyfinItemId: s.jellyfinItemId,
+            title: s.title,
+            mediaType: 'movie',
+          });
+        }
+      }
+    }
+    if (requestsRes?.requests) {
+      for (const r of requestsRes.requests) {
+        if ((r.status === 'completed' || r.status === 'seeding') && r.title) {
+          const fallbackId = r.jellyfinItemId || r.id;
+          if (fallbackId) {
+            opts.push({
+              label: `[Library] ${r.title}`,
+              jellyfinItemId: fallbackId,
+              title: r.title,
+              mediaType: r.mediaType || 'movie',
+            });
+          }
+        }
+      }
+    }
+    availableOptions.value = opts;
+    if (opts.length > 0 && !selectedItemId.value) {
+      selectedItemId.value = opts[0].jellyfinItemId;
+    }
+  } catch {
+    availableOptions.value = [];
+  }
+}
+
+watch(
+  () => props.open,
+  (isOpen) => {
+    if (isOpen && !props.item) {
+      loadGenericOptions();
+    }
+  },
+  { immediate: true }
+);
+
 async function handleCreate() {
-  if (!props.item) return;
   submitting.value = true;
   errorMessage.value = null;
 
+  let payload: WatchPartyMediaItem | null = null;
+  if (props.item) {
+    payload = { ...props.item };
+  } else if (isManualEntry.value) {
+    if (!manualTitle.value.trim() || !manualItemId.value.trim()) {
+      errorMessage.value = 'Please provide both Title and Jellyfin Item ID.';
+      submitting.value = false;
+      return;
+    }
+    payload = {
+      title: manualTitle.value.trim(),
+      jellyfinItemId: manualItemId.value.trim(),
+      mediaType: manualMediaType.value,
+    };
+  } else {
+    const found = availableOptions.value.find((o) => o.jellyfinItemId === selectedItemId.value);
+    if (!found) {
+      errorMessage.value = 'Please select a media item or enter one manually.';
+      submitting.value = false;
+      return;
+    }
+    payload = {
+      title: found.title,
+      jellyfinItemId: found.jellyfinItemId,
+      mediaType: found.mediaType,
+      posterUrl: found.posterUrl,
+    };
+  }
+
   try {
     const res = await api.post<{ watchParty: WatchParty }>('/watch-parties', {
-      jellyfinItemId: props.item.jellyfinItemId,
-      title: props.item.title,
-      mediaType: props.item.mediaType,
-      metadataId: props.item.metadataId,
-      year: props.item.year,
-      seasonNumber: props.item.seasonNumber,
-      episodeNumber: props.item.episodeNumber,
-      posterUrl: props.item.posterUrl,
+      jellyfinItemId: payload.jellyfinItemId,
+      title: payload.title,
+      mediaType: payload.mediaType,
+      metadataId: payload.metadataId,
+      year: payload.year,
+      seasonNumber: payload.seasonNumber,
+      episodeNumber: payload.episodeNumber,
+      posterUrl: payload.posterUrl,
       controlMode: controlMode.value,
     });
 

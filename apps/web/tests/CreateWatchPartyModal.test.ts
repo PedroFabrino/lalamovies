@@ -90,4 +90,122 @@ describe('CreateWatchPartyModal.vue (#204)', () => {
     expect(wrapper.emitted('created')).toBeTruthy();
     expect(wrapper.emitted('close')).toBeTruthy();
   });
+
+  it('loads media options when opened in generic mode (item is null) and launches selected', async () => {
+    vi.mocked(api.get = vi.fn()).mockImplementation((url: string) => {
+      if (url === '/streams') {
+        return Promise.resolve({
+          streams: [
+            {
+              id: 'st-1',
+              title: 'Spirited Away',
+              status: 'ready',
+              jellyfinItemId: 'jf-stream-10',
+            },
+          ],
+        });
+      }
+      if (url === '/requests') {
+        return Promise.resolve({
+          requests: [
+            {
+              id: 'req-1',
+              title: 'Howl\'s Moving Castle',
+              status: 'completed',
+              jellyfinPath: '/media/movies/Howls.Moving.Castle.2004',
+              mediaType: 'movie',
+            },
+          ],
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    vi.mocked(api.post).mockResolvedValueOnce({
+      watchParty: {
+        id: 'new-party-456',
+        title: 'Spirited Away',
+      },
+    });
+
+    const wrapper = mount(CreateWatchPartyModal, {
+      props: {
+        open: true,
+        item: null,
+      },
+    });
+    await flushPromises();
+
+    // Check media selection dropdown exists
+    const select = wrapper.find('select[data-testid="media-select"]');
+    expect(select.exists()).toBe(true);
+
+    // Option for Spirited Away exists
+    const options = select.findAll('option');
+    expect(options.some((o) => o.text().includes('Spirited Away'))).toBe(true);
+
+    // Select Spirited Away
+    await select.setValue('jf-stream-10');
+
+    // Launch party
+    const launchBtn = wrapper.find('button.bg-purple-600');
+    await launchBtn.trigger('click');
+    await flushPromises();
+
+    expect(api.post).toHaveBeenCalledWith(
+      '/watch-parties',
+      expect.objectContaining({
+        jellyfinItemId: 'jf-stream-10',
+        title: 'Spirited Away',
+      })
+    );
+    expect(wrapper.emitted('created')).toBeTruthy();
+  });
+
+  it('allows manual entry mode when item is null', async () => {
+    vi.mocked(api.get = vi.fn()).mockResolvedValue({ streams: [], requests: [] });
+    vi.mocked(api.post).mockResolvedValueOnce({
+      watchParty: {
+        id: 'new-party-manual',
+        title: 'Akira',
+      },
+    });
+
+    const wrapper = mount(CreateWatchPartyModal, {
+      props: {
+        open: true,
+        item: null,
+      },
+    });
+    await flushPromises();
+
+    // Toggle manual entry mode
+    const manualBtn = wrapper.find('button[data-testid="toggle-manual-entry"]');
+    expect(manualBtn.exists()).toBe(true);
+    await manualBtn.trigger('click');
+
+    // Inputs should exist
+    const titleInput = wrapper.find('input[data-testid="manual-title-input"]');
+    const itemIdInput = wrapper.find('input[data-testid="manual-item-id-input"]');
+    expect(titleInput.exists()).toBe(true);
+    expect(itemIdInput.exists()).toBe(true);
+
+    await titleInput.setValue('Akira');
+    await itemIdInput.setValue('jf-akira-999');
+
+    // Launch
+    const launchBtn = wrapper.find('button.bg-purple-600');
+    await launchBtn.trigger('click');
+    await flushPromises();
+
+    expect(api.post).toHaveBeenCalledWith(
+      '/watch-parties',
+      expect.objectContaining({
+        jellyfinItemId: 'jf-akira-999',
+        title: 'Akira',
+        mediaType: 'movie',
+      })
+    );
+    expect(wrapper.emitted('created')).toBeTruthy();
+  });
 });

@@ -51,7 +51,10 @@
       </div>
 
       <!-- Feature Shelves -->
-      <ActiveWatchPartiesShelf v-if="featureFlags.isEnabled('watch_parties')" />
+      <ActiveWatchPartiesShelf
+        v-if="featureFlags.isEnabled('watch_parties')"
+        ref="activeWatchPartiesShelfRef"
+      />
       <UpNextShelf v-if="featureFlags.isEnabled('up_next')" />
       <DiscoveryFeed
         v-if="featureFlags.isEnabled('discovery_feed')"
@@ -62,6 +65,7 @@
         v-if="featureFlags.isEnabled('streaming')"
         ref="activeStreamsShelfRef"
         @promote="streamPlayback.handleOpenPromotion"
+        @party-created="activeWatchPartiesShelfRef?.fetchParties"
       />
 
       <!-- Header & Top Actions -->
@@ -97,6 +101,17 @@
                 d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
               />
             </svg>
+          </button>
+
+          <button
+            v-if="featureFlags.isEnabled('watch_parties')"
+            type="button"
+            class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg shadow transition flex items-center gap-2 cursor-pointer"
+            data-testid="button-dashboard-host-party"
+            @click="activeWatchPartiesShelfRef?.openGenericHostModal()"
+          >
+            <span>🎉</span>
+            <span>Host Watch Party</span>
           </button>
 
           <router-link
@@ -340,7 +355,6 @@ const authStore = useAuthStore();
 const requestsStore = useRequestsStore();
 const featureFlags = useFeatureFlags();
 
-const activeTab = ref<'active' | 'deleted'>('active');
 const publicRequests = computed(() => requestsStore.requests.filter((r) => r.mediaType !== 'private'));
 const privateRequests = computed(() => requestsStore.requests.filter((r) => r.mediaType === 'private'));
 
@@ -348,6 +362,7 @@ const replaceTarget = ref<DownloadRequest | null>(null);
 const diskInfo = ref<DiskInfo | null>(null);
 
 const activeStreamsShelfRef = ref<InstanceType<typeof ActiveStreamsShelf> | null>(null);
+const activeWatchPartiesShelfRef = ref<InstanceType<typeof ActiveWatchPartiesShelf> | null>(null);
 const discoveryFeedRef = ref<InstanceType<typeof DiscoveryFeed> | null>(null);
 
 const streamPlayback = useStreamPlayback({
@@ -356,26 +371,12 @@ const streamPlayback = useStreamPlayback({
 });
 
 const {
+  activeTab, setActiveTab, refreshCurrentTab,
   showSubtitleModal, subtitleTarget, openSubtitlePicker, showRedownloadModal,
   redownloadTarget, openRedownloadModal, handleRedownloaded, itemToDelete,
   isDeleting, executeDelete, handleToggleKeep, retryingId, handleRetry,
   transcribingId, handleTranscribe,
 } = useDashboardActions();
-
-function setActiveTab(tab: 'active' | 'deleted') {
-  activeTab.value = tab;
-  if (tab === 'deleted' && requestsStore.deletedRequests.length === 0) {
-    requestsStore.fetchDeleted();
-  }
-}
-
-function refreshCurrentTab() {
-  if (activeTab.value === 'deleted') {
-    requestsStore.fetchDeleted();
-  } else {
-    requestsStore.fetchAll();
-  }
-}
 
 onMounted(async () => {
   featureFlags.ensureFlagsLoaded();
