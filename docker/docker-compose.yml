@@ -180,6 +180,24 @@ services:
     volumes:
       - ./config/prowlarr:/config
 
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: mdm-wireguard
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-UTC}
+    volumes:
+      - ./config/wireguard:/config
+    depends_on:
+      - jellyfin
+
   # Caddy acts as a reverse proxy / TLS terminator for Jellyfin ONLY.
   # The Fastify API continues to be exposed via the cloudflared tunnel above.
   # Caddy obtains and auto-renews a free Let's Encrypt certificate for JELLYFIN_DOMAIN.

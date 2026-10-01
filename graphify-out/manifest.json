@@ -738,9 +738,9 @@
     "semantic_hash": ""
   },
   "apps/watcher/src/app.ts": {
-    "mtime": 1790711168.5081387,
-    "seen": 1790711319.6803868,
-    "ast_hash": "6a141e2cd7e5893e7b9b8f3d27a17a98",
+    "mtime": 1790717002.49029,
+    "seen": 1790886448.491321,
+    "ast_hash": "643257f708eaddef4633fd22a8c835a2",
     "semantic_hash": ""
   },
   "apps/watcher/src/db/index.ts": {
@@ -780,10 +780,10 @@
     "semantic_hash": "e49770af0e65b82f64108d161b232e6a"
   },
   "apps/watcher/src/jobs/autoDownloadSubmitter.ts": {
-    "mtime": 1789288380.2176163,
-    "seen": 1789780156.9478219,
-    "ast_hash": "8d469221b09df675bed2eb9d1f087d30",
-    "semantic_hash": "8d469221b09df675bed2eb9d1f087d30"
+    "mtime": 1790719310.6516182,
+    "seen": 1790886448.4944398,
+    "ast_hash": "f7300b3b2b7f6cc15f6f887e3a35c49e",
+    "semantic_hash": ""
   },
   "apps/watcher/src/jobs/watcherPoller.ts": {
     "mtime": 1790686659.7530327,
@@ -1314,9 +1314,9 @@
     "semantic_hash": "a831cf3669f1e6ab85d8a80ebe655f99"
   },
   "CONTEXT.md": {
-    "mtime": 1790709657.2918737,
-    "seen": 1790710652.3051255,
-    "ast_hash": "b7f4d65ade88bee10be33dad891d39ee",
+    "mtime": 1790871950.6901643,
+    "seen": 1790886448.6495821,
+    "ast_hash": "2fd843e28d045f8f90ffea02b5252d97",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1344,9 +1344,9 @@
     "semantic_hash": ""
   },
   "docker/docker-compose.yml": {
-    "mtime": 1790139736.7681634,
-    "seen": 1790140235.7735057,
-    "ast_hash": "13616d0d0b4b9fa809d17e01f01cbe90",
+    "mtime": 1790886928.780049,
+    "seen": 1790887687.7450736,
+    "ast_hash": "eeebc992e63c9ab0c05fbc4c7c50953b",
     "semantic_hash": ""
   },
   "docs/adr/0001-jellyfin-as-auth-source-of-truth.md": {
@@ -2838,9 +2838,9 @@
     "semantic_hash": ""
   },
   "apps/watcher/src/routes/waitlist/actions.ts": {
-    "mtime": 1790710932.6975043,
-    "seen": 1790711319.685594,
-    "ast_hash": "421dc95e09c0354fe3b12a3d8b565ec8",
+    "mtime": 1790719271.0745723,
+    "seen": 1790886448.495484,
+    "ast_hash": "4b9981638c4916aa99103728b4ad432d",
     "semantic_hash": ""
   },
   "apps/watcher/src/routes/waitlist/create.ts": {
@@ -2904,15 +2904,39 @@
     "semantic_hash": ""
   },
   "apps/watcher/src/services/episodicWaterfall.ts": {
-    "mtime": 1790710865.123469,
-    "seen": 1790711319.6871219,
-    "ast_hash": "04a48d414a7153c30188d080a3826ff3",
+    "mtime": 1790720731.706163,
+    "seen": 1790886448.5029054,
+    "ast_hash": "d4153465ab1cbea2a54a1fb2eeafae39",
     "semantic_hash": ""
   },
   "apps/watcher/tests/episodic_waterfall.test.ts": {
-    "mtime": 1790710890.0276532,
-    "seen": 1790711319.693825,
-    "ast_hash": "8a1d1d62595706bc2eb9cc040e640f67",
+    "mtime": 1790721050.9222164,
+    "seen": 1790886448.5097,
+    "ast_hash": "a02473cb2d72a1df51ee8ec0dd510893",
+    "semantic_hash": ""
+  },
+  "docs/adr/0025-watch-party-syncplay-integration.md": {
+    "mtime": 1790871967.4715729,
+    "seen": 1790886448.6684115,
+    "ast_hash": "1aabf4578733be08a7e2beb9ef94cd31",
+    "semantic_hash": ""
+  },
+  "docs/adr/0026-oracle-vps-wireguard-relay-for-jellyfin.md": {
+    "mtime": 1790880723.961351,
+    "seen": 1790886448.6684115,
+    "ast_hash": "c5cfa9ee234d0a564a2c4c92d83eaac1",
+    "semantic_hash": ""
+  },
+  "docs/spec/oracle-vps-wireguard-relay.md": {
+    "mtime": 1790880298.7659817,
+    "seen": 1790886448.6799543,
+    "ast_hash": "5e3ff1bf4c30d3b749101b3c46e43e6d",
+    "semantic_hash": ""
+  },
+  "docs/spec/watch-party-syncplay-integration.md": {
+    "mtime": 1790872271.2146747,
+    "seen": 1790886448.6914423,
+    "ast_hash": "bba670d0aba344d605a1ef7f8137dc99",
     "semantic_hash": ""
   }
 }
