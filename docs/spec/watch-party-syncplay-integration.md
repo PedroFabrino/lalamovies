@@ -167,5 +167,35 @@ Integrate a **Watch Party Launch Bridge** backed by Jellyfin Server's native **S
 
 ---
 
+## UI Creation & Launch Bridge Addendum
+
+### 1. UI Entry Points & Discoverability
+- **Active Ephemeral Streams Shelf (`ActiveStreamsShelf.vue`)**:
+  - Each ready stream card (`stream.status === 'ready'`) includes a `"🎉 Party"` button alongside `"▶ Watch"` and `"💾 Promote"`.
+  - Clicking pre-populates `CreateWatchPartyModal` with the stream's title, Jellyfin item ID, and poster URL.
+- **Active Watch Parties Shelf (`ActiveWatchPartiesShelf.vue`)**:
+  - When `parties.length === 0`: Displays a slim purple call-to-action banner:
+    `"🎉 Watch Parties: Watch movies & series in real-time sync with friends. [Host a Watch Party]"`
+  - When `parties.length > 0`: Displays the active parties grid with a `"+ Host Party"` button in the shelf header.
+- **Dashboard Top Action Bar (`DashboardView.vue`)**:
+  - A primary `"🎉 Host Watch Party"` button next to `"Add Request"` when `featureFlags.isEnabled('watch_parties')`.
+
+### 2. Media Selection & Creation Modal (`CreateWatchPartyModal.vue`)
+- **Pre-Selected Media Mode**:
+  - Displays media poster, title, and metadata preview card when triggered with an item.
+- **Generic Launch Mode**:
+  - Automatically loads and displays a selection dropdown of currently **Ready Ephemeral Streams** (`GET /streams`) and **Recent Completed Downloads** (`GET /requests` with completed status and Jellyfin items).
+  - Includes a **Manual Item ID** fallback mode allowing manual entry of any Jellyfin Item ID/URL, Title, and Media Type.
+- **Playback Control Mode**: Radio selection between **Democratic (👥)** and **Host Only (👑)**.
+
+### 3. Immediate Post-Creation Player Handoff
+- Submitting `"Launch Party"`:
+  1. Calls `POST /watch-parties`.
+  2. Opens Jellyfin in a new browser tab directly to the synchronized media (`/web/index.html#!/item?id=<jellyfinItemId>`).
+  3. Displays the **SyncPlay Guidance Modal** showing the room name (`🎉 Watch Party: <Title>`) and instructing the host to tap the 👥 SyncPlay icon.
+  4. Triggers shelf refresh so other users see the room immediately.
+
+---
+
 ## Further Notes
 - Users already authenticate via Jellyfin credentials (`/login`), ensuring 1:1 mapping between MDM user identities and Jellyfin user sessions.
