@@ -96,79 +96,18 @@
     </div>
 
     <!-- Join Bridge & SyncPlay Guidance Modal -->
-    <div
-      v-if="selectedParty"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-      data-testid="syncplay-bridge-modal"
-    >
-      <div
-        class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150"
-      >
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <span class="text-2xl">👥</span>
-            <h3 class="text-lg font-bold text-white tracking-tight">
-              Connect to SyncPlay
-            </h3>
-          </div>
-          <button
-            type="button"
-            class="text-zinc-400 hover:text-white p-1 rounded-lg transition cursor-pointer"
-            @click="selectedParty = null"
-          >
-            ✕
-          </button>
-        </div>
-
-        <div class="bg-purple-950/30 border border-purple-800/50 p-4 rounded-xl space-y-2">
-          <div class="text-xs text-purple-300 font-bold uppercase tracking-wider">
-            Target SyncPlay Room
-          </div>
-          <div class="text-sm font-semibold text-white">
-            {{ selectedParty.jellyfinGroupName }}
-          </div>
-          <div class="text-xs text-zinc-400">
-            Now watching: <span class="text-zinc-200 font-medium">{{ selectedParty.title }}</span>
-          </div>
-        </div>
-
-        <div class="space-y-3 text-xs text-zinc-300">
-          <div class="font-semibold text-white">
-            Quick 2-step setup in Jellyfin:
-          </div>
-          <ol class="list-decimal list-inside space-y-1.5 text-zinc-400">
-            <li>We'll open Jellyfin directly to this media item.</li>
-            <li>In the playback controls or top bar, tap the <strong>SyncPlay (👥)</strong> icon and select <strong class="text-purple-300">{{ selectedParty.jellyfinGroupName }}</strong>.</li>
-          </ol>
-        </div>
-
-        <div class="flex items-center justify-end gap-3 pt-2">
-          <button
-            type="button"
-            class="px-4 py-2 text-sm text-zinc-400 hover:text-white transition cursor-pointer"
-            @click="selectedParty = null"
-          >
-            Done
-          </button>
-          <a
-            :href="getJellyfinLaunchUrl(selectedParty)"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="px-5 py-2 text-sm font-semibold rounded-xl bg-purple-600 hover:bg-purple-500 text-white transition cursor-pointer flex items-center gap-2 shadow-lg shadow-purple-600/20"
-            @click="selectedParty = null"
-          >
-            <span>Launch in Jellyfin</span>
-            <span>↗</span>
-          </a>
-        </div>
-      </div>
-    </div>
+    <SyncPlayBridgeModal
+      :open="!!selectedParty"
+      :party="selectedParty"
+      @close="selectedParty = null"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { api } from '../lib/api';
+import SyncPlayBridgeModal from './SyncPlayBridgeModal.vue';
 
 export interface WatchParty {
   id: string;
@@ -192,11 +131,6 @@ export interface WatchParty {
 const parties = ref<WatchParty[]>([]);
 const loading = ref(false);
 const selectedParty = ref<WatchParty | null>(null);
-
-function getJellyfinLaunchUrl(party: WatchParty): string {
-  // Try using Jellyfin public URL or relative path to item details
-  return `#!/details?id=${party.jellyfinItemId}`;
-}
 
 function openJoinModal(party: WatchParty) {
   selectedParty.value = party;

@@ -74,6 +74,16 @@
               <span>Watch</span>
             </a>
             <button
+              v-if="stream.status === 'ready' && featureFlags.isEnabled('watch_parties')"
+              type="button"
+              class="px-3 py-1.5 bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/40 text-xs font-medium rounded-lg transition flex items-center gap-1 cursor-pointer"
+              data-testid="button-party-stream"
+              @click="openPartyModal(stream)"
+            >
+              <span>🎉</span>
+              <span>Party</span>
+            </button>
+            <button
               type="button"
               class="px-3 py-1.5 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 text-xs font-medium rounded-lg transition flex items-center gap-1 cursor-pointer"
               data-testid="button-promote-stream"
@@ -109,6 +119,21 @@
         </div>
       </div>
     </div>
+
+    <!-- Create Watch Party Modal -->
+    <CreateWatchPartyModal
+      :open="showPartyModal"
+      :item="partyItem"
+      @close="showPartyModal = false"
+      @created="handlePartyCreated"
+    />
+
+    <!-- SyncPlay Guidance Modal -->
+    <SyncPlayBridgeModal
+      :open="showBridgeGuide"
+      :party="createdParty"
+      @close="showBridgeGuide = false"
+    />
   </div>
 </template>
 
@@ -116,6 +141,10 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { api } from '../lib/api';
 import { useAuthStore } from '../stores/auth';
+import { useFeatureFlags } from '../composables/useFeatureFlags';
+import CreateWatchPartyModal, { type WatchPartyMediaItem } from './CreateWatchPartyModal.vue';
+import SyncPlayBridgeModal from './SyncPlayBridgeModal.vue';
+import type { WatchParty } from './ActiveWatchPartiesShelf.vue';
 
 export interface EphemeralStreamItem {
   id: string;
@@ -133,11 +162,37 @@ export interface EphemeralStreamItem {
 const emit = defineEmits<{
   (e: 'promote', stream: { id: string; title: string }): void;
   (e: 'evicted', streamId: string): void;
+  (e: 'partyCreated', party: WatchParty): void;
 }>();
 
 const authStore = useAuthStore();
+const featureFlags = useFeatureFlags();
 const streams = ref<EphemeralStreamItem[]>([]);
 const loading = ref(false);
+
+const showPartyModal = ref(false);
+const partyItem = ref<WatchPartyMediaItem | null>(null);
+const createdParty = ref<WatchParty | null>(null);
+const showBridgeGuide = ref(false);
+
+function openPartyModal(stream: EphemeralStreamItem) {
+  partyItem.value = {
+    jellyfinItemId: stream.jellyfinItemId || '',
+    title: stream.title,
+    mediaType: 'movie',
+  };
+  showPartyModal.value = true;
+}
+
+function handlePartyCreated(party: WatchParty) {
+  showPartyModal.value = false;
+  createdParty.value = party;
+  showBridgeGuide.value = true;
+  if (party.jellyfinItemId) {
+    window.open(`#!/details?id=${party.jellyfinItemId}`, '_blank');
+  }
+  emit('partyCreated', party);
+}
 
 function formatTtl(seconds: number): string {
   if (seconds <= 0) return 'Expired';

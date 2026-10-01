@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import ActiveStreamsShelf from '../src/components/ActiveStreamsShelf.vue';
 import { api } from '../src/lib/api';
@@ -169,5 +169,133 @@ describe('ActiveStreamsShelf.vue (#47 Stories 13, 14, 15)', () => {
     await flushPromises();
 
     expect(wrapper.find('[data-testid="button-evict-stream"]').exists()).toBe(false);
+  });
+
+  it('renders party button on ready streams when watch_parties is enabled and opens modal', async () => {
+    const { useFeatureFlags } = await import('../src/composables/useFeatureFlags');
+    const ff = useFeatureFlags();
+    ff.setFlag('watch_parties', true);
+
+    vi.mocked(api.get).mockResolvedValueOnce({
+      streams: [
+        {
+          id: 'stream-1',
+          userId: 'user-1',
+          debridTorrentId: 'rd-1',
+          magnetLink: 'magnet:?xt=urn:btih:abc',
+          title: 'Dune: Part Two 2024',
+          status: 'ready',
+          expiresAt: new Date(Date.now() + 7200 * 1000).toISOString(),
+          jellyfinItemId: 'jf-item-456',
+          timeRemainingSeconds: 7200,
+        },
+      ],
+    });
+
+    const wrapper = mount(ActiveStreamsShelf);
+    await flushPromises();
+
+    const partyBtn = wrapper.find('[data-testid="button-party-stream"]');
+    expect(partyBtn.exists()).toBe(true);
+    expect(partyBtn.text()).toContain('Party');
+
+    // Click party button
+    await partyBtn.trigger('click');
+    await flushPromises();
+
+    // Modal should be open
+    const modal = wrapper.find('[data-testid="create-watch-party-modal"]');
+    expect(modal.exists()).toBe(true);
+    expect(modal.text()).toContain('Dune: Part Two 2024');
+  });
+
+  it('hides party button when watch_parties is disabled', async () => {
+    const { useFeatureFlags } = await import('../src/composables/useFeatureFlags');
+    const ff = useFeatureFlags();
+    ff.setFlag('watch_parties', false);
+
+    vi.mocked(api.get).mockResolvedValueOnce({
+      streams: [
+        {
+          id: 'stream-1',
+          userId: 'user-1',
+          debridTorrentId: 'rd-1',
+          magnetLink: 'magnet:?xt=urn:btih:abc',
+          title: 'Dune: Part Two 2024',
+          status: 'ready',
+          expiresAt: new Date(Date.now() + 7200 * 1000).toISOString(),
+          jellyfinItemId: 'jf-item-456',
+          timeRemainingSeconds: 7200,
+        },
+      ],
+    });
+
+    const wrapper = mount(ActiveStreamsShelf);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="button-party-stream"]').exists()).toBe(false);
+  });
+
+  it('handles watch party launch handoff and renders syncplay bridge modal', async () => {
+    const { useFeatureFlags } = await import('../src/composables/useFeatureFlags');
+    const ff = useFeatureFlags();
+    ff.setFlag('watch_parties', true);
+
+    const windowSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+    vi.mocked(api.get).mockResolvedValueOnce({
+      streams: [
+        {
+          id: 'stream-1',
+          userId: 'user-1',
+          debridTorrentId: 'rd-1',
+          magnetLink: 'magnet:?xt=urn:btih:abc',
+          title: 'Dune: Part Two 2024',
+          status: 'ready',
+          expiresAt: new Date(Date.now() + 7200 * 1000).toISOString(),
+          jellyfinItemId: 'jf-item-456',
+          timeRemainingSeconds: 7200,
+        },
+      ],
+    });
+
+    vi.mocked(api.post).mockResolvedValueOnce({
+      watchParty: {
+        id: 'party-stream-1',
+        hostUserId: 'user-1',
+        hostUsername: 'alice',
+        jellyfinGroupId: 'grp-1',
+        jellyfinGroupName: '🎉 Watch Party: Dune: Part Two 2024',
+        mediaType: 'movie',
+        jellyfinItemId: 'jf-item-456',
+        title: 'Dune: Part Two 2024',
+        controlMode: 'everyone',
+        status: 'active',
+      },
+    });
+
+    const wrapper = mount(ActiveStreamsShelf);
+    await flushPromises();
+
+    // Open modal
+    await wrapper.find('[data-testid="button-party-stream"]').trigger('click');
+    await flushPromises();
+
+    // Click Launch Party
+    const launchBtn = wrapper.find('[data-testid="create-watch-party-modal"] button.bg-purple-600');
+    await launchBtn.trigger('click');
+    await flushPromises();
+
+    // Window opened to Jellyfin details
+    expect(windowSpy).toHaveBeenCalledWith('#!/details?id=jf-item-456', '_blank');
+
+    // Bridge modal displayed
+    expect(wrapper.find('[data-testid="syncplay-bridge-modal"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('🎉 Watch Party: Dune: Part Two 2024');
+
+    // Emitted partyCreated
+    expect(wrapper.emitted('partyCreated')).toBeTruthy();
+
+    windowSpy.mockRestore();
   });
 });
