@@ -50,6 +50,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, requiresFeature: 'seasonal_anime' },
   },
   {
+    path: '/party/:id',
+    name: 'party',
+    component: () => import('../views/PartyView.vue'),
+    meta: { requiresAuth: true, requiresFeature: 'watch_parties' },
+  },
+  {
     path: '/admin',
     name: 'admin',
     component: () => import('../views/AdminView.vue'),
@@ -82,11 +88,13 @@ router.beforeEach(async (to, _from, next) => {
   const isAuthenticated = authStore.isAuthenticated;
 
   if (to.meta.requiresAuth && !isAuthenticated) {
-    return next({ name: 'login' });
+    const redirect = to.fullPath && to.fullPath !== '/' && to.fullPath !== '/dashboard' ? to.fullPath : undefined;
+    return next({ name: 'login', query: redirect ? { redirect } : undefined });
   }
 
   if (to.meta.guestOnly && isAuthenticated) {
-    return next({ name: 'dashboard' });
+    const redirect = (to.query.redirect as string) || '/dashboard';
+    return next(redirect);
   }
 
   if (to.meta.requiresAdmin && !authStore.isAdmin) {

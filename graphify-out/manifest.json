@@ -1050,9 +1050,9 @@
     "semantic_hash": "09279288afe5d204e896caec3423ed5c"
   },
   "apps/web/src/router/index.ts": {
-    "mtime": 1790182155.854145,
-    "seen": 1790182625.591454,
-    "ast_hash": "11686bd2b8acfc490b4172a76db43e7c",
+    "mtime": 1790902430.2169106,
+    "seen": 1790902548.15017,
+    "ast_hash": "f5918a9190af87ab2304367bdc5be83b",
     "semantic_hash": ""
   },
   "apps/web/src/stores/auth.ts": {
@@ -1116,10 +1116,10 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/LoginView.vue": {
-    "mtime": 1788537676.1108656,
-    "seen": 1789780156.9478219,
-    "ast_hash": "88aafd5fefac129d40beef06b64dc9d6",
-    "semantic_hash": "88aafd5fefac129d40beef06b64dc9d6"
+    "mtime": 1790902416.861137,
+    "seen": 1790902548.1542592,
+    "ast_hash": "0a39e2d3b86330be35e267966c237001",
+    "semantic_hash": ""
   },
   "apps/web/src/views/RequestView.vue": {
     "mtime": 1790583884.952485,
@@ -2994,9 +2994,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/ActiveWatchPartiesShelf.vue": {
-    "mtime": 1790896205.898837,
-    "seen": 1790896577.6588247,
-    "ast_hash": "9334d9c9f9af9799574a17f4c84657b3",
+    "mtime": 1790902399.0005405,
+    "seen": 1790902548.126997,
+    "ast_hash": "494547a19ce16f2bff688d9125ee255b",
     "semantic_hash": ""
   },
   "apps/web/src/components/CreateWatchPartyModal.vue": {
@@ -3057,6 +3057,18 @@
     "mtime": 1790901407.2347333,
     "seen": 1790902246.2620718,
     "ast_hash": "129629dadef81f865b209caf3f214f42",
+    "semantic_hash": ""
+  },
+  "apps/web/src/views/PartyView.vue": {
+    "mtime": 1790902407.465487,
+    "seen": 1790902548.1542592,
+    "ast_hash": "0862005ed475c0fe1271ebcbcba0bd4b",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/PartyView.test.ts": {
+    "mtime": 1790902467.96864,
+    "seen": 1790902548.1737487,
+    "ast_hash": "c228e0ba996a7df08a8adab0a49bd3c6",
     "semantic_hash": ""
   }
 }

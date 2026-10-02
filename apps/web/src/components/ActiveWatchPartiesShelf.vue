@@ -177,6 +177,8 @@ export interface WatchParty {
   posterUrl?: string;
   controlMode: 'everyone' | 'host_only';
   status: 'active' | 'ended';
+  jellyfinWebUrl?: string;
+  historyJson?: string;
   createdAt: string;
 }
 

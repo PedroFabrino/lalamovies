@@ -107,11 +107,12 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { ApiError } from '../lib/api';
 
 const router = useRouter();
+const route = useRoute();
 const authStore = useAuthStore();
 
 const username = ref('');
@@ -127,7 +128,8 @@ async function handleLogin() {
 
   try {
     await authStore.login(username.value, password.value);
-    router.push('/dashboard');
+    const redirect = (route.query.redirect as string) || '/dashboard';
+    router.push(redirect);
   } catch (err) {
     if (err instanceof ApiError) {
       errorMessage.value = err.message;
