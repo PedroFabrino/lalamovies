@@ -225,6 +225,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { api } from '../lib/api';
+import { useFeatureFlags } from '../composables/useFeatureFlags';
 import type { WatchParty } from './ActiveWatchPartiesShelf.vue';
 
 export interface WatchPartyMediaItem {
@@ -256,6 +257,8 @@ const emit = defineEmits<{
   (e: 'created', party: WatchParty): void;
 }>();
 
+const featureFlags = useFeatureFlags();
+
 const controlMode = ref<'everyone' | 'host_only'>('everyone');
 const submitting = ref(false);
 const errorMessage = ref<string | null>(null);
@@ -270,13 +273,17 @@ const availableOptions = ref<GenericOption[]>([]);
 async function loadGenericOptions() {
   if (props.item) return;
   try {
+    const fetchStreams = featureFlags.isEnabled('streaming')
+      ? api.get<{ streams?: Array<{ title: string; status: string; jellyfinItemId?: string }> }>('/streams').catch(() => ({ streams: [] }))
+      : Promise.resolve({ streams: [] });
+
     const [streamsRes, requestsRes] = await Promise.all([
-      api.get<{ streams?: Array<{ title: string; status: string; jellyfinItemId?: string }> }>('/streams').catch(() => ({ streams: [] })),
+      fetchStreams,
       api.get<{ requests?: Array<{ id?: string; title: string; status: string; mediaType?: string; jellyfinItemId?: string; jellyfinPath?: string }> }>('/requests').catch(() => ({ requests: [] })),
     ]);
 
     const opts: GenericOption[] = [];
-    if (streamsRes?.streams) {
+    if (featureFlags.isEnabled('streaming') && streamsRes?.streams) {
       for (const s of streamsRes.streams) {
         if (s.status === 'ready' && s.jellyfinItemId) {
           opts.push({

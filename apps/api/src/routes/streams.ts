@@ -38,14 +38,15 @@ async function streamsAuth(request: FastifyRequest, reply: FastifyReply) {
 }
 
 async function forwardToStreamer(request: FastifyRequest, reply: FastifyReply, subpath: string) {
-  if (request.method === 'POST' && subpath === '') {
-    if (!isFeatureEnabled(request.server.db, 'streaming')) {
-      return reply.status(503).send({
-        error: 'FEATURE_DISABLED',
-        code: 'FEATURE_DISABLED',
-        message: "Feature 'streaming' is temporarily disabled",
-      });
+  if (!isFeatureEnabled(request.server.db, 'streaming')) {
+    if (request.method === 'GET' && subpath === '') {
+      return reply.send({ streams: [] });
     }
+    return reply.status(503).send({
+      error: 'FEATURE_DISABLED',
+      code: 'FEATURE_DISABLED',
+      message: "Feature 'streaming' is temporarily disabled",
+    });
   }
 
   const streamerUrl = request.server.streamerUrl || process.env.STREAMER_URL;

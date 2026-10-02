@@ -208,4 +208,60 @@ describe('CreateWatchPartyModal.vue (#204)', () => {
     );
     expect(wrapper.emitted('created')).toBeTruthy();
   });
+
+  it('omits streams from media dropdown when streaming feature flag is disabled', async () => {
+    const { useFeatureFlags } = await import('../src/composables/useFeatureFlags');
+    const ff = useFeatureFlags();
+    ff.setFlag('streaming', false);
+
+    vi.mocked(api.get = vi.fn()).mockImplementation((url: string) => {
+      if (url === '/streams') {
+        return Promise.resolve({
+          streams: [
+            {
+              id: 'st-1',
+              title: 'Spirited Away',
+              status: 'ready',
+              jellyfinItemId: 'jf-stream-10',
+            },
+          ],
+        });
+      }
+      if (url === '/requests') {
+        return Promise.resolve({
+          requests: [
+            {
+              id: 'req-1',
+              title: "Howl's Moving Castle",
+              status: 'completed',
+              jellyfinPath: '/media/movies/Howls.Moving.Castle.2004',
+              mediaType: 'movie',
+            },
+          ],
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    const wrapper = mount(CreateWatchPartyModal, {
+      props: {
+        open: true,
+        item: null,
+      },
+    });
+    await flushPromises();
+
+    // /streams should NOT have been fetched
+    expect(api.get).not.toHaveBeenCalledWith('/streams');
+
+    // Dropdown should only contain library items, not streams
+    const select = wrapper.find('select[data-testid="media-select"]');
+    expect(select.exists()).toBe(true);
+    const options = select.findAll('option');
+    expect(options.some((o) => o.text().includes('Spirited Away'))).toBe(false);
+    expect(options.some((o) => o.text().includes("Howl's Moving Castle"))).toBe(true);
+
+    // Reset flag for other tests
+    ff.setFlag('streaming', true);
+  });
 });

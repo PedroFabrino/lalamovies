@@ -279,6 +279,25 @@ describe('Feature Flags Foundation (Subtask #85)', () => {
     expect(body.message).toContain('streaming');
   });
 
+  it('GET /streams returns empty streams array when streaming flag is false', async () => {
+    app.db
+      .update(featureFlags)
+      .set({ enabled: false })
+      .where(require('drizzle-orm').eq(featureFlags.id, 'streaming'))
+      .run();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/streams',
+      headers: {
+        authorization: `Bearer ${userToken}`,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ streams: [] });
+  });
+
   it('POST /requests returns HTTP 503 FEATURE_DISABLED when manual_torrents is false (Subtask #91)', async () => {
     app.db
       .update(featureFlags)
