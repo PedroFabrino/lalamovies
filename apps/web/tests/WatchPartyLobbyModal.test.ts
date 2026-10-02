@@ -107,4 +107,30 @@ describe('WatchPartyLobbyModal.vue (#205)', () => {
 
     expect(wrapper.emitted('mediaSwitched')).toBeTruthy();
   });
+
+  it('renders canonical Jellyfin launch link and TV AirPlay guidance (#216)', () => {
+    const partyWithCanonicalUrl = {
+      ...baseParty,
+      jellyfinWebUrl: 'https://watch.lalamovies.stream/web/index.html#!/details?id=jf-item-1',
+    };
+
+    const wrapper = mount(WatchPartyLobbyModal, {
+      props: {
+        open: true,
+        party: partyWithCanonicalUrl,
+      },
+    });
+
+    const launchLink = wrapper.find('[data-testid="lobby-launch-btn"]');
+    expect(launchLink.exists()).toBe(true);
+    expect(launchLink.attributes('href')).toBe('https://watch.lalamovies.stream/web/index.html#!/details?id=jf-item-1');
+
+    const tvGuidance = wrapper.find('[data-testid="lobby-tv-guidance"]');
+    expect(tvGuidance.exists()).toBe(true);
+    expect(tvGuidance.text()).toContain('Watching on Apple TV or Smart TV?');
+
+    const tvAirplayBtn = wrapper.find('[data-testid="lobby-tv-airplay-btn"]');
+    expect(tvAirplayBtn.exists()).toBe(true);
+    expect(tvAirplayBtn.attributes('href')).toBe('https://watch.lalamovies.stream/web/index.html#!/details?id=jf-item-1');
+  });
 });

@@ -188,8 +188,9 @@ function handlePartyCreated(party: WatchParty) {
   showPartyModal.value = false;
   createdParty.value = party;
   showBridgeGuide.value = true;
-  if (party.jellyfinItemId) {
-    window.open(`#!/details?id=${party.jellyfinItemId}`, '_blank');
+  const launchUrl = party.jellyfinWebUrl || (party.jellyfinItemId ? `https://watch.lalamovies.stream/web/index.html#!/details?id=${party.jellyfinItemId}` : '');
+  if (launchUrl) {
+    window.open(launchUrl, '_blank');
   }
   emit('partyCreated', party);
 }

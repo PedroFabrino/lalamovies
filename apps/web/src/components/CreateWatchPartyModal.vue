@@ -187,10 +187,46 @@
         </div>
       </div>
 
+      <!-- In-Modal Re-Authentication Prompt (#216) -->
+      <div
+        v-if="needsReauth"
+        class="bg-purple-950/40 border border-purple-800/80 rounded-xl p-3.5 space-y-2.5 animate-in fade-in"
+        data-testid="reauth-prompt"
+      >
+        <div class="flex items-center gap-2 text-xs font-bold text-purple-200">
+          <span>🔐</span>
+          <span>Jellyfin Re-Authentication Required</span>
+        </div>
+        <p class="text-[11px] text-zinc-300 leading-relaxed">
+          Hosting a SyncPlay party requires active media server credentials. Enter your Jellyfin password to authorize without logging out:
+        </p>
+        <div class="flex gap-2">
+          <input
+            v-model="reauthPassword"
+            type="password"
+            placeholder="Jellyfin password"
+            class="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
+            data-testid="reauth-password-input"
+            :disabled="reauthSubmitting"
+            @keyup.enter="handleReauth"
+          >
+          <button
+            type="button"
+            class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold rounded-lg disabled:opacity-50 transition cursor-pointer"
+            data-testid="reauth-submit-btn"
+            :disabled="!reauthPassword || reauthSubmitting"
+            @click="handleReauth"
+          >
+            <span>{{ reauthSubmitting ? 'Verifying...' : 'Authorize' }}</span>
+          </button>
+        </div>
+      </div>
+
       <!-- Error message -->
       <p
         v-if="errorMessage"
         class="text-xs text-red-400 bg-red-950/40 p-2.5 rounded-lg border border-red-900/60"
+        data-testid="create-party-error"
       >
         {{ errorMessage }}
       </p>
@@ -200,7 +236,7 @@
         <button
           type="button"
           class="px-4 py-2 text-sm text-zinc-400 hover:text-white transition cursor-pointer"
-          :disabled="submitting"
+          :disabled="submitting || reauthSubmitting"
           @click="emit('close')"
         >
           Cancel
@@ -208,7 +244,8 @@
         <button
           type="button"
           class="px-5 py-2 text-sm font-semibold rounded-xl bg-purple-600 hover:bg-purple-500 text-white transition cursor-pointer disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-purple-600/20"
-          :disabled="submitting"
+          :disabled="submitting || reauthSubmitting"
+          data-testid="launch-party-submit-btn"
           @click="handleCreate"
         >
           <span
@@ -223,29 +260,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { api } from '../lib/api';
-import { useFeatureFlags } from '../composables/useFeatureFlags';
+import { useCreateWatchParty, type WatchPartyMediaItem } from '../composables/useCreateWatchParty';
 import type { WatchParty } from './ActiveWatchPartiesShelf.vue';
-
-export interface WatchPartyMediaItem {
-  jellyfinItemId: string;
-  title: string;
-  mediaType: string;
-  metadataId?: string;
-  year?: number;
-  seasonNumber?: number;
-  episodeNumber?: number;
-  posterUrl?: string;
-}
-
-interface GenericOption {
-  label: string;
-  jellyfinItemId: string;
-  title: string;
-  mediaType: string;
-  posterUrl?: string;
-}
 
 const props = defineProps<{
   open: boolean;
@@ -257,130 +273,22 @@ const emit = defineEmits<{
   (e: 'created', party: WatchParty): void;
 }>();
 
-const featureFlags = useFeatureFlags();
+const {
+  controlMode,
+  submitting,
+  errorMessage,
+  isManualEntry,
+  selectedItemId,
+  manualTitle,
+  manualItemId,
+  manualMediaType,
+  availableOptions,
+  needsReauth,
+  reauthPassword,
+  reauthSubmitting,
+  handleCreate,
+  handleReauth,
+} = useCreateWatchParty(props, emit);
 
-const controlMode = ref<'everyone' | 'host_only'>('everyone');
-const submitting = ref(false);
-const errorMessage = ref<string | null>(null);
-
-const isManualEntry = ref(false);
-const selectedItemId = ref('');
-const manualTitle = ref('');
-const manualItemId = ref('');
-const manualMediaType = ref<'movie' | 'tv_show' | 'anime'>('movie');
-const availableOptions = ref<GenericOption[]>([]);
-
-async function loadGenericOptions() {
-  if (props.item) return;
-  try {
-    const fetchStreams = featureFlags.isEnabled('streaming')
-      ? api.get<{ streams?: Array<{ title: string; status: string; jellyfinItemId?: string }> }>('/streams').catch(() => ({ streams: [] }))
-      : Promise.resolve({ streams: [] });
-
-    const [streamsRes, requestsRes] = await Promise.all([
-      fetchStreams,
-      api.get<{ requests?: Array<{ id?: string; title: string; status: string; mediaType?: string; jellyfinItemId?: string; jellyfinPath?: string }> }>('/requests').catch(() => ({ requests: [] })),
-    ]);
-
-    const opts: GenericOption[] = [];
-    if (featureFlags.isEnabled('streaming') && streamsRes?.streams) {
-      for (const s of streamsRes.streams) {
-        if (s.status === 'ready' && s.jellyfinItemId) {
-          opts.push({
-            label: `[Stream] ${s.title}`,
-            jellyfinItemId: s.jellyfinItemId,
-            title: s.title,
-            mediaType: 'movie',
-          });
-        }
-      }
-    }
-    if (requestsRes?.requests) {
-      for (const r of requestsRes.requests) {
-        if ((r.status === 'completed' || r.status === 'seeding') && r.title) {
-          const fallbackId = r.jellyfinItemId || r.id;
-          if (fallbackId) {
-            opts.push({
-              label: `[Library] ${r.title}`,
-              jellyfinItemId: fallbackId,
-              title: r.title,
-              mediaType: r.mediaType || 'movie',
-            });
-          }
-        }
-      }
-    }
-    availableOptions.value = opts;
-    if (opts.length > 0 && !selectedItemId.value) {
-      selectedItemId.value = opts[0].jellyfinItemId;
-    }
-  } catch {
-    availableOptions.value = [];
-  }
-}
-
-watch(
-  () => props.open,
-  (isOpen) => {
-    if (isOpen && !props.item) {
-      loadGenericOptions();
-    }
-  },
-  { immediate: true }
-);
-
-async function handleCreate() {
-  submitting.value = true;
-  errorMessage.value = null;
-
-  let payload: WatchPartyMediaItem | null = null;
-  if (props.item) {
-    payload = { ...props.item };
-  } else if (isManualEntry.value) {
-    if (!manualTitle.value.trim() || !manualItemId.value.trim()) {
-      errorMessage.value = 'Please provide both Title and Jellyfin Item ID.';
-      submitting.value = false;
-      return;
-    }
-    payload = {
-      title: manualTitle.value.trim(),
-      jellyfinItemId: manualItemId.value.trim(),
-      mediaType: manualMediaType.value,
-    };
-  } else {
-    const found = availableOptions.value.find((o) => o.jellyfinItemId === selectedItemId.value);
-    if (!found) {
-      errorMessage.value = 'Please select a media item or enter one manually.';
-      submitting.value = false;
-      return;
-    }
-    payload = {
-      title: found.title,
-      jellyfinItemId: found.jellyfinItemId,
-      mediaType: found.mediaType,
-      posterUrl: found.posterUrl,
-    };
-  }
-
-  try {
-    const res = await api.post<{ watchParty: WatchParty }>('/watch-parties', {
-      jellyfinItemId: payload.jellyfinItemId,
-      title: payload.title,
-      mediaType: payload.mediaType,
-      metadataId: payload.metadataId,
-      year: payload.year,
-      seasonNumber: payload.seasonNumber,
-      episodeNumber: payload.episodeNumber,
-      posterUrl: payload.posterUrl,
-      controlMode: controlMode.value,
-    });
-
-    emit('created', res.watchParty);
-    emit('close');
-  } catch (err: unknown) {
-    errorMessage.value = err instanceof Error ? err.message : 'Failed to create watch party';
-  } finally {
-    submitting.value = false;
-  }
-}
+export type { WatchPartyMediaItem };
 </script>

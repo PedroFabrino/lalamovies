@@ -94,7 +94,7 @@ describe('ActiveWatchPartiesShelf.vue (#204)', () => {
     expect(modal.text()).toContain('🎉 Watch Party: Spirited Away (2001)');
 
     const launchLink = modal.find('a');
-    expect(launchLink.attributes('href')).toBe('#!/details?id=jf-100');
+    expect(launchLink.attributes('href')).toBe('https://watch.lalamovies.stream/web/index.html#!/details?id=jf-100');
   });
 
   it('renders empty-state banner when no parties exist and watch_parties is enabled', async () => {
@@ -177,7 +177,7 @@ describe('ActiveWatchPartiesShelf.vue (#204)', () => {
     await flushPromises();
 
     // Verified Jellyfin window opened
-    expect(windowSpy).toHaveBeenCalledWith('#!/details?id=jf-item-99', '_blank');
+    expect(windowSpy).toHaveBeenCalledWith('https://watch.lalamovies.stream/web/index.html#!/details?id=jf-item-99', '_blank');
 
     // Verified bridge modal opened
     expect(wrapper.find('[data-testid="syncplay-bridge-modal"]').exists()).toBe(true);

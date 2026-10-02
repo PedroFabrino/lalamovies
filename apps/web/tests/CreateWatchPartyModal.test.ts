@@ -1,13 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import CreateWatchPartyModal from '../src/components/CreateWatchPartyModal.vue';
-import { api } from '../src/lib/api';
+import { api, ApiError } from '../src/lib/api';
 
-vi.mock('../src/lib/api', () => ({
-  api: {
-    post: vi.fn(),
-  },
-}));
+vi.mock('../src/lib/api', async () => {
+  const actual = await vi.importActual<typeof import('../src/lib/api')>('../src/lib/api');
+  return {
+    ...actual,
+    api: {
+      get: vi.fn(),
+      post: vi.fn(),
+    },
+  };
+});
 
 describe('CreateWatchPartyModal.vue (#204)', () => {
   beforeEach(() => {
@@ -263,5 +268,55 @@ describe('CreateWatchPartyModal.vue (#204)', () => {
 
     // Reset flag for other tests
     ff.setFlag('streaming', true);
+  });
+
+  it('prompts for password and retries party creation when server returns JELLYFIN_TOKEN_REQUIRED (#216)', async () => {
+    // First call to /watch-parties fails with 403 JELLYFIN_TOKEN_REQUIRED
+    vi.mocked(api.post)
+      .mockRejectedValueOnce(
+        new ApiError('Jellyfin user authentication is required to host a SyncPlay party', 403, {
+          code: 'JELLYFIN_TOKEN_REQUIRED',
+        }),
+      )
+      // Second call to /auth/jellyfin-token succeeds
+      .mockResolvedValueOnce({ ok: true, hasJellyfinToken: true })
+      // Third call to /watch-parties retry succeeds
+      .mockResolvedValueOnce({
+        watchParty: {
+          id: 'party-reauth-1',
+          title: 'Princess Mononoke',
+          jellyfinWebUrl: 'https://watch.lalamovies.stream/web/index.html#!/details?id=jf-item-555',
+        },
+      });
+
+    const wrapper = mount(CreateWatchPartyModal, {
+      props: {
+        open: true,
+        item: mockItem,
+      },
+    });
+
+    // Click Launch Party
+    const launchBtn = wrapper.find('[data-testid="launch-party-submit-btn"]');
+    await launchBtn.trigger('click');
+    await flushPromises();
+
+    // Reauth prompt should be visible
+    const reauthPrompt = wrapper.find('[data-testid="reauth-prompt"]');
+    expect(reauthPrompt.exists()).toBe(true);
+    expect(reauthPrompt.text()).toContain('Jellyfin Re-Authentication Required');
+
+    // Enter password
+    const pwdInput = wrapper.find('[data-testid="reauth-password-input"]');
+    await pwdInput.setValue('mySecretPass');
+
+    // Click Authorize
+    const authBtn = wrapper.find('[data-testid="reauth-submit-btn"]');
+    await authBtn.trigger('click');
+    await flushPromises();
+
+    // Should have posted token and re-created party
+    expect(api.post).toHaveBeenCalledWith('/auth/jellyfin-token', { password: 'mySecretPass' });
+    expect(wrapper.emitted('created')).toBeTruthy();
   });
 });

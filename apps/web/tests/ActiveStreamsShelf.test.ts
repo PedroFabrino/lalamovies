@@ -287,7 +287,7 @@ describe('ActiveStreamsShelf.vue (#47 Stories 13, 14, 15)', () => {
     await flushPromises();
 
     // Window opened to Jellyfin details
-    expect(windowSpy).toHaveBeenCalledWith('#!/details?id=jf-item-456', '_blank');
+    expect(windowSpy).toHaveBeenCalledWith('https://watch.lalamovies.stream/web/index.html#!/details?id=jf-item-456', '_blank');
 
     // Bridge modal displayed
     expect(wrapper.find('[data-testid="syncplay-bridge-modal"]').exists()).toBe(true);

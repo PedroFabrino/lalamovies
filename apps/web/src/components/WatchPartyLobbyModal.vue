@@ -70,17 +70,45 @@
               </p>
             </div>
 
-            <div class="pt-2">
+            <div class="pt-2 flex flex-wrap gap-2">
               <a
-                :href="`#!/details?id=${party.jellyfinItemId}`"
+                :href="getJellyfinLaunchUrl(party)"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-600 hover:bg-purple-500 text-white transition cursor-pointer"
+                data-testid="lobby-launch-btn"
               >
                 <span>Launch in Jellyfin</span>
                 <span>↗</span>
               </a>
             </div>
+          </div>
+        </div>
+
+        <!-- Watching on TV / AirPlay Section (#216) -->
+        <div
+          class="p-3 bg-zinc-950/60 border border-zinc-800 rounded-xl space-y-2"
+          data-testid="lobby-tv-guidance"
+        >
+          <div class="flex items-center gap-2 text-xs font-semibold text-zinc-200">
+            <span>📺</span>
+            <span>Watching on Apple TV or Smart TV?</span>
+          </div>
+          <p class="text-[11px] text-zinc-400 leading-relaxed">
+            TV apps (like Swiftfin) don't support SyncPlay rooms. To sync playback with friends on your big screen, open the web player below and AirPlay or Cast it to your TV.
+          </p>
+          <div>
+            <a
+              :href="getJellyfinLaunchUrl(party)"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg bg-zinc-800 hover:bg-zinc-700 text-purple-300 border border-zinc-700 transition"
+              data-testid="lobby-tv-airplay-btn"
+            >
+              <span>📡</span>
+              <span>Open Web & AirPlay to TV</span>
+              <span>↗</span>
+            </a>
           </div>
         </div>
 
@@ -318,5 +346,13 @@ async function handleManualChangeMedia() {
   } finally {
     switching.value = false;
   }
+}
+
+function getJellyfinLaunchUrl(party: WatchParty): string {
+  if (party.jellyfinWebUrl) {
+    return party.jellyfinWebUrl;
+  }
+  const base = 'https://watch.lalamovies.stream';
+  return party.jellyfinItemId ? `${base}/web/index.html#!/details?id=${party.jellyfinItemId}` : base;
 }
 </script>

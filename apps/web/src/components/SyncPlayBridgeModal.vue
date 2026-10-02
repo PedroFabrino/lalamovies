@@ -48,6 +48,20 @@
         </ol>
       </div>
 
+      <!-- Dedicated Watching on TV / AirPlay Section (#216) -->
+      <div
+        class="p-3 bg-zinc-950/60 border border-zinc-850 rounded-xl space-y-2"
+        data-testid="syncplay-tv-guidance"
+      >
+        <div class="flex items-center gap-2 text-xs font-semibold text-zinc-200">
+          <span>📺</span>
+          <span>Watching on Apple TV or Smart TV?</span>
+        </div>
+        <p class="text-[11px] text-zinc-400 leading-relaxed">
+          TV apps (like Swiftfin) lack SyncPlay support. To watch in sync on your TV, open the web player on your device and AirPlay or Cast playback directly to your TV.
+        </p>
+      </div>
+
       <div class="flex items-center justify-end gap-3 pt-2">
         <button
           type="button"
@@ -61,6 +75,7 @@
           target="_blank"
           rel="noopener noreferrer"
           class="px-5 py-2 text-sm font-semibold rounded-xl bg-purple-600 hover:bg-purple-500 text-white transition cursor-pointer flex items-center gap-2 shadow-lg shadow-purple-600/20"
+          data-testid="syncplay-launch-link"
           @click="emit('close')"
         >
           <span>Launch in Jellyfin</span>
@@ -84,9 +99,10 @@ const emit = defineEmits<{
 }>();
 
 function getJellyfinLaunchUrl(party: WatchParty): string {
-  if (party.jellyfinItemId) {
-    return `#!/details?id=${party.jellyfinItemId}`;
+  if (party.jellyfinWebUrl) {
+    return party.jellyfinWebUrl;
   }
-  return '#!';
+  const base = 'https://watch.lalamovies.stream';
+  return party.jellyfinItemId ? `${base}/web/index.html#!/details?id=${party.jellyfinItemId}` : base;
 }
 </script>
