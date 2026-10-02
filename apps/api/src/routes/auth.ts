@@ -33,6 +33,17 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         .where(eq(users.jellyfinUserId, authResult.userId))
         .get();
 
+      if (user) {
+        app.db
+          .update(users)
+          .set({
+            jellyfinAccessToken: authResult.accessToken,
+          })
+          .where(eq(users.id, user.id))
+          .run();
+        user.jellyfinAccessToken = authResult.accessToken;
+      }
+
       if (!user) {
         user = app.db
           .select()
@@ -41,13 +52,17 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           .get();
 
         if (user) {
-          // Update jellyfinUserId
+          // Update jellyfinUserId and jellyfinAccessToken
           app.db
             .update(users)
-            .set({ jellyfinUserId: authResult.userId })
+            .set({
+              jellyfinUserId: authResult.userId,
+              jellyfinAccessToken: authResult.accessToken,
+            })
             .where(eq(users.id, user.id))
             .run();
           user.jellyfinUserId = authResult.userId;
+          user.jellyfinAccessToken = authResult.accessToken;
         }
       }
 
@@ -70,6 +85,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           invitedByUserId: null,
           inviteId: null,
           invitesEnabled: true,
+          jellyfinAccessToken: authResult.accessToken,
           createdAt: new Date().toISOString(),
         };
 
@@ -101,6 +117,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           username: user.username,
           email: user.email,
           role: user.role,
+          hasJellyfinToken: Boolean(user.jellyfinAccessToken),
           createdAt: user.createdAt,
         },
         token,
@@ -110,6 +127,49 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         return reply.status(401).send({
           error: 'Unauthorized',
           message: 'Invalid Jellyfin username or password',
+        });
+      }
+
+      request.log.error(err);
+      return reply.status(500).send({
+        error: 'Internal Server Error',
+        message: 'Failed to authenticate with Jellyfin',
+      });
+    }
+  });
+
+  const jellyfinTokenSchema = z.object({
+    password: z.string().min(1, 'Password is required'),
+  });
+
+  app.post('/jellyfin-token', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const parseResult = jellyfinTokenSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: parseResult.error.issues[0]?.message || 'Invalid request body',
+      });
+    }
+
+    const currentUser = request.currentUser;
+    if (!currentUser) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    try {
+      const authResult = await app.jellyfin.authenticateUser(currentUser.username, parseResult.data.password);
+      app.db
+        .update(users)
+        .set({ jellyfinAccessToken: authResult.accessToken })
+        .where(eq(users.id, currentUser.id))
+        .run();
+
+      return reply.send({ ok: true, hasJellyfinToken: true });
+    } catch (err) {
+      if (err instanceof InvalidCredentialsError) {
+        return reply.status(401).send({
+          error: 'Unauthorized',
+          message: 'Invalid Jellyfin password',
         });
       }
 
@@ -139,8 +199,18 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         { expiresIn: '7d' }
       );
     }
+    const user = request.currentUser;
     return reply.send({
-      user: request.currentUser,
+      user: user
+        ? {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            hasJellyfinToken: Boolean(user.jellyfinAccessToken),
+            createdAt: user.createdAt,
+          }
+        : null,
       token,
     });
   });

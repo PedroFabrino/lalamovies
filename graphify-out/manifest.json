@@ -144,15 +144,15 @@
     "semantic_hash": "05889c827338a61c96928068283d44b4"
   },
   "apps/api/src/db/migrations/meta/_journal.json": {
-    "mtime": 1790891735.0148845,
-    "seen": 1790893468.812952,
-    "ast_hash": "9139478a61a0d470f61d52fcb5d06c89",
+    "mtime": 1790901501.7924242,
+    "seen": 1790902246.1294298,
+    "ast_hash": "dbc1bbd46b9963545d3e19bc30717529",
     "semantic_hash": ""
   },
   "apps/api/src/db/schema.ts": {
-    "mtime": 1790891700.1317484,
-    "seen": 1790893468.812952,
-    "ast_hash": "b932ede87a10847d933b3000df373433",
+    "mtime": 1790901492.4375606,
+    "seen": 1790902246.1294298,
+    "ast_hash": "8d2305f9783a021b498f84eb49333a34",
     "semantic_hash": ""
   },
   "apps/api/src/index.ts": {
@@ -204,9 +204,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/routes/auth.ts": {
-    "mtime": 1790492446.5886798,
-    "seen": 1790492540.9441495,
-    "ast_hash": "a02e23bc47520759e03b4ff88bb82759",
+    "mtime": 1790902189.7660744,
+    "seen": 1790902246.136657,
+    "ast_hash": "d3903a1f0aa1d07c6f85b12d7d0d1ac1",
     "semantic_hash": ""
   },
   "apps/api/src/routes/discovery.ts": {
@@ -354,9 +354,9 @@
     "semantic_hash": ""
   },
   "apps/api/tests/auth.test.ts": {
-    "mtime": 1789954139.111019,
-    "seen": 1789956580.615113,
-    "ast_hash": "b65e389279d6763a58b8e00facec1fbf",
+    "mtime": 1790902013.6624897,
+    "seen": 1790902246.1596496,
+    "ast_hash": "96018653f6e44426ed1d5f8ef77bdb76",
     "semantic_hash": ""
   },
   "apps/api/tests/batch_requests.test.ts": {
@@ -468,9 +468,9 @@
     "semantic_hash": "505b7643511c9b9feead41d43f1ead26"
   },
   "apps/api/tests/qbittorrent_hash.test.ts": {
-    "mtime": 1790365514.3328333,
-    "seen": 1790366067.221235,
-    "ast_hash": "0ccea8ce855902ca6dadf4751fc111ee",
+    "mtime": 1790902192.989475,
+    "seen": 1790902246.1694338,
+    "ast_hash": "6181e75488901e85618315090ba9b374",
     "semantic_hash": ""
   },
   "apps/api/tests/request_dedup.test.ts": {
@@ -1314,9 +1314,9 @@
     "semantic_hash": "a831cf3669f1e6ab85d8a80ebe655f99"
   },
   "CONTEXT.md": {
-    "mtime": 1790871950.6901643,
-    "seen": 1790886448.6495821,
-    "ast_hash": "2fd843e28d045f8f90ffea02b5252d97",
+    "mtime": 1790901391.1820402,
+    "seen": 1790902246.2469454,
+    "ast_hash": "13164ccf87a7269132ae6e9794691a2f",
     "semantic_hash": ""
   },
   "README.md": {
@@ -2550,9 +2550,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/routes/invites/accept.ts": {
-    "mtime": 1790365349.8232071,
-    "seen": 1790366067.189118,
-    "ast_hash": "7d90a16858a1be8e10db02f6c15f87f2",
+    "mtime": 1790902105.9375498,
+    "seen": 1790902246.1377254,
+    "ast_hash": "cab8b0c76780510793d44ca361e2d61d",
     "semantic_hash": ""
   },
   "apps/api/src/routes/invites/admin.ts": {
@@ -2952,15 +2952,15 @@
     "semantic_hash": ""
   },
   "apps/api/src/routes/watchParties.ts": {
-    "mtime": 1790893248.1244512,
-    "seen": 1790893468.8253477,
-    "ast_hash": "e07bd37541b743c337450fa243b3c32a",
+    "mtime": 1790901778.1254685,
+    "seen": 1790902246.1423984,
+    "ast_hash": "7792af17eca220b33dbb56625941b21c",
     "semantic_hash": ""
   },
   "apps/api/src/services/jellyfinSyncPlay.ts": {
-    "mtime": 1790893259.2692218,
-    "seen": 1790893468.828379,
-    "ast_hash": "1afa1682ad00ed61771e04b0de9ac455",
+    "mtime": 1790901653.045137,
+    "seen": 1790902246.1454337,
+    "ast_hash": "801be6e3db4511c3e2d78d704330967e",
     "semantic_hash": ""
   },
   "apps/api/src/services/watchPartyNotifications.ts": {
@@ -2970,9 +2970,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/watchPartyRepository.ts": {
-    "mtime": 1790891763.8178566,
-    "seen": 1790893468.8384984,
-    "ast_hash": "56b75d92f5a9bb759a937c51d005b78e",
+    "mtime": 1790901614.31545,
+    "seen": 1790902246.1574893,
+    "ast_hash": "16f34d836c19a7e391190f56ceb611db",
     "semantic_hash": ""
   },
   "apps/api/tests/discord_channel_routing.test.ts": {
@@ -2982,9 +2982,9 @@
     "semantic_hash": ""
   },
   "apps/api/tests/watch_parties.test.ts": {
-    "mtime": 1790892766.7683513,
-    "seen": 1790893468.8600073,
-    "ast_hash": "55c572d8e168db1f32835a042bedc23f",
+    "mtime": 1790901966.6621501,
+    "seen": 1790902246.1777308,
+    "ast_hash": "1a9693405b9791de5b733bb4ce072f80",
     "semantic_hash": ""
   },
   "apps/api/tests/watch_party_cleanup.test.ts": {
@@ -3039,6 +3039,24 @@
     "mtime": 1790895784.9612298,
     "seen": 1790896577.6598287,
     "ast_hash": "db75b8c31f068a0c975f3d4c5ad0f6f3",
+    "semantic_hash": ""
+  },
+  "apps/api/src/db/migrations/meta/0014_snapshot.json": {
+    "mtime": 1790901501.790216,
+    "seen": 1790902246.1294298,
+    "ast_hash": "1e5431134aaee4c9e4e9b5ef076cd20b",
+    "semantic_hash": ""
+  },
+  "docs/adr/0027-jellyfin-syncplay-token-auth-and-cross-platform-tv-bridge.md": {
+    "mtime": 1790901376.9957862,
+    "seen": 1790902246.2543018,
+    "ast_hash": "989ccc5794cb6e57ec717ed0fd6c8a5a",
+    "semantic_hash": ""
+  },
+  "docs/spec/watch-party-syncplay-deep-link-and-tv-bridge.md": {
+    "mtime": 1790901407.2347333,
+    "seen": 1790902246.2620718,
+    "ast_hash": "129629dadef81f865b209caf3f214f42",
     "semantic_hash": ""
   }
 }

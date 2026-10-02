@@ -46,6 +46,7 @@ describe('Watch Party API & SyncPlay Bridge (#204)', () => {
         username: 'alice',
         jellyfinUserId: 'jf-alice-1',
         role: 'user',
+        jellyfinAccessToken: 'jf-token-alice',
         createdAt: new Date().toISOString(),
       })
       .run();
@@ -134,10 +135,12 @@ describe('Watch Party API & SyncPlay Bridge (#204)', () => {
       expect(data.watchParty.jellyfinGroupId).toBe('jf-group-777');
       expect(data.watchParty.status).toBe('active');
       expect(data.watchParty.discordMessageId).toBe('discord-msg-999');
+      expect(data.watchParty.jellyfinWebUrl).toContain('/web/index.html#!/details?id=item-100');
 
       expect(mockSyncPlay.createSyncPlayGroup).toHaveBeenCalledWith(
         '🎉 Watch Party: Spirited Away (2001)',
-        'item-100'
+        'item-100',
+        'jf-token-alice'
       );
 
       // Verify Discord webhook was called with ?wait=true
@@ -148,6 +151,29 @@ describe('Watch Party API & SyncPlay Bridge (#204)', () => {
       expect(options.method).toBe('POST');
       const body = JSON.parse(options.body);
       expect(body.embeds[0].title).toContain('Watch Party Started');
+    });
+
+    it('returns 403 JELLYFIN_TOKEN_REQUIRED when host user has no stored token', async () => {
+      app.db.update(users).set({ jellyfinAccessToken: null }).where(require('drizzle-orm').eq(users.id, testUserId)).run();
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/watch-parties',
+        headers: {
+          authorization: `Bearer ${userToken}`,
+          'content-type': 'application/json',
+        },
+        payload: {
+          jellyfinItemId: 'item-100',
+          title: 'Spirited Away',
+          mediaType: 'movie',
+        },
+      });
+
+      expect(res.statusCode).toBe(403);
+      expect(res.json().error).toBe('JELLYFIN_TOKEN_REQUIRED');
+
+      app.db.update(users).set({ jellyfinAccessToken: 'jf-token-alice' }).where(require('drizzle-orm').eq(users.id, testUserId)).run();
     });
   });
 
@@ -341,7 +367,7 @@ describe('Watch Party API & SyncPlay Bridge (#204)', () => {
       expect(history[0].title).toBe('Spirited Away');
       expect(history[0].completedAt).toBeDefined();
 
-      expect(mockSyncPlay.setSyncPlayItem).toHaveBeenCalledWith('jf-group-777', 'item-101');
+      expect(mockSyncPlay.setSyncPlayItem).toHaveBeenCalledWith('jf-group-777', 'item-101', 'jf-token-alice');
     });
   });
 
@@ -451,7 +477,7 @@ describe('Watch Party API & SyncPlay Bridge (#204)', () => {
       expect(data.watchParty.status).toBe('ended');
       expect(data.watchParty.endedAt).toBeDefined();
 
-      expect(mockSyncPlay.leaveSyncPlayGroup).toHaveBeenCalledWith('jf-group-777');
+      expect(mockSyncPlay.leaveSyncPlayGroup).toHaveBeenCalledWith('jf-group-777', 'jf-token-alice');
     });
 
     it('allows admin to end party even if not the host', async () => {

@@ -206,4 +206,36 @@ describe('Auth Integration', () => {
     expect(allowedRes.statusCode).toBe(200);
     expect(allowedRes.json().secret).toBe('admin-access-granted');
   });
+
+  it('stores jellyfin_access_token on login and returns hasJellyfinToken: true', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { username: 'testuser', password: 'valid_password' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.user.hasJellyfinToken).toBe(true);
+  });
+
+  it('updates jellyfin_access_token via POST /auth/jellyfin-token', async () => {
+    const loginRes = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { username: 'alice_user', password: 'password123' },
+    });
+    const cookie = loginRes.cookies[0].value;
+
+    const tokenRes = await app.inject({
+      method: 'POST',
+      url: '/auth/jellyfin-token',
+      cookies: { token: cookie },
+      payload: { password: 'valid_password' },
+    });
+
+    expect(tokenRes.statusCode).toBe(200);
+    expect(tokenRes.json().ok).toBe(true);
+    expect(tokenRes.json().hasJellyfinToken).toBe(true);
+  });
 });

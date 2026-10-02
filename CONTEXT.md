@@ -296,6 +296,14 @@ _Avoid_: party playlist, watch queue, marathon log
 A Discord notification routing pattern where specialized environment variables (e.g. `DISCORD_WEBHOOK_URL_WATCH_PARTY`, `WAITLIST_DISCORD_WEBHOOK_URL`) route announcements to dedicated Discord channels, falling back to the master `DISCORD_WEBHOOK_URL` if the specific context webhook is unset.
 _Avoid_: custom webhook, channel redirect, multi-webhook
 
+**Jellyfin User Access Token**:
+The authenticated per-user Bearer token issued by Jellyfin Server upon credential validation, retained on the User model to execute user-scoped operations (such as creating and managing SyncPlay Groups) that reject headless server API keys.
+_Avoid_: user key, session secret, auth ticket
+
+**AirPlay Launch Bridge**:
+The cross-device viewing workflow where users on unsupported TV clients (such as Apple TV running Swiftfin or devices lacking native SyncPlay) execute the Watch Party on Jellyfin Web via phone, tablet, or laptop and cast or AirPlay the synchronized video to their television display.
+_Avoid_: screen mirror, TV hack, cast relay
+
 
 
 

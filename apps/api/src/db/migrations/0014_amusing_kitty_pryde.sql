@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `jellyfin_access_token` text;

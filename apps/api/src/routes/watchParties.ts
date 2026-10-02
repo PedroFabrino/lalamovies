@@ -34,6 +34,14 @@ const switchMediaSchema = z.object({
   posterUrl: z.string().optional(),
 });
 
+function attachJellyfinWebUrl<T extends { jellyfinItemId: string }>(party: T): T & { jellyfinWebUrl: string } {
+  const publicUrl = (process.env.JELLYFIN_PUBLIC_URL || 'https://watch.lalamovies.stream').replace(/\/+$/, '');
+  return {
+    ...party,
+    jellyfinWebUrl: `${publicUrl}/web/index.html#!/details?id=${party.jellyfinItemId}`,
+  };
+}
+
 export const watchPartyRoutes: FastifyPluginAsync = async (app) => {
   // Feature flag gating
   app.addHook('preHandler', requireFeature('watch_parties'));
@@ -41,7 +49,7 @@ export const watchPartyRoutes: FastifyPluginAsync = async (app) => {
   // GET /watch-parties - List all active watch parties
   app.get('/', async (_request, reply) => {
     const parties = app.watchPartyRepo.findActive();
-    return reply.send({ watchParties: parties });
+    return reply.send({ watchParties: parties.map(attachJellyfinWebUrl) });
   });
 
   // GET /watch-parties/:id - Get party details
@@ -51,7 +59,7 @@ export const watchPartyRoutes: FastifyPluginAsync = async (app) => {
     if (!party) {
       return reply.status(404).send({ error: 'Watch party not found' });
     }
-    return reply.send({ watchParty: party });
+    return reply.send({ watchParty: attachJellyfinWebUrl(party) });
   });
 
   // POST /watch-parties - Create and launch a new watch party
@@ -70,13 +78,21 @@ export const watchPartyRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(401).send({ error: 'Unauthorized' });
     }
 
+    const hostToken = app.watchPartyRepo.getHostToken(currentUser.id);
+    if (!hostToken) {
+      return reply.status(403).send({
+        error: 'JELLYFIN_TOKEN_REQUIRED',
+        message: 'Jellyfin password confirmation required to host a Watch Party.',
+      });
+    }
+
     const displayTitle = formatWatchPartyMediaTitle(body);
     const groupName = `🎉 Watch Party: ${displayTitle}`;
 
     // 1. Provision Jellyfin SyncPlay group
     let jellyfinGroup: { groupId: string; groupName: string } = { groupId: crypto.randomUUID(), groupName };
     try {
-      jellyfinGroup = await app.syncPlay.createSyncPlayGroup(groupName, body.jellyfinItemId);
+      jellyfinGroup = await app.syncPlay.createSyncPlayGroup(groupName, body.jellyfinItemId, hostToken);
     } catch (err) {
       request.log.warn(err, 'Failed to create Jellyfin SyncPlay group, using generated id');
     }
@@ -160,10 +176,10 @@ export const watchPartyRoutes: FastifyPluginAsync = async (app) => {
     }
 
     return reply.status(201).send({
-      watchParty: {
+      watchParty: attachJellyfinWebUrl({
         ...createdRoom,
         hostUsername: currentUser.username,
-      },
+      }),
     });
   });
 
@@ -208,8 +224,9 @@ export const watchPartyRoutes: FastifyPluginAsync = async (app) => {
     });
 
     // 2. Update Jellyfin SyncPlay queue
+    const hostToken = app.watchPartyRepo.getHostToken(party.hostUserId);
     if (app.syncPlay.setSyncPlayItem) {
-      await app.syncPlay.setSyncPlayItem(party.jellyfinGroupId, body.jellyfinItemId).catch(() => {});
+      await app.syncPlay.setSyncPlayItem(party.jellyfinGroupId, body.jellyfinItemId, hostToken || undefined).catch(() => {});
     }
 
     // 3. Update room in DB
@@ -273,7 +290,7 @@ export const watchPartyRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    return reply.send({ watchParty: updated });
+    return reply.send({ watchParty: attachJellyfinWebUrl(updated) });
   });
 
   // POST /watch-parties/:id/end - Host or admin ends the watch party
@@ -285,7 +302,7 @@ export const watchPartyRoutes: FastifyPluginAsync = async (app) => {
     }
 
     if (party.status === 'ended') {
-      return reply.send({ ok: true, watchParty: party });
+      return reply.send({ ok: true, watchParty: attachJellyfinWebUrl(party) });
     }
 
     const isHost = party.hostUserId === request.currentUser?.id;
@@ -300,8 +317,9 @@ export const watchPartyRoutes: FastifyPluginAsync = async (app) => {
       endedAt: now,
     });
 
+    const hostToken = app.watchPartyRepo.getHostToken(party.hostUserId);
     if (app.syncPlay.leaveSyncPlayGroup) {
-      await app.syncPlay.leaveSyncPlayGroup(party.jellyfinGroupId).catch(() => {});
+      await app.syncPlay.leaveSyncPlayGroup(party.jellyfinGroupId, hostToken || undefined).catch(() => {});
     }
 
     const webhookUrl = resolveDiscordWebhookUrl('watch_party');

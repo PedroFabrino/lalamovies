@@ -17,6 +17,7 @@ export interface IWatchPartyRepository {
   findByIdWithHost(id: string): WatchPartyRoomWithHost | undefined;
   findActive(): WatchPartyRoomWithHost[];
   findActiveByJellyfinGroupId(groupId: string): WatchPartyRoom | undefined;
+  getHostToken(hostUserId: string): string | null;
   update(id: string, fields: Partial<WatchPartyRoom>): void;
   delete(id: string): void;
 }
@@ -83,6 +84,15 @@ export class WatchPartyRepository implements IWatchPartyRepository {
       .from(watchPartyRooms)
       .where(eq(watchPartyRooms.jellyfinGroupId, groupId))
       .get();
+  }
+
+  getHostToken(hostUserId: string): string | null {
+    const user = this.db
+      .select({ token: users.jellyfinAccessToken })
+      .from(users)
+      .where(eq(users.id, hostUserId))
+      .get();
+    return user?.token || null;
   }
 
   update(id: string, fields: Partial<WatchPartyRoom>): void {

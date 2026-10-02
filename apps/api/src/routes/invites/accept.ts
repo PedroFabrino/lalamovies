@@ -177,6 +177,7 @@ export const inviteAcceptRoutes: FastifyPluginAsync = async (app) => {
         invitedByUserId: invite.createdByUserId,
         inviteId: invite.id,
         invitesEnabled: true,
+        jellyfinAccessToken: null,
         createdAt: new Date().toISOString(),
       };
 

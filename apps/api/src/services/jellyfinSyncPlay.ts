@@ -8,11 +8,11 @@ export interface SyncPlayGroupDetails {
 }
 
 export interface IJellyfinSyncPlayService {
-  createSyncPlayGroup(groupName: string, itemId?: string): Promise<{ groupId: string; groupName: string }>;
-  getSyncPlayGroup(groupId: string): Promise<SyncPlayGroupDetails | null>;
-  listSyncPlayGroups(): Promise<SyncPlayGroupDetails[]>;
-  setSyncPlayItem?(groupId: string, itemId: string): Promise<void>;
-  leaveSyncPlayGroup?(groupId?: string): Promise<void>;
+  createSyncPlayGroup(groupName: string, itemId?: string, userToken?: string): Promise<{ groupId: string; groupName: string }>;
+  getSyncPlayGroup(groupId: string, userToken?: string): Promise<SyncPlayGroupDetails | null>;
+  listSyncPlayGroups(userToken?: string): Promise<SyncPlayGroupDetails[]>;
+  setSyncPlayItem?(groupId: string, itemId: string, userToken?: string): Promise<void>;
+  leaveSyncPlayGroup?(groupId?: string, userToken?: string): Promise<void>;
 }
 
 export class JellyfinSyncPlayService implements IJellyfinSyncPlayService {
@@ -36,24 +36,24 @@ export class JellyfinSyncPlayService implements IJellyfinSyncPlayService {
     return `MediaBrowser Client="${this.clientName}", Device="${this.deviceName}", DeviceId="${this.deviceId}", Version="${this.version}"`;
   }
 
-  private getHeaders(): Record<string, string> {
+  private getHeaders(userToken?: string): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'X-Emby-Authorization': this.getAuthHeader(),
     };
-    const key = (this.getDynamicApiKey ? this.getDynamicApiKey() : null) || this.apiKey;
+    const key = userToken || (this.getDynamicApiKey ? this.getDynamicApiKey() : null) || this.apiKey;
     if (key) {
       headers['X-Emby-Token'] = key;
     }
     return headers;
   }
 
-  async listSyncPlayGroups(): Promise<SyncPlayGroupDetails[]> {
+  async listSyncPlayGroups(userToken?: string): Promise<SyncPlayGroupDetails[]> {
     const url = `${this.baseUrl}/SyncPlay/List`;
     try {
       const response = await fetch(url, {
         method: 'GET',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(userToken),
       });
       if (!response.ok) {
         return [];
@@ -83,15 +83,16 @@ export class JellyfinSyncPlayService implements IJellyfinSyncPlayService {
     }
   }
 
-  async getSyncPlayGroup(groupId: string): Promise<SyncPlayGroupDetails | null> {
-    const groups = await this.listSyncPlayGroups();
+  async getSyncPlayGroup(groupId: string, userToken?: string): Promise<SyncPlayGroupDetails | null> {
+    const groups = await this.listSyncPlayGroups(userToken);
     const found = groups.find((g) => g.groupId === groupId);
     return found || null;
   }
 
   async createSyncPlayGroup(
     groupName: string,
-    itemId?: string
+    itemId?: string,
+    userToken?: string
   ): Promise<{ groupId: string; groupName: string }> {
     const url = `${this.baseUrl}/SyncPlay/New`;
     let createdGroupId: string | undefined;
@@ -99,7 +100,7 @@ export class JellyfinSyncPlayService implements IJellyfinSyncPlayService {
     try {
       const response = await fetch(url, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(userToken),
         body: JSON.stringify({
           GroupName: groupName,
         }),
@@ -121,7 +122,7 @@ export class JellyfinSyncPlayService implements IJellyfinSyncPlayService {
 
     if (!createdGroupId) {
       // Look up group in the list
-      const groups = await this.listSyncPlayGroups();
+      const groups = await this.listSyncPlayGroups(userToken);
       const match = groups.find((g) => g.groupName === groupName);
       if (match) {
         createdGroupId = match.groupId;
@@ -133,7 +134,7 @@ export class JellyfinSyncPlayService implements IJellyfinSyncPlayService {
     }
 
     if (itemId) {
-      await this.setSyncPlayItem(createdGroupId, itemId).catch(() => {});
+      await this.setSyncPlayItem(createdGroupId, itemId, userToken).catch(() => {});
     }
 
     return {
@@ -142,12 +143,12 @@ export class JellyfinSyncPlayService implements IJellyfinSyncPlayService {
     };
   }
 
-  async setSyncPlayItem(groupId: string, itemId: string): Promise<void> {
+  async setSyncPlayItem(groupId: string, itemId: string, userToken?: string): Promise<void> {
     const url = `${this.baseUrl}/SyncPlay/SetNewQueue`;
     try {
       await fetch(url, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(userToken),
         body: JSON.stringify({
           ItemIds: [itemId],
           PlayingItemPosition: 0,
@@ -159,12 +160,12 @@ export class JellyfinSyncPlayService implements IJellyfinSyncPlayService {
     }
   }
 
-  async leaveSyncPlayGroup(groupId?: string): Promise<void> {
+  async leaveSyncPlayGroup(groupId?: string, userToken?: string): Promise<void> {
     const url = `${this.baseUrl}/SyncPlay/Leave`;
     try {
       await fetch(url, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(userToken),
         body: JSON.stringify({
           GroupId: groupId,
         }),

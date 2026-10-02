@@ -10,6 +10,7 @@ export const users = sqliteTable('users', {
   invitedByUserId: text('invited_by_user_id').references((): AnySQLiteColumn => users.id, { onDelete: 'set null' }),
   inviteId: text('invite_id').references((): AnySQLiteColumn => invites.id, { onDelete: 'set null' }),
   invitesEnabled: integer('invites_enabled', { mode: 'boolean' }).notNull().default(true),
+  jellyfinAccessToken: text('jellyfin_access_token'),
   createdAt: text('created_at').notNull(),
 });
 
