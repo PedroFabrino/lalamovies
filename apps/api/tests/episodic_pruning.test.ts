@@ -187,7 +187,10 @@ describe('Episodic Pruning & Tracking', () => {
     const parentAfterEp2 = app.requestsRepo.findById(req.id);
     expect(parentAfterEp2?.status).toBe('deleted');
     expect(parentAfterEp2?.deletionReason).toBe('cleanup');
+    expect(fs.existsSync(path.dirname(ep2Lib))).toBe(false);
+    expect(fs.existsSync(path.join(libraryDir, 'Breaking Bad'))).toBe(false);
   });
+
 
   it('updates episode play history without marking entire season pack consumed prematurely', async () => {
     const req = app.requestsRepo.create({

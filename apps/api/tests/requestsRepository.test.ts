@@ -355,7 +355,57 @@ describe('RequestsRepository', () => {
       });
       expect(folder).toBeUndefined();
     });
+
+    it('returns deleted request folder when includeDeleted is true', () => {
+      repo.create(
+        baseRequest({
+          id: 'req_deleted_2',
+          mediaType: 'anime',
+          metadataId: 'anime_del_2',
+          status: 'deleted',
+          jellyfinPath: '/media/anime/Deleted Anime (2025)/Season 01/ep.mkv',
+        })
+      );
+
+      const folder = repo.findExistingSeriesFolder({
+        metadataId: 'anime_del_2',
+        mediaType: 'anime',
+        includeDeleted: true,
+      });
+      expect(folder).toBe('Deleted Anime (2025)');
+    });
+
+    it('prioritizes active request over deleted request when includeDeleted is true', () => {
+      repo.create(
+        baseRequest({
+          id: 'req_prior_del',
+          mediaType: 'tv_show',
+          metadataId: 'show_both',
+          status: 'deleted',
+          jellyfinPath: '/media/shows/Old Folder Name (2024)/Season 01/ep.mkv',
+          requestedAt: '2026-09-01T00:00:00.000Z',
+        })
+      );
+      repo.create(
+        baseRequest({
+          id: 'req_active',
+          mediaType: 'tv_show',
+          metadataId: 'show_both',
+          status: 'seeding',
+          jellyfinPath: '/media/shows/Active Folder Name (2024)/Season 01/ep.mkv',
+          requestedAt: '2026-08-01T00:00:00.000Z',
+        })
+      );
+
+      const folder = repo.findExistingSeriesFolder({
+        metadataId: 'show_both',
+        mediaType: 'tv_show',
+        includeDeleted: true,
+      });
+      expect(folder).toBe('Active Folder Name (2024)');
+    });
   });
+
 
   // findAll & findAllForUser --------------------------------------------------
 

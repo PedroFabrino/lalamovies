@@ -61,10 +61,19 @@ export class EpisodicPruningService implements IEpisodicPruningService {
     if (episode.jellyfinPath && fs.existsSync(episode.jellyfinPath)) {
       try {
         fs.unlinkSync(episode.jellyfinPath);
+        const seasonDir = path.dirname(episode.jellyfinPath);
+        if (fs.existsSync(seasonDir) && fs.readdirSync(seasonDir).length === 0) {
+          fs.rmdirSync(seasonDir);
+          const showDir = path.dirname(seasonDir);
+          if (fs.existsSync(showDir) && fs.readdirSync(showDir).length === 0) {
+            fs.rmdirSync(showDir);
+          }
+        }
       } catch {
         // Ignore unlink error
       }
     }
+
 
     // 3. Unlink Staging file
     const stagingFile = path.isAbsolute(episode.relativePath)
@@ -116,14 +125,21 @@ export class EpisodicPruningService implements IEpisodicPruningService {
 
       if (request.jellyfinPath && fs.existsSync(request.jellyfinPath)) {
         try {
-          const contents = fs.readdirSync(request.jellyfinPath);
-          if (contents.length === 0) {
-            fs.rmdirSync(request.jellyfinPath);
+          if (fs.statSync(request.jellyfinPath).isDirectory()) {
+            const contents = fs.readdirSync(request.jellyfinPath);
+            if (contents.length === 0) {
+              fs.rmdirSync(request.jellyfinPath);
+              const parentDir = path.dirname(request.jellyfinPath);
+              if (fs.existsSync(parentDir) && fs.readdirSync(parentDir).length === 0) {
+                fs.rmdirSync(parentDir);
+              }
+            }
           }
         } catch {
           // Ignore rmdir error
         }
       }
+
 
       this.requestsRepo.update(request.id, {
         status: 'deleted',

@@ -1,4 +1,5 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, ne, sql } from 'drizzle-orm';
+
 import { AppDatabase, downloadRequests, DownloadRequest, NewDownloadRequest, requestCoRequesters, users } from '../db';
 import { RequestStatus } from './requestStateMachine';
 import {
@@ -56,17 +57,21 @@ export class RequestsRepository implements IRequestsRepository {
     metadataId?: string | null;
     mediaType: string;
     excludeRequestId?: string;
+    includeDeleted?: boolean;
   }): string | undefined {
     if (!params.metadataId || !['tv_show', 'anime'].includes(params.mediaType)) {
       return undefined;
     }
 
     const conditions = [
-      ne(downloadRequests.status, RequestStatus.DELETED),
       inArray(downloadRequests.mediaType, ['tv_show', 'anime']),
       isNotNull(downloadRequests.jellyfinPath),
       eq(downloadRequests.metadataId, params.metadataId),
     ];
+
+    if (!params.includeDeleted) {
+      conditions.push(ne(downloadRequests.status, RequestStatus.DELETED));
+    }
 
     if (params.excludeRequestId) {
       conditions.push(ne(downloadRequests.id, params.excludeRequestId));
@@ -78,7 +83,13 @@ export class RequestsRepository implements IRequestsRepository {
       })
       .from(downloadRequests)
       .where(and(...conditions))
+      .orderBy(
+        sql`CASE WHEN ${downloadRequests.status} != ${RequestStatus.DELETED} THEN 0 ELSE 1 END`,
+        desc(downloadRequests.requestedAt)
+      )
       .get();
+
+
 
     if (existingSeries?.jellyfinPath) {
       const parts = existingSeries.jellyfinPath.split(/[\\/]/);

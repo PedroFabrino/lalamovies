@@ -164,4 +164,34 @@ describe('Series Canonical Metadata Inheritance (#105)', () => {
     expect(body.request.mediaType).toBe('tv_show');
     expect(body.request.title).toBe('Brand New Show');
   });
+
+  it('POST /requests inherits title and mediaType from deleted series when active series is deleted', async () => {
+    const token = signToken();
+
+    // Mark episode 11 as deleted (e.g. episodic pruning)
+    app.requestsRepo.setStatus('knight-ep-11', 'deleted');
+
+    // Client submits episode 13 as tv_show with English title
+    const res = await app.inject({
+      method: 'POST',
+      url: '/requests',
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        magnetLink: 'magnet:?xt=urn:btih:knight13',
+        mediaType: 'tv_show',
+        metadataId: '270603',
+        metadataSource: 'tmdb',
+        title: 'The Exiled Heavy Knight Knows How to Game the System',
+        year: 2026,
+        seasonNumber: 1,
+        episodeNumber: 13,
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body);
+    expect(body.request.mediaType).toBe('anime');
+    expect(body.request.title).toBe('Tsuihou sareta Tensei Juukishi wa Game Chishiki de Musou suru');
+  });
 });
+

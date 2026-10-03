@@ -32,7 +32,9 @@ export interface ProcessAndHardlinkTorrentInput {
     seasonNumber?: number | null;
     episodeNumber?: number | null;
     metadataId?: string | null;
+    metadataSource?: 'tmdb' | 'anilist' | null;
   };
+
   torrentStatus: {
     name: string;
   };
@@ -75,15 +77,20 @@ export interface IFileSystemService {
   getMediaBasePath?(): string;
 }
 
+import { IPosterService, PosterService } from './posterService';
+
 export class FileSystemService implements IFileSystemService {
   private defaultMediaBasePath: string;
   private footprintService: StorageFootprintService;
+  private posterService: IPosterService;
 
-  constructor(mediaBasePath?: string) {
+  constructor(mediaBasePath?: string, posterService?: IPosterService) {
     this.defaultMediaBasePath = mediaBasePath || process.env.MEDIA_PATH || path.resolve(process.cwd(), 'media');
     this.footprintService = new StorageFootprintService(this.defaultMediaBasePath);
+    this.posterService = posterService || new PosterService();
     this.ensureDirectories();
   }
+
 
   getMediaBasePath(): string {
     return this.defaultMediaBasePath;
@@ -245,6 +252,25 @@ export class FileSystemService implements IFileSystemService {
     } else {
       await this.hardlink(sourceItem, destPath);
     }
+
+    if (req.mediaType !== 'private' && req.metadataId && req.metadataSource) {
+      const showOrMovieDir = targetMediaType === 'movie'
+        ? (isDirectory ? destPath : path.dirname(destPath))
+        : (isDirectory ? path.dirname(destPath) : path.dirname(path.dirname(destPath)));
+      if (showOrMovieDir) {
+        try {
+          await this.posterService.ensureLocalPoster(showOrMovieDir, {
+            metadataSource: req.metadataSource,
+            metadataId: req.metadataId,
+            mediaType: targetMediaType,
+            title: effectiveTitle || req.title,
+          });
+        } catch (posterErr) {
+          logger?.warn?.(`Failed to ensure local poster for ${req.title}: ${(posterErr as Error).message}`);
+        }
+      }
+    }
+
 
     if (req.mediaType === 'movie' && !isDirectory && files.length > 0) {
       const subFiles = files.filter((f) => {

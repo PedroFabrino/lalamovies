@@ -128,7 +128,10 @@ export function findCanonicalSeriesInfo(
   }
 
   const repo = toRepo(requestsRepoOrDb);
-  const candidates = repo.findByMetadataId(String(params.metadataId));
+  let candidates = repo.findByMetadataId(String(params.metadataId));
+  if (candidates.length === 0) {
+    candidates = repo.findByMetadataId(String(params.metadataId), undefined, undefined, []);
+  }
   const match = candidates.find(
     (r) =>
       r.metadataSource === params.metadataSource &&
@@ -139,6 +142,7 @@ export function findCanonicalSeriesInfo(
     return { title: match.title, mediaType: match.mediaType };
   }
   return null;
+
 }
 
 export const globalRequestMutex = new KeyedMutex();

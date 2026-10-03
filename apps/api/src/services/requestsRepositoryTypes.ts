@@ -43,7 +43,9 @@ export interface IRequestsRepository {
     metadataId?: string | null;
     mediaType: string;
     excludeRequestId?: string;
+    includeDeleted?: boolean;
   }): string | undefined;
+
   markError(id: string, message: string): void;
   findAll(userId: string, isAdmin: boolean): RequestListItem[];
   findAllForUser(userId: string): RequestListItem[];

@@ -189,9 +189,11 @@ export class DownloadPoller {
               metadataId: req.metadataId,
               mediaType: req.mediaType,
               excludeRequestId: req.id,
+              includeDeleted: true,
             });
 
             const result = await this.fileSystem.processAndHardlinkTorrent({
+
               request: req,
               torrentStatus,
               files,
