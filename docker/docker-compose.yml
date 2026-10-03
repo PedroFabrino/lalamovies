@@ -130,12 +130,21 @@ services:
       # When Caddy is used for external HTTPS access, set this to your public domain.
       # For local-only access, leave as http://localhost:8096.
       - JELLYFIN_PublishedServerUrl=${JELLYFIN_PublishedServerUrl:-http://localhost:8096}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
     ports:
       - "${JELLYFIN_PORT:-8096}:8096"
     volumes:
       - ./config/jellyfin:/config
       - ./cache/jellyfin:/cache
       - ${MEDIA_DATA_PATH:-D:/MediaServer/media_data}:/media_data:rslave
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     depends_on:
       - rclone
 
