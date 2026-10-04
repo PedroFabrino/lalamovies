@@ -3108,9 +3108,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/sessionMonitoringService.ts": {
-    "mtime": 1791085536.0895686,
-    "seen": 1791086058.874169,
-    "ast_hash": "93da4a2d9945cbcd67b46d6c681f44a3",
+    "mtime": 1791086162.0517418,
+    "seen": 1791086389.5731502,
+    "ast_hash": "17bf68588da3cbd9f0c7285b3104e029",
     "semantic_hash": ""
   },
   "apps/api/tests/sessionMonitoring.test.ts": {
@@ -3126,9 +3126,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/composables/useAdminActivity.ts": {
-    "mtime": 1791085624.4770792,
-    "seen": 1791086058.9393554,
-    "ast_hash": "736669507124c44bd5a878ace7159b68",
+    "mtime": 1791086172.4162586,
+    "seen": 1791086389.6428149,
+    "ast_hash": "0c9443696635d09dde0a74af350ec9bc",
     "semantic_hash": ""
   },
   "apps/web/tests/AdminActivityTab.test.ts": {
@@ -3174,15 +3174,21 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/admin/AdminSessionCard.vue": {
-    "mtime": 1791085674.2529097,
-    "seen": 1791086058.928863,
-    "ast_hash": "4bdee2339e588fd1692b9f19887500c2",
+    "mtime": 1791086211.803416,
+    "seen": 1791086389.6321535,
+    "ast_hash": "d597142287e6d9e6d6ea4b69e1af5402",
     "semantic_hash": ""
   },
   "apps/web/tests/AdminHardwareBanner.test.ts": {
     "mtime": 1791085783.0794034,
     "seen": 1791086058.951666,
     "ast_hash": "21e06ea72daf475bbca620cec242318d",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/AdminSessionCard.test.ts": {
+    "mtime": 1791086254.0087638,
+    "seen": 1791086389.655842,
+    "ast_hash": "9cdd48b11b249324c38b73bb079140d3",
     "semantic_hash": ""
   }
 }

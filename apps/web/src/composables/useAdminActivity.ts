@@ -33,6 +33,7 @@ export interface PlaybackSessionTranscodingInfo {
   completionPercentage?: number;
   transcodeReasons?: string[];
   hardwareAccelerationType?: string;
+  audioChannels?: number;
 }
 
 export interface PlaybackSession {

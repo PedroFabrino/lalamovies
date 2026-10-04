@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import type { PlaybackSession } from '../../composables/useAdminActivity';
 
 defineProps<{
@@ -8,6 +9,8 @@ defineProps<{
 const emit = defineEmits<{
   (e: 'stop', session: PlaybackSession): void;
 }>();
+
+const showDiagnostics = ref(false);
 
 function formatTicks(ticks?: number): string {
   if (!ticks || ticks <= 0) return '0:00';
@@ -177,6 +180,140 @@ function getMediaSubtitle(session: PlaybackSession): string | null {
       <div class="flex justify-between text-xs text-zinc-400 font-mono">
         <span>{{ formatTicks(session.playState?.positionTicks) }}</span>
         <span>{{ formatTicks(session.nowPlayingItem?.runTimeTicks) }}</span>
+      </div>
+    </div>
+
+    <!-- Diagnostic Drawer Toggle -->
+    <div class="pt-2 border-t border-zinc-800/60 flex items-center justify-between">
+      <button
+        type="button"
+        class="text-xs text-zinc-400 hover:text-zinc-200 transition flex items-center gap-1.5 cursor-pointer"
+        @click="showDiagnostics = !showDiagnostics"
+      >
+        <svg
+          class="w-3.5 h-3.5 transition-transform duration-200"
+          :class="{ 'rotate-90': showDiagnostics }"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M9 5l7 7-7 7"
+          />
+        </svg>
+        <span>{{ showDiagnostics ? 'Hide Transcode Diagnostics' : 'Transcode Diagnostics' }}</span>
+      </button>
+      <span
+        v-if="session.transcodingInfo?.framerate"
+        class="text-xs font-mono text-zinc-500"
+      >
+        {{ Math.round(session.transcodingInfo.framerate) }} FPS
+      </span>
+    </div>
+
+    <!-- Diagnostic Drawer Content -->
+    <div
+      v-if="showDiagnostics"
+      class="bg-zinc-950/80 border border-zinc-800/80 rounded-lg p-3 text-xs space-y-3"
+    >
+      <!-- Transcoding Info Present -->
+      <div
+        v-if="session.transcodingInfo"
+        class="space-y-2.5"
+      >
+        <!-- Reasons pills -->
+        <div v-if="session.transcodingInfo.transcodeReasons && session.transcodingInfo.transcodeReasons.length > 0">
+          <span class="text-zinc-400 block mb-1 font-medium">Transcode Reasons:</span>
+          <div class="flex flex-wrap gap-1.5">
+            <span
+              v-for="reason in session.transcodingInfo.transcodeReasons"
+              :key="reason"
+              class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[11px] font-mono"
+            >
+              {{ reason }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Grid of Stream Details -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono">
+          <div class="bg-zinc-900/80 p-2 rounded border border-zinc-800">
+            <span class="text-zinc-500 block text-[10px] uppercase font-sans">Video</span>
+            <span class="text-zinc-200 font-semibold">
+              {{ session.transcodingInfo.videoCodec || 'Direct' }}
+              <span
+                v-if="session.transcodingInfo.isVideoDirect"
+                class="text-emerald-400 font-sans text-[10px]"
+              >(Direct)</span>
+              <span
+                v-else
+                class="text-amber-400 font-sans text-[10px]"
+              >(Transcode)</span>
+            </span>
+          </div>
+          <div class="bg-zinc-900/80 p-2 rounded border border-zinc-800">
+            <span class="text-zinc-500 block text-[10px] uppercase font-sans">Audio</span>
+            <span class="text-zinc-200 font-semibold">
+              {{ session.transcodingInfo.audioCodec || 'Direct' }}
+              <span
+                v-if="session.transcodingInfo.isAudioDirect"
+                class="text-emerald-400 font-sans text-[10px]"
+              >(Direct)</span>
+              <span
+                v-else
+                class="text-amber-400 font-sans text-[10px]"
+              >(Transcode)</span>
+            </span>
+          </div>
+          <div class="bg-zinc-900/80 p-2 rounded border border-zinc-800">
+            <span class="text-zinc-500 block text-[10px] uppercase font-sans">Container / Accel</span>
+            <span class="text-zinc-200 font-semibold">
+              {{ session.transcodingInfo.container || 'Direct' }}
+              <span
+                v-if="session.transcodingInfo.hardwareAccelerationType"
+                class="text-purple-400 font-sans text-[10px]"
+              >
+                ({{ session.transcodingInfo.hardwareAccelerationType }})
+              </span>
+            </span>
+          </div>
+          <div class="bg-zinc-900/80 p-2 rounded border border-zinc-800">
+            <span class="text-zinc-500 block text-[10px] uppercase font-sans">Channels / FPS</span>
+            <span class="text-zinc-200 font-semibold">
+              {{ session.transcodingInfo.audioChannels ? `${session.transcodingInfo.audioChannels} ch` : '-' }}
+              <span
+                v-if="session.transcodingInfo.framerate"
+                class="text-zinc-400"
+              >
+                • {{ Math.round(session.transcodingInfo.framerate) }} fps
+              </span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Direct Play without transcode info -->
+      <div
+        v-else
+        class="text-zinc-400 py-1 flex items-center gap-2"
+      >
+        <svg
+          class="w-4 h-4 text-emerald-400 shrink-0"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M5 13l4 4L19 7"
+          />
+        </svg>
+        <span>Direct Play active. Media is streaming in original format without transcoding overhead.</span>
       </div>
     </div>
   </div>

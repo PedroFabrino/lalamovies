@@ -30,6 +30,7 @@ export interface PlaybackSessionTranscodingInfo {
   completionPercentage?: number;
   transcodeReasons?: string[];
   hardwareAccelerationType?: string;
+  audioChannels?: number;
 }
 
 export interface PlaybackSession {
@@ -113,6 +114,7 @@ interface RawJellyfinTranscodingInfo {
   CompletionPercentage?: number;
   TranscodeReasons?: string[];
   HardwareAccelerationType?: string;
+  AudioChannels?: number;
 }
 
 interface RawJellyfinSession {
@@ -288,6 +290,7 @@ export class SessionMonitoringService implements ISessionMonitoringService {
           completionPercentage: raw.TranscodingInfo.CompletionPercentage,
           transcodeReasons: raw.TranscodingInfo.TranscodeReasons,
           hardwareAccelerationType: raw.TranscodingInfo.HardwareAccelerationType,
+          audioChannels: raw.TranscodingInfo.AudioChannels,
         }
       : undefined;
 
