@@ -304,6 +304,13 @@ _Avoid_: user key, session secret, auth ticket
 The cross-device viewing workflow where users on unsupported TV clients (such as Apple TV running Swiftfin or devices lacking native SyncPlay) execute the Watch Party on Jellyfin Web via phone, tablet, or laptop and cast or AirPlay the synchronized video to their television display.
 _Avoid_: screen mirror, TV hack, cast relay
 
+### Server Monitoring & Telemetry
+
+**Playback Session**:
+An active client connection streaming media from the Jellyfin media server, tracked in real time with user identity, client device, playback timeline, play method, and transcoding telemetry.
+_Avoid_: stream, watch session, jellyfin connection, viewer session
+
+
 
 
 
