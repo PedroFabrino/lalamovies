@@ -27,6 +27,7 @@ import { IWatchPartyRepository } from './services/watchPartyRepository';
 import { IJellyfinSyncPlayService } from './services/jellyfinSyncPlay';
 import { WatchPartyCleanupJob } from './jobs/watchPartyCleanup';
 import { BroadcastFunction } from './routes/ws';
+import { ISessionMonitoringService } from './services/sessionMonitoringService';
 
 export interface AppOptions {
   dbPath?: string;
@@ -67,6 +68,7 @@ export interface AppOptions {
   syncPlayService?: IJellyfinSyncPlayService;
   watchPartyCleanupJob?: WatchPartyCleanupJob;
   startWatchPartyCleanup?: boolean;
+  sessionMonitoringService?: ISessionMonitoringService;
 }
 
 declare module 'fastify' {
@@ -103,5 +105,6 @@ declare module 'fastify' {
     watchPartyRepo: IWatchPartyRepository;
     syncPlay: IJellyfinSyncPlayService;
     watchPartyCleanup: WatchPartyCleanupJob;
+    sessionMonitoring: ISessionMonitoringService;
   }
 }

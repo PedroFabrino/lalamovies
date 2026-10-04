@@ -18,7 +18,7 @@
       :open="showLobby"
       :party="party"
       @close="handleClose"
-      @mediaSwitched="handleMediaSwitched"
+      @media-switched="handleMediaSwitched"
     />
   </div>
 </template>

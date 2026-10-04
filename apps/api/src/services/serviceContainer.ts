@@ -27,6 +27,8 @@ import { IEpisodesRepository, EpisodesRepository } from './episodesRepository';
 import { IEpisodicPruningService, EpisodicPruningService } from './episodicPruningService';
 import { IWatchPartyRepository, WatchPartyRepository } from './watchPartyRepository';
 import { IJellyfinSyncPlayService, JellyfinSyncPlayService } from './jellyfinSyncPlay';
+import { ISessionMonitoringService, SessionMonitoringService } from './sessionMonitoringService';
+import { setupJobs } from './serviceContainerJobs';
 import { DownloadPoller } from '../jobs/downloadPoller';
 import { UnarchiveDaemon } from '../jobs/unarchiveDaemon';
 import { CleanupCron } from '../jobs/cleanupCron';
@@ -61,6 +63,7 @@ export interface CreatedServices {
   watchPartyRepo: IWatchPartyRepository;
   syncPlay: IJellyfinSyncPlayService;
   watchPartyCleanup: WatchPartyCleanupJob;
+  sessionMonitoring: ISessionMonitoringService;
 }
 
 export function setupServices(
@@ -253,100 +256,6 @@ export function setupServices(
       },
     });
 
-  const poller =
-    options.downloadPoller ??
-    new DownloadPoller({
-      db,
-      requestsRepo,
-      episodesRepo,
-      qbittorrent,
-      fileSystem,
-      jellyfin,
-      stateMachine,
-      subtitleInspection,
-      openSubtitles,
-      unarchiveService: unarchive,
-      notificationService: notifications,
-      logger: {
-        info: (msg: string) => app.log.info(msg),
-        error: (msg: string, err?: unknown) => app.log.error(err, msg),
-      },
-      broadcast: (msg) => {
-        if (typeof app.broadcast === 'function') {
-          app.broadcast(msg);
-        }
-      },
-      isHostDiskSafe: cleanup.isHostDiskSafe ? () => cleanup.isHostDiskSafe!() : undefined,
-      isSpaceSufficient: cleanup.isSpaceSufficient ? () => cleanup.isSpaceSufficient() : undefined,
-    });
-
-  if (options.startPoller) {
-    poller.start();
-  }
-
-  const unarchiveDaemon =
-    options.unarchiveDaemon ??
-    new UnarchiveDaemon({
-      db,
-      requestsRepo,
-      unarchiveService: unarchive,
-      fileSystem,
-      jellyfin,
-      stateMachine,
-      qbittorrent,
-      subtitleInspection,
-      notificationService: notifications,
-      logger: {
-        info: (msg: string) => app.log.info(msg),
-        error: (msg: string, err?: unknown) => app.log.error(err, msg),
-      },
-      broadcast: (msg) => {
-        if (typeof app.broadcast === 'function') {
-          app.broadcast(msg);
-        }
-      },
-    });
-
-  if (options.startUnarchiveDaemon ?? options.startPoller) {
-    unarchiveDaemon.start();
-  }
-
-  const cleanupCron =
-    options.cleanupCron ??
-    new CleanupCron({
-      cleanupService: cleanup,
-      isCleanupEnabled: () => isFeatureEnabled(db, 'automated_cleanup'),
-      logger: {
-        info: (msg: string) => app.log.info(msg),
-        error: (msg: string, err?: unknown) => app.log.error(err, msg),
-      },
-    });
-
-  if (options.startCleanupCron) {
-    cleanupCron.start();
-  }
-
-  const transcriptionCron =
-    options.transcriptionCron ??
-    new TranscriptionCron({
-      db,
-      requestsRepo,
-      subgen,
-      isTranscriptionEnabled: () => isFeatureEnabled(db, 'transcription_enabled'),
-      logger: {
-        info: (msg: string) => app.log.info(msg),
-        warn: (msg: string) => app.log.warn(msg),
-        error: (msg: string, err?: unknown) => app.log.error(err, msg),
-      },
-      broadcast: (msg) => {
-        if (typeof app.broadcast === 'function') {
-          app.broadcast(msg);
-        }
-      },
-    });
-
-  if (options.startTranscriptionCron) transcriptionCron.start();
-
   const cachedPrivateLibrary = db.select().from(systemConfig).where(eq(systemConfig.key, 'jellyfin_private_library_id')).get();
   if (cachedPrivateLibrary?.value && jellyfin.setPrivateLibraryId) {
     jellyfin.setPrivateLibraryId(cachedPrivateLibrary.value);
@@ -358,20 +267,35 @@ export function setupServices(
     process.env.JELLYFIN_API_KEY
   );
 
-  const watchPartyCleanup = options.watchPartyCleanupJob ?? new WatchPartyCleanupJob({
-    watchPartyRepo,
-    syncPlay,
-    broadcast: (msg) => { if (typeof app.broadcast === 'function') app.broadcast(msg); },
-    logger: {
-      info: (msg) => app.log.info(msg),
-      warn: (msg) => app.log.warn(msg),
-      error: (msg, err) => app.log.error(err, msg),
-    },
-  });
+  const { poller, unarchiveDaemon, cleanupCron, transcriptionCron, watchPartyCleanup } =
+    setupJobs(app, options, {
+      db,
+      requestsRepo,
+      episodesRepo,
+      qbittorrent,
+      fileSystem,
+      jellyfin,
+      stateMachine,
+      subtitleInspection,
+      openSubtitles,
+      unarchive,
+      notifications,
+      cleanup,
+      subgen,
+      watchPartyRepo,
+      syncPlay,
+    });
 
-  if (options.startWatchPartyCleanup ?? (process.env.NODE_ENV !== 'test')) {
-    watchPartyCleanup.start();
-  }
+  const sessionMonitoring =
+    options.sessionMonitoringService ??
+    new SessionMonitoringService(
+      options.jellyfinService?.getPublicJellyfinUrl?.() || process.env.JELLYFIN_URL,
+      undefined,
+      () => {
+        const row = db.select().from(systemConfig).where(eq(systemConfig.key, 'jellyfin_api_key')).get();
+        return row?.value || process.env.JELLYFIN_API_KEY || '';
+      }
+    );
 
   const decorations: Record<string, unknown> = {
     db, sqlite, jellyfin, metadata, qbittorrent, cleanup, notifications,
@@ -379,7 +303,7 @@ export function setupServices(
     upNext, animeSeason, poller, subtitleInspection, subgen, openSubtitles,
     unarchive, unarchiveDaemon, stateMachine, requestsRepo, episodesRepo,
     episodicPruning, requestService, serviceApiKey, watcherUrl, streamerUrl,
-    watchPartyRepo, syncPlay, watchPartyCleanup,
+    watchPartyRepo, syncPlay, watchPartyCleanup, sessionMonitoring,
   };
   for (const [key, val] of Object.entries(decorations)) {
     app.decorate(key, val);
@@ -390,6 +314,6 @@ export function setupServices(
     episodicPruning, stateMachine, cleanup, metadata, prowlarr, discovery,
     upNext, animeSeason, subtitleInspection, subgen, openSubtitles, unarchive,
     requestService, poller, unarchiveDaemon, cleanupCron, transcriptionCron,
-    watchPartyRepo, syncPlay, watchPartyCleanup,
+    watchPartyRepo, syncPlay, watchPartyCleanup, sessionMonitoring,
   };
 }

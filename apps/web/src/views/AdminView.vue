@@ -24,12 +24,29 @@
           @click="onTabClick(tab.id)"
         >
           <span>{{ tab.label }}</span>
+          <span
+            v-if="tab.id === 'activity' && activity.activeSessionCount.value > 0"
+            class="px-1.5 py-0.5 text-xs font-bold rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/30"
+          >
+            {{ activity.activeSessionCount.value }}
+          </span>
         </button>
       </div>
 
+      <!-- Tab: Activity -->
+      <AdminActivityTab
+        v-if="admin.activeTab.value === 'activity'"
+        :sessions="activity.sessions.value"
+        :is-loading="activity.isLoading.value"
+        :is-stopping-session="activity.isStoppingSession.value"
+        :error="activity.error.value"
+        @refresh="activity.fetchActivity(true)"
+        @stop-session="({ sessionId, message }) => activity.stopSession(sessionId, message)"
+      />
+
       <!-- Tab 1: Users & Invites -->
       <div
-        v-if="admin.activeTab.value === 'users'"
+        v-else-if="admin.activeTab.value === 'users'"
         class="space-y-8"
       >
         <AdminUsersTab
@@ -182,9 +199,11 @@ import AdminInvitesTab, { InviteItem } from '../components/admin/AdminInvitesTab
 import AdminConfigTab from '../components/admin/AdminConfigTab.vue';
 import AdminCleanupTab, { DiskInfo } from '../components/admin/AdminCleanupTab.vue';
 import AdminFeaturesTab, { AdminFeatureFlag } from '../components/admin/AdminFeaturesTab.vue';
+import AdminActivityTab from '../components/admin/AdminActivityTab.vue';
 import { useAuthStore } from '../stores/auth';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { useAdminData } from '../composables/useAdminData';
+import { useAdminActivity } from '../composables/useAdminActivity';
 import { formatMediaType, formatSpeed } from '../lib/formatters';
 
 export type { AdminUser, InviteItem, DiskInfo, AdminFeatureFlag };
@@ -193,6 +212,7 @@ const authStore = useAuthStore();
 const featureFlags = useFeatureFlags();
 
 const tabs = [
+  { id: 'activity', label: 'Activity' },
   { id: 'users', label: 'Users & Invites' },
   { id: 'config', label: 'System Config' },
   { id: 'cleanup', label: 'Disk & Cleanup' },
@@ -202,10 +222,13 @@ const tabs = [
 type AdminTab = typeof tabs[number]['id'];
 
 const admin = useAdminData();
+const activity = useAdminActivity();
 
 function onTabClick(tabId: AdminTab) {
   admin.activeTab.value = tabId;
-  if (tabId === 'features') {
+  if (tabId === 'activity') {
+    activity.fetchActivity(false);
+  } else if (tabId === 'features') {
     admin.loadFeatureFlags();
   }
 }

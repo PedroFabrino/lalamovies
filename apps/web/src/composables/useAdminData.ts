@@ -7,7 +7,7 @@ import { useAdminConfig } from './useAdminConfig';
 import { useAdminCleanup } from './useAdminCleanup';
 
 export function useAdminData() {
-  const activeTab = ref<'users' | 'config' | 'cleanup' | 'features'>('users');
+  const activeTab = ref<'activity' | 'users' | 'config' | 'cleanup' | 'features'>('users');
 
   // Confirmation Modal
   const modalAction = ref<{
