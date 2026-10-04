@@ -18,6 +18,23 @@ class FakeSessionMonitoringService implements ISessionMonitoringService {
     return this.sessions;
   }
 
+  async getSystemMetrics() {
+    return {
+      cpuPercent: 25,
+      cpuCores: 8,
+      memUsedBytes: 8 * 1024 * 1024 * 1024,
+      memTotalBytes: 16 * 1024 * 1024 * 1024,
+      gpu: {
+        name: 'NVIDIA GeForce RTX 3070',
+        driverVersion: '570.86.16',
+        utilizationGpuPercent: 42,
+        utilizationEncoderPercent: 15,
+        vramUsedBytes: 3 * 1024 * 1024 * 1024,
+        vramTotalBytes: 8 * 1024 * 1024 * 1024,
+      },
+    };
+  }
+
   async stopSession(sessionId: string, message?: string): Promise<void> {
     this.stopCalls.push({ sessionId, message });
   }
@@ -211,6 +228,12 @@ describe('Admin Activity Routes (GET /admin/activity & POST /admin/activity/sess
     expect(body.sessions).toHaveLength(1);
     expect(body.sessions[0].id).toBe('s-123');
     expect(body.sessions[0].userName).toBe('Alexandre');
+    expect(body.system).toBeDefined();
+    expect(body.system.cpuPercent).toBe(25);
+    expect(body.system.cpuCores).toBe(8);
+    expect(body.system.gpu).not.toBeNull();
+    expect(body.system.gpu.name).toBe('NVIDIA GeForce RTX 3070');
+    expect(body.system.gpu.utilizationGpuPercent).toBe(42);
   });
 
   it('stops playback session when admin calls stop endpoint', async () => {

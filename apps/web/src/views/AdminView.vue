@@ -37,6 +37,7 @@
       <AdminActivityTab
         v-if="admin.activeTab.value === 'activity'"
         :sessions="activity.sessions.value"
+        :system="activity.systemMetrics.value"
         :is-loading="activity.isLoading.value"
         :is-stopping-session="activity.isStoppingSession.value"
         :error="activity.error.value"

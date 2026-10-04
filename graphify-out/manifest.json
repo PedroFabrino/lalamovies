@@ -1080,9 +1080,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/AdminView.vue": {
-    "mtime": 1790365708.6570828,
-    "seen": 1790366067.271783,
-    "ast_hash": "236863f4e7bd559581e7b2d4dedc80bb",
+    "mtime": 1791085701.759594,
+    "seen": 1791086058.9475708,
+    "ast_hash": "5193d6f3e0ffd0a6cbc9347848b47514",
     "semantic_hash": ""
   },
   "apps/web/src/views/DashboardView.vue": {
@@ -1314,9 +1314,9 @@
     "semantic_hash": "a831cf3669f1e6ab85d8a80ebe655f99"
   },
   "CONTEXT.md": {
-    "mtime": 1790901391.1820402,
-    "seen": 1790902246.2469454,
-    "ast_hash": "13164ccf87a7269132ae6e9794691a2f",
+    "mtime": 1791068572.4289882,
+    "seen": 1791085303.061874,
+    "ast_hash": "e0f39157a73868c60d74c7d103aa1f64",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1344,9 +1344,9 @@
     "semantic_hash": ""
   },
   "docker/docker-compose.yml": {
-    "mtime": 1790891610.9357638,
-    "seen": 1790893468.929293,
-    "ast_hash": "61ac1f3eb92c40abff375b7fb170245d",
+    "mtime": 1791085602.740427,
+    "seen": 1791086058.9671388,
+    "ast_hash": "f388b0e5521f9130855cc2716712e03a",
     "semantic_hash": ""
   },
   "docs/adr/0001-jellyfin-as-auth-source-of-truth.md": {
@@ -1824,9 +1824,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/composables/useAdminData.ts": {
-    "mtime": 1790365898.2557342,
-    "seen": 1790366067.2666943,
-    "ast_hash": "1c804326e559718b80d2a5d3d0b3f13e",
+    "mtime": 1791084988.0003755,
+    "seen": 1791085303.0355392,
+    "ast_hash": "6621d66c0a3abb37f08cccfb380680bb",
     "semantic_hash": ""
   },
   "apps/web/src/composables/useRequestData.ts": {
@@ -2004,9 +2004,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/appTypes.ts": {
-    "mtime": 1790892671.6241713,
-    "seen": 1790893468.8096106,
-    "ast_hash": "08f01a52a66137116aeddcc8f126e9a6",
+    "mtime": 1791084434.6190348,
+    "seen": 1791085302.939098,
+    "ast_hash": "4ad67051ba8fd3ebddb781299e751ce2",
     "semantic_hash": ""
   },
   "apps/api/src/services/requestBatch.ts": {
@@ -2046,9 +2046,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/serviceContainer.ts": {
-    "mtime": 1790892721.8705504,
-    "seen": 1790893468.835473,
-    "ast_hash": "4bfd24f00ab106b77f08cbf2da5caa7d",
+    "mtime": 1791084881.5918276,
+    "seen": 1791085302.9688106,
+    "ast_hash": "615cda4fc6ace556cb8475aa374ba422",
     "semantic_hash": ""
   },
   "apps/api/src/startup/onReady.ts": {
@@ -2532,9 +2532,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/routes/admin/index.ts": {
-    "mtime": 1790365278.0317557,
-    "seen": 1790366067.1881125,
-    "ast_hash": "2edabd7474de965f1a080ac385d607f9",
+    "mtime": 1791084401.9795406,
+    "seen": 1791085302.948236,
+    "ast_hash": "aa011e98f0f1005711ab9eebc10fefee",
     "semantic_hash": ""
   },
   "apps/api/src/routes/admin/jellyfin.ts": {
@@ -3060,9 +3060,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/PartyView.vue": {
-    "mtime": 1790902407.465487,
-    "seen": 1790902548.1542592,
-    "ast_hash": "0862005ed475c0fe1271ebcbcba0bd4b",
+    "mtime": 1791085254.4210393,
+    "seen": 1791085303.0457816,
+    "ast_hash": "d1904d12d4ad2140bb0e31893077bfeb",
     "semantic_hash": ""
   },
   "apps/web/tests/PartyView.test.ts": {
@@ -3093,6 +3093,96 @@
     "mtime": 1791032783.4965081,
     "seen": 1791033170.7705674,
     "ast_hash": "64e1f26171bf8e67d415d6cffd7f5af0",
+    "semantic_hash": ""
+  },
+  "apps/api/src/routes/admin/activity.ts": {
+    "mtime": 1791085545.9444978,
+    "seen": 1791086058.8528566,
+    "ast_hash": "2d650c448a31860c57749084c1044f51",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/serviceContainerJobs.ts": {
+    "mtime": 1791084285.1738257,
+    "seen": 1791085302.9688106,
+    "ast_hash": "f92b2760ec3389ad9b42b0db91fcb620",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/sessionMonitoringService.ts": {
+    "mtime": 1791085536.0895686,
+    "seen": 1791086058.874169,
+    "ast_hash": "93da4a2d9945cbcd67b46d6c681f44a3",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/sessionMonitoring.test.ts": {
+    "mtime": 1791085569.9671323,
+    "seen": 1791086058.8940496,
+    "ast_hash": "c53a40655f0c84413deb7b4926b14af0",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/admin/AdminActivityTab.vue": {
+    "mtime": 1791085943.4359348,
+    "seen": 1791086058.927862,
+    "ast_hash": "999ce3a8f489c5fdbc100b8a17c06350",
+    "semantic_hash": ""
+  },
+  "apps/web/src/composables/useAdminActivity.ts": {
+    "mtime": 1791085624.4770792,
+    "seen": 1791086058.9393554,
+    "ast_hash": "736669507124c44bd5a878ace7159b68",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/AdminActivityTab.test.ts": {
+    "mtime": 1791084774.3403966,
+    "seen": 1791085303.0473125,
+    "ast_hash": "316c88c0a9c4472f28eff0b8cad317e8",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/AdminView_activity.test.ts": {
+    "mtime": 1791085037.2177477,
+    "seen": 1791085303.0473125,
+    "ast_hash": "cdb761dc181ad3388275f6dd76073ffb",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/useAdminActivity.test.ts": {
+    "mtime": 1791085794.9192636,
+    "seen": 1791086058.961957,
+    "ast_hash": "afdfba7bf77cee2894cb3966dc006e9c",
+    "semantic_hash": ""
+  },
+  "docs/spec/admin-playback-sessions-and-resource-monitor.md": {
+    "mtime": 1791076052.7599635,
+    "seen": 1791085303.0711577,
+    "ast_hash": "ad83cf28b7b8bbac71c835c0c63f1917",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/systemMetricsCollector.ts": {
+    "mtime": 1791085522.8530588,
+    "seen": 1791086058.874169,
+    "ast_hash": "7e1ced512c96367b5aab9baae342ab6a",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/systemMetricsCollector.test.ts": {
+    "mtime": 1791085580.758437,
+    "seen": 1791086058.8945572,
+    "ast_hash": "706f3da685e117bca539c91118386df9",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/admin/AdminHardwareBanner.vue": {
+    "mtime": 1791085943.4359348,
+    "seen": 1791086058.928863,
+    "ast_hash": "d2a18f2fd82afbaf3c654dbbdb14b307",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/admin/AdminSessionCard.vue": {
+    "mtime": 1791085674.2529097,
+    "seen": 1791086058.928863,
+    "ast_hash": "4bdee2339e588fd1692b9f19887500c2",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/AdminHardwareBanner.test.ts": {
+    "mtime": 1791085783.0794034,
+    "seen": 1791086058.951666,
+    "ast_hash": "21e06ea72daf475bbca620cec242318d",
     "semantic_hash": ""
   }
 }

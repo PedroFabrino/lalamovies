@@ -52,14 +52,33 @@ export interface PlaybackSession {
   bandwidthBps?: number;
 }
 
+export interface GpuMetrics {
+  name: string;
+  driverVersion?: string;
+  utilizationGpuPercent: number;
+  utilizationEncoderPercent: number;
+  vramUsedBytes: number;
+  vramTotalBytes: number;
+}
+
+export interface SystemMetrics {
+  cpuPercent: number;
+  cpuCores: number;
+  memUsedBytes: number;
+  memTotalBytes: number;
+  gpu: GpuMetrics | null;
+}
+
 export interface ActivityResponse {
   sessions: PlaybackSession[];
+  system?: SystemMetrics;
 }
 
 export function useAdminActivity(options: { autoPoll?: boolean; pollIntervalMs?: number } = {}) {
   const { autoPoll = true, pollIntervalMs = 3000 } = options;
 
   const sessions = ref<PlaybackSession[]>([]);
+  const systemMetrics = ref<SystemMetrics | null>(null);
   const isLoading = ref(false);
   const isStoppingSession = ref(false);
   const error = ref<string | null>(null);
@@ -76,6 +95,7 @@ export function useAdminActivity(options: { autoPoll?: boolean; pollIntervalMs?:
     try {
       const data = await api.get<ActivityResponse>('/admin/activity');
       sessions.value = data.sessions || [];
+      systemMetrics.value = data.system || null;
     } catch (err: unknown) {
       error.value = (err as Error).message || 'Failed to load playback activity';
     } finally {
@@ -143,6 +163,7 @@ export function useAdminActivity(options: { autoPoll?: boolean; pollIntervalMs?:
 
   return {
     sessions,
+    systemMetrics,
     isLoading,
     isStoppingSession,
     error,

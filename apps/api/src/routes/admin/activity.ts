@@ -1,12 +1,21 @@
 import { FastifyPluginAsync } from 'fastify';
 
 export const adminActivityRoutes: FastifyPluginAsync = async (app) => {
-  // GET /admin/activity — returns active playback sessions
+  // GET /admin/activity — returns active playback sessions and system telemetry
   app.get('/activity', async (_request, reply) => {
     const sessions = app.sessionMonitoring
       ? await app.sessionMonitoring.getSessions()
       : [];
-    return reply.send({ sessions });
+    const system = app.sessionMonitoring
+      ? await app.sessionMonitoring.getSystemMetrics()
+      : {
+          cpuPercent: 0,
+          cpuCores: 1,
+          memUsedBytes: 0,
+          memTotalBytes: 0,
+          gpu: null,
+        };
+    return reply.send({ sessions, system });
   });
 
   // POST /admin/activity/sessions/:sessionId/stop — stops an active playback session

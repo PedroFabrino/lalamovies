@@ -26,16 +26,30 @@ describe('useAdminActivity composable', () => {
           isHardwareAccelerated: false,
         },
       ],
+      system: {
+        cpuPercent: 30,
+        cpuCores: 8,
+        memUsedBytes: 4000000000,
+        memTotalBytes: 16000000000,
+        gpu: {
+          name: 'NVIDIA RTX 3070',
+          utilizationGpuPercent: 20,
+          utilizationEncoderPercent: 5,
+          vramUsedBytes: 2000000000,
+          vramTotalBytes: 8000000000,
+        },
+      },
     };
     (api.get as any).mockResolvedValue(mockData);
 
-    const { sessions, activeSessionCount, fetchActivity } = useAdminActivity({ autoPoll: false });
+    const { sessions, systemMetrics, activeSessionCount, fetchActivity } = useAdminActivity({ autoPoll: false });
 
     await fetchActivity(true);
 
     expect(api.get).toHaveBeenCalledWith('/admin/activity');
     expect(sessions.value).toHaveLength(1);
     expect(activeSessionCount.value).toBe(1);
+    expect(systemMetrics.value).toEqual(mockData.system);
   });
 
   it('stops session via api and refreshes sessions', async () => {

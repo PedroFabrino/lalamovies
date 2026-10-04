@@ -49,8 +49,28 @@ export interface PlaybackSession {
   bandwidthBps?: number;
 }
 
+import { collectSystemMetrics } from './systemMetricsCollector';
+
+export interface GpuMetrics {
+  name: string;
+  driverVersion?: string;
+  utilizationGpuPercent: number;
+  utilizationEncoderPercent: number;
+  vramUsedBytes: number;
+  vramTotalBytes: number;
+}
+
+export interface SystemMetrics {
+  cpuPercent: number;
+  cpuCores: number;
+  memUsedBytes: number;
+  memTotalBytes: number;
+  gpu: GpuMetrics | null;
+}
+
 export interface ISessionMonitoringService {
   getSessions(): Promise<PlaybackSession[]>;
+  getSystemMetrics(): Promise<SystemMetrics>;
   stopSession(sessionId: string, message?: string): Promise<void>;
 }
 
@@ -190,6 +210,10 @@ export class SessionMonitoringService implements ISessionMonitoringService {
     if (!response.ok && response.status !== 204 && response.status !== 200) {
       throw new Error(`Failed to stop Jellyfin session ${sessionId}: HTTP ${response.status}`);
     }
+  }
+
+  async getSystemMetrics(): Promise<SystemMetrics> {
+    return collectSystemMetrics();
   }
 
   private mapSession(raw: RawJellyfinSession): PlaybackSession {
