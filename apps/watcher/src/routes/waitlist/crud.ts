@@ -237,4 +237,109 @@ export const waitlistCrudRoutes: FastifyPluginAsync = async (app) => {
 
     return reply.send({ ok: true, entry: updated, ...updated });
   });
+
+  // PATCH /waitlist/:id - In-place target episode adjustment (Spec #221 / #223)
+  app.patch('/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const callerId = request.headers['x-user-id'] as string | undefined;
+    const callerRole = request.headers['x-user-role'] as string | undefined;
+    const body = request.body as { seasonNumber?: number; targetEpisode?: number | null } | undefined;
+
+    const entry = app.db
+      .select()
+      .from(watchRequests)
+      .where(eq(watchRequests.id, id))
+      .get();
+
+    if (!entry) {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: 'Waitlist entry not found',
+      });
+    }
+
+    // 1. Validates that caller is primary requester (entry.userId === callerId) or Admin (callerRole === 'admin')
+    if (callerId && callerRole !== 'admin' && entry.userId !== callerId) {
+      return reply.status(403).send({
+        error: 'Forbidden',
+        message: 'Only primary requester or admin can adjust target episode',
+      });
+    }
+
+    // 2. Rejects modifications on inactive entries (status === 'completed' | 'cancelled' | 'rejected') with HTTP 400
+    if (['completed', 'cancelled', 'rejected'].includes(entry.status)) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: `Cannot modify target for entry in status '${entry.status}'`,
+      });
+    }
+
+    // 3. If the entry is currently in notified status, deletes any active Discord notification message
+    if (entry.status === 'notified' && entry.discordMessageId) {
+      await deleteDiscordMessage(entry.discordMessageId, undefined, app.log);
+    }
+
+    const newSeason = body?.seasonNumber !== undefined ? body.seasonNumber : entry.seasonNumber;
+    const newEpisode = body?.targetEpisode !== undefined ? body.targetEpisode : entry.targetEpisode;
+
+    // 4. Synchronously queries TMDB for the new target season/episode's air date
+    const newAirDate = await app.releaseGating.fetchReleaseDate(
+      entry.mediaType,
+      entry.metadataId,
+      newSeason,
+      newEpisode,
+      entry.metadataSource
+    );
+
+    const now = new Date().toISOString();
+
+    // 5. Clears candidate release fields, updates seasonNumber, targetEpisode, tmdbReleaseDate, status = 'pending_release'
+    app.db
+      .update(watchRequests)
+      .set({
+        seasonNumber: newSeason,
+        targetEpisode: newEpisode,
+        tmdbReleaseDate: newAirDate,
+        status: 'pending_release',
+        prowlarrReleaseTitle: null,
+        prowlarrReleaseMagnet: null,
+        prowlarrReleaseScore: null,
+        notifyAt: null,
+        discordMessageId: null,
+        lastCheckResult: null,
+        updatedAt: now,
+      })
+      .where(eq(watchRequests.id, id))
+      .run();
+
+    const updated = app.db
+      .select()
+      .from(watchRequests)
+      .where(eq(watchRequests.id, id))
+      .get();
+
+    // 6. Asynchronously dispatches a tracker search (waitlistCheck) for the new target
+    if (app.checker) {
+      setImmediate(() => {
+        app.checker.checkAndDiagnoseEntry(id).catch((err) => {
+          app.log.error(err, `Async tracker check failed for entry ${id}`);
+        });
+      });
+    }
+
+    const coReqCount = app.db
+      .select({ waitlistId: waitlistCoRequesters.waitlistId })
+      .from(waitlistCoRequesters)
+      .where(eq(waitlistCoRequesters.waitlistId, id))
+      .all().length;
+
+    const graceHours = Number(process.env.NOTIFY_GRACE_HOURS) || 6;
+    return reply.send({
+      ok: true,
+      entry: { ...updated, coRequesterCount: coReqCount, graceHours },
+      ...updated,
+      coRequesterCount: coReqCount,
+      graceHours,
+    });
+  });
 };

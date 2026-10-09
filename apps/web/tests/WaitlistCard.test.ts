@@ -1,9 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
 import WaitlistCard from '../src/components/waitlist/WaitlistCard.vue';
 import type { WaitlistEntry } from '../src/stores/waitlist';
 
 describe('WaitlistCard.vue (#188)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
   const baseEntry: WaitlistEntry = {
     id: 'entry-1',
     userId: 'user-123',

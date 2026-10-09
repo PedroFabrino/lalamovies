@@ -13,7 +13,12 @@
   <EnableIPv4>true</EnableIPv4>
   <EnableIPv6>false</EnableIPv6>
   <EnableRemoteAccess>true</EnableRemoteAccess>
-  <LocalNetworkSubnets />
+  <LocalNetworkSubnets>
+    <string>192.168.0.0/24</string>
+    <string>10.13.13.0/24</string>
+    <string>172.16.0.0/12</string>
+    <string>45.166.162.0/24</string>
+  </LocalNetworkSubnets>
   <LocalNetworkAddresses />
   <KnownProxies>
     <string>172.16.0.0/12</string>
@@ -24,7 +29,7 @@
   <VirtualInterfaceNames>
     <string>veth</string>
   </VirtualInterfaceNames>
-  <EnablePublishedServerUriByRequest>false</EnablePublishedServerUriByRequest>
+  <EnablePublishedServerUriByRequest>true</EnablePublishedServerUriByRequest>
   <PublishedServerUriBySubnet />
   <RemoteIPFilter />
   <IsRemoteIPFilterBlacklist>true</IsRemoteIPFilterBlacklist>

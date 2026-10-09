@@ -9,6 +9,7 @@ export interface SeriesQueryOptions {
   episodeNumber?: number | null;
   englishTitle?: string | null;
   romajiTitle?: string | null;
+  seasonName?: string | null;
 }
 
 export function hasCjkCharacters(s?: string | null): boolean {
@@ -20,26 +21,32 @@ export function buildSeriesSearchQueries(options: SeriesQueryOptions): SeriesQue
   const queries: SeriesQueryParam[] = [];
   const seenQueries = new Set<string>();
 
-  const addQuery = (q: string) => {
+  const addQuery = (q: string, isCjk = false) => {
     const trimmed = q.trim();
     const lower = trimmed.toLowerCase();
     if (trimmed && !seenQueries.has(lower)) {
       seenQueries.add(lower);
-      queries.push({ query: trimmed, categories });
+      // For CJK queries, restrict to anime indexer categories (5070) so ASCII-only
+      // public indexers do not strip Kanji and degrade into bare episode number queries.
+      const queryCats = isCjk ? [5070] : categories;
+      queries.push({ query: trimmed, categories: queryCats });
     }
   };
 
-  // Build candidate title list: prefer Romaji and English, then title
+  // Build candidate title list: prefer Romaji, English, season subtitle, then title
   const rawList = [
     options.romajiTitle,
     options.englishTitle,
+    options.seasonName,
+    options.seasonName && options.title ? `${options.title} ${options.seasonName}` : undefined,
     options.title,
   ].filter((t): t is string => Boolean(t && t.trim().length > 0));
 
-  // If any title is Latin while others are CJK, prioritize Latin titles
+  // If any Latin titles are available, omit CJK-only titles to prevent
+  // ASCII-only indexers from degrading queries.
   const latinTitles = rawList.filter((t) => !hasCjkCharacters(t));
   const cjkTitles = rawList.filter((t) => hasCjkCharacters(t));
-  const prioritized = [...latinTitles, ...cjkTitles];
+  const prioritized = latinTitles.length > 0 ? latinTitles : cjkTitles;
 
   const titles: string[] = [];
   const seenTitles = new Set<string>();
@@ -56,22 +63,23 @@ export function buildSeriesSearchQueries(options: SeriesQueryOptions): SeriesQue
   const isSingleEpisode = options.episodeNumber !== undefined && options.episodeNumber !== null;
 
   for (const title of titles) {
+    const isCjk = hasCjkCharacters(title);
     if (isSingleEpisode) {
       const eNum = options.episodeNumber!;
       const ePad = String(eNum).padStart(2, '0');
 
       // Standard TV syntax: Title S01E01
-      addQuery(`${title} S${sPad}E${ePad}`);
+      addQuery(`${title} S${sPad}E${ePad}`, isCjk);
       // Anime absolute dashed syntax: Title - 01
-      addQuery(`${title} - ${ePad}`);
+      addQuery(`${title} - ${ePad}`, isCjk);
       // Anime absolute spaced syntax: Title 01
-      addQuery(`${title} ${ePad}`);
+      addQuery(`${title} ${ePad}`, isCjk);
     } else {
       // Season Pack: Title S01
-      addQuery(`${title} S${sPad}`);
+      addQuery(`${title} S${sPad}`, isCjk);
       // For Season 1, also query plain Title
       if (sNum === 1) {
-        addQuery(title);
+        addQuery(title, isCjk);
       }
     }
   }

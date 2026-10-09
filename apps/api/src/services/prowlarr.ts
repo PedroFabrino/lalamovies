@@ -262,7 +262,7 @@ export class ProwlarrService implements IProwlarrService {
       };
     }
 
-    const { mediaType, title, year, seasonNumber, episodeNumber, romajiTitle, englishTitle } = options;
+    const { mediaType, title, year, seasonNumber, episodeNumber, romajiTitle, englishTitle, seasonName } = options;
     const isSingleEpisode = episodeNumber !== undefined && episodeNumber !== null;
     const effectiveSeason = seasonNumber ?? (mediaType !== 'movie' ? 1 : null);
     const scoreOptions: ScoreOptions = {
@@ -270,6 +270,8 @@ export class ProwlarrService implements IProwlarrService {
       isSingleEpisode,
       seasonNumber: effectiveSeason,
       episodeNumber: episodeNumber ?? null,
+      title,
+      aliases: [romajiTitle, englishTitle, seasonName].filter((t): t is string => Boolean(t && t.trim())),
     };
 
     let candidates: ReleaseCandidate[] = [];
@@ -326,6 +328,7 @@ export class ProwlarrService implements IProwlarrService {
         episodeNumber,
         englishTitle,
         romajiTitle,
+        seasonName,
       });
 
       const searchPromises = seriesQueries.map((sq) =>

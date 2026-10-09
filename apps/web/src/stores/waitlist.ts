@@ -135,6 +135,29 @@ export const useWaitlistStore = defineStore('waitlist', () => {
     }
   }
 
+  async function updateTarget(
+    id: string,
+    payload: { seasonNumber?: number; targetEpisode?: number | null }
+  ): Promise<WaitlistEntry> {
+    try {
+      const res = await api.patch<WaitlistEntry | { ok: boolean; entry: WaitlistEntry }>(`/waitlist/${id}`, payload);
+      const updated = 'entry' in res && (res as { entry: WaitlistEntry }).entry
+        ? (res as { entry: WaitlistEntry }).entry
+        : (res as WaitlistEntry);
+
+      const idx = entries.value.findIndex((e) => e.id === id);
+      if (idx !== -1) {
+        entries.value[idx] = { ...entries.value[idx], ...updated };
+      }
+      showToast(`Updated tracking target for "${updated.title}"`, 'success');
+      return updated;
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Failed to update target episode';
+      showToast(msg, 'error');
+      throw err;
+    }
+  }
+
   return {
     entries,
     loading,
@@ -146,5 +169,6 @@ export const useWaitlistStore = defineStore('waitlist', () => {
     addEntry,
     cancelEntry,
     approveEntry,
+    updateTarget,
   };
 });

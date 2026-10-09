@@ -47,6 +47,7 @@ export interface SearchReleasesOptions {
   episodeNumber?: number | null;
   romajiTitle?: string | null;
   englishTitle?: string | null;
+  seasonName?: string | null;
 }
 
 export interface IProwlarrService {

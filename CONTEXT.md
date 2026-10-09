@@ -102,13 +102,15 @@ _Avoid_: anime browser, upcoming tab, anime list
 An individual anime series card within the Seasonal Anime Tab displaying broadcast status, season schedule, community score, and trailer/synopsis, supporting quick actions for Waitlist commitment or tracker search.
 _Avoid_: anime card, seasonal card, show result
 
-**Anticipated Sequels Shelf**:
-A prioritized, personalized showcase within the Seasonal Anime Tab that highlights upcoming seasonal anime whose prequels or parent franchises appear in the user's completed Download Requests or Jellyfin play history.
-_Avoid_: returning anime, watchlist sequels, recommended sequels
+**Waitlist Tier**:
+One of five collapsible visual groupings on the Waitlist view (`Awaiting Confirmation`, `Released — Searching`, `Upcoming — Scheduled`, `Announced — Unscheduled`, and `Archive`) organizing Waitlist Entries by lifecycle stage, TMDB air date, and candidate readiness.
+_Avoid_: waitlist category, waitlist section, status group
+
+**Target Episode Adjustment**:
+The in-place manual update of an active episodic Waitlist Entry's season number or target episode, preserving entry ownership, co-requesters, and metadata linkage while resetting notification state and refreshing TMDB air dates.
+_Avoid_: episode edit, waitlist update, target change
 
 
-
-### File System
 
 **Staging Area**:
 The filesystem directory (``/downloads/staging``) where qBittorrent writes active downloads. Files here are not visible to Jellyfin. The torrent client remains pointed at this directory while seeding.

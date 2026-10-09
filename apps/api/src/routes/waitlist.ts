@@ -328,6 +328,11 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
     return forwardToWatcher(request, reply, `/${id}`);
   });
 
+  app.patch('/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    return forwardToWatcher(request, reply, `/${id}`);
+  });
+
   app.all('/*', async (request, reply) => {
     const wildcard = (request.params as { '*': string })['*'];
     return forwardToWatcher(request, reply, wildcard ? `/${wildcard}` : '');

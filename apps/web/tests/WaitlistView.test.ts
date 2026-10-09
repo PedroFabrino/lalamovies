@@ -130,30 +130,32 @@ describe('WaitlistView - Dedicated Waitlist Page', () => {
     const cards = wrapper.findAll('[data-testid="waitlist-card"]');
     expect(cards.length).toBe(5);
 
-    // First card: Beyond the Spider-Verse
-    expect(cards[0].text()).toContain('Beyond the Spider-Verse');
-    expect(cards[0].text()).toContain('2026');
-    expect(cards[0].find('[data-testid="entry-media-type"]').text()).toContain('Movie');
-    expect(cards[0].find('[data-testid="entry-status-badge"]').text()).toContain('Pending Release');
-    expect(cards[0].find('[data-testid="entry-release-date-badge"]').exists()).toBe(true);
-    expect(cards[0].text()).toContain('Starts searching trackers on');
+    const spiderCard = cards.find((c) => c.text().includes('Beyond the Spider-Verse'))!;
+    expect(spiderCard).toBeDefined();
+    expect(spiderCard.text()).toContain('2026');
+    expect(spiderCard.find('[data-testid="entry-media-type"]').text()).toContain('Movie');
+    expect(spiderCard.find('[data-testid="entry-status-badge"]').text()).toContain('Pending Release');
+    expect(spiderCard.find('[data-testid="entry-release-date-badge"]').exists()).toBe(true);
+    expect(spiderCard.text()).toContain('Starts searching trackers on');
 
-    // Second card: Severance S02E01
-    expect(cards[1].text()).toContain('Severance');
-    expect(cards[1].find('[data-testid="entry-season-badge"]').text()).toContain('S02E01');
-    expect(cards[1].find('[data-testid="entry-status-badge"]').text()).toContain('Checking Trackers');
-    expect(cards[1].find('[data-testid="entry-co-requester-count"]').text()).toContain('+2');
+    const severanceCard = cards.find((c) => c.text().includes('Severance'))!;
+    expect(severanceCard).toBeDefined();
+    expect(severanceCard.find('[data-testid="entry-season-badge"]').text()).toContain('S02E01');
+    expect(severanceCard.find('[data-testid="entry-status-badge"]').text()).toContain('Checking Trackers');
+    expect(severanceCard.find('[data-testid="entry-co-requester-count"]').text()).toContain('+2');
 
-    // Third card: Chainsaw Man S02 - Notified with countdown
-    expect(cards[2].text()).toContain('Chainsaw Man');
-    expect(cards[2].find('[data-testid="entry-status-badge"]').text()).toContain('Release Found');
-    expect(cards[2].text()).toContain('Auto-downloading in');
+    const chainsawCard = cards.find((c) => c.text().includes('Chainsaw Man'))!;
+    expect(chainsawCard).toBeDefined();
+    expect(chainsawCard.find('[data-testid="entry-status-badge"]').text()).toContain('Release Found');
+    expect(chainsawCard.text()).toContain('Auto-downloading in');
 
-    // Fourth card: Triggered
-    expect(cards[3].find('[data-testid="entry-status-badge"]').text()).toContain('Triggered');
+    const duneCard = cards.find((c) => c.text().includes('Dune: Part Two'))!;
+    expect(duneCard).toBeDefined();
+    expect(duneCard.find('[data-testid="entry-status-badge"]').text()).toContain('Triggered');
 
-    // Fifth card: Completed
-    expect(cards[4].find('[data-testid="entry-status-badge"]').text()).toContain('Completed');
+    const oppenheimerCard = cards.find((c) => c.text().includes('Oppenheimer'))!;
+    expect(oppenheimerCard).toBeDefined();
+    expect(oppenheimerCard.find('[data-testid="entry-status-badge"]').text()).toContain('Completed');
   });
 
   it('cancels entry optimistically on Cancel click', async () => {

@@ -138,7 +138,7 @@ services:
     environment:
       # When Caddy is used for external HTTPS access, set this to your public domain.
       # For local-only access, leave as http://localhost:8096.
-      - JELLYFIN_PublishedServerUrl=${JELLYFIN_PublishedServerUrl:-http://localhost:8096}
+      - JELLYFIN_PublishedServerUrl=${JELLYFIN_PublishedServerUrl:-https://${JELLYFIN_DOMAIN:-watch.lalamovies.stream}}
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
     ports:

@@ -59,9 +59,11 @@ export class JellyfinService implements IJellyfinService {
   }
 
   private getHeaders(): Record<string, string> {
+    const authHeader = this.getAuthHeader();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'X-Emby-Authorization': this.getAuthHeader(),
+      'Authorization': authHeader,
+      'X-Emby-Authorization': authHeader,
     };
     const key = (this.getDynamicApiKey ? this.getDynamicApiKey() : null) || this.apiKey;
     if (key) {

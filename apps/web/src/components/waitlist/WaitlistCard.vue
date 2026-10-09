@@ -50,9 +50,33 @@
           </span>
           <span
             v-if="entry.seasonNumber"
-            class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-300 border border-zinc-700"
+            class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-300 border border-zinc-700 inline-flex items-center gap-1"
             data-testid="entry-season-badge"
-          >S{{ entry.seasonNumber < 10 ? `0${entry.seasonNumber}` : entry.seasonNumber }}<template v-if="entry.targetEpisode">E{{ entry.targetEpisode < 10 ? `0${entry.targetEpisode}` : entry.targetEpisode }}</template></span>
+          >
+            <span>S{{ entry.seasonNumber < 10 ? `0${entry.seasonNumber}` : entry.seasonNumber }}<template v-if="entry.targetEpisode">E{{ entry.targetEpisode < 10 ? `0${entry.targetEpisode}` : entry.targetEpisode }}</template></span>
+            <button
+              v-if="canAdjustTarget"
+              type="button"
+              data-testid="adjust-target-btn"
+              title="Adjust target season/episode"
+              class="p-0.5 hover:text-white rounded hover:bg-zinc-700 transition cursor-pointer"
+              @click.stop="isAdjustPopoverOpen = true"
+            >
+              <svg
+                class="w-2.5 h-2.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                />
+              </svg>
+            </button>
+          </span>
           <span
             v-if="entry.tmdbReleaseDate"
             class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-900 text-amber-300 border border-amber-800/50 flex items-center gap-1"
@@ -282,12 +306,22 @@
         </button>
       </div>
     </div>
+
+    <!-- Target Episode Adjust Popover (Spec #221 / #225) -->
+    <WaitlistEpisodeAdjustPopover
+      v-if="isAdjustPopoverOpen"
+      :open="isAdjustPopoverOpen"
+      :entry="entry"
+      @close="isAdjustPopoverOpen = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import type { WaitlistEntry } from '../../stores/waitlist';
+import { useAuthStore } from '../../stores/auth';
+import WaitlistEpisodeAdjustPopover from './WaitlistEpisodeAdjustPopover.vue';
 import { formatMediaType } from '../../lib/formatters';
 import {
   getRemainingGraceMs,
@@ -320,6 +354,21 @@ const emit = defineEmits<{
   (e: 'cancel', entry: WaitlistEntry): void;
   (e: 'manual-pick', entry: WaitlistEntry): void;
 }>();
+
+const authStore = useAuthStore();
+const isAdjustPopoverOpen = ref(false);
+
+const isActiveEpisodic = computed(() => {
+  const isEpisodic = props.entry.mediaType === 'tv_show' || props.entry.mediaType === 'anime';
+  const isActive = ['pending_release', 'checking', 'notified'].includes(props.entry.status);
+  return isEpisodic && isActive;
+});
+
+const canAdjustTarget = computed(() => {
+  if (!isActiveEpisodic.value) return false;
+  if (authStore.isAdmin) return true;
+  return authStore.user?.id === props.entry.userId;
+});
 
 const isActionable = computed(() => props.entry.status !== 'cancelled' && props.entry.status !== 'completed');
 

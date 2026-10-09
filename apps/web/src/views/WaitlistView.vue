@@ -6,52 +6,10 @@
     <!-- Main Content -->
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
       <!-- Toast Alert -->
-      <div
-        v-if="waitlistStore.toast"
-        data-testid="waitlist-toast"
-        class="mb-6 p-4 rounded-xl border flex items-center justify-between gap-3 shadow-lg"
-        :class="waitlistStore.toast.type === 'error'
-          ? 'bg-red-950/60 border-red-800 text-red-200'
-          : waitlistStore.toast.type === 'success'
-            ? 'bg-emerald-950/60 border-emerald-800 text-emerald-200'
-            : 'bg-indigo-950/60 border-indigo-800 text-indigo-200'"
-      >
-        <div class="flex items-center gap-3">
-          <svg
-            class="w-5 h-5 shrink-0"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          <span class="text-sm font-medium">{{ waitlistStore.toast.text }}</span>
-        </div>
-        <button
-          type="button"
-          class="p-1 text-zinc-400 hover:text-white rounded-lg transition cursor-pointer"
-          @click="waitlistStore.clearToast"
-        >
-          <svg
-            class="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
-      </div>
+      <WaitlistToast
+        :toast="waitlistStore.toast"
+        @dismiss="waitlistStore.clearToast"
+      />
 
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
@@ -93,6 +51,17 @@
               All Users
             </button>
           </div>
+
+          <!-- Expand/Collapse All Button (Spec #221) -->
+          <button
+            type="button"
+            data-testid="toggle-collapse-all-btn"
+            class="px-3 py-1.5 text-xs text-zinc-300 hover:text-white bg-zinc-900 border border-zinc-800 rounded-lg hover:bg-zinc-800 transition cursor-pointer flex items-center gap-1.5"
+            :title="allExpanded ? 'Collapse All Tiers' : 'Expand All Tiers'"
+            @click="toggleAll"
+          >
+            <span>{{ allExpanded ? 'Collapse All' : 'Expand All' }}</span>
+          </button>
 
           <button
             type="button"
@@ -166,56 +135,27 @@
       </div>
 
       <!-- Empty State -->
-      <div
+      <WaitlistGlobalEmptyState
         v-else-if="waitlistStore.entries.length === 0"
-        data-testid="waitlist-empty-state"
-        class="border border-dashed border-zinc-800 rounded-2xl p-12 text-center bg-zinc-950/40 max-w-xl mx-auto my-8"
-      >
-        <div class="w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 flex items-center justify-center mx-auto mb-4 text-xl">
-          ⏳
-        </div>
-        <h3 class="text-base font-semibold text-white">
-          Your waitlist is empty
-        </h3>
-        <p class="text-sm text-zinc-400 mt-1 mb-6">
-          Add unreleased movies, future TV seasons, or titles that don't have good releases yet. We'll monitor indexers and snatch them automatically.
-        </p>
-        <button
-          type="button"
-          data-testid="empty-add-waitlist-btn"
-          class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition inline-flex items-center gap-2 cursor-pointer shadow"
-          @click="openSearchModal"
-        >
-          <svg
-            class="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 4v16m8-8H4"
-            />
-          </svg>
-          <span>Add your first title</span>
-        </button>
-      </div>
+        @add="openSearchModal"
+      />
 
-      <!-- Entries Grid -->
+      <!-- Tiered Sections (Spec #221) -->
       <div
         v-else
-        class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+        class="space-y-6"
         data-testid="waitlist-grid"
       >
-        <WaitlistCard
-          v-for="entry in waitlistStore.entries"
-          :key="entry.id"
-          :entry="entry"
-          :is-approving="approvingEntryId === entry.id"
-          :is-checking="checkingEntryId === entry.id"
+        <WaitlistTierSection
+          v-for="tier in tierDefinitions"
+          :key="tier.key"
+          :tier="tier"
+          :entries="partitioned[tier.key]"
+          :is-expanded="tierStates[tier.key]"
+          :approving-entry-id="approvingEntryId"
+          :checking-entry-id="checkingEntryId"
           :now="now"
+          @toggle="toggleTier(tier.key)"
           @approve="handleApprove"
           @check="handleCheckEntry"
           @cancel="handleCancel"
@@ -234,20 +174,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, toRef, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Navbar from '../components/Navbar.vue';
-import WaitlistCard from '../components/waitlist/WaitlistCard.vue';
+import WaitlistTierSection from '../components/waitlist/WaitlistTierSection.vue';
+import WaitlistToast from '../components/waitlist/WaitlistToast.vue';
+import WaitlistGlobalEmptyState from '../components/waitlist/WaitlistGlobalEmptyState.vue';
 import WaitlistAddModal from '../components/waitlist/WaitlistAddModal.vue';
 import type { WaitlistCandidate } from '../components/waitlist/waitlistModalTypes';
 import { useWaitlistStore, WaitlistEntry } from '../stores/waitlist';
 import { useAuthStore } from '../stores/auth';
+import { useWaitlistTiers } from '../composables/useWaitlistTiers';
 import { api } from '../lib/api';
 
 const route = useRoute();
 const router = useRouter();
 const waitlistStore = useWaitlistStore();
 const authStore = useAuthStore();
+
+const entriesRef = toRef(waitlistStore, 'entries');
+const {
+  tierStates,
+  partitioned,
+  allExpanded,
+  toggleTier,
+  toggleAll,
+  tierDefinitions,
+} = useWaitlistTiers(entriesRef);
 
 // Admin view toggle (Ticket 10)
 const activeView = ref<'mine' | 'all'>(authStore.isAdmin ? 'all' : 'mine');

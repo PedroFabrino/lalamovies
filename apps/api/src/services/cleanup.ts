@@ -151,6 +151,10 @@ export class CleanupService implements ICleanupService {
     if (this.diskFreeBytesProvider) {
       return this.diskFreeBytesProvider();
     }
+    if (this.diskFreePercentProvider) {
+      const pct = this.diskFreePercentProvider();
+      return Math.round((500 * 1024 * 1024 * 1024) * (pct / 100));
+    }
     const target = customPath || this.mediaPath || process.env.MEDIA_PATH || process.cwd();
     try {
       const checkPath = fs.existsSync(target) ? target : process.cwd();

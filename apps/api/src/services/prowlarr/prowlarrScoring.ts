@@ -10,6 +10,63 @@ export interface ScoreOptions {
   isSingleEpisode?: boolean;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
+  title?: string;
+  aliases?: string[];
+}
+
+export function isTitleRelevant(
+  candidateTitle: string,
+  targetTitle: string,
+  aliases?: string[]
+): boolean {
+  const norm = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[._\-–—[\](){}:;!?'"]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const STOP_WORDS = new Set([
+    'and', 'the', 'of', 'in', 'on', 'at', 'to', 'for', 'a', 'an', 'is', 'no', 'na', 'da', 'de', 'la', 'le',
+  ]);
+
+  const candidateNorm = norm(candidateTitle);
+  const candidateTokens = new Set(
+    candidateNorm
+      .split(' ')
+      .filter((t) => t.length > 1 && !STOP_WORDS.has(t))
+  );
+
+  const targets = [targetTitle, ...(aliases || [])].filter(Boolean);
+
+  for (const target of targets) {
+    const targetNorm = norm(target);
+    if (!targetNorm) continue;
+
+    if (candidateNorm.includes(targetNorm)) {
+      return true;
+    }
+
+    const targetTokens = targetNorm
+      .split(' ')
+      .filter((t) => t.length > 1 && !STOP_WORDS.has(t));
+
+    if (targetTokens.length === 0) continue;
+
+    const matchedCount = targetTokens.filter((t) => candidateTokens.has(t)).length;
+
+    if (targetTokens.length === 1) {
+      if (matchedCount === 1) return true;
+    } else if (targetTokens.length === 2) {
+      if (matchedCount >= 1) return true;
+    } else {
+      if (matchedCount >= 2 || matchedCount / targetTokens.length >= 0.5) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 export function formatBytes(bytes: number): string {
@@ -199,6 +256,15 @@ export function scoreRelease(
   // Preferred Indexer bonus (+300 points for qualified preferred candidates)
   if (isQualifiedPreferred(candidate)) {
     score += 300;
+  }
+
+  // Title Relevance Guard
+  if (options?.title && options.title.trim()) {
+    if (!isTitleRelevant(candidate.title, options.title, options.aliases)) {
+      score -= 1000;
+    } else {
+      score += 25;
+    }
   }
 
   const isLowHealth = candidate.seeders < 5;
