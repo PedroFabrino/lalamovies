@@ -35,6 +35,7 @@ describe('CarouselHandler', () => {
       editMessageMedia: vi.fn().mockResolvedValue(true),
       editMessageCaption: vi.fn().mockResolvedValue(true),
       editMessageText: vi.fn().mockResolvedValue(true),
+      deleteMessage: vi.fn().mockResolvedValue(true),
     };
     callbackStore = new CallbackStore();
     carousel = new CarouselHandler(telegramMock as TelegramBotClient, callbackStore);
@@ -101,5 +102,6 @@ describe('CarouselHandler', () => {
 
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith(session, mockCandidates[1]);
+    expect(telegramMock.deleteMessage).toHaveBeenCalledWith('chat-1', 2);
   });
 });

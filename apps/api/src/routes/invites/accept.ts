@@ -179,6 +179,7 @@ export const inviteAcceptRoutes: FastifyPluginAsync = async (app) => {
         invitesEnabled: true,
         jellyfinAccessToken: null,
         telegramChatId: null,
+        telegramReportMessageId: null,
         personalGeminiApiKey: null,
         createdAt: new Date().toISOString(),
       };

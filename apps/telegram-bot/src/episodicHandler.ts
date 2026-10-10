@@ -152,6 +152,9 @@ export class EpisodicHandler {
 
     if (action === 'confirm') {
       this.callbackStore.delete(token);
+      if (typeof this.telegram.deleteMessage === 'function') {
+        await this.telegram.deleteMessage(chatId, messageId).catch(() => {});
+      }
       await onConfirm(session);
       return;
     }

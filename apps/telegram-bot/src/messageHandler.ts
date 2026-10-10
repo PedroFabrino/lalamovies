@@ -9,6 +9,7 @@ import { CallbackStore } from './callbackStore';
 import { CarouselHandler } from './carouselHandler';
 import { EpisodicHandler } from './episodicHandler';
 import { SnatchHandler } from './snatchHandler';
+import { ReportCardHandler } from './reportCardHandler';
 
 export class MessageHandler {
   constructor(
@@ -18,7 +19,8 @@ export class MessageHandler {
     private callbackStore: CallbackStore,
     private carouselHandler: CarouselHandler,
     private episodicHandler: EpisodicHandler,
-    private snatchHandler: SnatchHandler
+    private snatchHandler: SnatchHandler,
+    private reportCardHandler?: ReportCardHandler
   ) {}
 
   async handleMessage(msg: TelegramMessage): Promise<void> {
@@ -26,6 +28,12 @@ export class MessageHandler {
     if (!text) return;
 
     const chatId = msg.chat.id;
+
+    const deletePrompt = async () => {
+      if (msg.message_id && typeof this.telegram.deleteMessage === 'function') {
+        await this.telegram.deleteMessage(chatId, msg.message_id).catch(() => {});
+      }
+    };
 
     // Check pairing
     const user = await this.apiClient.getUserByChatId(chatId);
@@ -47,6 +55,7 @@ export class MessageHandler {
             `❌ *Erro ao vincular conta:*\n${pairRes.message || 'Código inválido ou expirado'}.\n\nGere um novo código de 6 caracteres na interface web em *Configurações > Telegram* e envie aqui como:\n\`/link 123456\``
           );
         }
+        await deletePrompt();
         return;
       }
 
@@ -55,16 +64,26 @@ export class MessageHandler {
         chatId,
         `👋 *Bem-vindo ao Media Download Manager!*\n\nPara solicitar downloads diretamente pelo Telegram, você precisa vincular sua conta:\n\n1. Acesse o portal do MDM pelo navegador\n2. Vá em *Configurações > Telegram*\n3. Clique em *Gerar Código de Vinculação*\n4. Envie o código aqui usando:\n   \`/link <SEU_CODIGO>\`\n\nExemplo: \`/link AB12CD\``
       );
+      await deletePrompt();
       return;
     }
 
-    // User is paired!
+    // User is paired: ensure pinned report card exists/updates
+    await this.reportCardHandler?.ensureOrUpdateReportCard(chatId);
+
+    // Clean up any previous completed/confirmation card before starting new action
+    const prevEphemeral = this.callbackStore.consumeLastEphemeralMessage(chatId);
+    if (prevEphemeral && typeof this.telegram.deleteMessage === 'function') {
+      await this.telegram.deleteMessage(chatId, prevEphemeral).catch(() => {});
+    }
+
     // Check if user re-runs /link
     if (text.startsWith('/link') || text.startsWith('/vincular')) {
       await this.telegram.sendMessage(
         chatId,
         `ℹ️ Sua conta já está vinculada como *${user.username}*!`
       );
+      await deletePrompt();
       return;
     }
 
@@ -85,6 +104,7 @@ export class MessageHandler {
           `🔑 Chave pessoal do Gemini salva com sucesso!`
         );
       }
+      await deletePrompt();
       return;
     }
 
@@ -105,6 +125,7 @@ export class MessageHandler {
         `  /apikey <chave> — Define chave pessoal do Gemini\n` +
         `  /apikey clear — Remove sua chave pessoal`
       );
+      await deletePrompt();
       return;
     }
 
@@ -126,6 +147,7 @@ export class MessageHandler {
         `• Modo de IA: *${aiMode}*\n` +
         `• Notificações: *Ativadas*`
       );
+      await deletePrompt();
       return;
     }
 
@@ -142,11 +164,13 @@ export class MessageHandler {
         chatId,
         `Olá! Você pode me pedir qualquer filme, série ou anime digitando o nome ou usando /filme ou /serie.`
       );
+      await deletePrompt();
       return;
     }
 
     if (intent.action === 'status') {
       await this.telegram.sendMessage(chatId, `Usuário conectado: *${user.username}*`);
+      await deletePrompt();
       return;
     }
 
@@ -155,6 +179,7 @@ export class MessageHandler {
       chatId,
       `🔍 Buscando "*${searchQuery}*" no TMDB...`
     );
+    await deletePrompt();
 
     const candidates = await this.apiClient.searchMetadata(
       user.id,
@@ -163,9 +188,12 @@ export class MessageHandler {
     );
 
     if (waitMsg) {
-      // If candidates exist, send carousel and delete/edit placeholder
+      // If candidates exist, send carousel and delete placeholder
       if (candidates.length > 0) {
         await this.carouselHandler.sendCarousel(chatId, user.id, candidates, intent);
+        if (typeof this.telegram.deleteMessage === 'function') {
+          await this.telegram.deleteMessage(chatId, waitMsg.message_id).catch(() => {});
+        }
       } else {
         await this.telegram.editMessageText(
           chatId,
@@ -180,10 +208,20 @@ export class MessageHandler {
     const data = cb.data;
     if (!data || !cb.message) return;
 
-    await this.telegram.answerCallbackQuery(cb.id);
-
     const chatId = cb.message.chat.id;
     const messageId = cb.message.message_id;
+
+    if (data === 'report:refresh') {
+      if (this.reportCardHandler) {
+        await this.reportCardHandler.handleRefreshCallback(chatId, messageId, cb.id);
+      } else {
+        await this.telegram.answerCallbackQuery(cb.id);
+      }
+      return;
+    }
+
+    await this.telegram.answerCallbackQuery(cb.id);
+
     const parts = data.split(':');
     const prefix = parts[0];
     const token = parts[1];
@@ -246,6 +284,9 @@ export class MessageHandler {
     } else if (prefix === 'r') {
       // Release override callback
       await this.snatchHandler.handleReleaseCallback(chatId, messageId, action, token);
+    } else if (prefix === 'w') {
+      // Waitlist confirmation callback
+      await this.snatchHandler.handleWaitlistCallback(chatId, messageId, action, token);
     }
   }
 }

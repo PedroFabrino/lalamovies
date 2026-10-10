@@ -156,4 +156,68 @@ describe('TelegramNotifier', () => {
       })
     ).resolves.not.toThrow();
   });
+
+  it('deletes initiation snatch message and triggers updateReportCard on download.completed', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true }),
+    });
+    global.fetch = fetchMock;
+
+    const updateReportCardMock = vi.fn().mockResolvedValue(undefined);
+    const notifier = new TelegramNotifier('test-token', undefined, {
+      updateReportCard: updateReportCardMock,
+    });
+
+    await notifier.send('download.completed', {
+      title: 'Tougen Anki',
+      userId: 'u1',
+      telegramChatId: 'chat-100',
+      telegramSnatchMessageId: 444,
+    });
+
+    // 1st call deletes snatch message, 2nd call sends completion notification
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [delUrl, delReq] = fetchMock.mock.calls[0];
+    expect(delUrl).toContain('/deleteMessage');
+    expect(JSON.parse(delReq.body)).toEqual({
+      chat_id: 'chat-100',
+      message_id: 444,
+    });
+
+    const [sendUrl, sendReq] = fetchMock.mock.calls[1];
+    expect(sendUrl).toContain('/sendMessage');
+    expect(JSON.parse(sendReq.body).text).toContain('Download Concluído!');
+
+    // updateReportCard triggered
+    expect(updateReportCardMock).toHaveBeenCalledWith('chat-100', 'u1');
+  });
+
+  it('looks up snatch message id via getTelegramSnatchMessageId when omitted from payload', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true }),
+    });
+    global.fetch = fetchMock;
+
+    const getSnatchMock = vi.fn().mockResolvedValue(555);
+    const notifier = new TelegramNotifier('test-token', undefined, {
+      getTelegramSnatchMessageId: getSnatchMock,
+    });
+
+    await notifier.send('download.failed', {
+      title: 'Broken Torrent',
+      requestId: 'req-abc',
+      telegramChatId: 'chat-200',
+    });
+
+    expect(getSnatchMock).toHaveBeenCalledWith('req-abc');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toContain('/deleteMessage');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      chat_id: 'chat-200',
+      message_id: 555,
+    });
+  });
 });
+

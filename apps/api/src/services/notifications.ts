@@ -27,6 +27,7 @@ export interface NotificationPayload {
   error?: string;
   jellyfinUrl?: string;
   recipientEmails?: string[];
+  telegramSnatchMessageId?: number | null;
 }
 
 export function formatNotificationMediaTitle(payload: NotificationPayload): string {
@@ -75,6 +76,8 @@ export interface NotificationServiceOptions {
   telegramBotToken?: string;
   getUserTelegramChatId?: (userId: string) => Promise<string | null> | (string | null);
   isDiscordEnabled?: () => Promise<boolean> | boolean;
+  getTelegramSnatchMessageId?: (requestId: string) => Promise<number | null> | (number | null);
+  updateReportCard?: (chatId: string, userId: string) => Promise<void>;
 }
 
 export class NotificationService implements INotificationService {
@@ -89,6 +92,8 @@ export class NotificationService implements INotificationService {
     let telegramBotToken: string | undefined;
     let getUserTelegramChatId: ((userId: string) => Promise<string | null> | (string | null)) | undefined;
     let isDiscordEnabled: (() => Promise<boolean> | boolean) | undefined;
+    let getTelegramSnatchMessageId: ((requestId: string) => Promise<number | null> | (number | null)) | undefined;
+    let updateReportCard: ((chatId: string, userId: string) => Promise<void>) | undefined;
 
     if (typeof webhookUrlOrOptions === 'object' && webhookUrlOrOptions !== null) {
       webhookUrl = webhookUrlOrOptions.webhookUrl;
@@ -96,6 +101,8 @@ export class NotificationService implements INotificationService {
       telegramBotToken = webhookUrlOrOptions.telegramBotToken;
       getUserTelegramChatId = webhookUrlOrOptions.getUserTelegramChatId;
       isDiscordEnabled = webhookUrlOrOptions.isDiscordEnabled;
+      getTelegramSnatchMessageId = webhookUrlOrOptions.getTelegramSnatchMessageId;
+      updateReportCard = webhookUrlOrOptions.updateReportCard;
     } else {
       webhookUrl = webhookUrlOrOptions;
     }
@@ -103,7 +110,10 @@ export class NotificationService implements INotificationService {
     this.notifiers = [
       new DiscordNotifier(webhookUrl, isDiscordEnabled),
       new ResendNotifier(resendKey),
-      new TelegramNotifier(telegramBotToken, getUserTelegramChatId),
+      new TelegramNotifier(telegramBotToken, getUserTelegramChatId, {
+        getTelegramSnatchMessageId,
+        updateReportCard,
+      }),
     ];
   }
 

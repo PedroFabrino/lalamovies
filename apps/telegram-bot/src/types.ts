@@ -71,6 +71,8 @@ export interface MetadataCandidate {
   year?: number | null;
   posterUrl?: string | null;
   overview?: string | null;
+  romajiTitle?: string | null;
+  englishTitle?: string | null;
 }
 
 export interface SeriesProgressResult {
@@ -95,4 +97,30 @@ export interface SearchReleasesResponse {
   recommendedRelease?: ReleaseCandidate | null;
   releases: ReleaseCandidate[];
   isFutureOrUnreleased?: boolean;
+}
+
+export interface ReportItem {
+  id: string;
+  title: string;
+  mediaType: string;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
+  status: string;
+  downloadedAt?: string | null;
+}
+
+export interface ReportWaitlistItem {
+  id: string;
+  title: string;
+  mediaType: string;
+  seasonNumber?: number | null;
+  targetEpisode?: number | null;
+  status: string;
+}
+
+export interface UserReportResponse {
+  telegramReportMessageId: number | null;
+  active: ReportItem[];
+  completed: ReportItem[];
+  waitlist: ReportWaitlistItem[];
 }

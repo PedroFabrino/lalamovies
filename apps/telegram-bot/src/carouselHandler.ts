@@ -119,6 +119,9 @@ export class CarouselHandler {
     if (action === 'pick') {
       const selected = session.candidates[session.currentIndex];
       this.callbackStore.delete(token);
+      if (typeof this.telegram.deleteMessage === 'function') {
+        await this.telegram.deleteMessage(chatId, messageId).catch(() => {});
+      }
       await onSelect(session, selected);
       return;
     }

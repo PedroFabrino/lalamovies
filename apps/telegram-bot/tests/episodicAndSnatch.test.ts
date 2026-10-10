@@ -45,6 +45,7 @@ describe('EpisodicHandler & SnatchHandler', () => {
     telegramMock = {
       sendMessage: vi.fn().mockResolvedValue({ message_id: 10 }),
       editMessageText: vi.fn().mockResolvedValue(true),
+      deleteMessage: vi.fn().mockResolvedValue(true),
     };
     apiClientMock = {
       getSeriesProgress: vi.fn().mockResolvedValue({
@@ -59,6 +60,7 @@ describe('EpisodicHandler & SnatchHandler', () => {
       }),
       createRequest: vi.fn().mockResolvedValue({ ok: true, id: 'req-123' }),
       createWaitlist: vi.fn().mockResolvedValue({ ok: true, message: 'Adicionado' }),
+      setRequestSnatchMessageId: vi.fn().mockResolvedValue(true),
     };
     callbackStore = new CallbackStore();
     episodicHandler = new EpisodicHandler(
@@ -123,6 +125,27 @@ describe('EpisodicHandler & SnatchHandler', () => {
       // Check stored session
       expect(callbackStore.get(token)).toMatchObject({ watchNext: false });
     });
+
+    it('deletes episodic message and invokes onConfirm when user confirms', async () => {
+      const session = {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        candidate,
+        intent: { action: 'search' as const, title: 'Lanternas' },
+        seasonNumber: 1,
+        episodeNumber: 3,
+        isSeasonPack: false,
+        watchNext: true,
+      };
+      const token = callbackStore.save(session);
+      const onConfirm = vi.fn();
+
+      await episodicHandler.handleEpisodicCallback('chat-1', 20, 'confirm', token, onConfirm);
+
+      expect(telegramMock.deleteMessage).toHaveBeenCalledWith('chat-1', 20);
+      expect(onConfirm).toHaveBeenCalledWith(session);
+      expect(callbackStore.get(token)).toBeNull();
+    });
   });
 
   describe('SnatchHandler', () => {
@@ -159,9 +182,11 @@ describe('EpisodicHandler & SnatchHandler', () => {
       expect(cardText).toContain('TorrentLeech');
       expect(cardText).toContain('2.4 GB');
       expect(options.replyMarkup.inline_keyboard[0][0].text).toContain('Escolher Outro Release');
+      expect(apiClientMock.setRequestSnatchMessageId).toHaveBeenCalledWith('req-123', 10);
+      expect(callbackStore.getLastEphemeralMessage('chat-1')).toBe(10);
     });
 
-    it('falls back to waitlist when no releases are available or title is unreleased', async () => {
+    it('prompts user to add to waitlist when no releases are available or title is unreleased', async () => {
       (apiClientMock.searchReleases as any).mockResolvedValueOnce({
         releases: [],
         isFutureOrUnreleased: true,
@@ -176,15 +201,64 @@ describe('EpisodicHandler & SnatchHandler', () => {
         watchNext: true,
       });
 
+      // Should not call createWaitlist automatically
+      expect(apiClientMock.createWaitlist).not.toHaveBeenCalled();
+
+      // Should prompt user with confirmation buttons
+      expect(telegramMock.editMessageText).toHaveBeenCalledTimes(1);
+      const [, , promptText, options] = (telegramMock.editMessageText as any).mock.calls[0];
+      expect(promptText).toContain('Nenhum release encontrado para "Lanternas - S01E01"');
+      expect(promptText).toContain('Deseja adicioná-lo à *Waitlist*');
+
+      const buttons = options.replyMarkup.inline_keyboard[0];
+      expect(buttons[0].text).toContain('Adicionar à Waitlist');
+      expect(buttons[0].callback_data).toMatch(/^w:[a-f0-9]+:confirm$/);
+      expect(buttons[1].text).toContain('Não');
+      expect(buttons[1].callback_data).toMatch(/^w:[a-f0-9]+:cancel$/);
+    });
+
+    it('adds to waitlist when user confirms callback', async () => {
+      const token = callbackStore.save({
+        chatId: 'chat-1',
+        userId: 'user-1',
+        candidate,
+        seasonNumber: 1,
+        episodeNumber: 1,
+        watchNext: true,
+      });
+
+      await snatchHandler.handleWaitlistCallback('chat-1', 10, 'confirm', token);
+
       expect(apiClientMock.createWaitlist).toHaveBeenCalledTimes(1);
       const [userId, wlBody] = (apiClientMock.createWaitlist as any).mock.calls[0];
       expect(userId).toBe('user-1');
       expect(wlBody.title).toBe('Lanternas');
+      expect(wlBody.metadataId).toBe('456');
+      expect(wlBody.targetEpisode).toBe(1);
       expect(wlBody.waitlistNextSeason).toBe(true);
 
       expect(telegramMock.editMessageText).toHaveBeenCalledTimes(1);
       const [, , cardText] = (telegramMock.editMessageText as any).mock.calls[0];
       expect(cardText).toContain('Adicionado à Waitlist!');
+      expect(callbackStore.get(token)).toBeNull();
+    });
+
+    it('cancels waitlist addition when user cancels callback', async () => {
+      const token = callbackStore.save({
+        chatId: 'chat-1',
+        userId: 'user-1',
+        candidate,
+        seasonNumber: 1,
+        episodeNumber: 1,
+      });
+
+      await snatchHandler.handleWaitlistCallback('chat-1', 10, 'cancel', token);
+
+      expect(apiClientMock.createWaitlist).not.toHaveBeenCalled();
+      expect(telegramMock.editMessageText).toHaveBeenCalledTimes(1);
+      const [, , cancelText] = (telegramMock.editMessageText as any).mock.calls[0];
+      expect(cancelText).toContain('Operação cancelada');
+      expect(callbackStore.get(token)).toBeNull();
     });
 
     it('displays manual override menu and replaces release on user selection', async () => {

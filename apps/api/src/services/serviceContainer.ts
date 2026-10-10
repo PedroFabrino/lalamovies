@@ -8,6 +8,7 @@ import { IMetadataService, MetadataService } from './metadata';
 import { IQBittorrentService, QBittorrentService } from './qbittorrent';
 import { ICleanupService, CleanupService } from './cleanup';
 import { INotificationService, NotificationService } from './notifications';
+import { updateUserReportCardMessage } from './telegramReportCard';
 import { IFileSystemService, FileSystemService } from './fileSystem';
 import { IProwlarrService, ProwlarrService } from './prowlarr';
 import { IDiscoveryService, DiscoveryService } from './discovery';
@@ -79,15 +80,26 @@ export function setupServices(
     const row = db.select().from(systemConfig).where(eq(systemConfig.key, 'jellyfin_api_key')).get();
     return row?.value || process.env.JELLYFIN_API_KEY || '';
   });
+  const fileSystem = options.fileSystemService ?? new FileSystemService();
+  const requestsRepo = options.requestsRepo ?? new RequestsRepository(db);
   const notifications = options.notificationService ?? new NotificationService({
     isDiscordEnabled: () => isFeatureEnabled(db, 'discord_notifications'),
     getUserTelegramChatId: (userId: string) => {
       const row = db.select({ telegramChatId: users.telegramChatId }).from(users).where(eq(users.id, userId)).get();
       return row?.telegramChatId || null;
     },
+    getTelegramSnatchMessageId: (requestId: string) => {
+      return requestsRepo.findById(requestId)?.telegramSnatchMessageId || null;
+    },
+    updateReportCard: (chatId: string, userId: string) => {
+      return updateUserReportCardMessage({
+        botToken: process.env.TELEGRAM_BOT_TOKEN || '',
+        chatId,
+        userId,
+        requestsRepo,
+      }).then(() => {});
+    },
   });
-  const fileSystem = options.fileSystemService ?? new FileSystemService();
-  const requestsRepo = options.requestsRepo ?? new RequestsRepository(db);
   const episodesRepo = options.episodesRepo ?? new EpisodesRepository(db);
   const episodicPruning =
     options.episodicPruningService ??

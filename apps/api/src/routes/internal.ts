@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { users } from '../db/schema';
 import { isFeatureEnabled } from '../middleware/featureFlags';
+import { internalTelegramRoutes } from './internal/telegram';
 
 const subgenWebhookSchema = z.object({
   file: z.string().min(1, 'File path is required'),
@@ -14,6 +15,8 @@ const subgenWebhookSchema = z.object({
 });
 
 export const internalRoutes: FastifyPluginAsync = async (app) => {
+  await app.register(internalTelegramRoutes);
+
   // Helper to normalize paths for robust matching across OS separators
   const normalize = (p: string) => p.replace(/\\/g, '/').toLowerCase();
 

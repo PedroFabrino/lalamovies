@@ -241,4 +241,27 @@ describe('RequestsRepository — New Query & Mutation Methods', () => {
       expect(repo.findWithTorrentHash('non_existent')).toBeUndefined();
     });
   });
+
+  describe('telegram message id methods', () => {
+    it('sets and updates telegramSnatchMessageId on download_requests', () => {
+      repo.create(baseRequest({ id: 'r1' }));
+      expect(repo.findById('r1')?.telegramSnatchMessageId).toBeNull();
+
+      repo.setTelegramSnatchMessageId('r1', 12345);
+      expect(repo.findById('r1')?.telegramSnatchMessageId).toBe(12345);
+
+      repo.setTelegramSnatchMessageId('r1', null);
+      expect(repo.findById('r1')?.telegramSnatchMessageId).toBeNull();
+    });
+
+    it('sets and gets telegramReportMessageId on users', () => {
+      expect(repo.getTelegramReportMessageId('usr_1')).toBeNull();
+
+      repo.setTelegramReportMessageId('usr_1', 99999);
+      expect(repo.getTelegramReportMessageId('usr_1')).toBe(99999);
+
+      repo.setTelegramReportMessageId('usr_1', null);
+      expect(repo.getTelegramReportMessageId('usr_1')).toBeNull();
+    });
+  });
 });

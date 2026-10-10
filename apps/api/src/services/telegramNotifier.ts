@@ -5,10 +5,16 @@ import {
   formatNotificationMediaTitle,
 } from './notifications';
 
+export interface TelegramNotifierOptions {
+  getTelegramSnatchMessageId?: (requestId: string) => Promise<number | null> | (number | null);
+  updateReportCard?: (chatId: string, userId: string) => Promise<void>;
+}
+
 export class TelegramNotifier implements INotificationService {
   constructor(
     private botToken?: string,
-    private getUserTelegramChatId?: (userId: string) => Promise<string | null> | (string | null)
+    private getUserTelegramChatId?: (userId: string) => Promise<string | null> | (string | null),
+    private options?: TelegramNotifierOptions
   ) {}
 
   async send(event: NotificationEvent, payload: NotificationPayload): Promise<void> {
@@ -28,6 +34,30 @@ export class TelegramNotifier implements INotificationService {
 
     if (!['download.completed', 'stream.ready', 'download.failed'].includes(event)) {
       return;
+    }
+
+    // Delete ephemeral initiation snatch message if present
+    if (['download.completed', 'download.failed'].includes(event)) {
+      const snatchMsgId =
+        payload.telegramSnatchMessageId ??
+        (payload.requestId && this.options?.getTelegramSnatchMessageId
+          ? await this.options.getTelegramSnatchMessageId(payload.requestId)
+          : null);
+
+      if (snatchMsgId) {
+        try {
+          await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId.trim(),
+              message_id: snatchMsgId,
+            }),
+          });
+        } catch (err) {
+          console.error('[TelegramNotifier] Failed to delete initiation message:', err);
+        }
+      }
     }
 
     const displayTitle = formatNotificationMediaTitle(payload);
@@ -79,6 +109,19 @@ export class TelegramNotifier implements INotificationService {
       }
     } catch (err) {
       console.error('[TelegramNotifier] Failed to send Telegram message:', err);
+    }
+
+    // Trigger in-place update of user's pinned Report Card
+    if (
+      ['download.completed', 'download.failed'].includes(event) &&
+      this.options?.updateReportCard &&
+      payload.userId
+    ) {
+      try {
+        await this.options.updateReportCard(chatId.trim(), payload.userId);
+      } catch (err) {
+        console.error('[TelegramNotifier] Failed to update Report Card:', err);
+      }
     }
   }
 }

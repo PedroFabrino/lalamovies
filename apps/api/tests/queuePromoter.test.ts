@@ -41,7 +41,8 @@ describe('queuePromoter - Disk Safety & Quota Gating', () => {
         transcription_status TEXT NOT NULL DEFAULT 'none',
         transcription_error TEXT,
         deleted_at TEXT,
-        deletion_reason TEXT
+        deletion_reason TEXT,
+        telegram_snatch_message_id INTEGER
       );
       CREATE TABLE IF NOT EXISTS system_config (
         key TEXT PRIMARY KEY NOT NULL,

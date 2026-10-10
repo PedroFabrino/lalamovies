@@ -213,4 +213,43 @@ export class TelegramBotClient {
       return false;
     }
   }
+
+  async deleteMessage(chatId: number | string, messageId: number): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.baseUrl}/deleteMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          message_id: messageId,
+        }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async pinChatMessage(
+    chatId: number | string,
+    messageId: number,
+    options?: { disable_notification?: boolean }
+  ): Promise<boolean> {
+    try {
+      const body: Record<string, unknown> = {
+        chat_id: chatId,
+        message_id: messageId,
+        disable_notification: options?.disable_notification ?? true,
+      };
+
+      const res = await fetch(`${this.baseUrl}/pinChatMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
 }

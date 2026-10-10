@@ -88,6 +88,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           jellyfinAccessToken: authResult.accessToken,
           telegramChatId: null,
           personalGeminiApiKey: null,
+          telegramReportMessageId: null,
           createdAt: new Date().toISOString(),
         };
 

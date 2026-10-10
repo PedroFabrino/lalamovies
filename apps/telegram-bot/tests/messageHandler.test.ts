@@ -23,6 +23,7 @@ describe('MessageHandler', () => {
     telegramMock = {
       sendMessage: vi.fn().mockResolvedValue({ message_id: 1 }),
       editMessageText: vi.fn().mockResolvedValue(true),
+      deleteMessage: vi.fn().mockResolvedValue(true),
       answerCallbackQuery: vi.fn().mockResolvedValue(true),
     };
     apiClientMock = {
@@ -51,6 +52,7 @@ describe('MessageHandler', () => {
     snatchMock = {
       executeSnatch: vi.fn().mockResolvedValue(undefined),
       handleReleaseCallback: vi.fn().mockResolvedValue(undefined),
+      handleWaitlistCallback: vi.fn().mockResolvedValue(undefined),
     };
 
     messageHandler = new MessageHandler(
@@ -155,5 +157,97 @@ describe('MessageHandler', () => {
       [{ id: 99, title: 'Lanternas', mediaType: 'tv_show' }],
       expect.objectContaining({ title: 'Lanternas' })
     );
+  });
+
+  it('routes waitlist callback when prefix is w', async () => {
+    const cb = {
+      id: 'cb-1',
+      data: 'w:abc12345:confirm',
+      message: {
+        message_id: 10,
+        chat: { id: 12345, type: 'private' },
+      },
+    };
+    await messageHandler.handleCallbackQuery(cb as any);
+
+    expect(snatchMock.handleWaitlistCallback).toHaveBeenCalledWith(
+      12345,
+      10,
+      'confirm',
+      'abc12345'
+    );
+  });
+
+  it('deletes user prompt message after delivering bot response card', async () => {
+    (apiClientMock.getUserByChatId as any).mockResolvedValue({
+      id: 'u1',
+      username: 'alice',
+      role: 'user',
+    });
+
+    const msg: TelegramMessage = {
+      message_id: 42,
+      chat: { id: 12345, type: 'private' },
+      date: Date.now(),
+      text: 'Baixa Lanternas',
+    };
+
+    await messageHandler.handleMessage(msg);
+
+    expect(telegramMock.deleteMessage).toHaveBeenCalledWith(12345, 42);
+  });
+
+  it('cleans up previous ephemeral completed card when starting a new request', async () => {
+    (apiClientMock.getUserByChatId as any).mockResolvedValue({
+      id: 'u1',
+      username: 'alice',
+      role: 'user',
+    });
+
+    // Simulate previous completed card recorded in store
+    callbackStore.setLastEphemeralMessage(12345, 999);
+
+    const msg: TelegramMessage = {
+      message_id: 43,
+      chat: { id: 12345, type: 'private' },
+      date: Date.now(),
+      text: 'Novo Filme',
+    };
+
+    await messageHandler.handleMessage(msg);
+
+    expect(telegramMock.deleteMessage).toHaveBeenCalledWith(12345, 999);
+    expect(callbackStore.getLastEphemeralMessage(12345)).toBeUndefined();
+  });
+
+  it('routes report:refresh callback to reportCardHandler', async () => {
+    const reportCardMock = {
+      ensureOrUpdateReportCard: vi.fn().mockResolvedValue(100),
+      handleRefreshCallback: vi.fn().mockResolvedValue(true),
+    };
+
+    const handlerWithReport = new MessageHandler(
+      telegramMock as TelegramBotClient,
+      apiClientMock as MdmApiClient,
+      intentParserMock as IntentParser,
+      callbackStore,
+      carouselMock as CarouselHandler,
+      episodicMock as EpisodicHandler,
+      snatchMock as SnatchHandler,
+      reportCardMock as any
+    );
+
+    const cb = {
+      id: 'cb-refresh-1',
+      data: 'report:refresh',
+      message: {
+        message_id: 100,
+        chat: { id: 12345, type: 'private' },
+      },
+    };
+
+    await handlerWithReport.handleCallbackQuery(cb as any);
+
+    expect(reportCardMock.handleRefreshCallback).toHaveBeenCalledWith(12345, 100, 'cb-refresh-1');
   });
 });

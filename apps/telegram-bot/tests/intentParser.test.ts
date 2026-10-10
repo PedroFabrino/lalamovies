@@ -158,6 +158,58 @@ describe('IntentParser', () => {
       expect(intent.mediaType).toBe('movie');
     });
 
+    it('cascades from unavailable model (503/404) to next working model in candidates', async () => {
+      let callCount = 0;
+      const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+        callCount++;
+        if (url.includes('gemini-3.8-flash')) {
+          return {
+            ok: false,
+            status: 503,
+            text: async () => 'Model overloaded',
+          };
+        }
+        if (url.includes('gemini-3.5-flash')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              candidates: [
+                {
+                  content: {
+                    parts: [
+                      {
+                        text: JSON.stringify({
+                          action: 'search',
+                          title: 'Aoashi',
+                          mediaType: 'anime',
+                          seasonNumber: 1,
+                          episodeNumber: null,
+                          isSeasonPack: true,
+                        }),
+                      },
+                    ],
+                  },
+                },
+              ],
+            }),
+          };
+        }
+        return { ok: false, status: 404 };
+      });
+      global.fetch = fetchMock;
+
+      const parser = new IntentParser({ globalGeminiApiKey: 'test-key' });
+      const intent = await parser.parseIntent('Baixa Aoashi temporada 1');
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls[0][0]).toContain('gemini-3.8-flash');
+      expect(fetchMock.mock.calls[1][0]).toContain('gemini-3.5-flash');
+      expect(intent.title).toBe('Aoashi');
+      expect(intent.mediaType).toBe('anime');
+      expect(intent.isSeasonPack).toBe(true);
+    });
+
     it('falls back to heuristic parsing when Gemini fails or returns error', async () => {
       const fetchMock = vi.fn().mockRejectedValue(new Error('Gemini API Error'));
       global.fetch = fetchMock;
@@ -179,6 +231,56 @@ describe('IntentParser', () => {
       expect(intent.title).toBe('Shogun');
       expect(intent.seasonNumber).toBe(1);
       expect(intent.episodeNumber).toBe(1);
+    });
+
+    it('parses informal imperative "Baixa o anime A certain dark item"', async () => {
+      const parser = new IntentParser();
+      const intent = await parser.parseIntent('Baixa o anime A certain dark item', null, false);
+
+      expect(intent.action).toBe('search');
+      expect(intent.title).toBe('A certain dark item');
+      expect(intent.mediaType).toBe('anime');
+    });
+
+    it('parses direct show title "A certain dark item" with undefined mediaType', async () => {
+      const parser = new IntentParser();
+      const intent = await parser.parseIntent('A certain dark item', null, false);
+
+      expect(intent.action).toBe('search');
+      expect(intent.title).toBe('A certain dark item');
+      expect(intent.mediaType).toBeUndefined();
+    });
+
+    it('parses "Baixa a primeira temporada de Aoashi" with season 1 and pack mode', async () => {
+      const parser = new IntentParser();
+      const intent = await parser.parseIntent('Baixa a primeira temporada de Aoashi', null, false);
+
+      expect(intent.action).toBe('search');
+      expect(intent.title).toBe('Aoashi');
+      expect(intent.mediaType).toBe('tv_show');
+      expect(intent.seasonNumber).toBe(1);
+      expect(intent.isSeasonPack).toBe(true);
+    });
+
+    it('parses "Baixa a 2ª temporada de Ruptura"', async () => {
+      const parser = new IntentParser();
+      const intent = await parser.parseIntent('Baixa a 2ª temporada de Ruptura', null, false);
+
+      expect(intent.action).toBe('search');
+      expect(intent.title).toBe('Ruptura');
+      expect(intent.mediaType).toBe('tv_show');
+      expect(intent.seasonNumber).toBe(2);
+      expect(intent.isSeasonPack).toBe(true);
+    });
+
+    it('parses "Baixa episódio 5 de Solo Leveling"', async () => {
+      const parser = new IntentParser();
+      const intent = await parser.parseIntent('Baixa episódio 5 de Solo Leveling', null, false);
+
+      expect(intent.action).toBe('search');
+      expect(intent.title).toBe('Solo Leveling');
+      expect(intent.mediaType).toBe('tv_show');
+      expect(intent.episodeNumber).toBe(5);
     });
   });
 });

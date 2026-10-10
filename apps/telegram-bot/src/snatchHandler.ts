@@ -25,6 +25,16 @@ export interface SnatchSession {
   activeRequestId?: string;
 }
 
+export interface WaitlistSession {
+  chatId: number | string;
+  userId: string;
+  candidate: MetadataCandidate;
+  seasonNumber?: number;
+  episodeNumber?: number;
+  isSeasonPack?: boolean;
+  watchNext?: boolean;
+}
+
 export class SnatchHandler {
   constructor(
     private telegram: TelegramBotClient,
@@ -40,6 +50,22 @@ export class SnatchHandler {
     return `${mb.toFixed(0)} MB`;
   }
 
+  formatMediaSubtitle(
+    seasonNumber?: number,
+    episodeNumber?: number,
+    isSeasonPack?: boolean
+  ): string {
+    if (isSeasonPack && seasonNumber) {
+      return ` (Temporada ${seasonNumber})`;
+    }
+    if (seasonNumber && episodeNumber !== undefined) {
+      const s = String(seasonNumber).padStart(2, '0');
+      const e = String(episodeNumber).padStart(2, '0');
+      return ` - S${s}E${e}`;
+    }
+    return '';
+  }
+
   formatConfirmationCard(
     candidate: MetadataCandidate,
     release: ReleaseCandidate,
@@ -47,15 +73,7 @@ export class SnatchHandler {
     episodeNumber?: number,
     isSeasonPack?: boolean
   ): string {
-    let subTitle = '';
-    if (isSeasonPack && seasonNumber) {
-      subTitle = ` (Temporada ${seasonNumber})`;
-    } else if (seasonNumber && episodeNumber !== undefined) {
-      const s = String(seasonNumber).padStart(2, '0');
-      const e = String(episodeNumber).padStart(2, '0');
-      subTitle = ` - S${s}E${e}`;
-    }
-
+    const subTitle = this.formatMediaSubtitle(seasonNumber, episodeNumber, isSeasonPack);
     const sizeStr = this.formatBytes(release.sizeBytes);
     const resStr = release.resolution || 'Auto';
 
@@ -82,31 +100,46 @@ export class SnatchHandler {
       title: candidate.title,
       mediaType: candidate.mediaType,
       year: candidate.year,
-      seasonNumber: isSeasonPack ? seasonNumber : seasonNumber,
+      seasonNumber,
       episodeNumber: isSeasonPack ? undefined : episodeNumber,
       isSeasonPack,
+      romajiTitle: candidate.romajiTitle,
+      englishTitle: candidate.englishTitle,
     });
 
     if (searchRes.isFutureOrUnreleased || searchRes.releases.length === 0) {
-      // Fallback to waitlist
-      const waitlistRes = await this.apiClient.createWaitlist(userId, {
-        title: candidate.title,
-        mediaType: candidate.mediaType,
-        tmdbId: candidate.id,
-        year: candidate.year,
+      const waitlistSession: WaitlistSession = {
+        chatId,
+        userId,
+        candidate,
         seasonNumber,
-        episodeNumber: isSeasonPack ? undefined : episodeNumber,
-        waitlistNextSeason: params.watchNext,
-      });
+        episodeNumber,
+        isSeasonPack,
+        watchNext: params.watchNext,
+      };
+      const token = this.callbackStore.save(waitlistSession);
+      const subTitle = this.formatMediaSubtitle(seasonNumber, episodeNumber, isSeasonPack);
 
-      const messageText = waitlistRes.ok
-        ? `⏳ *Adicionado à Waitlist!*\n\nNenhum release disponível no momento para *${candidate.title}* (conteúdo não lançado ou sem sementes). O MDM monitorará automaticamente e baixará assim que estiver disponível.`
-        : `⚠️ Nenhum release encontrado e não foi possível adicionar à waitlist: ${waitlistRes.message || 'Erro'}`;
+      const promptText =
+        `⚠️ *Nenhum release encontrado para "${candidate.title}${subTitle}".*\n\n` +
+        `Este conteúdo pode ainda não ter sido lançado ou não possui sementes ativas no momento.\n\n` +
+        `Deseja adicioná-lo à *Waitlist* para monitoramento automático?`;
+
+      const keyboard: InlineKeyboardMarkup = {
+        inline_keyboard: [
+          [
+            { text: '⏳ Adicionar à Waitlist', callback_data: `w:${token}:confirm` },
+            { text: '❌ Não', callback_data: `w:${token}:cancel` },
+          ],
+        ],
+      };
 
       if (waitMsg) {
-        await this.telegram.editMessageText(chatId, waitMsg.message_id, messageText);
+        await this.telegram.editMessageText(chatId, waitMsg.message_id, promptText, {
+          replyMarkup: keyboard,
+        });
       } else {
-        await this.telegram.sendMessage(chatId, messageText);
+        await this.telegram.sendMessage(chatId, promptText, { replyMarkup: keyboard });
       }
       return;
     }
@@ -117,7 +150,8 @@ export class SnatchHandler {
       mediaType: candidate.mediaType,
       downloadUrl: selectedRelease.downloadUrl,
       infoHash: selectedRelease.infoHash,
-      tmdbId: candidate.id,
+      metadataId: String(candidate.id),
+      metadataSource: 'tmdb',
       year: candidate.year,
       seasonNumber,
       episodeNumber: isSeasonPack ? undefined : episodeNumber,
@@ -160,12 +194,22 @@ export class SnatchHandler {
       ],
     };
 
+    let snatchMsgId: number | undefined;
     if (waitMsg) {
       await this.telegram.editMessageText(chatId, waitMsg.message_id, cardText, {
         replyMarkup: keyboard,
       });
+      snatchMsgId = waitMsg.message_id;
     } else {
-      await this.telegram.sendMessage(chatId, cardText, { replyMarkup: keyboard });
+      const sent = await this.telegram.sendMessage(chatId, cardText, { replyMarkup: keyboard });
+      snatchMsgId = sent?.message_id;
+    }
+
+    if (snatchMsgId) {
+      this.callbackStore.setLastEphemeralMessage(chatId, snatchMsgId);
+      if (createRes.id) {
+        await this.apiClient.setRequestSnatchMessageId(createRes.id, snatchMsgId);
+      }
     }
   }
 
@@ -236,7 +280,8 @@ export class SnatchHandler {
         mediaType: session.params.candidate.mediaType,
         downloadUrl: chosenRelease.downloadUrl,
         infoHash: chosenRelease.infoHash,
-        tmdbId: session.params.candidate.id,
+        metadataId: String(session.params.candidate.id),
+        metadataSource: 'tmdb',
         year: session.params.candidate.year,
         seasonNumber: session.params.seasonNumber,
         episodeNumber: session.params.isSeasonPack ? undefined : session.params.episodeNumber,
@@ -271,4 +316,65 @@ export class SnatchHandler {
       );
     }
   }
+
+  async handleWaitlistCallback(
+    chatId: number | string,
+    messageId: number,
+    action: string,
+    token: string
+  ): Promise<void> {
+    const session = this.callbackStore.get<WaitlistSession>(token);
+    if (!session) {
+      await this.telegram.editMessageText(chatId, messageId, '⚠️ Sessão da waitlist expirada.');
+      return;
+    }
+
+    if (action === 'cancel') {
+      this.callbackStore.delete(token);
+      await this.telegram.editMessageText(
+        chatId,
+        messageId,
+        `❌ *Operação cancelada.*\nO item não foi adicionado à waitlist.`
+      );
+      return;
+    }
+
+    if (action === 'confirm') {
+      const waitlistRes = await this.apiClient.createWaitlist(session.userId, {
+        title: session.candidate.title,
+        mediaType: session.candidate.mediaType,
+        metadataId: String(session.candidate.id),
+        metadataSource: 'tmdb',
+        posterUrl: session.candidate.posterUrl,
+        year: session.candidate.year,
+        seasonNumber: session.seasonNumber,
+        targetEpisode: session.isSeasonPack ? undefined : session.episodeNumber,
+        waitlistNextSeason: session.watchNext,
+      });
+
+      this.callbackStore.delete(token);
+
+      if (waitlistRes.ok) {
+        const subTitle = this.formatMediaSubtitle(
+          session.seasonNumber,
+          session.episodeNumber,
+          session.isSeasonPack
+        );
+        await this.telegram.editMessageText(
+          chatId,
+          messageId,
+          `⏳ *Adicionado à Waitlist!*\n\n` +
+            `*${session.candidate.title}${subTitle}*\n\n` +
+            `O MDM monitorará automaticamente e iniciará o download assim que um release compatível for publicado.`
+        );
+      } else {
+        await this.telegram.editMessageText(
+          chatId,
+          messageId,
+          `❌ Não foi possível adicionar à waitlist: ${waitlistRes.message || 'Erro desconhecido'}`
+        );
+      }
+    }
+  }
 }
+

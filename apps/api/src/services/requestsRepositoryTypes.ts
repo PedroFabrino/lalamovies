@@ -1,4 +1,4 @@
-import { downloadRequests, DownloadRequest, NewDownloadRequest, users } from '../db';
+import { downloadRequests, DownloadRequest, NewDownloadRequest, users, User } from '../db';
 
 export interface RequestListItem extends DownloadRequest {
   requesterUsername?: string | null;
@@ -71,6 +71,10 @@ export interface IRequestsRepository {
   findWithTorrentHash(hash: string): DownloadRequest | undefined;
   findLegacyAnilist(): DownloadRequest[];
   updateMetadataSource(id: string, metadataId: string, metadataSource: 'tmdb' | 'anilist'): void;
+  setTelegramSnatchMessageId(id: string, messageId: number | null): void;
+  setTelegramReportMessageId(userId: string, messageId: number | null): void;
+  getTelegramReportMessageId(userId: string): number | null;
+  findUserByTelegramChatId(chatId: string): User | undefined;
 }
 
 export const REQUEST_LIST_SELECT_FIELDS = {
@@ -100,5 +104,6 @@ export const REQUEST_LIST_SELECT_FIELDS = {
   transcriptionError: downloadRequests.transcriptionError,
   deletedAt: downloadRequests.deletedAt,
   deletionReason: downloadRequests.deletionReason,
+  telegramSnatchMessageId: downloadRequests.telegramSnatchMessageId,
   requesterUsername: users.username,
 };

@@ -284,6 +284,14 @@ _Avoid_: bot login, chat auth, telegram sync
 The extraction of structured media search entities (intent, title, media type, season, episode) from freeform natural language chat messages using Gemini Flash, with deterministic slash-command fallbacks.
 _Avoid_: chat interpretation, text recognition, bot prompt
 
+**Telegram Report Card**:
+The pinned, auto-updating overview message in a user's private Telegram chat displaying active download requests (`⏳`), recently completed downloads (`✅`, up to 3 if active items leave room), active waitlist items (`📋`), or an onboarding prompt when empty. Updated in-place on download lifecycle transitions and via an interactive refresh button.
+_Avoid_: status message, dashboard dump, download list
+
+**Ephemeral Interaction Flow**:
+The single-message conversational workspace in Telegram that advances sequentially through search results, episodic options, and snatch confirmations. Automatically deletes the user's incoming prompt message once the bot's response card is sent, and deletes or edits previous stage messages to keep the chat completely free of historical clutter.
+_Avoid_: transient chat, message cleaner, auto-delete
+
 ### Watch Party & Playback Synchronization
 
 **Watch Party**:

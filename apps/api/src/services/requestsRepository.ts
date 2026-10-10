@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, ne, sql } from 'drizzle-orm';
 
-import { AppDatabase, downloadRequests, DownloadRequest, NewDownloadRequest, requestCoRequesters, users } from '../db';
+import { AppDatabase, downloadRequests, DownloadRequest, NewDownloadRequest, requestCoRequesters, users, User } from '../db';
 import { RequestStatus } from './requestStateMachine';
 import {
   RequestListItem,
@@ -88,8 +88,6 @@ export class RequestsRepository implements IRequestsRepository {
         desc(downloadRequests.requestedAt)
       )
       .get();
-
-
 
     if (existingSeries?.jellyfinPath) {
       const parts = existingSeries.jellyfinPath.split(/[\\/]/);
@@ -276,12 +274,7 @@ export class RequestsRepository implements IRequestsRepository {
   }
 
   findRequesterUsername(userId: string): string | undefined {
-    const user = this.db
-      .select({ username: users.username })
-      .from(users)
-      .where(eq(users.id, userId))
-      .get();
-    return user?.username;
+    return this.db.select({ username: users.username }).from(users).where(eq(users.id, userId)).get()?.username;
   }
 
   findByUserId(userId: string, excludeDeleted = false): DownloadRequest[] {
@@ -363,28 +356,32 @@ export class RequestsRepository implements IRequestsRepository {
     return this.db
       .select()
       .from(downloadRequests)
-      .where(
-        and(
-          eq(downloadRequests.qbTorrentHash, hash),
-          ne(downloadRequests.status, RequestStatus.DELETED)
-        )
-      )
+      .where(and(eq(downloadRequests.qbTorrentHash, hash), ne(downloadRequests.status, RequestStatus.DELETED)))
       .get();
   }
 
   findLegacyAnilist(): DownloadRequest[] {
-    return this.db
-      .select()
-      .from(downloadRequests)
-      .where(eq(downloadRequests.metadataSource, 'anilist'))
-      .all();
+    return this.db.select().from(downloadRequests).where(eq(downloadRequests.metadataSource, 'anilist')).all();
   }
 
   updateMetadataSource(id: string, metadataId: string, metadataSource: 'tmdb' | 'anilist'): void {
-    this.db
-      .update(downloadRequests)
-      .set({ metadataId, metadataSource })
-      .where(eq(downloadRequests.id, id))
-      .run();
+    this.db.update(downloadRequests).set({ metadataId, metadataSource }).where(eq(downloadRequests.id, id)).run();
+  }
+
+  setTelegramSnatchMessageId(id: string, messageId: number | null): void {
+    this.db.update(downloadRequests).set({ telegramSnatchMessageId: messageId }).where(eq(downloadRequests.id, id)).run();
+  }
+
+  setTelegramReportMessageId(userId: string, messageId: number | null): void {
+    this.db.update(users).set({ telegramReportMessageId: messageId }).where(eq(users.id, userId)).run();
+  }
+
+  getTelegramReportMessageId(userId: string): number | null {
+    const row = this.db.select({ id: users.telegramReportMessageId }).from(users).where(eq(users.id, userId)).get();
+    return row?.id ?? null;
+  }
+ 
+  findUserByTelegramChatId(chatId: string): User | undefined {
+    return this.db.select().from(users).where(eq(users.telegramChatId, chatId)).get();
   }
 }

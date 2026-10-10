@@ -96,6 +96,7 @@ describe('DownloadPoller - Orphan Torrent Self-Healing', () => {
         invites_enabled INTEGER NOT NULL DEFAULT 1,
         jellyfin_access_token TEXT,
         telegram_chat_id TEXT UNIQUE,
+        telegram_report_message_id INTEGER,
         personal_gemini_api_key TEXT,
         created_at TEXT NOT NULL
       );
@@ -125,7 +126,8 @@ describe('DownloadPoller - Orphan Torrent Self-Healing', () => {
         transcription_status TEXT NOT NULL DEFAULT 'none',
         transcription_error TEXT,
         deleted_at TEXT,
-        deletion_reason TEXT
+        deletion_reason TEXT,
+        telegram_snatch_message_id INTEGER
       );
     `);
     db = drizzle(sqliteDb);

@@ -130,5 +130,6 @@ export function buildInitialDownloadRequest(params: BuildInitialRequestParams): 
     transcriptionError: null,
     deletedAt: null,
     deletionReason: null,
+    telegramSnatchMessageId: null,
   };
 }

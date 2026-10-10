@@ -13,6 +13,7 @@ export const users = sqliteTable('users', {
   jellyfinAccessToken: text('jellyfin_access_token'),
   telegramChatId: text('telegram_chat_id').unique(),
   personalGeminiApiKey: text('personal_gemini_api_key'),
+  telegramReportMessageId: integer('telegram_report_message_id'),
   createdAt: text('created_at').notNull(),
 });
 
@@ -63,6 +64,7 @@ export const downloadRequests = sqliteTable(
     transcriptionError: text('transcription_error'),
     deletedAt: text('deleted_at'),
     deletionReason: text('deletion_reason', { enum: ['cleanup', 'manual'] }),
+    telegramSnatchMessageId: integer('telegram_snatch_message_id'),
   },
   (table) => [
     uniqueIndex('download_requests_movie_unique')

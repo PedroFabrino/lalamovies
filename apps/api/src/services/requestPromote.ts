@@ -68,6 +68,7 @@ export async function executePromoteFromStream(params: ExecutePromoteParams): Pr
     transcriptionError: null,
     deletedAt: null,
     deletionReason: null,
+    telegramSnatchMessageId: null,
   };
 
   requestsRepo.create(initialRequest);

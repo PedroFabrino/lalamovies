@@ -6,6 +6,7 @@ import { CallbackStore } from './callbackStore';
 import { CarouselHandler } from './carouselHandler';
 import { EpisodicHandler } from './episodicHandler';
 import { SnatchHandler } from './snatchHandler';
+import { ReportCardHandler } from './reportCardHandler';
 import { MessageHandler } from './messageHandler';
 
 async function main() {
@@ -31,6 +32,7 @@ async function main() {
   const carouselHandler = new CarouselHandler(telegram, callbackStore);
   const episodicHandler = new EpisodicHandler(telegram, apiClient, callbackStore);
   const snatchHandler = new SnatchHandler(telegram, apiClient, callbackStore);
+  const reportCardHandler = new ReportCardHandler(telegram, apiClient);
 
   const handler = new MessageHandler(
     telegram,
@@ -39,7 +41,8 @@ async function main() {
     callbackStore,
     carouselHandler,
     episodicHandler,
-    snatchHandler
+    snatchHandler,
+    reportCardHandler
   );
 
   let offset: number | undefined = undefined;

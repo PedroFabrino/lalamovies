@@ -42,6 +42,26 @@ export class CallbackStore {
     this.sessions.delete(token);
   }
 
+  private lastEphemeralMessages = new Map<string, number>();
+
+  setLastEphemeralMessage(chatId: string | number, messageId: number | null): void {
+    if (messageId === null) {
+      this.lastEphemeralMessages.delete(String(chatId));
+    } else {
+      this.lastEphemeralMessages.set(String(chatId), messageId);
+    }
+  }
+
+  getLastEphemeralMessage(chatId: string | number): number | undefined {
+    return this.lastEphemeralMessages.get(String(chatId));
+  }
+
+  consumeLastEphemeralMessage(chatId: string | number): number | undefined {
+    const id = this.lastEphemeralMessages.get(String(chatId));
+    this.lastEphemeralMessages.delete(String(chatId));
+    return id;
+  }
+
   private cleanup(): void {
     const now = Date.now();
     for (const [token, session] of this.sessions.entries()) {

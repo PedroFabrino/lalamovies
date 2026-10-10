@@ -35,6 +35,7 @@ The client allows authenticated users to:
 15. As a User without an AI key, I want standard slash commands (`/filme`, `/serie`, `/status`) to work reliably, so that I can still use the bot without any AI dependencies.
 16. As a User, I want to query `/status` in Telegram, so that I can view my active downloading and queued requests.
 17. As an unauthorized Telegram user, I want the bot to prompt me to link my account with clear instructions, so that random strangers cannot trigger downloads on the server.
+18. As a User in Telegram, I want to type `/login` or click an inline button to open a portal link that logs me in and automatically pairs my account with a return button back to Telegram, so that account linking is effortless.
 
 ## Implementation Decisions
 
@@ -42,10 +43,12 @@ The client allows authenticated users to:
 - **Database Schema**: Extend the `users` table with:
   - `telegram_chat_id` (nullable, unique text)
   - `personal_gemini_api_key` (nullable text)
-  - An ephemeral in-memory or Redis/SQLite pairing token cache storing `code -> userId` with a 10-minute expiration.
+  - An ephemeral in-memory or Redis/SQLite pairing token cache storing `code -> userId` and `authSessionToken -> chatId` with expiration.
 - **API Endpoints**:
   - `POST /auth/telegram-pairing/code` (authenticated): generates a random 6-character alphanumeric pairing code.
   - `POST /internal/telegram/pair`: internal endpoint validating pairing code and binding chat ID to user.
+  - `POST /internal/telegram/auth-session`: generates an ephemeral browser login token for a Telegram chatId.
+  - `POST /auth/telegram-pairing/claim`: claims an auth session token for the logged-in user and binds chatId.
   - `GET /internal/telegram/user/:chatId`: internal endpoint returning user record, role, and personal Gemini key.
   - `PUT /users/me/gemini-api-key`: allows users to update or clear their personal Gemini API key.
 - **Intent Parsing**:
@@ -62,6 +65,7 @@ The client allows authenticated users to:
   - Directly dispatches HTTP POST requests to `https://api.telegram.org/bot<token>/sendMessage` upon `download.completed`, `stream.ready`, or download failure events.
 - **Web UI Additions**:
   - Add "Telegram & IA" card in user settings modal with "Gerar Código de Vinculação" button (displaying pairing code and countdown timer) and personal Gemini API key input.
+  - Add `/telegram-auth` web view allowing instant account claim and return to Telegram (`t.me/<bot_username>`).
 
 ## Testing Decisions
 
