@@ -168,9 +168,9 @@
     "semantic_hash": "f2ed05874309e357faa6d0e819f1586a"
   },
   "apps/api/src/jobs/downloadPoller.ts": {
-    "mtime": 1791032226.4126098,
-    "seen": 1791033170.733337,
-    "ast_hash": "80da93e787dff8dfe7099e6cf2c52f8a",
+    "mtime": 1791597182.0751412,
+    "seen": 1791597492.4798815,
+    "ast_hash": "0a7d9a8911eb319692381ac0bac02308",
     "semantic_hash": ""
   },
   "apps/api/src/jobs/transcriptionCron.ts": {
@@ -288,9 +288,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/notifications.ts": {
-    "mtime": 1790891573.1828744,
-    "seen": 1790893468.8293855,
-    "ast_hash": "fe510d54ff262f32dc8a81ba9a91c7e5",
+    "mtime": 1791597141.4150188,
+    "seen": 1791597492.5089905,
+    "ast_hash": "6142f80afdc0a841d0c36fb32f8a28dc",
     "semantic_hash": ""
   },
   "apps/api/src/services/prowlarr.ts": {
@@ -1584,9 +1584,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/jobs/unarchiveDaemon.ts": {
-    "mtime": 1790481314.400442,
-    "seen": 1790481427.0092719,
-    "ast_hash": "13fde340b5ec8b851f7cc7ed9bd29c61",
+    "mtime": 1791597190.7212913,
+    "seen": 1791597492.4808886,
+    "ast_hash": "d611da15441dfcb517ffd25ba97f2a8f",
     "semantic_hash": ""
   },
   "apps/api/src/scripts/runRecovery.ts": {
@@ -2046,9 +2046,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/serviceContainer.ts": {
-    "mtime": 1791596450.2080822,
-    "seen": 1791596805.8850915,
-    "ast_hash": "993aa6ed412f4256e47afca7ccffead3",
+    "mtime": 1791597315.2194922,
+    "seen": 1791597492.517202,
+    "ast_hash": "2ab3378fd043a1d56e4c9c1deed2a787",
     "semantic_hash": ""
   },
   "apps/api/src/startup/onReady.ts": {
@@ -3315,6 +3315,24 @@
     "mtime": 1791595204.737161,
     "seen": 1791596806.017248,
     "ast_hash": "0d2b6f4ae239dede6b3a51f775e3b9fc",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/discordNotifier.ts": {
+    "mtime": 1791597105.5233936,
+    "seen": 1791597492.5041077,
+    "ast_hash": "e6543901afea29e6661e26f26d435ba0",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/telegramNotifier.ts": {
+    "mtime": 1791597127.0373385,
+    "seen": 1791597492.5191553,
+    "ast_hash": "904d6f0f019aec34b6514182aed78d25",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/telegramNotifier.test.ts": {
+    "mtime": 1791597345.7875862,
+    "seen": 1791597492.5530202,
+    "ast_hash": "fcaa8914c0123ec7e6c25db56508ebe8",
     "semantic_hash": ""
   }
 }

@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import Database from 'better-sqlite3';
 import { eq } from 'drizzle-orm';
-import { AppDatabase, systemConfig } from '../db';
+import { AppDatabase, systemConfig, users } from '../db';
 import { AppOptions } from '../appTypes';
 import { IJellyfinService, JellyfinService } from './jellyfin';
 import { IMetadataService, MetadataService } from './metadata';
@@ -81,6 +81,10 @@ export function setupServices(
   });
   const notifications = options.notificationService ?? new NotificationService({
     isDiscordEnabled: () => isFeatureEnabled(db, 'discord_notifications'),
+    getUserTelegramChatId: (userId: string) => {
+      const row = db.select({ telegramChatId: users.telegramChatId }).from(users).where(eq(users.id, userId)).get();
+      return row?.telegramChatId || null;
+    },
   });
   const fileSystem = options.fileSystemService ?? new FileSystemService();
   const requestsRepo = options.requestsRepo ?? new RequestsRepository(db);

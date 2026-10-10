@@ -286,6 +286,7 @@ export class DownloadPoller {
                     seasonNumber: req.seasonNumber,
                     episodeNumber: req.episodeNumber,
                     requestedBy,
+                    userId: req.userId,
                     recipientEmails,
                     path: destPath,
                     jellyfinUrl:

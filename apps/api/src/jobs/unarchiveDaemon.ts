@@ -262,6 +262,7 @@ export class UnarchiveDaemon {
             seasonNumber: req.seasonNumber,
             episodeNumber: req.episodeNumber,
             requestedBy,
+            userId: req.userId,
             recipientEmails,
             path: destPath,
             jellyfinUrl:
