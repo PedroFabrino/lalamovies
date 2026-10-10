@@ -219,5 +219,56 @@ describe('Telegram Pairing Integration', () => {
       });
       expect(userRes.statusCode).toBe(404);
     });
+
+    it('returns telegram config including globalGeminiApiKey feature status', async () => {
+      const configRes = await app.inject({
+        method: 'GET',
+        url: '/internal/telegram/config',
+      });
+      expect(configRes.statusCode).toBe(200);
+      expect(typeof configRes.json().globalGeminiApiKey).toBe('boolean');
+    });
+
+    it('allows updating personal gemini key via PUT /internal/telegram/user/:chatId/gemini-api-key', async () => {
+      const codeRes = await app.inject({
+        method: 'POST',
+        url: '/auth/telegram-pairing/code',
+        headers: { cookie: `token=${authToken}` },
+      });
+      await app.inject({
+        method: 'POST',
+        url: '/internal/telegram/pair',
+        payload: { code: codeRes.json().code, chatId: '444333222' },
+      });
+
+      const setKeyRes = await app.inject({
+        method: 'PUT',
+        url: '/internal/telegram/user/444333222/gemini-api-key',
+        payload: { apiKey: 'AIzaSyBotTest' },
+      });
+      expect(setKeyRes.statusCode).toBe(200);
+      expect(setKeyRes.json().hasKey).toBe(true);
+
+      const userRes = await app.inject({
+        method: 'GET',
+        url: '/internal/telegram/user/444333222',
+      });
+      expect(userRes.json().user.personalGeminiApiKey).toBe('AIzaSyBotTest');
+
+      // Clear key
+      const clearRes = await app.inject({
+        method: 'PUT',
+        url: '/internal/telegram/user/444333222/gemini-api-key',
+        payload: { apiKey: '' },
+      });
+      expect(clearRes.statusCode).toBe(200);
+      expect(clearRes.json().hasKey).toBe(false);
+
+      const userAfterRes = await app.inject({
+        method: 'GET',
+        url: '/internal/telegram/user/444333222',
+      });
+      expect(userAfterRes.json().user.personalGeminiApiKey).toBeNull();
+    });
   });
 });

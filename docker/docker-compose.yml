@@ -256,6 +256,22 @@ services:
               count: all
               capabilities: [gpu]
 
+  telegram-bot:
+    build:
+      context: ..
+      dockerfile: apps/telegram-bot/Dockerfile
+      network: host
+    container_name: mdm-telegram-bot
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - MAIN_API_URL=http://api:3000
+      - SERVICE_API_KEY=${SERVICE_API_KEY}
+    depends_on:
+      - api
+
 volumes:
   app_db:
     name: docker_app_db

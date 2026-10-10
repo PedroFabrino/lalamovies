@@ -3,6 +3,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { users } from '../db/schema';
+import { isFeatureEnabled } from '../middleware/featureFlags';
 
 const subgenWebhookSchema = z.object({
   file: z.string().min(1, 'File path is required'),
@@ -188,5 +189,40 @@ export const internalRoutes: FastifyPluginAsync = async (app) => {
 
     app.db.update(users).set({ telegramChatId: null }).where(eq(users.telegramChatId, chatId)).run();
     return reply.send({ ok: true });
+  });
+
+  // GET /internal/telegram/config
+  app.get('/telegram/config', async (_request, reply) => {
+    return reply.send({
+      globalGeminiApiKey: isFeatureEnabled(app.db, 'global_gemini_api_key'),
+    });
+  });
+
+  // PUT /internal/telegram/user/:chatId/gemini-api-key
+  const updateApiKeySchema = z.object({
+    apiKey: z.string().nullable().optional(),
+  });
+
+  app.put('/telegram/user/:chatId/gemini-api-key', async (request, reply) => {
+    const { chatId } = request.params as { chatId: string };
+    if (!chatId) {
+      return reply.status(400).send({ error: 'Bad Request', message: 'ChatId is required' });
+    }
+
+    const parseResult = updateApiKeySchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return reply.status(400).send({ error: 'Bad Request', message: 'Invalid payload' });
+    }
+
+    const user = app.db.select().from(users).where(eq(users.telegramChatId, chatId)).get();
+    if (!user) {
+      return reply.status(404).send({ error: 'Not Found', message: 'Usuário não vinculado' });
+    }
+
+    const rawKey = parseResult.data.apiKey?.trim();
+    const key = rawKey ? rawKey : null;
+
+    app.db.update(users).set({ personalGeminiApiKey: key }).where(eq(users.id, user.id)).run();
+    return reply.send({ ok: true, hasKey: !!key });
   });
 };
