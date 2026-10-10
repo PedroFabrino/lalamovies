@@ -11,6 +11,8 @@ export const users = sqliteTable('users', {
   inviteId: text('invite_id').references((): AnySQLiteColumn => invites.id, { onDelete: 'set null' }),
   invitesEnabled: integer('invites_enabled', { mode: 'boolean' }).notNull().default(true),
   jellyfinAccessToken: text('jellyfin_access_token'),
+  telegramChatId: text('telegram_chat_id').unique(),
+  personalGeminiApiKey: text('personal_gemini_api_key'),
   createdAt: text('created_at').notNull(),
 });
 

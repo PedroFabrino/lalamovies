@@ -7,6 +7,8 @@ export interface User {
   username: string;
   email: string | null;
   role: 'user' | 'trusted' | 'admin';
+  telegramChatId?: string | null;
+  hasPersonalGeminiKey?: boolean;
   createdAt?: string;
 }
 

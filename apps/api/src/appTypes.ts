@@ -28,6 +28,7 @@ import { IJellyfinSyncPlayService } from './services/jellyfinSyncPlay';
 import { WatchPartyCleanupJob } from './jobs/watchPartyCleanup';
 import { BroadcastFunction } from './routes/ws';
 import { ISessionMonitoringService } from './services/sessionMonitoringService';
+import { ITelegramPairingService } from './services/telegramPairingService';
 
 export interface AppOptions {
   dbPath?: string;
@@ -69,6 +70,7 @@ export interface AppOptions {
   watchPartyCleanupJob?: WatchPartyCleanupJob;
   startWatchPartyCleanup?: boolean;
   sessionMonitoringService?: ISessionMonitoringService;
+  telegramPairingService?: ITelegramPairingService;
 }
 
 declare module 'fastify' {
@@ -106,5 +108,6 @@ declare module 'fastify' {
     syncPlay: IJellyfinSyncPlayService;
     watchPartyCleanup: WatchPartyCleanupJob;
     sessionMonitoring: ISessionMonitoringService;
+    telegramPairing: ITelegramPairingService;
   }
 }

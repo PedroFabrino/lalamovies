@@ -187,6 +187,13 @@ export const DEFAULT_FEATURE_FLAGS: Array<{
     category: 'discovery',
     enabled: true,
   },
+  {
+    id: 'global_gemini_api_key',
+    name: 'Global Gemini API Key',
+    description: 'Allow all paired Telegram users to use the shared system Gemini API key for intent parsing',
+    category: 'automation',
+    enabled: true,
+  },
 ];
 
 export function seedDefaultFeatureFlags(db: AppDatabase) {

@@ -86,6 +86,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           inviteId: null,
           invitesEnabled: true,
           jellyfinAccessToken: authResult.accessToken,
+          telegramChatId: null,
+          personalGeminiApiKey: null,
           createdAt: new Date().toISOString(),
         };
 
@@ -208,10 +210,39 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
             email: user.email,
             role: user.role,
             hasJellyfinToken: Boolean(user.jellyfinAccessToken),
+            telegramChatId: user.telegramChatId || null,
+            hasPersonalGeminiKey: Boolean(user.personalGeminiApiKey),
             createdAt: user.createdAt,
           }
         : null,
       token,
     });
+  });
+
+  // POST /auth/telegram-pairing/code
+  app.post('/telegram-pairing/code', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const user = request.currentUser;
+    if (!user) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    const result = app.telegramPairing.generateCode(user.id);
+    return reply.send(result);
+  });
+
+  // DELETE /auth/telegram-pairing
+  app.delete('/telegram-pairing', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const user = request.currentUser;
+    if (!user) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    app.db
+      .update(users)
+      .set({ telegramChatId: null })
+      .where(eq(users.id, user.id))
+      .run();
+
+    return reply.send({ ok: true });
   });
 };

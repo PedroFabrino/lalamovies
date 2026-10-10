@@ -35,6 +35,7 @@ import { CleanupCron } from '../jobs/cleanupCron';
 import { TranscriptionCron } from '../jobs/transcriptionCron';
 import { WatchPartyCleanupJob } from '../jobs/watchPartyCleanup';
 import { isFeatureEnabled } from '../middleware/featureFlags';
+import { TelegramPairingService, ITelegramPairingService } from './telegramPairingService';
 
 export interface CreatedServices {
   qbittorrent: IQBittorrentService;
@@ -64,6 +65,7 @@ export interface CreatedServices {
   syncPlay: IJellyfinSyncPlayService;
   watchPartyCleanup: WatchPartyCleanupJob;
   sessionMonitoring: ISessionMonitoringService;
+  telegramPairing: ITelegramPairingService;
 }
 
 export function setupServices(
@@ -297,13 +299,15 @@ export function setupServices(
       }
     );
 
+  const telegramPairing = options.telegramPairingService ?? new TelegramPairingService();
+
   const decorations: Record<string, unknown> = {
     db, sqlite, jellyfin, metadata, qbittorrent, cleanup, notifications,
     cleanupCron, transcriptionCron, fileSystem, prowlarr, discovery,
     upNext, animeSeason, poller, subtitleInspection, subgen, openSubtitles,
     unarchive, unarchiveDaemon, stateMachine, requestsRepo, episodesRepo,
     episodicPruning, requestService, serviceApiKey, watcherUrl, streamerUrl,
-    watchPartyRepo, syncPlay, watchPartyCleanup, sessionMonitoring,
+    watchPartyRepo, syncPlay, watchPartyCleanup, sessionMonitoring, telegramPairing,
   };
   for (const [key, val] of Object.entries(decorations)) {
     app.decorate(key, val);
@@ -314,6 +318,6 @@ export function setupServices(
     episodicPruning, stateMachine, cleanup, metadata, prowlarr, discovery,
     upNext, animeSeason, subtitleInspection, subgen, openSubtitles, unarchive,
     requestService, poller, unarchiveDaemon, cleanupCron, transcriptionCron,
-    watchPartyRepo, syncPlay, watchPartyCleanup, sessionMonitoring,
+    watchPartyRepo, syncPlay, watchPartyCleanup, sessionMonitoring, telegramPairing,
   };
 }

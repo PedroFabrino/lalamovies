@@ -121,6 +121,35 @@
         <span class="hidden sm:inline">Invite</span>
       </button>
 
+      <!-- Settings Button -->
+      <button
+        type="button"
+        class="px-2.5 py-1.5 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/80 rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+        title="Settings & Integrations"
+        @click="showSettingsModal = true"
+      >
+        <svg
+          class="w-3.5 h-3.5 text-zinc-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+          />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+          />
+        </svg>
+        <span class="hidden sm:inline">Settings</span>
+      </button>
+
       <div class="text-right hidden sm:block">
         <div class="text-sm font-medium text-white flex items-center gap-2 justify-end">
           <span>{{ authStore.user?.username }}</span>
@@ -149,6 +178,14 @@
         @close="showInviteModal = false"
       />
     </Teleport>
+
+    <!-- User Settings Modal -->
+    <Teleport to="body">
+      <UserSettingsModal
+        v-if="showSettingsModal"
+        @close="showSettingsModal = false"
+      />
+    </Teleport>
   </header>
 </template>
 
@@ -159,6 +196,7 @@ import { useAuthStore } from '../stores/auth';
 import { useProgressSocket } from '../composables/useProgressSocket';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import UserInviteModal from './UserInviteModal.vue';
+import UserSettingsModal from './UserSettingsModal.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -167,6 +205,7 @@ const { isConnected } = useProgressSocket();
 const featureFlags = useFeatureFlags();
 
 const showInviteModal = ref(false);
+const showSettingsModal = ref(false);
 
 const isLibraryEnabled = computed(() => featureFlags.isEnabled('jellyfin_library_view'));
 const isRequestEnabled = computed(() => featureFlags.isEnabled('manual_torrents'));

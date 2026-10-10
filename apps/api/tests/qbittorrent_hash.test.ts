@@ -95,6 +95,8 @@ describe('DownloadPoller - Orphan Torrent Self-Healing', () => {
         invite_id TEXT,
         invites_enabled INTEGER NOT NULL DEFAULT 1,
         jellyfin_access_token TEXT,
+        telegram_chat_id TEXT UNIQUE,
+        personal_gemini_api_key TEXT,
         created_at TEXT NOT NULL
       );
       CREATE TABLE download_requests (

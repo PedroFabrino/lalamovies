@@ -236,6 +236,10 @@ _Avoid_: circuit breaker, emergency stop button
 The mechanism where disabling a Feature Flag in the main API immediately signals background worker services (such as the Watcher and Streamer) to sleep their polling intervals and drop pending scheduler runs, avoiding unnecessary external API and network load while in Degraded Mode.
 _Avoid_: worker kill, task termination, thread sleep
 
+**Global AI Key Flag**:
+A Feature Flag governing whether the system-wide Gemini API key configured in `.env` is accessible to all users for Intent Parsing or if users must supply their own personal API key.
+_Avoid_: shared api key toggle, gemini switch
+
 ### Subtitle Generation & AI Transcription
 
 **Transcription Queue**:
@@ -267,6 +271,18 @@ _Avoid_: wrapper, mobile container, native port
 **Quick Connect**:
 The authentication flow where a Leanback Client displays a temporary pairing code and QR code, allowing an authenticated User on a secondary device (phone or browser) to authorize the session without entering credentials on the TV.
 _Avoid_: TV login, code auth, device link
+
+**Telegram Client**:
+The dedicated 1-on-1 chat client interface operating via Telegram that allows authenticated users to search TMDB metadata, submit Download Requests, track episodic Series, manage Waitlist Entries, and receive lifecycle notifications.
+_Avoid_: telegram scraper, chat downloader, bot integration
+
+**Telegram Account Pairing**:
+The authentication flow where a User enters a short-lived pairing code generated in their web profile via a `/link <code>` bot command, binding their Telegram chat ID to their User account and role.
+_Avoid_: bot login, chat auth, telegram sync
+
+**Intent Parsing**:
+The extraction of structured media search entities (intent, title, media type, season, episode) from freeform natural language chat messages using Gemini Flash, with deterministic slash-command fallbacks.
+_Avoid_: chat interpretation, text recognition, bot prompt
 
 ### Watch Party & Playback Synchronization
 

@@ -106,6 +106,13 @@
       "when": 1790901501790,
       "tag": "0014_amusing_kitty_pryde",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1791595909039,
+      "tag": "0015_bizarre_annihilus",
+      "breakpoints": true
     }
   ]
 }
