@@ -6,6 +6,12 @@ import {
 import { TelegramBotClient } from './telegramClient';
 import { CallbackStore } from './callbackStore';
 import { MdmApiClient } from './apiClient';
+import { ReportCardHandler } from './reportCardHandler';
+import {
+  formatBytes,
+  formatMediaSubtitle,
+  formatConfirmationCard,
+} from './snatchFormatters';
 
 export interface SnatchParams {
   chatId: number | string;
@@ -39,15 +45,12 @@ export class SnatchHandler {
   constructor(
     private telegram: TelegramBotClient,
     private apiClient: MdmApiClient,
-    private callbackStore: CallbackStore
+    private callbackStore: CallbackStore,
+    private reportCardHandler?: ReportCardHandler
   ) {}
 
   formatBytes(bytes: number): string {
-    if (!bytes || bytes <= 0) return '0 B';
-    const gb = bytes / (1024 * 1024 * 1024);
-    if (gb >= 1) return `${gb.toFixed(1)} GB`;
-    const mb = bytes / (1024 * 1024);
-    return `${mb.toFixed(0)} MB`;
+    return formatBytes(bytes);
   }
 
   formatMediaSubtitle(
@@ -55,15 +58,7 @@ export class SnatchHandler {
     episodeNumber?: number,
     isSeasonPack?: boolean
   ): string {
-    if (isSeasonPack && seasonNumber) {
-      return ` (Temporada ${seasonNumber})`;
-    }
-    if (seasonNumber && episodeNumber !== undefined) {
-      const s = String(seasonNumber).padStart(2, '0');
-      const e = String(episodeNumber).padStart(2, '0');
-      return ` - S${s}E${e}`;
-    }
-    return '';
+    return formatMediaSubtitle(seasonNumber, episodeNumber, isSeasonPack);
   }
 
   formatConfirmationCard(
@@ -71,21 +66,10 @@ export class SnatchHandler {
     release: ReleaseCandidate,
     seasonNumber?: number,
     episodeNumber?: number,
-    isSeasonPack?: boolean
+    isSeasonPack?: boolean,
+    watchNext?: boolean
   ): string {
-    const subTitle = this.formatMediaSubtitle(seasonNumber, episodeNumber, isSeasonPack);
-    const sizeStr = this.formatBytes(release.sizeBytes);
-    const resStr = release.resolution || 'Auto';
-
-    return (
-      `🚀 *Download Iniciado!*\n\n` +
-      `*${candidate.title}${subTitle}*\n` +
-      `• *Resolução:* ${resStr}\n` +
-      `• *Tamanho:* ${sizeStr}\n` +
-      `• *Seeders:* ${release.seeders}\n` +
-      `• *Tracker:* ${release.indexer}\n\n` +
-      `Você receberá uma notificação aqui assim que estiver pronto para assistir!`
-    );
+    return formatConfirmationCard(candidate, release, seasonNumber, episodeNumber, isSeasonPack, watchNext);
   }
 
   async executeSnatch(params: SnatchParams): Promise<void> {
@@ -156,6 +140,7 @@ export class SnatchHandler {
       seasonNumber,
       episodeNumber: isSeasonPack ? undefined : episodeNumber,
       isSeasonPack,
+      waitlistNextSeason: isSeasonPack && params.watchNext ? true : undefined,
       qualityScore: selectedRelease.score,
       source: selectedRelease.indexer,
       resolution: selectedRelease.resolution,
@@ -169,6 +154,22 @@ export class SnatchHandler {
         await this.telegram.sendMessage(chatId, errText);
       }
       return;
+    }
+
+    if (!isSeasonPack && params.watchNext && ['tv_show', 'anime'].includes(candidate.mediaType)) {
+      const currentEp = episodeNumber ?? 1;
+      await this.apiClient
+        .createWaitlist(userId, {
+          title: candidate.title,
+          mediaType: candidate.mediaType,
+          metadataId: candidate.id,
+          metadataSource: 'tmdb',
+          year: candidate.year,
+          seasonNumber: seasonNumber ?? 1,
+          targetEpisode: currentEp + 1,
+          posterUrl: candidate.posterUrl,
+        })
+        .catch(() => {});
     }
 
     const session: SnatchSession = {
@@ -185,7 +186,8 @@ export class SnatchHandler {
       selectedRelease,
       seasonNumber,
       episodeNumber,
-      isSeasonPack
+      isSeasonPack,
+      params.watchNext
     );
 
     const keyboard: InlineKeyboardMarkup = {
@@ -210,6 +212,10 @@ export class SnatchHandler {
       if (createRes.id) {
         await this.apiClient.setRequestSnatchMessageId(createRes.id, snatchMsgId);
       }
+    }
+
+    if (this.reportCardHandler) {
+      await this.reportCardHandler.ensureOrUpdateReportCard(chatId).catch(() => {});
     }
   }
 

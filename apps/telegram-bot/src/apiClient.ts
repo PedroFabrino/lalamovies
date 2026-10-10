@@ -238,6 +238,7 @@ export class MdmApiClient {
       seasonNumber?: number | null;
       episodeNumber?: number | null;
       isSeasonPack?: boolean;
+      waitlistNextSeason?: boolean;
       qualityScore?: number;
       source?: string;
       resolution?: string;
@@ -256,6 +257,7 @@ export class MdmApiClient {
         year: payload.year ?? undefined,
         seasonNumber: payload.seasonNumber ?? undefined,
         episodeNumber: payload.episodeNumber ?? undefined,
+        waitlistNextSeason: payload.waitlistNextSeason,
       };
 
       const res = await fetch(`${this.baseUrl}/requests`, {
@@ -296,6 +298,7 @@ export class MdmApiClient {
       const targetEp = payload.targetEpisode !== undefined ? payload.targetEpisode : payload.episodeNumber;
 
       const body: Record<string, unknown> = {
+        userId,
         title: payload.title,
         mediaType: payload.mediaType,
         metadataId: metaId,

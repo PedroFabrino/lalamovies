@@ -31,8 +31,8 @@ async function main() {
 
   const carouselHandler = new CarouselHandler(telegram, callbackStore);
   const episodicHandler = new EpisodicHandler(telegram, apiClient, callbackStore);
-  const snatchHandler = new SnatchHandler(telegram, apiClient, callbackStore);
   const reportCardHandler = new ReportCardHandler(telegram, apiClient);
+  const snatchHandler = new SnatchHandler(telegram, apiClient, callbackStore, reportCardHandler);
 
   const handler = new MessageHandler(
     telegram,

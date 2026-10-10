@@ -186,6 +186,35 @@ describe('EpisodicHandler & SnatchHandler', () => {
       expect(callbackStore.getLastEphemeralMessage('chat-1')).toBe(10);
     });
 
+    it('snatches episode and registers next episode in waitlist when watchNext is true', async () => {
+      await snatchHandler.executeSnatch({
+        chatId: 'chat-1',
+        userId: 'user-1',
+        candidate,
+        seasonNumber: 1,
+        episodeNumber: 1,
+        isSeasonPack: false,
+        watchNext: true,
+      });
+
+      expect(apiClientMock.createRequest).toHaveBeenCalledTimes(1);
+      expect(apiClientMock.createWaitlist).toHaveBeenCalledTimes(1);
+      expect(apiClientMock.createWaitlist).toHaveBeenCalledWith('user-1', {
+        title: 'Lanternas',
+        mediaType: 'tv_show',
+        metadataId: 456,
+        metadataSource: 'tmdb',
+        year: 2026,
+        seasonNumber: 1,
+        targetEpisode: 2,
+        posterUrl: undefined,
+      });
+
+      const [, , cardText] = (telegramMock.editMessageText as any).mock.calls[0];
+      expect(cardText).toContain('Waitlist');
+      expect(cardText).toContain('S01E02');
+    });
+
     it('prompts user to add to waitlist when no releases are available or title is unreleased', async () => {
       (apiClientMock.searchReleases as any).mockResolvedValueOnce({
         releases: [],

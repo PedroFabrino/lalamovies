@@ -3342,9 +3342,9 @@
     "semantic_hash": ""
   },
   "apps/telegram-bot/src/apiClient.ts": {
-    "mtime": 1791607842.3753855,
-    "seen": 1791609520.2152643,
-    "ast_hash": "1faada147a5df098669743aac37081c3",
+    "mtime": 1791638349.1817868,
+    "seen": 1791638513.4479616,
+    "ast_hash": "eefbdf1f4ab09352d41e4dce8cea3f38",
     "semantic_hash": ""
   },
   "apps/telegram-bot/src/callbackStore.ts": {
@@ -3366,9 +3366,9 @@
     "semantic_hash": ""
   },
   "apps/telegram-bot/src/index.ts": {
-    "mtime": 1791608241.746303,
-    "seen": 1791609520.2152643,
-    "ast_hash": "49781af2567b54b6554c4666257af99a",
+    "mtime": 1791638412.2173605,
+    "seen": 1791638513.4485092,
+    "ast_hash": "0cbab9d4ec2feebdea2f5a5eb68b75ee",
     "semantic_hash": ""
   },
   "apps/telegram-bot/src/intentParser.ts": {
@@ -3384,9 +3384,9 @@
     "semantic_hash": ""
   },
   "apps/telegram-bot/src/snatchHandler.ts": {
-    "mtime": 1791608096.9777675,
-    "seen": 1791609520.2158206,
-    "ast_hash": "7ba20a08c2cf6cbd5d2c739f7a480457",
+    "mtime": 1791638397.6219406,
+    "seen": 1791638513.4495847,
+    "ast_hash": "1526c3ab225f29c0872050bb2b73c70c",
     "semantic_hash": ""
   },
   "apps/telegram-bot/src/telegramClient.ts": {
@@ -3408,9 +3408,9 @@
     "semantic_hash": ""
   },
   "apps/telegram-bot/tests/episodicAndSnatch.test.ts": {
-    "mtime": 1791608358.1351,
-    "seen": 1791609520.2158206,
-    "ast_hash": "dadc28e1876ad6e3928606f46b9c82c3",
+    "mtime": 1791638463.592304,
+    "seen": 1791638513.451758,
+    "ast_hash": "1c4db7a8969d379fa182861e1f851f5c",
     "semantic_hash": ""
   },
   "apps/telegram-bot/tests/intentParser.test.ts": {
@@ -3483,6 +3483,12 @@
     "mtime": 1791607916.2899027,
     "seen": 1791609520.2163963,
     "ast_hash": "f651f288d1cd3b69705b154522d4ea48",
+    "semantic_hash": ""
+  },
+  "apps/telegram-bot/src/snatchFormatters.ts": {
+    "mtime": 1791638332.4305854,
+    "seen": 1791638513.4495847,
+    "ast_hash": "dd2572f9fe3a639ad350d166d1e87baa",
     "semantic_hash": ""
   }
 }
