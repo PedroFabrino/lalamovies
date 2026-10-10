@@ -380,7 +380,11 @@ export class RequestsRepository implements IRequestsRepository {
     const row = this.db.select({ id: users.telegramReportMessageId }).from(users).where(eq(users.id, userId)).get();
     return row?.id ?? null;
   }
- 
+
+  setTelegramChatId(userId: string, chatId: string | null): void {
+    this.db.update(users).set({ telegramChatId: chatId }).where(eq(users.id, userId)).run();
+  }
+
   findUserByTelegramChatId(chatId: string): User | undefined {
     return this.db.select().from(users).where(eq(users.telegramChatId, chatId)).get();
   }

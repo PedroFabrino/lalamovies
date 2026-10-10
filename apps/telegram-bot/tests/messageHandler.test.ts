@@ -29,6 +29,11 @@ describe('MessageHandler', () => {
     apiClientMock = {
       getUserByChatId: vi.fn(),
       pairUser: vi.fn(),
+      createAuthSession: vi.fn().mockResolvedValue({
+        ok: true,
+        token: 'auth-tok-123',
+        url: 'http://localhost:5173/telegram-auth?token=auth-tok-123',
+      }),
       getTelegramConfig: vi.fn().mockResolvedValue({ globalGeminiApiKey: true }),
       setUserGeminiApiKey: vi.fn().mockResolvedValue(true),
       searchMetadata: vi.fn().mockResolvedValue([]),
@@ -249,5 +254,47 @@ describe('MessageHandler', () => {
     await handlerWithReport.handleCallbackQuery(cb as any);
 
     expect(reportCardMock.handleRefreshCallback).toHaveBeenCalledWith(12345, 100, 'cb-refresh-1');
+  });
+
+  it('responds to /login for unpaired user with web login button', async () => {
+    (apiClientMock.getUserByChatId as any).mockResolvedValue(null);
+
+    const msg: TelegramMessage = {
+      message_id: 10,
+      chat: { id: 54321, type: 'private' },
+      date: Date.now(),
+      text: '/login',
+    };
+
+    await messageHandler.handleMessage(msg);
+
+    expect(apiClientMock.createAuthSession).toHaveBeenCalledWith(54321);
+    expect(telegramMock.sendMessage).toHaveBeenCalledTimes(1);
+    const [chatId, text, options] = (telegramMock.sendMessage as any).mock.calls[0];
+    expect(chatId).toBe(54321);
+    expect(text).toContain('Entrar e Vincular Conta');
+    expect(options.replyMarkup.inline_keyboard[0][0].text).toContain('Entrar e Vincular Conta');
+    expect(options.replyMarkup.inline_keyboard[0][0].url).toBe('http://localhost:5173/telegram-auth?token=auth-tok-123');
+  });
+
+  it('informs paired user when calling /login', async () => {
+    (apiClientMock.getUserByChatId as any).mockResolvedValue({
+      id: 'u1',
+      username: 'alice',
+      role: 'admin',
+    });
+
+    const msg: TelegramMessage = {
+      message_id: 11,
+      chat: { id: 54321, type: 'private' },
+      date: Date.now(),
+      text: '/login',
+    };
+
+    await messageHandler.handleMessage(msg);
+
+    expect(telegramMock.sendMessage).toHaveBeenCalledTimes(1);
+    const [, text] = (telegramMock.sendMessage as any).mock.calls[0];
+    expect(text).toContain('Sua conta já está vinculada como *alice*');
   });
 });

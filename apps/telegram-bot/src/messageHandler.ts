@@ -59,10 +59,44 @@ export class MessageHandler {
         return;
       }
 
+      if (text === '/login' || text === '/entrar') {
+        const sessionRes = await this.apiClient.createAuthSession(chatId);
+        if (sessionRes.ok && sessionRes.url) {
+          await this.telegram.sendMessage(
+            chatId,
+            `🔐 *Entrar e Vincular Conta*\n\nClique no botão abaixo para fazer login pelo navegador e vincular sua conta automaticamente.\n\n_Este link expira em 15 minutos._`,
+            {
+              replyMarkup: {
+                inline_keyboard: [
+                  [{ text: '🔐 Entrar e Vincular Conta', url: sessionRes.url }],
+                ],
+              },
+            }
+          );
+        } else {
+          await this.telegram.sendMessage(
+            chatId,
+            `❌ Não foi possível gerar link de acesso no momento. Tente novamente mais tarde.`
+          );
+        }
+        await deletePrompt();
+        return;
+      }
+
       // Unpaired welcome message
+      const sessionRes = await this.apiClient.createAuthSession(chatId);
+      const replyMarkup = sessionRes.ok && sessionRes.url
+        ? {
+            inline_keyboard: [
+              [{ text: '🔐 Entrar pelo Navegador', url: sessionRes.url }],
+            ],
+          }
+        : undefined;
+
       await this.telegram.sendMessage(
         chatId,
-        `👋 *Bem-vindo ao Media Download Manager!*\n\nPara solicitar downloads diretamente pelo Telegram, você precisa vincular sua conta:\n\n1. Acesse o portal do MDM pelo navegador\n2. Vá em *Configurações > Telegram*\n3. Clique em *Gerar Código de Vinculação*\n4. Envie o código aqui usando:\n   \`/link <SEU_CODIGO>\`\n\nExemplo: \`/link AB12CD\``
+        `👋 *Bem-vindo ao Media Download Manager!*\n\nPara solicitar downloads diretamente pelo Telegram, você precisa vincular sua conta:\n\n• *Opção 1 (Rápida):* Clique no botão abaixo para entrar pelo navegador e vincular em 1 clique.\n• *Opção 2 (Manual):* Acesse o portal, vá em *Configurações > Telegram*, gere um código e envie aqui:\n   \`/link <SEU_CODIGO>\`\n\nExemplo: \`/link AB12CD\``,
+        { replyMarkup }
       );
       await deletePrompt();
       return;
@@ -77,8 +111,8 @@ export class MessageHandler {
       await this.telegram.deleteMessage(chatId, prevEphemeral).catch(() => {});
     }
 
-    // Check if user re-runs /link
-    if (text.startsWith('/link') || text.startsWith('/vincular')) {
+    // Check if user re-runs /link or /login
+    if (text.startsWith('/link') || text.startsWith('/vincular') || text === '/login' || text === '/entrar') {
       await this.telegram.sendMessage(
         chatId,
         `ℹ️ Sua conta já está vinculada como *${user.username}*!`

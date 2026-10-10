@@ -178,6 +178,7 @@ export const internalRoutes: FastifyPluginAsync = async (app) => {
         id: user.id,
         username: user.username,
         role: user.role,
+        telegramChatId: user.telegramChatId || null,
         personalGeminiApiKey: user.personalGeminiApiKey || null,
       },
     });

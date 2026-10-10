@@ -124,4 +124,25 @@ export class TelegramNotifier implements INotificationService {
       }
     }
   }
+
+  async sendMessage(chatId: string, text: string): Promise<boolean> {
+    const token = this.botToken || process.env.TELEGRAM_BOT_TOKEN;
+    if (!token || !token.trim()) {
+      return false;
+    }
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId.trim(),
+          text,
+          parse_mode: 'Markdown',
+        }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
 }

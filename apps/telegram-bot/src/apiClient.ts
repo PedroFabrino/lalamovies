@@ -63,6 +63,31 @@ export class MdmApiClient {
     }
   }
 
+  async createAuthSession(
+    chatId: string | number
+  ): Promise<{ ok: boolean; token?: string; url?: string; message?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/internal/telegram/auth-session`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ chatId: String(chatId) }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        token?: string;
+        url?: string;
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        return { ok: false, message: data.message || data.error || 'Falha ao criar sessão de autenticação' };
+      }
+      return { ok: true, token: data.token, url: data.url };
+    } catch {
+      return { ok: false, message: 'Erro de comunicação ao criar sessão de autenticação' };
+    }
+  }
+
   async getTelegramConfig(): Promise<{ globalGeminiApiKey: boolean }> {
     try {
       const res = await fetch(`${this.baseUrl}/internal/telegram/config`, {

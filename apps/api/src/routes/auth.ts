@@ -231,6 +231,70 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     return reply.send(result);
   });
 
+  // POST /auth/telegram-pairing/claim
+  const claimSchema = z.object({
+    token: z.string().min(1, 'Token is required'),
+  });
+
+  app.post('/telegram-pairing/claim', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const user = request.currentUser;
+    if (!user) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    const parseResult = claimSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: parseResult.error.issues[0]?.message || 'Invalid claim payload',
+      });
+    }
+
+    const { token } = parseResult.data;
+    const chatId = app.telegramPairing.consumeAuthSession(token);
+    if (!chatId) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Sessão de vinculação inválida ou expirada',
+      });
+    }
+
+    // Clear chatId if already bound to another user
+    const existing = app.requestsRepo.findUserByTelegramChatId(chatId);
+    if (existing && existing.id !== user.id) {
+      app.requestsRepo.setTelegramChatId(existing.id, null);
+    }
+
+    app.requestsRepo.setTelegramChatId(user.id, chatId);
+
+    // Notify user in Telegram if bot token is configured
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (botToken) {
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId.trim(),
+          text: `🎉 *Conta Vinculada com Sucesso!*\n\nOlá *${user.username}*, sua conta foi vinculada ao Telegram via navegador.\n\nAgora você pode pedir downloads por aqui! Experimente enviar:\n• _"Baixe o filme Interestelar"_\n• _"Baixe a série Lanternas"_\n• ou use comandos como /filme, /serie, /status`,
+          parse_mode: 'Markdown',
+        }),
+      }).catch(() => {});
+    }
+
+    const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'mdm_download_bot';
+
+    return reply.send({
+      ok: true,
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+      },
+      chatId,
+      botUsername,
+    });
+  });
+
   // DELETE /auth/telegram-pairing
   app.delete('/telegram-pairing', { preHandler: [authMiddleware] }, async (request, reply) => {
     const user = request.currentUser;
@@ -238,11 +302,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(401).send({ error: 'Unauthorized' });
     }
 
-    app.db
-      .update(users)
-      .set({ telegramChatId: null })
-      .where(eq(users.id, user.id))
-      .run();
+    app.requestsRepo.setTelegramChatId(user.id, null);
 
     return reply.send({ ok: true });
   });

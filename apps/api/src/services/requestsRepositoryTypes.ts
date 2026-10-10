@@ -74,6 +74,7 @@ export interface IRequestsRepository {
   setTelegramSnatchMessageId(id: string, messageId: number | null): void;
   setTelegramReportMessageId(userId: string, messageId: number | null): void;
   getTelegramReportMessageId(userId: string): number | null;
+  setTelegramChatId(userId: string, chatId: string | null): void;
   findUserByTelegramChatId(chatId: string): User | undefined;
 }
 

@@ -68,6 +68,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/telegram-auth',
+    name: 'telegram-auth',
+    component: () => import('../views/TelegramAuthView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: '/dashboard',
   },

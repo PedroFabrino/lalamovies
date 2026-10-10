@@ -18,6 +18,7 @@ describe('Telegram Pairing Integration', () => {
       dbPath: ':memory:',
       jellyfinService: mockJellyfin,
       jwtSecret: 'test-jwt-secret-key-32-characters-minimum',
+      serviceApiKey: 'test-service-key',
     });
 
     await app.ready();
@@ -57,6 +58,25 @@ describe('Telegram Pairing Integration', () => {
       const service = new TelegramPairingService(-1000); // already expired
       const { code } = service.generateCode('user-2');
       expect(service.verifyAndConsumeCode(code)).toBeNull();
+    });
+
+    it('creates and consumes auth sessions', () => {
+      const service = new TelegramPairingService(60000, 900000);
+      const { token, expiresInSeconds } = service.createAuthSession('chat-123');
+      expect(token).toBeDefined();
+      expect(token.length).toBeGreaterThan(10);
+      expect(expiresInSeconds).toBe(900);
+
+      expect(service.peekAuthSession(token)).toBe('chat-123');
+      expect(service.consumeAuthSession(token)).toBe('chat-123');
+      // Once consumed, cannot be reused
+      expect(service.consumeAuthSession(token)).toBeNull();
+    });
+
+    it('expires auth sessions past TTL', () => {
+      const service = new TelegramPairingService(60000, -1000); // expired session
+      const { token } = service.createAuthSession('chat-expired');
+      expect(service.consumeAuthSession(token)).toBeNull();
     });
   });
 
@@ -269,6 +289,87 @@ describe('Telegram Pairing Integration', () => {
         url: '/internal/telegram/user/444333222',
       });
       expect(userAfterRes.json().user.personalGeminiApiKey).toBeNull();
+    });
+
+    it('creates an auth session via POST /internal/telegram/auth-session', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/internal/telegram/auth-session',
+        headers: { 'x-service-key': 'test-service-key' },
+        payload: { chatId: '888999111' },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = res.json();
+      expect(data.ok).toBe(true);
+      expect(data.token).toBeDefined();
+      expect(data.url).toContain('/telegram-auth?token=');
+      expect(data.url).toContain(data.token);
+      expect(data.expiresInSeconds).toBe(900);
+    });
+
+    it('requires authentication for POST /auth/telegram-pairing/claim', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/telegram-pairing/claim',
+        payload: { token: 'any-token' },
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('rejects invalid or expired token on POST /auth/telegram-pairing/claim', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/telegram-pairing/claim',
+        headers: { cookie: `token=${authToken}` },
+        payload: { token: 'invalid-nonexistent-token' },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().message).toContain('inválida ou expirada');
+    });
+
+    it('successfully claims auth session and binds telegramChatId to user', async () => {
+      // 1. Create auth session
+      const sessionRes = await app.inject({
+        method: 'POST',
+        url: '/internal/telegram/auth-session',
+        headers: { 'x-service-key': 'test-service-key' },
+        payload: { chatId: '777888999' },
+      });
+      expect(sessionRes.statusCode).toBe(200);
+      const { token } = sessionRes.json();
+
+      // 2. Claim session with authenticated user
+      const claimRes = await app.inject({
+        method: 'POST',
+        url: '/auth/telegram-pairing/claim',
+        headers: { cookie: `token=${authToken}` },
+        payload: { token },
+      });
+
+      expect(claimRes.statusCode).toBe(200);
+      const claimData = claimRes.json();
+      expect(claimData.ok).toBe(true);
+      expect(claimData.user.id).toBe(userId);
+      expect(claimData.chatId).toBe('777888999');
+
+      // 3. Verify user lookup via telegram chatId
+      const userRes = await app.inject({
+        method: 'GET',
+        url: '/internal/telegram/user/777888999',
+      });
+      expect(userRes.statusCode).toBe(200);
+      expect(userRes.json().user.id).toBe(userId);
+      expect(userRes.json().user.telegramChatId).toBe('777888999');
+
+      // 4. Token cannot be claimed a second time
+      const secondClaimRes = await app.inject({
+        method: 'POST',
+        url: '/auth/telegram-pairing/claim',
+        headers: { cookie: `token=${authToken}` },
+        payload: { token },
+      });
+      expect(secondClaimRes.statusCode).toBe(400);
     });
   });
 });

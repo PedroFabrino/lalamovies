@@ -162,4 +162,31 @@ export const internalTelegramRoutes: FastifyPluginAsync = async (app) => {
       telegramSnatchMessageId: messageId,
     });
   });
+
+  // POST /telegram/auth-session
+  const authSessionSchema = z.object({
+    chatId: z.string().min(1, 'ChatId is required'),
+  });
+
+  app.post('/telegram/auth-session', async (request, reply) => {
+    const parseResult = authSessionSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: parseResult.error.issues[0]?.message || 'Invalid auth-session payload',
+      });
+    }
+
+    const { chatId } = parseResult.data;
+    const session = app.telegramPairing.createAuthSession(chatId);
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+    const url = `${frontendUrl}/telegram-auth?token=${session.token}`;
+
+    return reply.send({
+      ok: true,
+      token: session.token,
+      url,
+      expiresInSeconds: session.expiresInSeconds,
+    });
+  });
 };
