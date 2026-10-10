@@ -16,8 +16,8 @@ async function main() {
 
   if (!botToken || !botToken.trim()) {
     console.log('[TelegramBot] TELEGRAM_BOT_TOKEN is not configured. Service is idling.');
-    // Idle loop so docker container stays healthy without crashing
-    await new Promise(() => {});
+    // Idle timer so container stays alive without crashing
+    setInterval(() => {}, 60000);
     return;
   }
 
