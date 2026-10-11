@@ -61,14 +61,19 @@ async function main() {
   while (running) {
     try {
       const updates = await telegram.getUpdates(offset, 25);
+      if (updates.length > 0) {
+        console.log(`[TelegramBot] Received ${updates.length} update(s).`);
+      }
       for (const update of updates) {
         offset = update.update_id + 1;
         if (update.message) {
-          handler.handleMessage(update.message).catch((err) => {
+          console.log(`[TelegramBot] Inbound message from chat ${update.message.chat.id}: "${update.message.text || ''}"`);
+          await handler.handleMessage(update.message).catch((err) => {
             console.error('[TelegramBot] Error handling message:', err);
           });
         } else if (update.callback_query) {
-          handler.handleCallbackQuery(update.callback_query).catch((err) => {
+          console.log(`[TelegramBot] Inbound callback from chat ${update.callback_query.message?.chat.id}: "${update.callback_query.data}"`);
+          await handler.handleCallbackQuery(update.callback_query).catch((err) => {
             console.error('[TelegramBot] Error handling callback query:', err);
           });
         }

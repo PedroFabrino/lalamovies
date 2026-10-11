@@ -23,11 +23,22 @@ export class TelegramBotClient {
       if (offset !== undefined) url.searchParams.set('offset', String(offset));
       url.searchParams.set('timeout', String(timeout));
 
-      const res = await fetch(url.toString(), { method: 'GET' });
-      if (!res.ok) return [];
+      const res = await fetch(url.toString(), {
+        method: 'GET',
+        signal: AbortSignal.timeout((timeout + 10) * 1000),
+      });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        console.error(`[TelegramBot] getUpdates failed (${res.status} ${res.statusText}): ${errText}`);
+        return [];
+      }
       const data = (await res.json()) as { ok: boolean; result: TelegramUpdate[] };
       return data.ok && Array.isArray(data.result) ? data.result : [];
-    } catch {
+    } catch (err: any) {
+      if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
+        return [];
+      }
+      console.error('[TelegramBot] getUpdates connection error:', err?.message || err);
       return [];
     }
   }
@@ -54,6 +65,7 @@ export class TelegramBotClient {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
       });
       if (!res.ok) {
         // Fallback without parse_mode if formatting causes telegram parse error
@@ -93,6 +105,7 @@ export class TelegramBotClient {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
       });
 
       if (!res.ok) {
@@ -132,6 +145,7 @@ export class TelegramBotClient {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
       });
       return res.ok;
     } catch {
@@ -160,6 +174,7 @@ export class TelegramBotClient {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
       });
       return res.ok;
     } catch {
@@ -191,6 +206,7 @@ export class TelegramBotClient {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
       });
       return res.ok;
     } catch {
@@ -207,6 +223,7 @@ export class TelegramBotClient {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
       });
       return res.ok;
     } catch {
@@ -223,6 +240,7 @@ export class TelegramBotClient {
           chat_id: chatId,
           message_id: messageId,
         }),
+        signal: AbortSignal.timeout(15000),
       });
       return res.ok;
     } catch {
@@ -246,6 +264,7 @@ export class TelegramBotClient {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
       });
       return res.ok;
     } catch {

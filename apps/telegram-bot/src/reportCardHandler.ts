@@ -16,6 +16,10 @@ export class ReportCardHandler {
     return text.replace(/([_*[\]()~`>#+\-=|{}.!])/g, '\\$1');
   }
 
+  private sanitizeTitle(title: string): string {
+    return title.replace(/[*_`]/g, '');
+  }
+
   private formatStatus(status: string): string {
     switch (status) {
       case 'queued':
@@ -81,7 +85,7 @@ export class ReportCardHandler {
       lines.push(`*⏳ Em Andamento:*`);
       for (const item of report.active) {
         const ep = this.formatEpisodeInfo(item);
-        lines.push(`• *${item.title}*${ep} _(${this.formatStatus(item.status)})_`);
+        lines.push(`• *${this.sanitizeTitle(item.title)}*${ep} _(${this.formatStatus(item.status)})_`);
       }
       lines.push('');
     }
@@ -93,7 +97,7 @@ export class ReportCardHandler {
       lines.push(`*✅ Concluídos Recentemente:*`);
       for (const item of visibleCompleted) {
         const ep = this.formatEpisodeInfo(item);
-        lines.push(`• *${item.title}*${ep}`);
+        lines.push(`• *${this.sanitizeTitle(item.title)}*${ep}`);
       }
       lines.push('');
     }
@@ -107,7 +111,7 @@ export class ReportCardHandler {
         } else if (item.seasonNumber) {
           ep = ` — Temporada ${item.seasonNumber}`;
         }
-        lines.push(`• *${item.title}*${ep} _(${this.formatWaitlistStatus(item.status)})_`);
+        lines.push(`• *${this.sanitizeTitle(item.title)}*${ep} _(${this.formatWaitlistStatus(item.status)})_`);
       }
       lines.push('');
     }
