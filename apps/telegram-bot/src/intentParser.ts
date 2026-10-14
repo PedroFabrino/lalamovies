@@ -62,7 +62,7 @@ export class IntentParser {
       return this.extractEpisodicInfo(rest, 'anime', text);
     }
 
-    if (cmd === '/baixar' || cmd === '/download') {
+    if (cmd === '/baixar' || cmd === '/baixe' || cmd === '/baixa' || cmd === '/download') {
       return this.extractEpisodicInfo(rest, undefined, text);
     }
 

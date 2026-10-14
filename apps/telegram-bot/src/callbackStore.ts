@@ -9,7 +9,7 @@ export class CallbackStore {
   private sessions = new Map<string, CallbackSession>();
   private readonly ttlMs: number;
 
-  constructor(ttlMs: number = 15 * 60 * 1000) {
+  constructor(ttlMs: number = 24 * 60 * 60 * 1000) {
     this.ttlMs = ttlMs;
   }
 

@@ -30,15 +30,23 @@ export class TelegramBotClient {
       if (!res.ok) {
         const errText = await res.text().catch(() => '');
         console.error(`[TelegramBot] getUpdates failed (${res.status} ${res.statusText}): ${errText}`);
+        await new Promise((r) => setTimeout(r, 5000));
         return [];
       }
       const data = (await res.json()) as { ok: boolean; result: TelegramUpdate[] };
       return data.ok && Array.isArray(data.result) ? data.result : [];
     } catch (err: any) {
-      if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
+      const isTimeout =
+        err?.name === 'TimeoutError' ||
+        err?.name === 'AbortError' ||
+        err?.cause?.name === 'TimeoutError' ||
+        err?.cause?.name === 'AbortError';
+
+      if (isTimeout) {
         return [];
       }
       console.error('[TelegramBot] getUpdates connection error:', err?.message || err);
+      await new Promise((r) => setTimeout(r, 3000));
       return [];
     }
   }

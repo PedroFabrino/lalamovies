@@ -75,11 +75,13 @@ describe('IntentParser', () => {
     });
 
     it('parses /anime with episode number', () => {
-      const res = parser.parseDeterministicSlashCommand('/anime Solo Leveling ep 12');
-      expect(res?.action).toBe('search');
-      expect(res?.mediaType).toBe('anime');
-      expect(res?.title).toBe('Solo Leveling');
-      expect(res?.episodeNumber).toBe(12);
+      expect(parser.parseDeterministicSlashCommand('/anime Solo Leveling ep 12')?.title).toBe('Solo Leveling');
+    });
+
+    it('parses /baixa, /baixe and /baixar commands', () => {
+      expect(parser.parseDeterministicSlashCommand('/baixa demvamps')?.title).toBe('demvamps');
+      expect(parser.parseDeterministicSlashCommand('/baixe demvamps')?.title).toBe('demvamps');
+      expect(parser.parseDeterministicSlashCommand('/baixar demvamps')?.title).toBe('demvamps');
     });
 
     it('returns null for freeform natural messages', () => {

@@ -104,4 +104,35 @@ describe('CarouselHandler', () => {
     expect(onSelect).toHaveBeenCalledWith(session, mockCandidates[1]);
     expect(telegramMock.deleteMessage).toHaveBeenCalledWith('chat-1', 2);
   });
+
+  it('handles expired carousel session gracefully by deleting message and notifying user', async () => {
+    const onSelect = vi.fn();
+    await carousel.handleCarouselCallback('chat-1', 2, 'pick', 'non-existent-token', onSelect);
+
+    expect(telegramMock.deleteMessage).toHaveBeenCalledWith('chat-1', 2);
+    expect(telegramMock.sendMessage).toHaveBeenCalledWith(
+      'chat-1',
+      expect.stringContaining('Sessão de busca expirada')
+    );
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('handles cancel callback by deleting message and sending cancellation confirmation', async () => {
+    const session = {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      candidates: mockCandidates,
+      currentIndex: 0,
+      intent: { action: 'search' as const, title: 'Lanterns' },
+    };
+    const token = callbackStore.save(session);
+    const onSelect = vi.fn();
+
+    await carousel.handleCarouselCallback('chat-1', 2, 'cancel', token, onSelect);
+
+    expect(callbackStore.get(token)).toBeNull();
+    expect(telegramMock.deleteMessage).toHaveBeenCalledWith('chat-1', 2);
+    expect(telegramMock.sendMessage).toHaveBeenCalledWith('chat-1', '🚫 Busca cancelada.');
+    expect(onSelect).not.toHaveBeenCalled();
+  });
 });

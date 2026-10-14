@@ -106,13 +106,22 @@ export class CarouselHandler {
   ): Promise<void> {
     const session = this.callbackStore.get<CarouselSession>(token);
     if (!session) {
-      await this.telegram.editMessageText(chatId, messageId, '⚠️ Sessão de busca expirada.');
+      if (typeof this.telegram.deleteMessage === 'function') {
+        await this.telegram.deleteMessage(chatId, messageId).catch(() => {});
+      }
+      await this.telegram.sendMessage(
+        chatId,
+        '⚠️ Sessão de busca expirada. Envie o nome do filme, série ou anime novamente para buscar.'
+      );
       return;
     }
 
     if (action === 'cancel') {
       this.callbackStore.delete(token);
-      await this.telegram.editMessageText(chatId, messageId, '🚫 Busca cancelada.');
+      if (typeof this.telegram.deleteMessage === 'function') {
+        await this.telegram.deleteMessage(chatId, messageId).catch(() => {});
+      }
+      await this.telegram.sendMessage(chatId, '🚫 Busca cancelada.');
       return;
     }
 
