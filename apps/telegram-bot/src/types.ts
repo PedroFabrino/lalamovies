@@ -62,6 +62,8 @@ export interface ParsedIntent {
   isSeasonPack?: boolean;
   arg?: string;
   raw?: string;
+  llmOverloaded?: boolean;
+  llmProvider?: 'gemini' | 'omniroute' | 'heuristic';
 }
 
 export interface MetadataCandidate {

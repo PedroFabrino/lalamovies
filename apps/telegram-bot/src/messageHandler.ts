@@ -193,6 +193,13 @@ export class MessageHandler {
       config.globalGeminiApiKey
     );
 
+    if (intent.llmOverloaded) {
+      await this.telegram.sendMessage(
+        chatId,
+        '⚠️ Estamos com alta demanda em nossos modelos de IA, tente novamente em alguns instantes.'
+      );
+    }
+
     if (intent.action === 'help') {
       await this.telegram.sendMessage(
         chatId,

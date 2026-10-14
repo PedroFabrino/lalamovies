@@ -26,7 +26,10 @@ async function main() {
 
   const telegram = new TelegramBotClient({ botToken: botToken.trim() });
   const apiClient = new MdmApiClient({ baseUrl: apiUrl, serviceApiKey });
-  const intentParser = new IntentParser({ globalGeminiApiKey: geminiApiKey });
+  const intentParser = new IntentParser({
+    globalGeminiApiKey: geminiApiKey,
+    omnirouteUrl: process.env.OMNIROUTE_URL,
+  });
   const callbackStore = new CallbackStore();
 
   const carouselHandler = new CarouselHandler(telegram, callbackStore);

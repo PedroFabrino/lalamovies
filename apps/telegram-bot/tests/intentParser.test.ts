@@ -212,8 +212,46 @@ describe('IntentParser', () => {
       expect(intent.isSeasonPack).toBe(true);
     });
 
-    it('falls back to heuristic parsing when Gemini fails or returns error', async () => {
-      const fetchMock = vi.fn().mockRejectedValue(new Error('Gemini API Error'));
+    it('falls back to OmniRoute when Gemini fails or returns error', async () => {
+      const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+        if (url.includes('generativelanguage.googleapis.com')) {
+          return { ok: false, status: 503, text: async () => 'Gemini 503 overloaded' };
+        }
+        if (url.includes('/v1/chat/completions')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify({
+                      action: 'search',
+                      title: 'Tougen Anki',
+                      mediaType: 'anime',
+                    }),
+                  },
+                },
+              ],
+            }),
+          };
+        }
+        return { ok: false, status: 404 };
+      });
+      global.fetch = fetchMock;
+
+      const parser = new IntentParser({ globalGeminiApiKey: 'test-gemini-key' });
+      const intent = await parser.parseIntent('Baixe o anime Tougen Anki');
+
+      expect(intent.action).toBe('search');
+      expect(intent.title).toBe('Tougen Anki');
+      expect(intent.mediaType).toBe('anime');
+      expect(intent.llmProvider).toBe('omniroute');
+      expect(intent.llmOverloaded).toBeFalsy();
+    });
+
+    it('falls back to heuristic parsing and marks llmOverloaded when both Gemini and OmniRoute fail', async () => {
+      const fetchMock = vi.fn().mockRejectedValue(new Error('Network error on all LLMs'));
       global.fetch = fetchMock;
 
       const parser = new IntentParser({ globalGeminiApiKey: 'test-gemini-key' });
@@ -222,6 +260,8 @@ describe('IntentParser', () => {
       expect(intent.action).toBe('search');
       expect(intent.mediaType).toBe('movie');
       expect(intent.title).toBe('Interestelar');
+      expect(intent.llmOverloaded).toBe(true);
+      expect(intent.llmProvider).toBe('heuristic');
     });
 
     it('falls back to heuristic parsing without API key', async () => {

@@ -297,4 +297,33 @@ describe('MessageHandler', () => {
     const [, text] = (telegramMock.sendMessage as any).mock.calls[0];
     expect(text).toContain('Sua conta já está vinculada como *alice*');
   });
+
+  it('sends high demand warning to user when intent.llmOverloaded is true', async () => {
+    (apiClientMock.getUserByChatId as any).mockResolvedValue({
+      id: 'u1',
+      username: 'alice',
+      role: 'user',
+    });
+
+    (intentParserMock.parseIntent as any).mockResolvedValue({
+      action: 'search',
+      title: 'Tougen Anki',
+      mediaType: 'anime',
+      llmOverloaded: true,
+    });
+
+    const msg: TelegramMessage = {
+      message_id: 50,
+      chat: { id: 12345, type: 'private' },
+      date: Date.now(),
+      text: 'Baixa o anime Tougen Anki',
+    };
+
+    await messageHandler.handleMessage(msg);
+
+    expect(telegramMock.sendMessage).toHaveBeenCalledWith(
+      12345,
+      '⚠️ Estamos com alta demanda em nossos modelos de IA, tente novamente em alguns instantes.'
+    );
+  });
 });
