@@ -68,4 +68,24 @@ export interface IProwlarrService {
   ): Promise<{ candidates: ReleaseCandidate[]; isReachable: boolean; error?: string }>;
   markHashInfringing?(hash: string): void;
   isHashInfringing?(hash: string): boolean;
+  getPreferredIndexerCookieStatus?(forceRefresh?: boolean): Promise<PreferredIndexerCookieStatus>;
+  testPreferredIndexerCookie?(cookieOverride?: string): Promise<PreferredIndexerCookieResult>;
+  updatePreferredIndexerCookie?(newCookie: string): Promise<PreferredIndexerCookieResult>;
+}
+
+export interface PreferredIndexerCookieStatus {
+  configured: boolean;
+  indexerId?: number;
+  indexerName?: string;
+  hasCookie: boolean;
+  cookiePreview?: string;
+  isExpired: boolean;
+  status: 'ok' | 'expired' | 'missing' | 'unreachable' | 'not_configured';
+  message?: string;
+  lastChecked?: string;
+}
+
+export interface PreferredIndexerCookieResult {
+  ok: boolean;
+  message: string;
 }

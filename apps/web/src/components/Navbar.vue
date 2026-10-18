@@ -1,6 +1,7 @@
 <template>
-  <header class="border-b border-zinc-800 bg-zinc-900/60 backdrop-blur sticky top-0 z-20 px-6 py-3.5 flex items-center justify-between">
-    <div class="flex items-center gap-6">
+  <div class="sticky top-0 z-20">
+    <header class="border-b border-zinc-800 bg-zinc-900/60 backdrop-blur px-6 py-3.5 flex items-center justify-between">
+      <div class="flex items-center gap-6">
       <router-link
         to="/dashboard"
         class="flex items-center gap-3"
@@ -186,7 +187,10 @@
         @close="showSettingsModal = false"
       />
     </Teleport>
-  </header>
+
+    <!-- Global Preferred Indexer Expired Warning Banner (Admin-only) -->
+    <PreferredIndexerAlertBanner v-if="authStore.isAdmin" />
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -197,6 +201,7 @@ import { useProgressSocket } from '../composables/useProgressSocket';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import UserInviteModal from './UserInviteModal.vue';
 import UserSettingsModal from './UserSettingsModal.vue';
+import PreferredIndexerAlertBanner from './PreferredIndexerAlertBanner.vue';
 
 const route = useRoute();
 const router = useRouter();

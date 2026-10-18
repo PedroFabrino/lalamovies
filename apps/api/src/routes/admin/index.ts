@@ -6,6 +6,7 @@ import { adminCleanupRoutes } from './cleanup';
 import { adminFeaturesRoutes } from './features';
 import { adminJellyfinRoutes } from './jellyfin';
 import { adminActivityRoutes } from './activity';
+import { adminPreferredIndexerRoutes } from './preferredIndexer';
 
 export const adminRoutes: FastifyPluginAsync = async (app) => {
   // All /admin routes require authentication and admin role
@@ -18,4 +19,5 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   await app.register(adminFeaturesRoutes);
   await app.register(adminJellyfinRoutes);
   await app.register(adminActivityRoutes);
+  await app.register(adminPreferredIndexerRoutes);
 };

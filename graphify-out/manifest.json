@@ -294,9 +294,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/prowlarr.ts": {
-    "mtime": 1791577857.4263198,
-    "seen": 1791578655.676123,
-    "ast_hash": "bfc728c5f128f2324b7b630704a099df",
+    "mtime": 1792292135.874478,
+    "seen": 1792292805.9399836,
+    "ast_hash": "40209109f3c89b6995d26e686a08cab3",
     "semantic_hash": ""
   },
   "apps/api/src/services/qbittorrent.ts": {
@@ -972,9 +972,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/Navbar.vue": {
-    "mtime": 1791596352.5263057,
-    "seen": 1791596805.947346,
-    "ast_hash": "89360ff9b70e012fe1b87a6744f1c1f1",
+    "mtime": 1792292625.7766755,
+    "seen": 1792292806.0282447,
+    "ast_hash": "6bbdaab3651513e41f0eb313c0947236",
     "semantic_hash": ""
   },
   "apps/web/src/components/PromotionModal.vue": {
@@ -1776,9 +1776,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/admin/AdminConfigTab.vue": {
-    "mtime": 1790183719.433113,
-    "seen": 1790183981.655068,
-    "ast_hash": "b1a22f8143d2082a0d4ef8f7e7c52b8d",
+    "mtime": 1792292505.415521,
+    "seen": 1792292806.033001,
+    "ast_hash": "60a4d3a0bbb997429a65f876bb6e0264",
     "semantic_hash": ""
   },
   "apps/web/src/components/admin/AdminFeaturesTab.vue": {
@@ -2532,9 +2532,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/routes/admin/index.ts": {
-    "mtime": 1791084401.9795406,
-    "seen": 1791085302.948236,
-    "ast_hash": "aa011e98f0f1005711ab9eebc10fefee",
+    "mtime": 1792292158.9592476,
+    "seen": 1792292805.923839,
+    "ast_hash": "5d0ba9896fe109eec894e7ef1eed4720",
     "semantic_hash": ""
   },
   "apps/api/src/routes/admin/jellyfin.ts": {
@@ -2718,9 +2718,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/prowlarr/prowlarrTypes.ts": {
-    "mtime": 1791577778.5187552,
-    "seen": 1791578655.6766484,
-    "ast_hash": "87d8ab9cde610b45d73c8e88d78299b8",
+    "mtime": 1792292058.4279974,
+    "seen": 1792292805.9405003,
+    "ast_hash": "4c6d5762536c0963f46aca2784b496c9",
     "semantic_hash": ""
   },
   "apps/watcher/tests/prowlarr_infohash_dedup.test.ts": {
@@ -3507,6 +3507,72 @@
     "mtime": 1791951358.6427975,
     "seen": 1791951436.928763,
     "ast_hash": "864c7aed919239fbe51c4128f4b998bd",
+    "semantic_hash": ""
+  },
+  "apps/api/src/routes/admin/preferredIndexer.ts": {
+    "mtime": 1792292146.1092224,
+    "seen": 1792292805.9243624,
+    "ast_hash": "f1c08052cf310c5fa38f0accea263af0",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/prowlarr/prowlarrCookie.ts": {
+    "mtime": 1792292076.5773423,
+    "seen": 1792292805.9399836,
+    "ast_hash": "1bce737dcc2d4ee528ea0228c8cef73c",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/preferred_indexer_cookie.test.ts": {
+    "mtime": 1792292266.8979533,
+    "seen": 1792292805.9654887,
+    "ast_hash": "e8b8708651b8f91fadcfeff51fbcd1d8",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/PreferredIndexerAlertBanner.vue": {
+    "mtime": 1792292592.254627,
+    "seen": 1792292806.0282447,
+    "ast_hash": "72c25bbcda5004e3becdce651714a470",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/admin/AdminJellyfinCard.vue": {
+    "mtime": 1792292422.680094,
+    "seen": 1792292806.0340312,
+    "ast_hash": "428a2ff0d0325308317fcbdfde14698e",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/admin/AdminPreferredIndexerCard.vue": {
+    "mtime": 1792292478.0624213,
+    "seen": 1792292806.0340312,
+    "ast_hash": "7c3de82b9cdc4f19a007c20bcf3197ad",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/admin/AdminTranscriptionCard.vue": {
+    "mtime": 1792292442.6700456,
+    "seen": 1792292806.034545,
+    "ast_hash": "b536337e32896720af7fecf12f2dd9a3",
+    "semantic_hash": ""
+  },
+  "apps/web/src/composables/usePreferredIndexerCookie.ts": {
+    "mtime": 1792292403.0184343,
+    "seen": 1792292806.0506856,
+    "ast_hash": "9f15e71c95d8497a70ff04ea638b97a6",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/AdminPreferredIndexerCard.test.ts": {
+    "mtime": 1792292531.9597027,
+    "seen": 1792292806.0647628,
+    "ast_hash": "efe8a103aa3058bd79e2354971426f21",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/PreferredIndexerAlertBanner.test.ts": {
+    "mtime": 1792292707.7614121,
+    "seen": 1792292806.0704486,
+    "ast_hash": "0d47b71481698ee0b9a4d0457a9d2c14",
+    "semantic_hash": ""
+  },
+  "docs/spec/preferred-indexer-cookie-management.md": {
+    "mtime": 1792291944.949159,
+    "seen": 1792292806.1049223,
+    "ast_hash": "624c13eb47eea955204f5b52f7630ded",
     "semantic_hash": ""
   }
 }

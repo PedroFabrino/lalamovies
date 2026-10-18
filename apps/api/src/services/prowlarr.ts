@@ -4,11 +4,18 @@ import {
   Resolution, VideoCodec, ReleaseSource, ScoreOptions, formatBytes, parseReleaseTitle, scoreRelease, ScorableCandidate,
 } from './prowlarr/prowlarrScoring';
 import { hasPasskey, isKnownPrivateIndexer, IndexerPrivacyCache } from './prowlarr/prowlarrPrivacy';
-import { ReleaseCandidate, SearchReleasesResult, SearchReleasesOptions, IProwlarrService } from './prowlarr/prowlarrTypes';
+import {
+  ReleaseCandidate, SearchReleasesResult, SearchReleasesOptions, IProwlarrService,
+  PreferredIndexerCookieStatus, PreferredIndexerCookieResult,
+} from './prowlarr/prowlarrTypes';
+import {
+  getPreferredIndexerCookieStatus, testPreferredIndexerCookie, updatePreferredIndexerCookie,
+} from './prowlarr/prowlarrCookie';
 
 export type {
   Resolution, VideoCodec, ReleaseSource, ScoreOptions, ScorableCandidate,
   ReleaseCandidate, SearchReleasesResult, SearchReleasesOptions, IProwlarrService,
+  PreferredIndexerCookieStatus, PreferredIndexerCookieResult,
 };
 export { hasPasskey, isKnownPrivateIndexer, formatBytes, parseReleaseTitle, scoreRelease, hasCjkCharacters };
 
@@ -17,10 +24,8 @@ export class ProwlarrService implements IProwlarrService {
   private apiKey: string;
   private indexerPrivacyCache = new IndexerPrivacyCache();
   private infringingHashes: Set<string> = new Set([
-    '2a4a6d6710f271957b1ea2f8a9a748e84e6d10a3',
-    '6b7469c830b624321f843a95d0bd162aaf2abff4',
-    'f80c229155dc53d373b9464119503cf0dae092a9',
-    '23fcdd2d194d479de2c38e1dd1befe6d8b28af9b',
+    '2a4a6d6710f271957b1ea2f8a9a748e84e6d10a3', '6b7469c830b624321f843a95d0bd162aaf2abff4',
+    'f80c229155dc53d373b9464119503cf0dae092a9', '23fcdd2d194d479de2c38e1dd1befe6d8b28af9b',
   ]);
 
   constructor(prowlarrUrl?: string, apiKey?: string) {
@@ -29,14 +34,11 @@ export class ProwlarrService implements IProwlarrService {
   }
 
   markHashInfringing(hash: string): void {
-    if (hash) {
-      this.infringingHashes.add(hash.toLowerCase().trim());
-    }
+    if (hash) this.infringingHashes.add(hash.toLowerCase().trim());
   }
 
   isHashInfringing(hash: string): boolean {
-    if (!hash) return false;
-    return this.infringingHashes.has(hash.toLowerCase().trim());
+    return Boolean(hash && this.infringingHashes.has(hash.toLowerCase().trim()));
   }
 
   async getIndexerPrivacy(indexerIdOrName: number | string): Promise<boolean> {
@@ -378,5 +380,17 @@ export class ProwlarrService implements IProwlarrService {
       return { candidates: [], isReachable: false, error: 'Prowlarr is not configured with an API key' };
     }
     return this.executeSearch('', categories, scoreOptions || {});
+  }
+
+  async getPreferredIndexerCookieStatus(forceRefresh = false): Promise<PreferredIndexerCookieStatus> {
+    return getPreferredIndexerCookieStatus(this.prowlarrUrl, this.apiKey, forceRefresh);
+  }
+
+  async testPreferredIndexerCookie(cookieOverride?: string): Promise<PreferredIndexerCookieResult> {
+    return testPreferredIndexerCookie(this.prowlarrUrl, this.apiKey, cookieOverride);
+  }
+
+  async updatePreferredIndexerCookie(newCookie: string): Promise<PreferredIndexerCookieResult> {
+    return updatePreferredIndexerCookie(this.prowlarrUrl, this.apiKey, newCookie);
   }
 }
