@@ -113,13 +113,13 @@
             Stream Setup Failed
           </h3>
           <p class="text-xs text-red-300 mt-1 max-w-sm mx-auto leading-relaxed">
-            {{ currentErrorMessage || errorMessage || 'An unexpected error occurred.' }}
+            {{ displayErrorMessage }}
           </p>
         </div>
 
         <div class="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
           <button
-            v-if="canAddToWaitlist && !waitlistAdded"
+            v-if="canAddToWaitlist && !effectiveWaitlistAdded"
             type="button"
             class="w-full sm:w-auto px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
             data-testid="button-error-add-waitlist"
@@ -130,7 +130,7 @@
             <span>{{ isAddingToWaitlist ? 'Adding...' : 'Add to Waitlist' }}</span>
           </button>
           <span
-            v-else-if="waitlistAdded"
+            v-else-if="effectiveWaitlistAdded"
             class="px-3 py-2 rounded-xl bg-emerald-950/80 border border-emerald-700/80 text-emerald-300 text-xs font-medium flex items-center gap-1.5"
             data-testid="badge-waitlist-added"
           >
@@ -160,21 +160,27 @@ const props = withDefaults(
     show: boolean;
     streamId?: string;
     title: string;
+    status?: 'pending' | 'ready' | 'error';
     initialStatus?: 'pending' | 'ready' | 'error';
     jellyfinUrl?: string;
+    error?: string;
     errorMessage?: string;
     canAddToWaitlist?: boolean;
     isAddingToWaitlist?: boolean;
     waitlistAdded?: boolean;
+    hasAddedToWaitlist?: boolean;
   }>(),
   {
     streamId: '',
+    status: undefined,
     initialStatus: 'pending',
     jellyfinUrl: '',
+    error: '',
     errorMessage: '',
     canAddToWaitlist: false,
     isAddingToWaitlist: false,
     waitlistAdded: false,
+    hasAddedToWaitlist: false,
   }
 );
 
@@ -190,14 +196,28 @@ function handleAddToWaitlist() {
   emit('add-to-waitlist');
 }
 
-const status = ref<'pending' | 'ready' | 'error'>(props.initialStatus || 'pending');
+const effectiveWaitlistAdded = computed(() => Boolean(props.waitlistAdded || props.hasAddedToWaitlist));
+
+const status = ref<'pending' | 'ready' | 'error'>(props.status || props.initialStatus || 'pending');
 const currentJellyfinUrl = ref(props.jellyfinUrl || '');
-const currentErrorMessage = ref(props.errorMessage || '');
+const currentErrorMessage = ref(props.errorMessage || props.error || '');
+
+const displayErrorMessage = computed(() => {
+  const msg = currentErrorMessage.value || props.errorMessage || props.error || '';
+  if (msg.includes('451') || msg.includes('infringing')) {
+    return 'This release has been blocked by Real-Debrid due to a DMCA copyright takedown. Please select another release.';
+  }
+  return msg || 'An unexpected error occurred.';
+});
 
 watch(
-  () => props.initialStatus,
-  (newStatus) => {
-    if (newStatus) status.value = newStatus;
+  () => [props.status, props.initialStatus],
+  ([newStatus, newInitialStatus]) => {
+    if (newStatus) {
+      status.value = newStatus;
+    } else if (newInitialStatus) {
+      status.value = newInitialStatus;
+    }
   }
 );
 
@@ -209,9 +229,13 @@ watch(
 );
 
 watch(
-  () => props.errorMessage,
-  (newMsg) => {
-    if (newMsg) currentErrorMessage.value = newMsg;
+  () => [props.errorMessage, props.error],
+  ([newMsg, newErr]) => {
+    if (newMsg) {
+      currentErrorMessage.value = newMsg;
+    } else if (newErr) {
+      currentErrorMessage.value = newErr;
+    }
   }
 );
 

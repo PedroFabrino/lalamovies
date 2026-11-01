@@ -97,6 +97,7 @@ export function useRequestData() {
         );
         if (localMatch) localMatch.isInfringing = true;
       }
+      releases.isExplorerExpanded.value = true;
       await releases.reloadReleasesSilently();
     },
   });

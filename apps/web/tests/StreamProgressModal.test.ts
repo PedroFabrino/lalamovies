@@ -127,4 +127,29 @@ describe('StreamProgressModal.vue', () => {
     await waitlistBtn.trigger('click');
     expect(wrapper.emitted('add-to-waitlist')).toHaveLength(1);
   });
+
+  it('reactively updates status and displays user-friendly message when status prop changes to error', async () => {
+    const wrapper = mount(StreamProgressModal, {
+      props: {
+        show: true,
+        title: 'Incredibles 2',
+        status: 'pending',
+      },
+    });
+
+    expect(wrapper.text()).toContain('Mounting Instant Stream');
+
+    await wrapper.setProps({
+      status: 'error',
+      error: 'Failed to add magnet to Real-Debrid: HTTP 451: infringing_file',
+    });
+
+    expect(wrapper.find('[data-testid="stream-error-card"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('This release has been blocked by Real-Debrid due to a DMCA copyright takedown');
+
+    const closeBtn = wrapper.find('[data-testid="button-error-close"]');
+    expect(closeBtn.exists()).toBe(true);
+    await closeBtn.trigger('click');
+    expect(wrapper.emitted('close')).toHaveLength(1);
+  });
 });

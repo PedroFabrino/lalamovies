@@ -25,7 +25,7 @@ export function extractHashFromMagnet(magnetLink: string): string {
   return raw.toLowerCase();
 }
 
-export async function resolveTorrentSource(source: string): Promise<{
+export async function resolveTorrentSource(source: string, timeoutMs = 10_000): Promise<{
   resolvedMagnet?: string;
   torrentBuffer?: Buffer;
   hash?: string;
@@ -38,7 +38,10 @@ export async function resolveTorrentSource(source: string): Promise<{
   try {
     let currentUrl = source;
     for (let i = 0; i < 5; i++) {
-      const res = await fetch(currentUrl, { redirect: 'manual' });
+      const res = await fetch(currentUrl, {
+        redirect: 'manual',
+        signal: AbortSignal.timeout(timeoutMs),
+      });
       if (res.status >= 300 && res.status < 400) {
         const loc = res.headers.get('location');
         if (!loc) break;
@@ -67,7 +70,7 @@ export async function resolveTorrentSource(source: string): Promise<{
       break;
     }
   } catch {
-    // If fetching fails, fallback to passing URL directly
+    // If fetching fails or times out, fallback to passing URL directly
   }
 
   return { resolvedMagnet: source, hash: '' };

@@ -171,6 +171,7 @@
         Sign Out
       </button>
     </div>
+    </header>
 
     <!-- User Invite Modal -->
     <Teleport to="body">

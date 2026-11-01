@@ -59,6 +59,7 @@ export class QBittorrentService implements IQBittorrentService {
           Referer: this.baseUrl,
         },
         body: params.toString(),
+        signal: AbortSignal.timeout(10_000),
       });
 
       if (!res.ok) {
@@ -95,6 +96,7 @@ export class QBittorrentService implements IQBittorrentService {
     const res = await fetch(`${this.baseUrl}${path}`, {
       ...options,
       headers,
+      signal: options.signal || AbortSignal.timeout(15_000),
     });
 
     if (res.status === 403) {
@@ -107,6 +109,7 @@ export class QBittorrentService implements IQBittorrentService {
       return fetch(`${this.baseUrl}${path}`, {
         ...options,
         headers,
+        signal: options.signal || AbortSignal.timeout(15_000),
       });
     }
 

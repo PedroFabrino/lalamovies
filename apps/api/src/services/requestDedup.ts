@@ -76,7 +76,7 @@ export function addCoRequester(
 export class KeyedMutex {
   private queues = new Map<string, Promise<void>>();
 
-  async runExclusive<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  async runExclusive<T>(key: string, fn: () => Promise<T>, timeoutMs = 30_000): Promise<T> {
     const current = this.queues.get(key) || Promise.resolve();
     let release!: () => void;
     const next = new Promise<void>((resolve) => {
@@ -88,9 +88,16 @@ export class KeyedMutex {
     );
     this.queues.set(key, tail);
     await current.catch(() => {});
+    let timer: NodeJS.Timeout | undefined;
     try {
-      return await fn();
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(`Operation timed out after ${timeoutMs}ms while holding lock "${key}"`));
+        }, timeoutMs);
+      });
+      return await Promise.race([fn(), timeoutPromise]);
     } finally {
+      if (timer) clearTimeout(timer);
       release();
       if (this.queues.get(key) === tail) {
         this.queues.delete(key);

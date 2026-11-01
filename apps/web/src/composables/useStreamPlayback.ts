@@ -57,17 +57,26 @@ export function useStreamPlayback(options: {
     isInfringing?: boolean;
     infoHash?: string;
   }) {
-    streamModalStatus.value = 'error';
-    streamModalError.value = payload.error;
+    const isInfringing =
+      Boolean(payload.isInfringing) ||
+      payload.error.includes('451') ||
+      payload.error.includes('infringing') ||
+      payload.error.includes('copyright takedown');
+
+    if (isInfringing) {
+      showStreamModal.value = false;
+      requestsStore.showToast(
+        'This release has been blocked by Real-Debrid due to a DMCA copyright takedown. Please select another release.',
+        'error'
+      );
+    } else {
+      streamModalStatus.value = 'error';
+      streamModalError.value = payload.error;
+    }
     hasAddedToWaitlistFromModal.value = false;
 
     const item = activeStreamingItem.value;
     if (!item) return;
-
-    const isInfringing =
-      Boolean(payload.isInfringing) ||
-      payload.error.includes('451') ||
-      payload.error.includes('infringing');
 
     const failedHash = payload.infoHash;
     if (isInfringing && failedHash) {

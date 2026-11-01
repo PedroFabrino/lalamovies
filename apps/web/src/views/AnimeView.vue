@@ -156,6 +156,8 @@
       :stream-id="streamModalId"
       :title="streamModalTitle"
       :status="streamModalStatus"
+      :initial-status="streamModalStatus"
+      :error-message="streamModalError"
       :error="streamModalError"
       @close="showStreamModal = false"
     />
@@ -173,10 +175,12 @@ import AnimeDetailModal from '../components/anime/AnimeDetailModal.vue';
 import { useSeasonalAnime, type SeasonalAnimeItem, type MediaSeason } from '../composables/useSeasonalAnime';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { useWaitlistMatching } from '../composables/useWaitlistMatching';
+import { useRequestsStore } from '../stores/requests';
 import { api } from '../lib/api';
 
 const router = useRouter();
 const featureFlags = useFeatureFlags();
+const requestsStore = useRequestsStore();
 const { ensureWaitlistLoaded, isItemWaitlisted } = useWaitlistMatching();
 
 const isStreamingEnabled = computed(() => featureFlags.isEnabled('streaming'));
@@ -294,8 +298,18 @@ async function handleStream(anime: SeasonalAnimeItem) {
       streamModalStatus.value = 'ready';
     }
   } catch (err: unknown) {
-    streamModalStatus.value = 'error';
-    streamModalError.value = (err as Error).message || 'Failed to start instant stream';
+    const errorMsg = (err as Error).message || 'Failed to start instant stream';
+    const isInfringing = errorMsg.includes('451') || errorMsg.includes('infringing') || errorMsg.includes('copyright takedown');
+    if (isInfringing) {
+      showStreamModal.value = false;
+      requestsStore.showToast(
+        'This release has been blocked by Real-Debrid due to a DMCA copyright takedown. Please select another release.',
+        'error'
+      );
+    } else {
+      streamModalStatus.value = 'error';
+      streamModalError.value = errorMsg;
+    }
   }
 }
 

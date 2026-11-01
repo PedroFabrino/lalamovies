@@ -28,11 +28,22 @@ export async function apiRequest<T = unknown>(
     headers['Content-Type'] = 'application/json';
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    credentials: 'include', // Ensure cookies are sent on all requests
-  });
+  const signal = options.signal || AbortSignal.timeout(30_000);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+      signal,
+      credentials: 'include', // Ensure cookies are sent on all requests
+    });
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'TimeoutError') {
+      throw new ApiError('Request timed out after 30 seconds. Please try again.', 408);
+    }
+    throw err;
+  }
 
   let responseData: unknown = null;
   const contentType = response.headers.get('content-type');

@@ -300,15 +300,15 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/qbittorrent.ts": {
-    "mtime": 1790342556.5631702,
-    "seen": 1790344437.7640014,
-    "ast_hash": "782acadcd0678504d909c3f26abc45a3",
+    "mtime": 1793555408.5103323,
+    "seen": 1793555827.1901853,
+    "ast_hash": "3631a81483356806be457e959ad56b33",
     "semantic_hash": ""
   },
   "apps/api/src/services/requestDedup.ts": {
-    "mtime": 1791032044.7834373,
-    "seen": 1791033170.7535715,
-    "ast_hash": "85cc930fc61a9a42309ce5f3b0cadcdb",
+    "mtime": 1793555428.0102258,
+    "seen": 1793555827.1913445,
+    "ast_hash": "c60c2c96a49bc9e8b5b9167cc58f46b5",
     "semantic_hash": ""
   },
   "apps/api/src/services/subgen.ts": {
@@ -972,9 +972,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/Navbar.vue": {
-    "mtime": 1792292625.7766755,
-    "seen": 1792292806.0282447,
-    "ast_hash": "6bbdaab3651513e41f0eb313c0947236",
+    "mtime": 1792884144.4044936,
+    "seen": 1792884519.7482774,
+    "ast_hash": "9400517582871a5163583da7156681e0",
     "semantic_hash": ""
   },
   "apps/web/src/components/PromotionModal.vue": {
@@ -984,9 +984,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/StreamProgressModal.vue": {
-    "mtime": 1790021134.9585714,
-    "seen": 1790021216.2111495,
-    "ast_hash": "1709dcb10ee037c25c78e6a3e929a9d5",
+    "mtime": 1792884251.075377,
+    "seen": 1792884519.7493289,
+    "ast_hash": "b1491b1714f68406352e2c989e3fa9e8",
     "semantic_hash": ""
   },
   "apps/web/src/components/UpNextShelf.vue": {
@@ -1008,10 +1008,10 @@
     "semantic_hash": ""
   },
   "apps/web/src/lib/api.ts": {
-    "mtime": 1788537664.392186,
-    "seen": 1789780156.9478219,
-    "ast_hash": "304c5f964709e4fbee97f4c5a90114ee",
-    "semantic_hash": "304c5f964709e4fbee97f4c5a90114ee"
+    "mtime": 1793555449.6755583,
+    "seen": 1793555827.3160367,
+    "ast_hash": "a050a48a45eb873c038cab6eb4e9d49b",
+    "semantic_hash": ""
   },
   "apps/web/src/lib/formatters.ts": {
     "mtime": 1790333734.671499,
@@ -1122,9 +1122,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/RequestView.vue": {
-    "mtime": 1790583884.952485,
-    "seen": 1790583940.7767684,
-    "ast_hash": "d8063c964de1233f2b86793a4ce3e4ee",
+    "mtime": 1792884295.1969528,
+    "seen": 1792884519.802357,
+    "ast_hash": "f427827eb7b9227ace2120c03a6e75b5",
     "semantic_hash": ""
   },
   "apps/web/src/views/WaitlistView.vue": {
@@ -1224,10 +1224,10 @@
     "semantic_hash": "70b6ae1ea0e42129ff888dfdc3bb1936"
   },
   "apps/web/tests/StreamProgressModal.test.ts": {
-    "mtime": 1789393176.5630946,
-    "seen": 1789780156.9478219,
-    "ast_hash": "1a7b8442f4abf9bbcfa84a802a171782",
-    "semantic_hash": "1a7b8442f4abf9bbcfa84a802a171782"
+    "mtime": 1792884345.5401087,
+    "seen": 1792884519.8273594,
+    "ast_hash": "ea464f6b501eaae05547beadb1b63456",
+    "semantic_hash": ""
   },
   "apps/web/tests/UpNextShelf.test.ts": {
     "mtime": 1789388497.287254,
@@ -1830,9 +1830,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/composables/useRequestData.ts": {
-    "mtime": 1790700253.0167117,
-    "seen": 1790700535.818139,
-    "ast_hash": "1c78a239f150daf3a0ca89493c7fbd02",
+    "mtime": 1792884273.1648703,
+    "seen": 1792884519.7901742,
+    "ast_hash": "011cc4255df50a06ccef56186cb67571",
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/batch.ts": {
@@ -1986,9 +1986,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/composables/useStreamModal.ts": {
-    "mtime": 1790020881.3813066,
-    "seen": 1790021059.0348854,
-    "ast_hash": "58c1af4233b6b413228d2914dd6d21bf",
+    "mtime": 1792884263.6282094,
+    "seen": 1792884519.7927985,
+    "ast_hash": "cc8073224d98fa5d8f46eee83dedab4d",
     "semantic_hash": ""
   },
   "apps/api/src/services/libraryPathBuilder.ts": {
@@ -2220,9 +2220,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/AnimeView.vue": {
-    "mtime": 1790583041.0594938,
-    "seen": 1790583940.7752373,
-    "ast_hash": "fbf8eb33ed12753362f4b47652662cc9",
+    "mtime": 1792884326.1442668,
+    "seen": 1792884519.7993038,
+    "ast_hash": "af784ee90f61b0b690775f071042f0cb",
     "semantic_hash": ""
   },
   "apps/web/tests/AnimeView.test.ts": {
@@ -2334,9 +2334,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/composables/useStreamPlayback.ts": {
-    "mtime": 1790333820.373617,
-    "seen": 1790334818.125628,
-    "ast_hash": "b75eb156ca9b2de37f3cf134a7f9c1e2",
+    "mtime": 1792884284.62318,
+    "seen": 1792884519.7927985,
+    "ast_hash": "1c3c81ca1c862078f76fc0904f935091",
     "semantic_hash": ""
   },
   "apps/web/tests/DeletedRequestsList.test.ts": {
@@ -2442,9 +2442,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/torrentSource.ts": {
-    "mtime": 1790342537.2272224,
-    "seen": 1790344437.7711518,
-    "ast_hash": "cc85e25c44a7872c3aba00af21c8e909",
+    "mtime": 1793555390.9179442,
+    "seen": 1793555827.1996064,
+    "ast_hash": "2287f274219ba5b11e832dfd1ffe0517",
     "semantic_hash": ""
   },
   "apps/api/src/services/torrentSourceItemResolver.ts": {
@@ -3573,6 +3573,18 @@
     "mtime": 1792291944.949159,
     "seen": 1792292806.1049223,
     "ast_hash": "624c13eb47eea955204f5b52f7630ded",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/streamInfringingError.test.ts": {
+    "mtime": 1792884370.7863917,
+    "seen": 1792884519.838037,
+    "ast_hash": "6964193b17e50389f743bcdc65ed4cf0",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/torrent_timeout.test.ts": {
+    "mtime": 1793555631.2752278,
+    "seen": 1793555827.2337847,
+    "ast_hash": "a0065d97e494896206957a8c61c13de5",
     "semantic_hash": ""
   }
 }
