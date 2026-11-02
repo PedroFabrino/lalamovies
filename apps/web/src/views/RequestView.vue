@@ -1,7 +1,5 @@
 <template>
   <div class="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
-    <Navbar />
-
     <main class="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8">
       <!-- Page Title -->
       <div class="mb-8">
@@ -243,7 +241,6 @@
 </template>
 
 <script setup lang="ts">
-import Navbar from '../components/Navbar.vue';
 import StreamProgressModal from '../components/StreamProgressModal.vue';
 import RequestStep1Input from '../components/request/RequestStep1Input.vue';
 import RequestStep2Candidates from '../components/request/RequestStep2Candidates.vue';

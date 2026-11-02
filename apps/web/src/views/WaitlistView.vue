@@ -1,8 +1,5 @@
 <template>
   <div class="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
-    <!-- Navbar -->
-    <Navbar />
-
     <!-- Main Content -->
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
       <!-- Toast Alert -->
@@ -176,7 +173,6 @@
 <script setup lang="ts">
 import { ref, toRef, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import Navbar from '../components/Navbar.vue';
 import WaitlistTierSection from '../components/waitlist/WaitlistTierSection.vue';
 import WaitlistToast from '../components/waitlist/WaitlistToast.vue';
 import WaitlistGlobalEmptyState from '../components/waitlist/WaitlistGlobalEmptyState.vue';

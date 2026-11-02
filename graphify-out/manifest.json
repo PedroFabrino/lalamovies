@@ -954,10 +954,10 @@
     "semantic_hash": "9cc67cd0001503a476697786da00c923"
   },
   "apps/web/src/App.vue": {
-    "mtime": 1788564203.3625965,
-    "seen": 1789780156.9478219,
-    "ast_hash": "be095c257ca29c0745f1c290b5be6f14",
-    "semantic_hash": "be095c257ca29c0745f1c290b5be6f14"
+    "mtime": 1793581267.4979365,
+    "seen": 1793581722.0056398,
+    "ast_hash": "db6b9f2c6fe18493e3fc7afaccfe31af",
+    "semantic_hash": ""
   },
   "apps/web/src/components/ActiveStreamsShelf.vue": {
     "mtime": 1790902755.7875915,
@@ -1080,15 +1080,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/AdminView.vue": {
-    "mtime": 1791085701.759594,
-    "seen": 1791086058.9475708,
-    "ast_hash": "5193d6f3e0ffd0a6cbc9347848b47514",
+    "mtime": 1793581277.2862647,
+    "seen": 1793581722.0821915,
+    "ast_hash": "0639e75c7b8c0f697c8be7a1ccbbf43b",
     "semantic_hash": ""
   },
   "apps/web/src/views/DashboardView.vue": {
-    "mtime": 1790896344.59217,
-    "seen": 1790896577.683086,
-    "ast_hash": "b53494130dcb1471be2e617b6a3e3ef4",
+    "mtime": 1793581216.4153378,
+    "seen": 1793581722.0821915,
+    "ast_hash": "c62c36186f3b2951fc0c3d24180e56b3",
     "semantic_hash": ""
   },
   "apps/web/src/views/ForbiddenView.vue": {
@@ -1110,9 +1110,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/LibraryView.vue": {
-    "mtime": 1790359893.515102,
-    "seen": 1790360244.7719655,
-    "ast_hash": "d8efc5416a375c39118a9bb7cb796621",
+    "mtime": 1793581310.6695297,
+    "seen": 1793581722.0832283,
+    "ast_hash": "4556d8a18f447517a64e70d515c4a4eb",
     "semantic_hash": ""
   },
   "apps/web/src/views/LoginView.vue": {
@@ -1122,15 +1122,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/RequestView.vue": {
-    "mtime": 1792884295.1969528,
-    "seen": 1792884519.802357,
-    "ast_hash": "f427827eb7b9227ace2120c03a6e75b5",
+    "mtime": 1793581323.4015086,
+    "seen": 1793581722.083756,
+    "ast_hash": "d91b013793b6c0158a13a28e1d0c249d",
     "semantic_hash": ""
   },
   "apps/web/src/views/WaitlistView.vue": {
-    "mtime": 1791576872.850203,
-    "seen": 1791578655.895595,
-    "ast_hash": "4ad526c3389de8a96c2c0d7cd9c3165d",
+    "mtime": 1793581341.7486937,
+    "seen": 1793581722.0842798,
+    "ast_hash": "f2ac1e4984154e8252e4f72743ae8b3e",
     "semantic_hash": ""
   },
   "apps/web/src/vite-env.d.ts": {
@@ -1140,10 +1140,10 @@
     "semantic_hash": "b4698577655263526a571c0e6a454110"
   },
   "apps/web/tailwind.config.js": {
-    "mtime": 1788493030.3752062,
-    "seen": 1789780156.9478219,
-    "ast_hash": "bf79071defb5286294ec950f827945eb",
-    "semantic_hash": "bf79071defb5286294ec950f827945eb"
+    "mtime": 1793581024.3525312,
+    "seen": 1793581722.0847955,
+    "ast_hash": "d8594d1f6881d752f19fce0c6f1ba1d6",
+    "semantic_hash": ""
   },
   "apps/web/tests/ActiveStreamsShelf.test.ts": {
     "mtime": 1790902907.5455909,
@@ -2220,9 +2220,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/AnimeView.vue": {
-    "mtime": 1792884326.1442668,
-    "seen": 1792884519.7993038,
-    "ast_hash": "af784ee90f61b0b690775f071042f0cb",
+    "mtime": 1793581296.3700237,
+    "seen": 1793581722.0821915,
+    "ast_hash": "be391f12f1c38255c8215e15235c4d93",
     "semantic_hash": ""
   },
   "apps/web/tests/AnimeView.test.ts": {
@@ -3585,6 +3585,36 @@
     "mtime": 1793555631.2752278,
     "seen": 1793555827.2337847,
     "ast_hash": "a0065d97e494896206957a8c61c13de5",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/layout/AppLayout.vue": {
+    "mtime": 1793581104.5318954,
+    "seen": 1793581722.027219,
+    "ast_hash": "975f19890eb3d9ed3f9807aa5fedf465",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/layout/Header.vue": {
+    "mtime": 1793581385.1230538,
+    "seen": 1793581722.027219,
+    "ast_hash": "246326582b66b4c4d87a428eaf77b517",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/layout/Sidebar.vue": {
+    "mtime": 1793581509.075608,
+    "seen": 1793581722.027219,
+    "ast_hash": "ae746e2fbdf8ccb056e8a1d6501583c8",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/AppLayout.test.ts": {
+    "mtime": 1793581122.9143343,
+    "seen": 1793581722.100178,
+    "ast_hash": "06f25d6c167265026519958df0f4ec6d",
+    "semantic_hash": ""
+  },
+  "docs/spec/bolt-ui-overhaul.md": {
+    "mtime": 1793580866.61986,
+    "seen": 1793581722.1583846,
+    "ast_hash": "ff92d37906906a496e1b9ecb639689c7",
     "semantic_hash": ""
   }
 }

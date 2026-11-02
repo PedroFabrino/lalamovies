@@ -1,7 +1,5 @@
 <template>
   <div class="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
-    <Navbar />
-
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
       <div class="mb-8">
         <h1 class="text-2xl font-bold tracking-tight text-white">
@@ -194,7 +192,6 @@
 </template>
 
 <script setup lang="ts">
-import Navbar from '../components/Navbar.vue';
 import AdminUsersTab, { AdminUser } from '../components/admin/AdminUsersTab.vue';
 import AdminInvitesTab, { InviteItem } from '../components/admin/AdminInvitesTab.vue';
 import AdminConfigTab from '../components/admin/AdminConfigTab.vue';

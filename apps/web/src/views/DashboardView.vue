@@ -1,7 +1,5 @@
 <template>
   <div class="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
-    <Navbar />
-
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
       <!-- Toast Alert -->
       <div
@@ -329,7 +327,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import Navbar from '../components/Navbar.vue';
 import UpNextShelf from '../components/UpNextShelf.vue';
 import DiscoveryFeed from '../components/DiscoveryFeed.vue';
 import StreamProgressModal from '../components/StreamProgressModal.vue';

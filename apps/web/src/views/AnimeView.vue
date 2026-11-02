@@ -3,8 +3,6 @@
     class="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col"
     data-testid="anime-view"
   >
-    <Navbar />
-
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <!-- Hero / Header -->
       <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 pb-6 border-b border-zinc-800/80">
@@ -167,7 +165,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import Navbar from '../components/Navbar.vue';
 import StreamProgressModal from '../components/StreamProgressModal.vue';
 import AnticipatedSequelsShelf from '../components/anime/AnticipatedSequelsShelf.vue';
 import SeasonalAnimeGrid from '../components/anime/SeasonalAnimeGrid.vue';
