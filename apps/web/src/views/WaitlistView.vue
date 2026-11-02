@@ -32,8 +32,8 @@
             <button
               type="button"
               data-testid="toggle-view-mine"
-              class="px-3 py-1.5 rounded-md font-medium transition cursor-pointer"
-              :class="activeView === 'mine' ? 'bg-indigo-600 text-white shadow-sm' : 'text-zinc-400 hover:text-white'"
+              class="px-3 py-1.5 rounded-lg font-medium transition cursor-pointer"
+              :class="activeView === 'mine' ? 'bg-violet-600 text-white shadow-sm' : 'text-zinc-400 hover:text-white'"
               @click="setView('mine')"
             >
               My Entries
@@ -41,8 +41,8 @@
             <button
               type="button"
               data-testid="toggle-view-all"
-              class="px-3 py-1.5 rounded-md font-medium transition cursor-pointer"
-              :class="activeView === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'text-zinc-400 hover:text-white'"
+              class="px-3 py-1.5 rounded-lg font-medium transition cursor-pointer"
+              :class="activeView === 'all' ? 'bg-violet-600 text-white shadow-sm' : 'text-zinc-400 hover:text-white'"
               @click="setView('all')"
             >
               All Users
@@ -53,7 +53,7 @@
           <button
             type="button"
             data-testid="toggle-collapse-all-btn"
-            class="px-3 py-1.5 text-xs text-zinc-300 hover:text-white bg-zinc-900 border border-zinc-800 rounded-lg hover:bg-zinc-800 transition cursor-pointer flex items-center gap-1.5"
+            class="px-3 py-1.5 text-xs text-zinc-300 hover:text-white bg-zinc-900 border border-zinc-800 rounded-xl hover:bg-zinc-800 transition cursor-pointer flex items-center gap-1.5"
             :title="allExpanded ? 'Collapse All Tiers' : 'Expand All Tiers'"
             @click="toggleAll"
           >
@@ -62,7 +62,7 @@
 
           <button
             type="button"
-            class="p-2 text-zinc-400 hover:text-zinc-200 bg-zinc-900 border border-zinc-800 rounded-lg hover:bg-zinc-800 transition cursor-pointer disabled:opacity-50"
+            class="p-2 text-zinc-400 hover:text-zinc-200 bg-zinc-900 border border-zinc-800 rounded-xl hover:bg-zinc-800 transition cursor-pointer disabled:opacity-50"
             :disabled="waitlistStore.loading || isCheckingAll"
             title="Check Trackers & Refresh"
             data-testid="refresh-waitlist-btn"
@@ -87,7 +87,7 @@
           <button
             type="button"
             data-testid="open-add-waitlist-modal"
-            class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg shadow transition flex items-center gap-2 cursor-pointer"
+            class="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium rounded-xl shadow-lg shadow-violet-600/30 transition flex items-center gap-2 cursor-pointer"
             @click="openSearchModal"
           >
             <svg

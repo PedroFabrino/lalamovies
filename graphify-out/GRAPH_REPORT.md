@@ -1,7 +1,7 @@
 # Graph Report - Plex-auto-download  (2026-11-01)
 
 ## Corpus Check
-- 613 files · ~378,197 words
+- 613 files · ~378,200 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 14 file(s) not represented in the graph (top: (none) 9, .example 3, .css 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `c8a3c5f4`
+- Built from commit: `ccd86b65`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 

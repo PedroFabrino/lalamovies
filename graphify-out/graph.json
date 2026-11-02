@@ -21278,7 +21278,7 @@
       "file_type": "code",
       "norm_label": "handlemanualtmdbsearch()",
       "source_file": "apps/web/src/components/anime/AnimeDetailModal.vue",
-      "source_location": "L377"
+      "source_location": "L376"
     },
     {
       "id": "apps_web_src_components_anime_animedetailmodal_startwaitlistflow",
@@ -52904,7 +52904,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "apps/web/src/components/anime/AnimeDetailModal.vue",
-      "source_location": "L389",
+      "source_location": "L385",
       "weight": 1.0
     },
     {
@@ -127274,7 +127274,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "apps/web/src/components/anime/AnimeDetailModal.vue",
-      "source_location": "L377",
+      "source_location": "L376",
       "weight": 1.0
     },
     {
@@ -154579,5 +154579,5 @@
       "source_file": "docs/spec/private-media-type-and-trusted-role.md"
     }
   ],
-  "built_at_commit": "c8a3c5f4e078e3ea4e4906cca4fb6392564178b3"
+  "built_at_commit": "ccd86b651cfbc9744a23a4fcf4605cb3cba95e11"
 }

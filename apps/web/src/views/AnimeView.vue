@@ -7,7 +7,7 @@
       <!-- Hero / Header -->
       <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 pb-6 border-b border-zinc-800/80">
         <div>
-          <div class="flex items-center gap-2 text-indigo-400 text-xs font-bold tracking-wider uppercase mb-1">
+          <div class="flex items-center gap-2 text-violet-400 text-xs font-bold tracking-wider uppercase mb-1">
             <span>⛩️</span> AniList Seasonal Guide
           </div>
           <h1 class="text-3xl font-extrabold text-white tracking-tight">
@@ -22,8 +22,8 @@
         <div class="flex flex-wrap items-center gap-2 bg-zinc-900/80 p-1.5 rounded-2xl border border-zinc-800">
           <button
             type="button"
-            class="px-3.5 py-1.5 rounded-xl text-xs font-semibold transition"
-            :class="!isBrowsingArchive ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-zinc-200'"
+            class="px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer"
+            :class="!isBrowsingArchive ? 'bg-violet-600 text-white shadow-md shadow-violet-950/40' : 'text-zinc-400 hover:text-zinc-200'"
             @click="resetToCurated(true)"
           >
             Curated Lineup
@@ -33,7 +33,7 @@
           <div class="flex items-center gap-1 pl-2 border-l border-zinc-800">
             <select
               v-model="activeSeasonSelect"
-              class="bg-zinc-950 border border-zinc-800 rounded-xl px-2.5 py-1 text-xs font-medium text-zinc-200 focus:outline-none focus:border-indigo-500"
+              class="bg-zinc-950 border border-zinc-800 rounded-xl px-2.5 py-1 text-xs font-medium text-zinc-200 focus:outline-none focus:border-violet-500"
               @change="handleQuarterChange"
             >
               <option

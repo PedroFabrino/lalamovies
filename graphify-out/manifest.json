@@ -1128,9 +1128,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/WaitlistView.vue": {
-    "mtime": 1793581341.7486937,
-    "seen": 1793581722.0842798,
-    "ast_hash": "f2ac1e4984154e8252e4f72743ae8b3e",
+    "mtime": 1793588032.1101942,
+    "seen": 1793588152.0567305,
+    "ast_hash": "539f0287dc8146aaa3cf9d3a041c39fb",
     "semantic_hash": ""
   },
   "apps/web/src/vite-env.d.ts": {
@@ -2196,9 +2196,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/anime/AnimeDetailModal.vue": {
-    "mtime": 1790583143.8344493,
-    "seen": 1790583940.7590516,
-    "ast_hash": "5eeadfb0a081e911ce7f824bcc87d7f1",
+    "mtime": 1793587998.428233,
+    "seen": 1793588152.0084262,
+    "ast_hash": "0f7ae3844c5234124cadf48ce57cf556",
     "semantic_hash": ""
   },
   "apps/web/src/components/anime/AnticipatedSequelsShelf.vue": {
@@ -2220,9 +2220,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/AnimeView.vue": {
-    "mtime": 1793581296.3700237,
-    "seen": 1793581722.0821915,
-    "ast_hash": "be391f12f1c38255c8215e15235c4d93",
+    "mtime": 1793588013.614317,
+    "seen": 1793588152.0535846,
+    "ast_hash": "a9a229be40a23fb55f67e2b85289309f",
     "semantic_hash": ""
   },
   "apps/web/tests/AnimeView.test.ts": {

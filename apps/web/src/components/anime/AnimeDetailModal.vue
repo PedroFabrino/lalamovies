@@ -145,7 +145,7 @@
               </button>
               <button
                 type="button"
-                class="px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 shadow transition"
+                class="px-4 py-2 rounded-xl text-xs font-semibold bg-violet-600 hover:bg-violet-500 text-white flex items-center gap-1.5 shadow transition"
                 @click="handleDownloadClick"
               >
                 <span>⬇️</span> Download Torrent
@@ -165,7 +165,7 @@
               <button
                 v-else
                 type="button"
-                class="w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center gap-2 shadow-lg transition"
+                class="w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-bold bg-violet-600 hover:bg-violet-500 text-white flex items-center justify-center gap-2 shadow-lg transition"
                 @click="startWaitlistFlow"
               >
                 <span>+</span> Add to Waitlist
@@ -363,7 +363,6 @@ async function confirmWaitlistSubmission() {
       targetEpisode,
       posterUrl: candidate.posterUrl || posterUrl.value,
     });
-
     requestsStore.showToast(`"${finalTitle}" (S${targetSeasonNumber.value}) added to Watcher Waitlist!`, 'success');
     await waitlistStore.fetchAll();
     handleClose();
@@ -382,10 +381,7 @@ async function handleManualTmdbSearch(query: string) {
       candidates: MetadataCandidate[];
       recommended: MetadataCandidate | null;
       detectedSeason?: number;
-    }>('/anime/resolve-tmdb', {
-      title: query.trim(),
-      format: props.anime?.format,
-    });
+    }>('/anime/resolve-tmdb', { title: query.trim(), format: props.anime?.format });
     applyResolveResult(res);
   } catch {
     tmdbCandidates.value = [];
