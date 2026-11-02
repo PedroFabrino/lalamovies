@@ -1110,9 +1110,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/LibraryView.vue": {
-    "mtime": 1793581310.6695297,
-    "seen": 1793581722.0832283,
-    "ast_hash": "4556d8a18f447517a64e70d515c4a4eb",
+    "mtime": 1793587017.0396662,
+    "seen": 1793587791.6929965,
+    "ast_hash": "c5737daac7d6507f5eada4bb959b2d0b",
     "semantic_hash": ""
   },
   "apps/web/src/views/LoginView.vue": {
@@ -3006,9 +3006,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/WatchPartyLobbyModal.vue": {
-    "mtime": 1790902729.532554,
-    "seen": 1790902983.986451,
-    "ast_hash": "e53c1babaca261b852de117951d29c07",
+    "mtime": 1793587119.4009702,
+    "seen": 1793587791.628895,
+    "ast_hash": "af61f99787d3d29c31d2bc24d4028591",
     "semantic_hash": ""
   },
   "apps/web/src/composables/useDashboardActions.ts": {
@@ -3633,6 +3633,66 @@
     "mtime": 1793582339.7089484,
     "seen": 1793582642.4472828,
     "ast_hash": "e291c8824947de43306d459637a4d9c5",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/library/LibraryBulkActionBar.vue": {
+    "mtime": 1793586890.1009643,
+    "seen": 1793587791.6442454,
+    "ast_hash": "deaa8a7571ef5713286e76ae29994e7f",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/library/LibraryDeleteModal.vue": {
+    "mtime": 1793586912.6986816,
+    "seen": 1793587791.6442454,
+    "ast_hash": "675a688f45c5629cdf82dfa34ab2ef53",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/library/LibraryFilterHeader.vue": {
+    "mtime": 1793586978.4511573,
+    "seen": 1793587791.6442454,
+    "ast_hash": "6cb6a264b57273896d50b3c47ac4db3c",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/library/LibraryMediaCard.vue": {
+    "mtime": 1793586864.421859,
+    "seen": 1793587791.6442454,
+    "ast_hash": "3a82fa74a297b95701280d7ac9fde771",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/library/LibraryMediaDetailsModal.vue": {
+    "mtime": 1793586882.8245277,
+    "seen": 1793587791.6442454,
+    "ast_hash": "0eb918075e4da42db486a8e0bce5ed2b",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/library/LibraryMoveModal.vue": {
+    "mtime": 1793586901.813805,
+    "seen": 1793587791.6442454,
+    "ast_hash": "78ea23ec944e049d60bc7aa37881e587",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/library/types.ts": {
+    "mtime": 1793586840.5262933,
+    "seen": 1793587791.6442454,
+    "ast_hash": "a7b0cfd92cfa824e08cb350f146693aa",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/party/PartyChatPanel.vue": {
+    "mtime": 1793587089.473779,
+    "seen": 1793587791.6442454,
+    "ast_hash": "0652a3a731cd0f4a18dad9f23eacaf92",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/party/PartyPresenceList.vue": {
+    "mtime": 1793587078.4632964,
+    "seen": 1793587791.6442454,
+    "ast_hash": "b6c9648e2bdda909018ce0f84e52714b",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/LibraryMediaCard.test.ts": {
+    "mtime": 1793587165.481526,
+    "seen": 1793587791.712603,
+    "ast_hash": "7fdf15bd86aed2c81850115ba38fcfdd",
     "semantic_hash": ""
   }
 }

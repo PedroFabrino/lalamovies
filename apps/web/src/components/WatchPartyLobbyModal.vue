@@ -1,15 +1,16 @@
 <template>
   <div
     v-if="open && party"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in"
     data-testid="watch-party-lobby-modal"
+    @click.self="emit('close')"
   >
     <div
-      class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col"
+      class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-5 animate-scale-in max-h-[92vh] flex flex-col"
     >
       <!-- Header -->
       <div class="flex items-center justify-between shrink-0">
-        <div class="flex items-center gap-2 min-w-0">
+        <div class="flex items-center gap-2.5 min-w-0">
           <span class="text-2xl">🎉</span>
           <div class="min-w-0">
             <h3 class="text-lg font-bold text-white tracking-tight truncate">
@@ -18,7 +19,7 @@
             <p class="text-xs text-zinc-400">
               Host: <span class="text-zinc-200 font-semibold">{{ party.hostUsername }}</span>
               •
-              <span class="text-purple-300 font-medium">
+              <span class="text-violet-300 font-medium">
                 {{ party.controlMode === 'host_only' ? '👑 Host Only' : '👥 Democratic' }}
               </span>
             </p>
@@ -26,32 +27,32 @@
         </div>
         <button
           type="button"
-          class="text-zinc-400 hover:text-white p-1 rounded-lg transition cursor-pointer"
+          class="text-zinc-400 hover:text-white p-1.5 rounded-xl hover:bg-zinc-800 transition cursor-pointer"
           @click="emit('close')"
         >
-          ✕
+          <X class="w-4 h-4" />
         </button>
       </div>
 
       <div class="space-y-4 overflow-y-auto flex-1 pr-1">
         <!-- Now Playing Card -->
-        <div class="bg-zinc-950/70 border border-purple-900/40 rounded-xl p-4 flex gap-4">
+        <div class="relative bg-zinc-950/70 border border-violet-900/40 rounded-2xl p-4 flex gap-4 overflow-hidden">
           <img
             v-if="party.posterUrl"
             :src="party.posterUrl"
             :alt="party.title"
-            class="w-16 h-24 object-cover rounded-lg shrink-0 border border-zinc-800"
+            class="w-16 h-24 object-cover rounded-xl shrink-0 border border-zinc-800"
           >
           <div
             v-else
-            class="w-16 h-24 bg-zinc-900 rounded-lg flex items-center justify-center text-zinc-600 shrink-0 border border-zinc-800"
+            class="w-16 h-24 bg-zinc-900 rounded-xl flex items-center justify-center text-zinc-600 shrink-0 border border-zinc-800"
           >
-            🎬
+            <Film class="w-6 h-6 text-violet-400" />
           </div>
 
           <div class="flex-1 min-w-0 flex flex-col justify-between">
             <div>
-              <span class="text-[10px] font-bold uppercase tracking-wider text-purple-400 bg-purple-950/60 px-2 py-0.5 rounded-full border border-purple-800/60">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-violet-400 bg-violet-950/60 px-2 py-0.5 rounded-full border border-violet-800/60">
                 Now Playing
               </span>
               <h4
@@ -75,51 +76,71 @@
                 :href="getJellyfinLaunchUrl(party)"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-600 hover:bg-purple-500 text-white transition cursor-pointer"
+                class="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition cursor-pointer shadow-md shadow-violet-600/30"
                 data-testid="lobby-launch-btn"
               >
                 <span>Launch in Jellyfin</span>
-                <span>↗</span>
+                <ExternalLink class="w-3.5 h-3.5" />
               </a>
             </div>
           </div>
         </div>
 
-        <!-- Watching on TV / AirPlay Section (#216) -->
+        <!-- Watching on TV / AirPlay Section (#216, Ticket 04 2-Step Guide) -->
         <div
-          class="p-3 bg-zinc-950/60 border border-zinc-800 rounded-xl space-y-2"
+          class="p-4 bg-zinc-950/70 border border-zinc-800/80 rounded-2xl space-y-3"
           data-testid="lobby-tv-guidance"
         >
           <div class="flex items-center gap-2 text-xs font-semibold text-zinc-200">
-            <span>📺</span>
+            <Tv class="w-4 h-4 text-violet-400" />
             <span>Watching on Apple TV or Smart TV?</span>
           </div>
-          <p class="text-[11px] text-zinc-400 leading-relaxed">
-            TV apps (like Swiftfin) don't support SyncPlay rooms. To sync playback with friends on your big screen, open the web player below and AirPlay or Cast it to your TV.
-          </p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-zinc-400">
+            <div class="bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-800/60">
+              <span class="font-bold text-violet-300 block mb-0.5">1. Open Web Stream</span>
+              <span>Launch the synchronized player in Safari or Chrome on your device.</span>
+            </div>
+            <div class="bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-800/60">
+              <span class="font-bold text-violet-300 block mb-0.5">2. AirPlay or Cast</span>
+              <span>Mirror video directly to Apple TV or Chromecast with group audio.</span>
+            </div>
+          </div>
           <div>
             <a
               :href="getJellyfinLaunchUrl(party)"
               target="_blank"
               rel="noopener noreferrer"
-              class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg bg-zinc-800 hover:bg-zinc-700 text-purple-300 border border-zinc-700 transition"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-zinc-900 hover:bg-zinc-800 text-violet-300 border border-zinc-700/80 transition"
               data-testid="lobby-tv-airplay-btn"
             >
-              <span>📡</span>
+              <Cast class="w-3.5 h-3.5" />
               <span>Open Web & AirPlay to TV</span>
-              <span>↗</span>
+              <ExternalLink class="w-3 h-3" />
             </a>
           </div>
         </div>
 
+        <!-- Participant Presence Grid -->
+        <PartyPresenceList
+          :party-id="party.id"
+          :host-username="party.hostUsername"
+          :host-user-id="party.hostUserId"
+        />
+
+        <!-- Party Chat Panel -->
+        <PartyChatPanel
+          :username="authStore.user?.username || 'Guest'"
+          :is-host="isHost"
+        />
+
         <!-- Host Controls -->
         <div
           v-if="isHost"
-          class="bg-zinc-950/50 border border-zinc-800/80 rounded-xl p-3.5 space-y-3"
+          class="bg-zinc-950/70 border border-zinc-800/80 rounded-2xl p-4 space-y-3"
           data-testid="host-controls"
         >
           <div class="flex items-center justify-between">
-            <span class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1">
+            <span class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
               <span>👑</span> Host Controls
             </span>
           </div>
@@ -129,23 +150,23 @@
             <button
               v-if="isSeries"
               type="button"
-              class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer flex items-center gap-1.5 shadow-md shadow-emerald-600/20 disabled:opacity-50"
+              class="px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer flex items-center gap-1.5 shadow-md shadow-emerald-600/20 disabled:opacity-50"
               :disabled="switching"
               data-testid="play-next-episode-btn"
               @click="handlePlayNextEpisode"
             >
-              <span>⏭️</span>
+              <SkipForward class="w-3.5 h-3.5" />
               <span>Play Next Episode (E{{ (party.episodeNumber ?? 0) + 1 }})</span>
             </button>
 
             <!-- Change Media modal trigger -->
             <button
               type="button"
-              class="px-3 py-1.5 text-xs font-medium rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition cursor-pointer flex items-center gap-1.5 border border-zinc-700"
+              class="px-3 py-1.5 text-xs font-medium rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition cursor-pointer flex items-center gap-1.5 border border-zinc-700"
               data-testid="change-media-btn"
               @click="showChangeMediaPrompt = true"
             >
-              <span>🔄</span>
+              <RefreshCw class="w-3.5 h-3.5" />
               <span>Change Media</span>
             </button>
           </div>
@@ -153,7 +174,7 @@
           <!-- Change Media Inline Input Form -->
           <div
             v-if="showChangeMediaPrompt"
-            class="pt-2 border-t border-zinc-800/80 space-y-2 animate-in fade-in duration-100"
+            class="pt-3 border-t border-zinc-800/80 space-y-2 animate-in fade-in duration-100"
           >
             <div class="text-xs text-zinc-300 font-medium">
               Switch to new media item:
@@ -163,26 +184,26 @@
                 v-model="changeMediaTitle"
                 type="text"
                 placeholder="Media Title (e.g. Princess Mononoke)"
-                class="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-white focus:outline-none focus:border-purple-500"
+                class="px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white focus:outline-none focus:border-violet-500"
               >
               <input
                 v-model="changeMediaItemId"
                 type="text"
                 placeholder="Jellyfin Item ID"
-                class="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-white focus:outline-none focus:border-purple-500"
+                class="px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white focus:outline-none focus:border-violet-500"
               >
             </div>
             <div class="flex justify-end gap-2">
               <button
                 type="button"
-                class="px-2.5 py-1 text-xs text-zinc-400 hover:text-white"
+                class="px-3 py-1 text-xs text-zinc-400 hover:text-white"
                 @click="showChangeMediaPrompt = false"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                class="px-3 py-1 text-xs font-semibold rounded-lg bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50"
+                class="px-3.5 py-1 text-xs font-semibold rounded-xl bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-50"
                 :disabled="!changeMediaTitle.trim() || !changeMediaItemId.trim() || switching"
                 @click="handleManualChangeMedia"
               >
@@ -199,7 +220,7 @@
           </div>
           <div
             v-if="timelineHistory.length === 0"
-            class="text-xs text-zinc-500 italic bg-zinc-950/40 p-3 rounded-xl border border-zinc-850"
+            class="text-xs text-zinc-500 italic bg-zinc-950/40 p-3 rounded-xl border border-zinc-800/60"
           >
             No prior titles watched yet. This is the first item on the marathon!
           </div>
@@ -213,7 +234,7 @@
               class="flex items-center justify-between text-xs bg-zinc-950/60 border border-zinc-800/80 px-3 py-2 rounded-xl"
             >
               <div class="flex items-center gap-2 truncate">
-                <span class="text-emerald-400">✅</span>
+                <CheckCircle2 class="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 <span class="font-medium text-zinc-200 truncate">{{ item.title }}</span>
                 <span
                   v-if="item.seasonNumber && item.episodeNumber"
@@ -246,9 +267,12 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { X, Film, Tv, Cast, ExternalLink, SkipForward, RefreshCw, CheckCircle2 } from 'lucide-vue-next';
 import { api } from '../lib/api';
 import { useAuthStore } from '../stores/auth';
-import { WatchParty } from './ActiveWatchPartiesShelf.vue';
+import type { WatchParty } from './ActiveWatchPartiesShelf.vue';
+import PartyPresenceList from './party/PartyPresenceList.vue';
+import PartyChatPanel from './party/PartyChatPanel.vue';
 
 interface HistoryItem {
   title: string;
@@ -284,7 +308,7 @@ const isSeries = computed(() => {
   return (
     props.party.mediaType === 'tv_show' ||
     props.party.mediaType === 'anime' ||
-    props.party.episodeNumber !== null && props.party.episodeNumber !== undefined
+    (props.party.episodeNumber !== null && props.party.episodeNumber !== undefined)
   );
 });
 
@@ -312,7 +336,7 @@ async function handlePlayNextEpisode() {
 
   try {
     const res = await api.post<{ watchParty: WatchParty }>(`/watch-parties/${props.party.id}/switch-media`, {
-      jellyfinItemId: props.party.jellyfinItemId, // reuses stream/series item id or next episode id
+      jellyfinItemId: props.party.jellyfinItemId,
       title: props.party.title,
       mediaType: props.party.mediaType,
       seasonNumber: props.party.seasonNumber ?? 1,
