@@ -20,6 +20,7 @@ import { internalRoutes } from './routes/internal';
 import { animeSeasonalRoutes } from './routes/anime';
 import { watchPartyRoutes } from './routes/watchParties';
 import { userRoutes } from './routes/users';
+import { systemRoutes } from './routes/system';
 import { validateConfig, getConfig } from './config';
 
 export * from './appTypes';
@@ -108,6 +109,8 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.register(internalRoutes, { prefix: '/api/internal' });
   app.register(userRoutes, { prefix: '/users' });
   app.register(userRoutes, { prefix: '/api/users' });
+  app.register(systemRoutes, { prefix: '/system' });
+  app.register(systemRoutes, { prefix: '/api/system' });
   app.register(wsRoutes);
 
   return app;

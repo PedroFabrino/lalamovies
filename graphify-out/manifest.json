@@ -18,9 +18,9 @@
     "semantic_hash": "26454771a910c1087406c3e92e30c8f9"
   },
   "apps/api/src/app.ts": {
-    "mtime": 1791596135.0525522,
-    "seen": 1791596805.8546662,
-    "ast_hash": "e6cd0ac6089beedb6687d8475e159477",
+    "mtime": 1793591139.5412388,
+    "seen": 1793591530.3925407,
+    "ast_hash": "71cceac8b21dfc94701b12d0fcbef981",
     "semantic_hash": ""
   },
   "apps/api/src/db/index.ts": {
@@ -3600,9 +3600,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/layout/Sidebar.vue": {
-    "mtime": 1793581509.075608,
-    "seen": 1793581722.027219,
-    "ast_hash": "ae746e2fbdf8ccb056e8a1d6501583c8",
+    "mtime": 1793591385.409786,
+    "seen": 1793591530.6451647,
+    "ast_hash": "29b7e48a3560d3cd7486ba57ed253833",
     "semantic_hash": ""
   },
   "apps/web/tests/AppLayout.test.ts": {
@@ -3711,6 +3711,30 @@
     "mtime": 1793588476.4438972,
     "seen": 1793589165.3041282,
     "ast_hash": "33031c7e0a1670c3cef64392e54614be",
+    "semantic_hash": ""
+  },
+  "apps/api/src/routes/system.ts": {
+    "mtime": 1793591119.028512,
+    "seen": 1793591530.4481776,
+    "ast_hash": "96b6068e580c88d23d2cbe57e4e653f6",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/system_storage.test.ts": {
+    "mtime": 1793591257.3430066,
+    "seen": 1793591530.564945,
+    "ast_hash": "f04a4547703d9c9fd2018484230786dc",
+    "semantic_hash": ""
+  },
+  "apps/web/src/composables/useSystemStorage.ts": {
+    "mtime": 1793591424.6549325,
+    "seen": 1793591530.6674817,
+    "ast_hash": "c5c7c8f89498fcd636ace0f8034ddacd",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/useSystemStorage.test.ts": {
+    "mtime": 1793591339.632877,
+    "seen": 1793591530.6961234,
+    "ast_hash": "171d5b394212c196c5108bda1db71bcc",
     "semantic_hash": ""
   }
 }

@@ -112,13 +112,20 @@
             <span class="flex items-center gap-1.5 text-[11px] text-zinc-400">
               <HardDrive class="h-3.5 w-3.5" /> Storage
             </span>
-            <span class="font-mono text-[10px] text-zinc-500">62%</span>
+            <span
+              class="font-mono text-[10px]"
+              :class="storagePercentTextClass"
+            >{{ storagePercent }}%</span>
           </div>
           <div class="h-1.5 overflow-hidden rounded-full bg-zinc-800">
-            <div class="h-full w-[62%] rounded-full bg-gradient-to-r from-accent-indigo to-accent-violet" />
+            <div
+              class="h-full rounded-full transition-all duration-500"
+              :class="storageBarColor"
+              :style="{ width: `${storagePercent}%` }"
+            />
           </div>
-          <p class="mt-1.5 text-[10px] font-mono text-zinc-600">
-            12.4TB / 20TB
+          <p class="mt-1.5 text-[10px] font-mono text-zinc-500">
+            {{ formattedFootprint }} / {{ formattedQuota }}
           </p>
         </div>
 
@@ -178,6 +185,7 @@ import {
 } from 'lucide-vue-next';
 import { useAuthStore } from '../../stores/auth';
 import { useFeatureFlags } from '../../composables/useFeatureFlags';
+import { useSystemStorage } from '../../composables/useSystemStorage';
 
 const props = defineProps<{
   collapsed: boolean;
@@ -193,6 +201,14 @@ const emit = defineEmits<{
 const route = useRoute();
 const authStore = useAuthStore();
 const featureFlags = useFeatureFlags();
+const {
+  fetchStorage,
+  storagePercent,
+  formattedFootprint,
+  formattedQuota,
+  storageBarColor,
+  storagePercentTextClass,
+} = useSystemStorage();
 
 const isRouteActive = (path: string) => {
   if (path === '/dashboard') {
@@ -277,6 +293,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown);
+  fetchStorage();
 });
 
 onUnmounted(() => {
