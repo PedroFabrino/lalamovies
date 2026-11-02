@@ -12,99 +12,44 @@
       </div>
 
       <!-- Step Indicator -->
-      <div class="flex items-center justify-between mb-8 max-w-lg mx-auto">
-        <div class="flex items-center gap-2">
-          <div
-            class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition"
-            :class="currentStep === 1
-              ? 'bg-indigo-600 text-white ring-4 ring-indigo-600/20'
-              : currentStep > 1
-                ? 'bg-emerald-600 text-white'
-                : 'bg-zinc-800 text-zinc-400'"
-          >
-            <svg
-              v-if="currentStep > 1"
-              class="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+      <div class="flex items-center gap-2 mb-8 max-w-xl mx-auto">
+        <template
+          v-for="(label, i) in ['Search & Identify', 'Torrent Candidates', 'Storage & Delivery']"
+          :key="label"
+        >
+          <div class="flex items-center gap-2 flex-1">
+            <div
+              class="flex items-center gap-2 transition"
+              :class="currentStep >= i + 1 ? 'opacity-100' : 'opacity-40'"
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-            <span v-else>1</span>
+              <div
+                class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all shrink-0"
+                :class="currentStep > i + 1
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                  : currentStep === i + 1
+                    ? 'bg-accent-violet/20 text-accent-neon border border-accent-violet/40 glow-violet'
+                    : 'bg-zinc-800 text-zinc-500 border border-zinc-700'"
+              >
+                <Check
+                  v-if="currentStep > i + 1"
+                  class="w-3.5 h-3.5"
+                />
+                <span v-else>{{ i + 1 }}</span>
+              </div>
+              <span
+                class="text-xs font-medium hidden sm:inline truncate"
+                :class="currentStep === i + 1 ? 'text-accent-neon font-semibold' : currentStep > i + 1 ? 'text-zinc-300' : 'text-zinc-500'"
+              >
+                {{ label }}
+              </span>
+            </div>
+            <div
+              v-if="i < 2"
+              class="flex-1 h-px transition-all"
+              :class="currentStep > i + 1 ? 'bg-emerald-500/40' : 'bg-zinc-800'"
+            />
           </div>
-          <span
-            class="text-xs font-medium"
-            :class="currentStep >= 1 ? 'text-zinc-200' : 'text-zinc-500'"
-          >
-            Source
-          </span>
-        </div>
-
-        <div
-          class="h-0.5 flex-1 mx-3 bg-zinc-800"
-          :class="{ '!bg-emerald-600': currentStep > 1 }"
-        />
-
-        <div class="flex items-center gap-2">
-          <div
-            class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition"
-            :class="currentStep === 2
-              ? 'bg-indigo-600 text-white ring-4 ring-indigo-600/20'
-              : currentStep > 2
-                ? 'bg-emerald-600 text-white'
-                : 'bg-zinc-800 text-zinc-400'"
-          >
-            <svg
-              v-if="currentStep > 2"
-              class="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-            <span v-else>2</span>
-          </div>
-          <span
-            class="text-xs font-medium"
-            :class="currentStep >= 2 ? 'text-zinc-200' : 'text-zinc-500'"
-          >
-            Match
-          </span>
-        </div>
-
-        <div
-          class="h-0.5 flex-1 mx-3 bg-zinc-800"
-          :class="{ '!bg-emerald-600': currentStep > 2 }"
-        />
-
-        <div class="flex items-center gap-2">
-          <div
-            class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition"
-            :class="currentStep === 3
-              ? 'bg-indigo-600 text-white ring-4 ring-indigo-600/20'
-              : 'bg-zinc-800 text-zinc-400'"
-          >
-            <span>3</span>
-          </div>
-          <span
-            class="text-xs font-medium"
-            :class="currentStep === 3 ? 'text-zinc-200' : 'text-zinc-500'"
-          >
-            Confirm
-          </span>
-        </div>
+        </template>
       </div>
 
       <!-- Step 1: Input -->
@@ -241,6 +186,7 @@
 </template>
 
 <script setup lang="ts">
+import { Check } from 'lucide-vue-next';
 import StreamProgressModal from '../components/StreamProgressModal.vue';
 import RequestStep1Input from '../components/request/RequestStep1Input.vue';
 import RequestStep2Candidates from '../components/request/RequestStep2Candidates.vue';

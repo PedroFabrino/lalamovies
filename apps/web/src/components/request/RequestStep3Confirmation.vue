@@ -170,7 +170,7 @@
       <button
         type="button"
         :disabled="!isManualTorrentsEnabled || isSubmitting || isCheckingExists || ((!existingRequest || forceDownload) && ((inputMode === 'file' && validBatchItems.length === 0) || (inputMode === 'magnet' && !magnetLink.trim()) || (inputMode === 'search' && (isSearchingReleases || (isManualFallbackInStep3 ? (manualFallbackMode === 'magnet' ? !fallbackMagnetLink.trim() : !fallbackFile) : (!selectedRelease && !recommendedRelease))))))"
-        class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg shadow transition flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        class="px-6 py-2.5 bg-gradient-to-r from-accent-violet to-accent-indigo hover:opacity-90 text-white text-sm font-semibold rounded-lg shadow glow-violet transition flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         @click="$emit('confirm')"
       >
         <svg

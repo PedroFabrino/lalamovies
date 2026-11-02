@@ -1122,9 +1122,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/RequestView.vue": {
-    "mtime": 1793581323.4015086,
-    "seen": 1793581722.083756,
-    "ast_hash": "d91b013793b6c0158a13a28e1d0c249d",
+    "mtime": 1793584209.7077827,
+    "seen": 1793585255.219476,
+    "ast_hash": "12bc6f534ef24b0d54b44ed9dd20a9d8",
     "semantic_hash": ""
   },
   "apps/web/src/views/WaitlistView.vue": {
@@ -1242,10 +1242,10 @@
     "semantic_hash": ""
   },
   "apps/web/tests/degraded_navigation.test.ts": {
-    "mtime": 1789455553.147688,
-    "seen": 1789780156.9478219,
-    "ast_hash": "0ce2b9607aaa766f35b0478dc59ea1d9",
-    "semantic_hash": "0ce2b9607aaa766f35b0478dc59ea1d9"
+    "mtime": 1793584938.6089282,
+    "seen": 1793585255.2609825,
+    "ast_hash": "068dbcb3c86f350038fb24eb017bccdc",
+    "semantic_hash": ""
   },
   "apps/web/tests/releaseExplorer.test.ts": {
     "mtime": 1788832633.849591,
@@ -1812,15 +1812,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/request/RequestStep2Candidates.vue": {
-    "mtime": 1790021120.9624832,
-    "seen": 1790021216.2137947,
-    "ast_hash": "90345220f8a93bf297a8c589946ba695",
+    "mtime": 1793584268.2264578,
+    "seen": 1793585255.154495,
+    "ast_hash": "76cd4c6e79648297062a334bdb9e8477",
     "semantic_hash": ""
   },
   "apps/web/src/components/request/RequestStep3Confirmation.vue": {
-    "mtime": 1790583344.6367128,
-    "seen": 1790583940.7626095,
-    "ast_hash": "a65a68df802f9621d141d8b9919fd0f4",
+    "mtime": 1793584309.611913,
+    "seen": 1793585255.154495,
+    "ast_hash": "de740c7f5209ef7085f195a782807776",
     "semantic_hash": ""
   },
   "apps/web/src/composables/useAdminData.ts": {

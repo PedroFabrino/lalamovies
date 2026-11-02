@@ -121,10 +121,10 @@
       <div
         v-for="candidate in candidates"
         :key="candidate.id"
-        class="bg-zinc-900/70 border rounded-xl p-4 flex gap-4 transition cursor-pointer group"
+        class="border rounded-xl p-4 flex gap-4 transition cursor-pointer group glass"
         :class="selectedCandidate?.id === candidate.id
-          ? 'border-indigo-500 ring-2 ring-indigo-500/30 bg-indigo-950/20'
-          : 'border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900'"
+          ? 'border-accent-violet/50 ring-2 ring-accent-violet/30 bg-accent-violet/10 glow-violet'
+          : 'border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900/60'"
         @click="$emit('select', candidate)"
       >
         <!-- Poster image -->
@@ -199,7 +199,7 @@
       <button
         type="button"
         :disabled="!selectedCandidate"
-        class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg shadow transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+        class="px-5 py-2.5 bg-gradient-to-r from-accent-violet to-accent-indigo hover:opacity-90 text-white text-sm font-semibold rounded-lg shadow glow-violet transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         @click="$emit('confirm')"
       >
         Continue to Confirmation

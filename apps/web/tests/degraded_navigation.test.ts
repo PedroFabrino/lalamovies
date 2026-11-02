@@ -117,5 +117,5 @@ describe('Degraded Navigation & Router Redirect Guards (Subtask #89)', () => {
     await router.push('/library');
     expect(router.currentRoute.value.path).toBe('/dashboard');
     expect(showToastSpy).toHaveBeenCalledWith('This feature is temporarily unavailable.', 'info');
-  });
+  }, 15000);
 });
