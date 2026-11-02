@@ -32,7 +32,7 @@
         </div>
         <button
           type="button"
-          class="text-xs text-indigo-400 hover:text-indigo-300 transition self-start sm:self-auto cursor-pointer"
+          class="text-xs text-violet-400 hover:text-violet-300 transition self-start sm:self-auto cursor-pointer"
           @click="$emit('switchTab', 'config')"
         >
           Configure Quota &rarr;

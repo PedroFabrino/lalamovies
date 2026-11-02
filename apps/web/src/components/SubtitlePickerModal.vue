@@ -1,19 +1,19 @@
 <template>
   <div
     v-if="show"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in"
     data-testid="subtitle-picker-modal"
     @click.self="handleClose"
   >
     <div
-      class="w-full max-w-xl bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-5 text-zinc-100 flex flex-col max-h-[90vh]"
+      class="w-full max-w-xl bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-5 text-zinc-100 flex flex-col max-h-[90vh] animate-scale-in"
       @click.stop
     >
       <!-- Header -->
       <div class="flex items-center justify-between border-b border-zinc-800 pb-4">
         <div>
           <h3 class="text-lg font-bold text-white flex items-center gap-2">
-            <span>💬</span>
+            <span>🇧🇷</span>
             <span>Subtitles (pt-BR)</span>
           </h3>
           <p
@@ -26,23 +26,11 @@
         <button
           type="button"
           data-testid="close-modal-btn"
-          class="text-zinc-400 hover:text-white p-1.5 rounded-lg hover:bg-zinc-800 transition cursor-pointer"
+          class="text-zinc-400 hover:text-white p-1.5 rounded-xl hover:bg-zinc-800 transition cursor-pointer"
           :disabled="isApplying"
           @click="handleClose"
         >
-          <svg
-            class="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
+          <X class="w-5 h-5" />
         </button>
       </div>
 
@@ -55,7 +43,7 @@
         <span>{{ applyError }}</span>
         <button
           type="button"
-          class="text-red-400 hover:text-red-200 text-xs underline"
+          class="text-red-400 hover:text-red-200 text-xs underline cursor-pointer"
           @click="applyError = null"
         >
           Dismiss
@@ -63,7 +51,7 @@
       </div>
 
       <!-- Quick Action: Re-fetch Best -->
-      <div class="flex items-center justify-between bg-zinc-950/60 p-3 rounded-xl border border-zinc-800/80">
+      <div class="flex items-center justify-between bg-zinc-950/70 p-3.5 rounded-2xl border border-zinc-800/80">
         <div class="text-xs text-zinc-300">
           <span class="font-medium text-white">Auto-pick:</span>
           <span class="text-zinc-400 ml-1">Download the highest-rated subtitle automatically.</span>
@@ -71,30 +59,14 @@
         <button
           type="button"
           data-testid="refetch-best-btn"
-          class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+          class="px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-md shadow-violet-600/30"
           :disabled="isApplying || loading"
           @click="handleFetchBest"
         >
-          <svg
+          <Loader2
             v-if="applyingTarget === 'best'"
             class="animate-spin w-3.5 h-3.5"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              class="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              stroke-width="4"
-            />
-            <path
-              class="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            />
-          </svg>
+          />
           <span>Re-fetch Best</span>
         </button>
       </div>
@@ -107,7 +79,7 @@
           data-testid="loading-state"
           class="py-12 flex flex-col items-center justify-center gap-3 text-zinc-400"
         >
-          <div class="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+          <Loader2 class="w-8 h-8 text-violet-500 animate-spin" />
           <p class="text-xs">
             Searching OpenSubtitles...
           </p>
@@ -117,7 +89,7 @@
         <div
           v-else-if="serviceNotConfigured"
           data-testid="not-configured-state"
-          class="py-10 text-center bg-zinc-950/40 border border-zinc-800/80 rounded-xl p-6"
+          class="py-10 text-center bg-zinc-950/40 border border-zinc-800/80 rounded-2xl p-6"
         >
           <div class="w-10 h-10 mx-auto rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg mb-2">
             ⚠️
@@ -134,14 +106,14 @@
         <div
           v-else-if="loadError"
           data-testid="load-error-state"
-          class="py-8 text-center bg-red-950/20 border border-red-800/40 rounded-xl p-6"
+          class="py-8 text-center bg-red-950/20 border border-red-800/40 rounded-2xl p-6"
         >
           <p class="text-xs text-red-300">
             {{ loadError }}
           </p>
           <button
             type="button"
-            class="mt-3 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-200 rounded-lg transition cursor-pointer"
+            class="mt-3 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-200 rounded-xl transition cursor-pointer"
             @click="fetchSubtitles"
           >
             Retry Search
@@ -152,7 +124,7 @@
         <div
           v-else-if="subtitles.length === 0"
           data-testid="empty-state"
-          class="py-10 text-center bg-zinc-950/40 border border-zinc-800/80 rounded-xl p-6"
+          class="py-10 text-center bg-zinc-950/40 border border-zinc-800/80 rounded-2xl p-6"
         >
           <div class="w-10 h-10 mx-auto rounded-full bg-zinc-800 text-zinc-500 flex items-center justify-center text-lg mb-2">
             🔍
@@ -170,76 +142,16 @@
           v-else
           class="space-y-2"
         >
-          <div
+          <SubtitleRow
             v-for="sub in subtitles"
             :key="sub.fileId"
-            data-testid="subtitle-row"
-            class="p-3 bg-zinc-950/70 border border-zinc-800 hover:border-zinc-700 rounded-xl transition flex items-center justify-between gap-3"
-            :class="{ 'ring-1 ring-indigo-500/60 bg-zinc-900/90': isSelected(sub.fileId) }"
-          >
-            <!-- Checkbox & Release Name -->
-            <div class="flex items-start gap-3 flex-1 min-w-0">
-              <input
-                type="checkbox"
-                data-testid="subtitle-checkbox"
-                :checked="isSelected(sub.fileId)"
-                :disabled="isApplying"
-                class="mt-1 w-4 h-4 rounded border-zinc-700 bg-zinc-900 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                @change="toggleSelect(sub.fileId)"
-              >
-              <div class="min-w-0 flex-1">
-                <div
-                  class="text-xs font-semibold text-zinc-100 truncate"
-                  :title="sub.releaseName"
-                >
-                  {{ sub.releaseName }}
-                </div>
-                <div class="flex flex-wrap items-center gap-2 mt-1 text-[11px] text-zinc-400">
-                  <span class="text-zinc-300 font-medium">@{{ sub.uploaderName }}</span>
-                  <span>•</span>
-                  <span class="text-indigo-400 font-mono">⬇ {{ formatDownloadCount(sub.downloadCount) }}</span>
-                  <span v-if="sub.fileSizeBytes">•</span>
-                  <span
-                    v-if="sub.fileSizeBytes"
-                    class="font-mono"
-                  >{{ formatBytes(sub.fileSizeBytes) }}</span>
-                  <span v-if="sub.uploadDate">•</span>
-                  <span v-if="sub.uploadDate">{{ formatDate(sub.uploadDate) }}</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Row Apply Button -->
-            <button
-              type="button"
-              data-testid="apply-row-btn"
-              class="px-3 py-1.5 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg transition flex items-center gap-1 disabled:opacity-50 cursor-pointer shrink-0"
-              :disabled="isApplying"
-              @click="handleApplySingle(sub.fileId)"
-            >
-              <svg
-                v-if="applyingTarget === sub.fileId"
-                class="animate-spin w-3 h-3"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  class="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  stroke-width="4"
-                />
-                <path
-                  class="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
-              </svg>
-              <span>Apply</span>
-            </button>
-          </div>
+            :sub="sub"
+            :selected="isSelected(sub.fileId)"
+            :is-applying="isApplying"
+            :is-current-applying="applyingTarget === sub.fileId"
+            @toggle-select="toggleSelect"
+            @apply="handleApplySingle"
+          />
         </div>
       </div>
 
@@ -247,7 +159,7 @@
       <div class="flex items-center justify-between border-t border-zinc-800 pt-4">
         <button
           type="button"
-          class="px-4 py-2 text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-zinc-800 rounded-lg transition cursor-pointer"
+          class="px-4 py-2 text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-zinc-800 rounded-xl transition cursor-pointer"
           :disabled="isApplying"
           @click="handleClose"
         >
@@ -257,30 +169,14 @@
         <button
           type="button"
           data-testid="apply-selected-btn"
-          class="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          class="px-4 py-2 text-xs font-semibold text-white bg-violet-600 hover:bg-violet-500 rounded-xl transition flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-md shadow-violet-600/30"
           :disabled="selectedIds.size === 0 || isApplying"
           @click="handleApplySelected"
         >
-          <svg
+          <Loader2
             v-if="applyingTarget === 'selected'"
             class="animate-spin w-3.5 h-3.5"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              class="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              stroke-width="4"
-            />
-            <path
-              class="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            />
-          </svg>
+          />
           <span>
             {{ selectedIds.size > 0 ? `Apply Selected (${selectedIds.size})` : 'Apply Selected' }}
           </span>
@@ -292,9 +188,10 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
+import { X, Loader2 } from 'lucide-vue-next';
 import { api } from '../lib/api';
 import { useRequestsStore } from '../stores/requests';
-import { formatBytes } from '../lib/formatters';
+import SubtitleRow from './subtitles/SubtitleRow.vue';
 
 export interface SubtitleItem {
   fileId: number | string;
@@ -327,26 +224,6 @@ const selectedIds = ref<Set<number | string>>(new Set());
 
 const isApplying = ref(false);
 const applyingTarget = ref<number | string | 'selected' | 'best' | null>(null);
-
-function formatDownloadCount(count: number): string {
-  if (count >= 1000000) {
-    return `${(count / 1000000).toFixed(1)}M`;
-  }
-  if (count >= 1000) {
-    return `${(count / 1000).toFixed(1)}k`;
-  }
-  return String(count);
-}
-
-function formatDate(isoString: string): string {
-  try {
-    const d = new Date(isoString);
-    if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
-  } catch {
-    return '';
-  }
-}
 
 function isSelected(id: number | string): boolean {
   return selectedIds.value.has(id);

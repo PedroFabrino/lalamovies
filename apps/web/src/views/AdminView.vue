@@ -17,14 +17,14 @@
           type="button"
           class="px-4 py-2.5 text-sm font-medium border-b-2 transition flex items-center gap-2 cursor-pointer"
           :class="admin.activeTab.value === tab.id
-            ? 'border-indigo-500 text-white font-semibold'
+            ? 'border-violet-500 text-white font-semibold'
             : 'border-transparent text-zinc-400 hover:text-zinc-200 hover:border-zinc-700'"
           @click="onTabClick(tab.id)"
         >
           <span>{{ tab.label }}</span>
           <span
             v-if="tab.id === 'activity' && activity.activeSessionCount.value > 0"
-            class="px-1.5 py-0.5 text-xs font-bold rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/30"
+            class="px-1.5 py-0.5 text-xs font-bold rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30"
           >
             {{ activity.activeSessionCount.value }}
           </span>

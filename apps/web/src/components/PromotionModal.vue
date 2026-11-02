@@ -1,11 +1,11 @@
 <template>
   <div
     v-if="show"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in"
     data-testid="promotion-modal"
   >
     <div
-      class="w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-6 text-zinc-100"
+      class="w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-6 text-zinc-100 animate-scale-in"
       @click.stop
     >
       <!-- Header -->
@@ -21,11 +21,11 @@
         </div>
         <button
           type="button"
-          class="text-zinc-400 hover:text-white p-1 rounded-lg transition cursor-pointer"
+          class="text-zinc-400 hover:text-white p-1 rounded-xl hover:bg-zinc-800 transition cursor-pointer"
           :disabled="isPromoting"
           @click="handleClose"
         >
-          ✕
+          <X class="w-4 h-4" />
         </button>
       </div>
 
@@ -36,7 +36,7 @@
         data-testid="promotion-success"
       >
         <div class="w-16 h-16 mx-auto rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-3xl">
-          ✓
+          <CheckCircle2 class="w-8 h-8 text-emerald-400" />
         </div>
         <div>
           <h4 class="text-lg font-bold text-white">
@@ -62,9 +62,9 @@
         data-testid="promotion-in-progress"
       >
         <div class="relative w-16 h-16 mx-auto flex items-center justify-center">
-          <div class="absolute inset-0 rounded-full border-4 border-indigo-500/20 animate-ping" />
-          <div class="w-16 h-16 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin" />
-          <span class="absolute text-xl">⚡</span>
+          <div class="absolute inset-0 rounded-full border-4 border-violet-500/20 animate-ping" />
+          <div class="w-16 h-16 rounded-full border-4 border-violet-500 border-t-transparent animate-spin" />
+          <span class="absolute text-xl">⏳</span>
         </div>
         <div>
           <h4 class="text-base font-semibold text-white">
@@ -75,7 +75,7 @@
           </p>
         </div>
         <div class="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
-          <div class="bg-indigo-500 h-full w-2/3 animate-pulse rounded-full" />
+          <div class="bg-violet-500 h-full w-2/3 animate-pulse rounded-full" />
         </div>
       </div>
 
@@ -94,11 +94,11 @@
 
         <!-- Step Indicator -->
         <div class="flex items-center justify-between text-xs text-zinc-400 px-2">
-          <span :class="{ 'text-indigo-400 font-semibold': step === 1 }">1. Media Type</span>
+          <span :class="{ 'text-violet-400 font-semibold': step === 1 }">1. Media Type</span>
           <span>&rarr;</span>
-          <span :class="{ 'text-indigo-400 font-semibold': step === 2 }">2. Match Metadata</span>
+          <span :class="{ 'text-violet-400 font-semibold': step === 2 }">2. Match Metadata</span>
           <span>&rarr;</span>
-          <span :class="{ 'text-indigo-400 font-semibold': step === 3 }">3. Season & Episode</span>
+          <span :class="{ 'text-violet-400 font-semibold': step === 3 }">3. Season & Episode</span>
         </div>
 
         <!-- Step 1: Media Type Selection -->
@@ -114,28 +114,28 @@
             <button
               type="button"
               class="p-4 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-2"
-              :class="mediaType === 'movie' ? 'bg-indigo-600/20 border-indigo-500 text-indigo-200' : 'bg-zinc-800/40 border-zinc-800 hover:bg-zinc-800 text-zinc-400'"
+              :class="mediaType === 'movie' ? 'bg-violet-600/20 border-violet-500 text-violet-200' : 'bg-zinc-800/40 border-zinc-800 hover:bg-zinc-800 text-zinc-400'"
               @click="mediaType = 'movie'"
             >
-              <span class="text-2xl">🎬</span>
+              <Film class="w-6 h-6 text-violet-400" />
               <span class="text-xs font-semibold">Movie</span>
             </button>
             <button
               type="button"
               class="p-4 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-2"
-              :class="mediaType === 'tv_show' ? 'bg-indigo-600/20 border-indigo-500 text-indigo-200' : 'bg-zinc-800/40 border-zinc-800 hover:bg-zinc-800 text-zinc-400'"
+              :class="mediaType === 'tv_show' ? 'bg-violet-600/20 border-violet-500 text-violet-200' : 'bg-zinc-800/40 border-zinc-800 hover:bg-zinc-800 text-zinc-400'"
               @click="mediaType = 'tv_show'"
             >
-              <span class="text-2xl">📺</span>
+              <Tv class="w-6 h-6 text-violet-400" />
               <span class="text-xs font-semibold">TV Show</span>
             </button>
             <button
               type="button"
               class="p-4 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-2"
-              :class="mediaType === 'anime' ? 'bg-indigo-600/20 border-indigo-500 text-indigo-200' : 'bg-zinc-800/40 border-zinc-800 hover:bg-zinc-800 text-zinc-400'"
+              :class="mediaType === 'anime' ? 'bg-violet-600/20 border-violet-500 text-violet-200' : 'bg-zinc-800/40 border-zinc-800 hover:bg-zinc-800 text-zinc-400'"
               @click="mediaType = 'anime'"
             >
-              <span class="text-2xl">🍙</span>
+              <Sparkles class="w-6 h-6 text-violet-400" />
               <span class="text-xs font-semibold">Anime</span>
             </button>
           </div>
@@ -143,7 +143,7 @@
           <div class="flex justify-end pt-2">
             <button
               type="button"
-              class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-xl transition cursor-pointer"
+              class="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium rounded-xl transition cursor-pointer shadow-md shadow-violet-600/30"
               data-testid="button-step-1-next"
               @click="goToStep2"
             >
@@ -152,107 +152,20 @@
           </div>
         </div>
 
-        <!-- Step 2: Metadata Match Confirmation -->
-        <div
+        <!-- Step 2: Metadata Match Confirmation Sub-Component -->
+        <PromotionStep2Metadata
           v-else-if="step === 2"
-          class="space-y-4"
-          data-testid="promotion-step-2"
-        >
-          <div class="space-y-2">
-            <label class="block text-xs font-semibold text-zinc-300 uppercase tracking-wider">
-              Search & Match Title
-            </label>
-            <div class="flex gap-2">
-              <input
-                v-model="searchQuery"
-                type="text"
-                class="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-                placeholder="Search TMDB / AniList..."
-                @keyup.enter="searchMetadata"
-              >
-              <button
-                type="button"
-                class="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs rounded-xl transition cursor-pointer disabled:opacity-50"
-                :disabled="isSearching"
-                @click="searchMetadata"
-              >
-                {{ isSearching ? 'Searching...' : 'Search' }}
-              </button>
-            </div>
-          </div>
-
-          <!-- Candidates List -->
-          <div class="max-h-60 overflow-y-auto space-y-2 pr-1">
-            <div
-              v-for="c in candidates"
-              :key="c.id"
-              class="p-3 rounded-xl border flex items-center gap-3 transition cursor-pointer"
-              :class="selectedCandidate?.id === c.id ? 'bg-indigo-600/20 border-indigo-500' : 'bg-zinc-950 border-zinc-800 hover:border-zinc-700'"
-              @click="selectedCandidate = c"
-            >
-              <img
-                v-if="c.posterUrl"
-                :src="c.posterUrl"
-                alt="Poster"
-                class="w-10 h-14 object-cover rounded shrink-0 bg-zinc-800"
-              >
-              <div
-                v-else
-                class="w-10 h-14 bg-zinc-800 rounded flex items-center justify-center text-xs text-zinc-500 shrink-0"
-              >
-                🎬
-              </div>
-              <div class="flex-1 min-w-0">
-                <div class="font-medium text-xs text-white truncate">
-                  {{ c.title }}
-                </div>
-                <div class="text-[11px] text-zinc-400 mt-0.5">
-                  <span v-if="c.year">{{ c.year }} • </span>
-                  <span class="uppercase text-[10px] text-zinc-500">{{ c.source }}</span>
-                </div>
-                <p
-                  v-if="c.overview"
-                  class="text-[11px] text-zinc-500 line-clamp-1 mt-0.5"
-                >
-                  {{ c.overview }}
-                </p>
-              </div>
-              <div
-                v-if="selectedCandidate?.id === c.id"
-                class="text-indigo-400 font-bold text-sm"
-              >
-                ✓
-              </div>
-            </div>
-
-            <div
-              v-if="candidates.length === 0 && !isSearching"
-              class="text-center py-6 text-xs text-zinc-500"
-            >
-              No matching metadata found. You can adjust your query or use manual match below.
-            </div>
-          </div>
-
-          <!-- Or Manual Fallback -->
-          <div class="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-xs">
-            <button
-              type="button"
-              class="text-zinc-400 hover:text-white"
-              @click="step = 1"
-            >
-              &larr; Back
-            </button>
-            <button
-              type="button"
-              class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl transition cursor-pointer disabled:opacity-50"
-              data-testid="button-step-2-next"
-              :disabled="!selectedCandidate"
-              @click="handleStep2Next"
-            >
-              {{ mediaType === 'movie' ? 'Confirm & Promote' : 'Next &rarr;' }}
-            </button>
-          </div>
-        </div>
+          :search-query="searchQuery"
+          :candidates="candidates"
+          :selected-candidate="selectedCandidate"
+          :is-searching="isSearching"
+          :media-type="mediaType"
+          @update:search-query="searchQuery = $event"
+          @search="searchMetadata"
+          @select="selectedCandidate = $event"
+          @back="step = 1"
+          @next="handleStep2Next"
+        />
 
         <!-- Step 3: Season & Episode Selection (TV / Anime) -->
         <div
@@ -261,9 +174,7 @@
           data-testid="promotion-step-3"
         >
           <div class="p-3 bg-zinc-950 border border-zinc-800 rounded-xl flex items-center gap-3">
-            <div class="text-xl">
-              📺
-            </div>
+            <Tv class="w-5 h-5 text-violet-400" />
             <div>
               <div class="text-xs font-semibold text-white">
                 {{ selectedCandidate?.title }}
@@ -283,7 +194,7 @@
                 v-model.number="seasonNumber"
                 type="number"
                 min="1"
-                class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500"
               >
             </div>
             <div>
@@ -295,7 +206,7 @@
                 type="number"
                 min="1"
                 placeholder="All / Batch"
-                class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500"
               >
             </div>
           </div>
@@ -303,14 +214,14 @@
           <div class="flex items-center justify-between pt-2 border-t border-zinc-800">
             <button
               type="button"
-              class="text-xs text-zinc-400 hover:text-white"
+              class="text-xs text-zinc-400 hover:text-white cursor-pointer"
               @click="step = 2"
             >
               &larr; Back
             </button>
             <button
               type="button"
-              class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-xl transition cursor-pointer"
+              class="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium rounded-xl transition cursor-pointer shadow-md shadow-violet-600/30"
               data-testid="button-step-3-confirm"
               @click="submitPromotion"
             >
@@ -325,16 +236,11 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
+import { X, Film, Tv, Sparkles, CheckCircle2 } from 'lucide-vue-next';
 import { api } from '../lib/api';
+import PromotionStep2Metadata, { type PromotionCandidate } from './promotion/PromotionStep2Metadata.vue';
 
-export interface PromotionCandidate {
-  id: string;
-  source: 'tmdb' | 'anilist';
-  title: string;
-  year: number | null;
-  posterUrl: string | null;
-  overview: string | null;
-}
+export type { PromotionCandidate };
 
 const props = defineProps<{
   show: boolean;

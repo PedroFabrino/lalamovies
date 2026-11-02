@@ -978,9 +978,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/PromotionModal.vue": {
-    "mtime": 1790021120.9624832,
-    "seen": 1790021216.2111495,
-    "ast_hash": "d2a58c0eb116b5d09c51b591a34a0f99",
+    "mtime": 1793588601.2713773,
+    "seen": 1793589165.2490408,
+    "ast_hash": "eb460b25da59b4bdaab68050e3a3f0ef",
     "semantic_hash": ""
   },
   "apps/web/src/components/StreamProgressModal.vue": {
@@ -1080,9 +1080,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/AdminView.vue": {
-    "mtime": 1793581277.2862647,
-    "seen": 1793581722.0821915,
-    "ast_hash": "0639e75c7b8c0f697c8be7a1ccbbf43b",
+    "mtime": 1793588676.291095,
+    "seen": 1793589165.3310363,
+    "ast_hash": "18549f0a26507051b35580c78183a4b5",
     "semantic_hash": ""
   },
   "apps/web/src/views/DashboardView.vue": {
@@ -1566,9 +1566,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/SubtitlePickerModal.vue": {
-    "mtime": 1790021120.9629998,
-    "seen": 1790021216.2111495,
-    "ast_hash": "53ea7088ae32831895b41921fcecf134",
+    "mtime": 1793588485.111827,
+    "seen": 1793589165.2495704,
+    "ast_hash": "3ae0550286ace49f3c39c1ead045e557",
     "semantic_hash": ""
   },
   "apps/web/tests/SubtitlePickerModal.test.ts": {
@@ -1770,9 +1770,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/admin/AdminCleanupTab.vue": {
-    "mtime": 1790359981.3258176,
-    "seen": 1790360244.749864,
-    "ast_hash": "d7ef3a651781f39c27494b3570254182",
+    "mtime": 1793588993.747608,
+    "seen": 1793589165.2649949,
+    "ast_hash": "02315582261c567245d1f1d75e80fdb9",
     "semantic_hash": ""
   },
   "apps/web/src/components/admin/AdminConfigTab.vue": {
@@ -1782,9 +1782,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/admin/AdminFeaturesTab.vue": {
-    "mtime": 1790021120.96195,
-    "seen": 1790021216.2122371,
-    "ast_hash": "dbf411113932d9f5064f0e492e62c2df",
+    "mtime": 1793588315.5495503,
+    "seen": 1793589165.2655187,
+    "ast_hash": "42d498611a2acdf0f931548500c5b8f7",
     "semantic_hash": ""
   },
   "apps/web/src/components/admin/AdminInvitesTab.vue": {
@@ -3693,6 +3693,24 @@
     "mtime": 1793587165.481526,
     "seen": 1793587791.712603,
     "ast_hash": "7fdf15bd86aed2c81850115ba38fcfdd",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/admin/AdminFeatureCategoryCard.vue": {
+    "mtime": 1793588780.1137683,
+    "seen": 1793589165.2655187,
+    "ast_hash": "a2f2937bda54d4e822f6fa099c609db6",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/promotion/PromotionStep2Metadata.vue": {
+    "mtime": 1793588568.1434612,
+    "seen": 1793589165.2873006,
+    "ast_hash": "2cd3ad166527435c9527ede58e6406d9",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/subtitles/SubtitleRow.vue": {
+    "mtime": 1793588476.4438972,
+    "seen": 1793589165.3041282,
+    "ast_hash": "33031c7e0a1670c3cef64392e54614be",
     "semantic_hash": ""
   }
 }
