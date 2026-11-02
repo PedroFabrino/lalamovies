@@ -1086,9 +1086,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/views/DashboardView.vue": {
-    "mtime": 1793581216.4153378,
-    "seen": 1793581722.0821915,
-    "ast_hash": "c62c36186f3b2951fc0c3d24180e56b3",
+    "mtime": 1793582404.80774,
+    "seen": 1793582642.4208858,
+    "ast_hash": "296291fd57d1773a2bbab74cb2e64da4",
     "semantic_hash": ""
   },
   "apps/web/src/views/ForbiddenView.vue": {
@@ -2460,9 +2460,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/requests/RequestProgressCell.vue": {
-    "mtime": 1790344019.8809454,
-    "seen": 1790344437.8364527,
-    "ast_hash": "41467219bc30bd2503440747fd79de07",
+    "mtime": 1793582064.7766924,
+    "seen": 1793582642.366135,
+    "ast_hash": "d29b74e948b25e6f18f23c4971eca6eb",
     "semantic_hash": ""
   },
   "apps/web/src/components/requests/SeasonPackEpisodesDrawer.vue": {
@@ -3615,6 +3615,24 @@
     "mtime": 1793580866.61986,
     "seen": 1793581722.1583846,
     "ast_hash": "ff92d37906906a496e1b9ecb639689c7",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/dashboard/DashboardMetricsBar.vue": {
+    "mtime": 1793582325.2332542,
+    "seen": 1793582642.3465967,
+    "ast_hash": "49c7f2204de0aae3c62744bd7347c552",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/dashboard/DashboardModals.vue": {
+    "mtime": 1793582393.5850966,
+    "seen": 1793582642.3465967,
+    "ast_hash": "e47f0b1d7c365da4ae881c79e421e644",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/DashboardMetricsBar.test.ts": {
+    "mtime": 1793582339.7089484,
+    "seen": 1793582642.4472828,
+    "ast_hash": "e291c8824947de43306d459637a4d9c5",
     "semantic_hash": ""
   }
 }

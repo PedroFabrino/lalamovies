@@ -3,14 +3,14 @@
     v-if="item.status === 'downloading'"
     class="space-y-1.5"
   >
-    <div class="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+    <div class="w-full bg-zinc-800/80 rounded-full h-2 overflow-hidden shadow-inner">
       <div
-        class="bg-blue-500 h-2 rounded-full transition-all duration-300"
+        class="bg-gradient-to-r from-blue-500 to-indigo-500 bar-stripes h-2 rounded-full transition-all duration-300 shadow-sm"
         :style="{ width: `${progressPercent}%` }"
       />
     </div>
     <div class="flex justify-between items-center text-[11px] text-zinc-400 font-mono">
-      <span>{{ progressPercent }}%</span>
+      <span class="text-blue-400 font-semibold">{{ progressPercent }}%</span>
       <span>{{ progressSpeedEta }}</span>
     </div>
   </div>
@@ -20,6 +20,7 @@
     class="text-xs flex items-center gap-1.5"
     :class="item.deferredReason === 'waiting_for_space' ? 'text-amber-400/90' : 'text-blue-400/90'"
   >
+    <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
     <span>
       {{ item.deferredReason === 'waiting_for_space' ? 'Waiting for storage quota headroom' : 'Waiting for available download slot' }}
     </span>
@@ -27,29 +28,18 @@
 
   <div
     v-else-if="item.status === 'error'"
-    class="text-xs text-red-400 max-w-xs truncate"
+    class="text-xs text-red-400 max-w-xs truncate flex items-center gap-1.5"
     :title="item.errorMessage || 'Unknown error occurred'"
   >
-    {{ item.errorMessage || 'Download error' }}
+    <span class="inline-block w-1.5 h-1.5 rounded-full bg-red-400" />
+    <span>{{ item.errorMessage || 'Download error' }}</span>
   </div>
 
   <div
     v-else-if="item.status === 'seeding'"
-    class="text-xs text-emerald-400/90 flex items-center gap-1"
+    class="text-xs text-emerald-400/90 flex items-center gap-1.5 font-medium"
   >
-    <svg
-      class="w-3.5 h-3.5"
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-    >
-      <path
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        stroke-width="2"
-        d="M5 13l4 4L19 7"
-      />
-    </svg>
+    <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shadow" />
     <span>In Jellyfin library</span>
   </div>
 

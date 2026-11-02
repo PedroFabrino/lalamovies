@@ -48,6 +48,9 @@
         </button>
       </div>
 
+      <!-- Top Metrics Bar -->
+      <DashboardMetricsBar />
+
       <!-- Feature Shelves -->
       <ActiveWatchPartiesShelf
         v-if="featureFlags.isEnabled('watch_parties')"
@@ -230,11 +233,27 @@
         <!-- Active Tables -->
         <div
           v-else
-          class="space-y-8"
+          class="space-y-6"
         >
+          <!-- Status Sub-filters -->
+          <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1">
+            <button
+              v-for="subTab in subFilterTabs"
+              :key="subTab"
+              type="button"
+              class="px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer"
+              :class="selectedSubFilter === subTab
+                ? 'bg-accent-violet/20 text-accent-neon border border-accent-violet/40 font-semibold shadow-xs'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 border border-transparent'"
+              @click="selectedSubFilter = subTab"
+            >
+              {{ subTab }}
+            </button>
+          </div>
+
           <ActiveRequestsTable
-            v-if="publicRequests.length > 0"
-            :requests="publicRequests"
+            v-if="filteredPublicRequests.length > 0"
+            :requests="filteredPublicRequests"
             :is-admin="authStore.isAdmin"
             :current-user-id="authStore.user?.id"
             :retrying-id="retryingId"
@@ -246,8 +265,8 @@
           />
 
           <PrivateRequestsTable
-            v-if="authStore.isTrusted && privateRequests.length > 0"
-            :requests="privateRequests"
+            v-if="authStore.isTrusted && filteredPrivateRequests.length > 0"
+            :requests="filteredPrivateRequests"
             :is-admin="authStore.isAdmin"
             :is-trusted="authStore.isTrusted"
             :current-user-id="authStore.user?.id"
@@ -273,53 +292,23 @@
     </main>
 
     <!-- Modals -->
-    <DeleteRequestModal
-      :item="itemToDelete"
+    <DashboardModals
+      :item-to-delete="itemToDelete"
       :is-deleting="isDeleting"
-      @close="itemToDelete = null"
-      @confirm="executeDelete"
-    />
-
-    <RedownloadModal
-      :show="showRedownloadModal"
-      :item="redownloadTarget"
-      @close="showRedownloadModal = false"
+      :show-redownload-modal="showRedownloadModal"
+      :redownload-target="redownloadTarget"
+      :stream-playback="streamPlayback"
+      :show-subtitle-modal="showSubtitleModal"
+      :subtitle-target="subtitleTarget"
+      :replace-target="replaceTarget"
+      @close-delete="itemToDelete = null"
+      @confirm-delete="executeDelete"
+      @close-redownload="showRedownloadModal = false"
       @redownloaded="handleRedownloaded"
-    />
-
-    <StreamProgressModal
-      :show="streamPlayback.showStreamModal.value"
-      :stream-id="streamPlayback.streamModalId.value"
-      :title="streamPlayback.streamModalTitle.value"
-      :initial-status="streamPlayback.streamModalStatus.value"
-      :error-message="streamPlayback.streamModalError.value"
-      :can-add-to-waitlist="Boolean(streamPlayback.activeStreamingItem.value)"
-      :is-adding-to-waitlist="streamPlayback.isAddingToWaitlistFromModal.value"
-      :waitlist-added="streamPlayback.hasAddedToWaitlistFromModal.value"
-      @close="streamPlayback.showStreamModal.value = false"
-      @promote="streamPlayback.handleOpenPromotion"
-      @error="streamPlayback.handleStreamPlaybackError"
-      @add-to-waitlist="streamPlayback.handleConfirmAddToWaitlist"
-    />
-
-    <PromotionModal
-      :show="streamPlayback.showPromotionModal.value"
-      :stream="streamPlayback.promotionStream.value"
-      @close="streamPlayback.showPromotionModal.value = false"
-      @promoted="streamPlayback.handleStreamPromoted"
-    />
-
-    <SubtitlePickerModal
-      :show="showSubtitleModal"
-      :request-id="subtitleTarget?.id || ''"
-      :title="subtitleTarget?.title"
-      @close="showSubtitleModal = false"
-    />
-
-    <TorrentReplacementModal
-      :open="!!replaceTarget"
-      :item="replaceTarget"
-      @close="replaceTarget = null"
+      @close-stream="streamPlayback.showStreamModal.value = false"
+      @close-promotion="streamPlayback.showPromotionModal.value = false"
+      @close-subtitle="showSubtitleModal = false"
+      @close-replace="replaceTarget = null"
       @replaced="requestsStore.fetchAll"
     />
   </div>
@@ -329,17 +318,13 @@
 import { ref, computed, onMounted } from 'vue';
 import UpNextShelf from '../components/UpNextShelf.vue';
 import DiscoveryFeed from '../components/DiscoveryFeed.vue';
-import StreamProgressModal from '../components/StreamProgressModal.vue';
-import PromotionModal from '../components/PromotionModal.vue';
-import SubtitlePickerModal from '../components/SubtitlePickerModal.vue';
-import TorrentReplacementModal from '../components/TorrentReplacementModal.vue';
+import DashboardMetricsBar from '../components/dashboard/DashboardMetricsBar.vue';
+import DashboardModals from '../components/dashboard/DashboardModals.vue';
 import ActiveStreamsShelf from '../components/ActiveStreamsShelf.vue';
 import ActiveWatchPartiesShelf from '../components/ActiveWatchPartiesShelf.vue';
 import ActiveRequestsTable from '../components/requests/ActiveRequestsTable.vue';
 import PrivateRequestsTable from '../components/requests/PrivateRequestsTable.vue';
 import DeletedRequestsList from '../components/requests/DeletedRequestsList.vue';
-import DeleteRequestModal from '../components/requests/DeleteRequestModal.vue';
-import RedownloadModal from '../components/requests/RedownloadModal.vue';
 import StorageQuotaBanner, { DiskInfo } from '../components/dashboard/StorageQuotaBanner.vue';
 import { useAuthStore } from '../stores/auth';
 import { useRequestsStore, DownloadRequest } from '../stores/requests';
@@ -354,6 +339,28 @@ const featureFlags = useFeatureFlags();
 
 const publicRequests = computed(() => requestsStore.requests.filter((r) => r.mediaType !== 'private'));
 const privateRequests = computed(() => requestsStore.requests.filter((r) => r.mediaType === 'private'));
+
+type SubFilter = 'All' | 'Active' | 'Completed' | 'Failed';
+const subFilterTabs: SubFilter[] = ['All', 'Active', 'Completed', 'Failed'];
+const selectedSubFilter = ref<SubFilter>('All');
+
+const filteredPublicRequests = computed(() => {
+  return publicRequests.value.filter((r) => {
+    if (selectedSubFilter.value === 'Active') return r.status === 'downloading' || r.status === 'queued';
+    if (selectedSubFilter.value === 'Completed') return r.status === 'seeding' || r.status === 'done';
+    if (selectedSubFilter.value === 'Failed') return r.status === 'error';
+    return true;
+  });
+});
+
+const filteredPrivateRequests = computed(() => {
+  return privateRequests.value.filter((r) => {
+    if (selectedSubFilter.value === 'Active') return r.status === 'downloading' || r.status === 'queued';
+    if (selectedSubFilter.value === 'Completed') return r.status === 'seeding' || r.status === 'done';
+    if (selectedSubFilter.value === 'Failed') return r.status === 'error';
+    return true;
+  });
+});
 
 const replaceTarget = ref<DownloadRequest | null>(null);
 const diskInfo = ref<DiskInfo | null>(null);
