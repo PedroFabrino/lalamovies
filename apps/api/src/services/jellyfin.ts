@@ -1,3 +1,5 @@
+import { isMediaFullyConsumed, PlayHistoryEntry } from '../utils/playbackConsumption';
+
 export interface JellyfinAuthResult {
   accessToken: string;
   userId: string;
@@ -26,7 +28,7 @@ export interface IJellyfinService {
   refreshLibrary?(): Promise<void>;
   safeRefresh(): Promise<void>;
   getPublicJellyfinUrl(): string | undefined;
-  getPlayHistory?(userId?: string): Promise<Record<string, string>>;
+  getPlayHistory?(userId?: string): Promise<Record<string, string | PlayHistoryEntry>>;
   ensureStreamLibrary?(): Promise<string>;
   checkStatus?(): Promise<{ reachable: boolean; authenticated: boolean; error?: string; serverName?: string; version?: string }>;
   discoverPrivateLibraryId?(): Promise<string | null>;
@@ -246,10 +248,10 @@ export class JellyfinService implements IJellyfinService {
     }
   }
 
-  async getPlayHistory(userId?: string): Promise<Record<string, string>> {
+  async getPlayHistory(userId?: string): Promise<Record<string, PlayHistoryEntry>> {
     const url = userId
-      ? `${this.baseUrl}/Users/${userId}/Items?Recursive=true&Fields=UserData,Path`
-      : `${this.baseUrl}/Items?Recursive=true&Fields=UserData,Path`;
+      ? `${this.baseUrl}/Users/${userId}/Items?Recursive=true&Fields=UserData,Path,RunTimeTicks`
+      : `${this.baseUrl}/Items?Recursive=true&Fields=UserData,Path,RunTimeTicks`;
 
     try {
       const response = await fetch(url, {
@@ -264,18 +266,33 @@ export class JellyfinService implements IJellyfinService {
       const data = (await response.json()) as {
         Items?: Array<{
           Path?: string;
+          RunTimeTicks?: number;
           UserData?: {
             LastPlayedDate?: string;
             Played?: boolean;
+            PlaybackPositionTicks?: number;
           };
         }>;
       };
 
-      const history: Record<string, string> = {};
+      const history: Record<string, PlayHistoryEntry> = {};
       if (data.Items && Array.isArray(data.Items)) {
         for (const item of data.Items) {
-          if (item.Path && (item.UserData?.LastPlayedDate || item.UserData?.Played)) {
-            history[item.Path] = item.UserData.LastPlayedDate || '1970-01-01T00:00:00.000Z';
+          if (
+            item.Path &&
+            (item.UserData?.LastPlayedDate ||
+              item.UserData?.Played ||
+              typeof item.UserData?.PlaybackPositionTicks === 'number')
+          ) {
+            const isFullyConsumed = isMediaFullyConsumed({
+              played: item.UserData?.Played,
+              playbackPositionTicks: item.UserData?.PlaybackPositionTicks,
+              runTimeTicks: item.RunTimeTicks,
+            });
+            history[item.Path] = {
+              lastPlayedDate: item.UserData?.LastPlayedDate || '1970-01-01T00:00:00.000Z',
+              isFullyConsumed,
+            };
           }
         }
       }

@@ -10,6 +10,7 @@ import { IFileSystemService, FileSystemService } from './fileSystem';
 import { IRequestStateMachine, RequestStatus } from './requestStateMachine';
 import { IEpisodesRepository, EpisodesRepository } from './episodesRepository';
 import { IEpisodicPruningService, EpisodicPruningService, PruneEpisodeResult } from './episodicPruningService';
+import { parsePlayHistoryEntry, PlayHistoryEntry } from '../utils/playbackConsumption';
 
 export interface SpaceCheckResult {
   sufficient: boolean;
@@ -266,7 +267,7 @@ export class CleanupService implements ICleanupService {
       }
 
       // 1. Fetch server-wide play history and merge all known users' play histories
-      let globalHistory: Record<string, string> = {};
+      let globalHistory: Record<string, string | PlayHistoryEntry> = {};
       try {
         globalHistory = { ...((await this.jellyfin.getPlayHistory()) || {}) };
       } catch {
@@ -286,7 +287,7 @@ export class CleanupService implements ICleanupService {
       const allUsers = this.db.select().from(users).all();
       const userMap = new Map(allUsers.map((u) => [u.id, u]));
 
-      type UserHistoryResult = { accountExists: boolean; history: Record<string, string> };
+      type UserHistoryResult = { accountExists: boolean; history: Record<string, string | PlayHistoryEntry> };
       const requesterHistoryCache = new Map<string, UserHistoryResult>();
 
       for (const u of allUsers) {
@@ -300,9 +301,13 @@ export class CleanupService implements ICleanupService {
               history: userHistory || {},
             });
             // Merge into globalHistory to maintain canonical lastPlayedAt across all viewers
-            for (const [itemPath, playedDate] of Object.entries(userHistory || {})) {
-              if (!globalHistory[itemPath] || new Date(playedDate) > new Date(globalHistory[itemPath])) {
-                globalHistory[itemPath] = playedDate;
+            for (const [itemPath, rawEntry] of Object.entries(userHistory || {})) {
+              const entry = parsePlayHistoryEntry(rawEntry);
+              if (!entry) continue;
+              const playedDate = entry.lastPlayedDate;
+              const existing = parsePlayHistoryEntry(globalHistory[itemPath]);
+              if (!existing || new Date(playedDate) > new Date(existing.lastPlayedDate)) {
+                globalHistory[itemPath] = rawEntry;
               }
             }
           } catch (err: unknown) {
@@ -326,8 +331,10 @@ export class CleanupService implements ICleanupService {
           let latestPlayedOnAnyEp: string | null = null;
           for (const ep of episodes) {
             let epLatest = ep.lastPlayedAt || null;
-            for (const [itemPath, playedDate] of Object.entries(globalHistory)) {
+            for (const [itemPath, rawEntry] of Object.entries(globalHistory)) {
               if (matchesLibraryPath(itemPath, ep.jellyfinPath)) {
+                const entry = parsePlayHistoryEntry(rawEntry);
+                const playedDate = entry?.lastPlayedDate;
                 const validDate = playedDate && !isNaN(new Date(playedDate).getTime())
                   ? playedDate
                   : '1970-01-01T00:00:00.000Z';
@@ -353,8 +360,10 @@ export class CleanupService implements ICleanupService {
 
         let latestPlayed = req.lastPlayedAt || null;
 
-        for (const [itemPath, playedDate] of Object.entries(globalHistory)) {
+        for (const [itemPath, rawEntry] of Object.entries(globalHistory)) {
           if (matchesLibraryPath(itemPath, req.jellyfinPath)) {
+            const entry = parsePlayHistoryEntry(rawEntry);
+            const playedDate = entry?.lastPlayedDate;
             const validDate = playedDate && !isNaN(new Date(playedDate).getTime())
               ? playedDate
               : '1970-01-01T00:00:00.000Z';
@@ -402,9 +411,13 @@ export class CleanupService implements ICleanupService {
               }
 
               let requesterWatchedEp = false;
-              for (const [itemPath, playedDate] of Object.entries(userRes.history)) {
+              for (const [itemPath, rawEntry] of Object.entries(userRes.history)) {
                 if (matchesLibraryPath(itemPath, ep.jellyfinPath)) {
-                  requesterWatchedEp = true;
+                  const entry = parsePlayHistoryEntry(rawEntry);
+                  if (entry?.isFullyConsumed) {
+                    requesterWatchedEp = true;
+                  }
+                  const playedDate = entry?.lastPlayedDate;
                   const validDate = playedDate && !isNaN(new Date(playedDate).getTime())
                     ? playedDate
                     : '1970-01-01T00:00:00.000Z';
@@ -456,9 +469,13 @@ export class CleanupService implements ICleanupService {
           }
 
           let requesterWatched = false;
-          for (const [itemPath, playedDate] of Object.entries(userRes.history)) {
+          for (const [itemPath, rawEntry] of Object.entries(userRes.history)) {
             if (matchesLibraryPath(itemPath, req.jellyfinPath)) {
-              requesterWatched = true;
+              const entry = parsePlayHistoryEntry(rawEntry);
+              if (entry?.isFullyConsumed) {
+                requesterWatched = true;
+              }
+              const playedDate = entry?.lastPlayedDate;
               const validDate = playedDate && !isNaN(new Date(playedDate).getTime())
                 ? playedDate
                 : '1970-01-01T00:00:00.000Z';

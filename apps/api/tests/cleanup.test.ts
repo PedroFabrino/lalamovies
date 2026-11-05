@@ -150,7 +150,8 @@ describe('CleanupService, Notifiers & Cron (Ticket 09)', () => {
       const service = new JellyfinService('http://localhost:8096', 'mock_api_key');
       const history = await service.getPlayHistory();
 
-      expect(history['/media/movies/Inception.mkv']).toBe('2026-09-01T12:00:00.000Z');
+      expect(history['/media/movies/Inception.mkv'].lastPlayedDate).toBe('2026-09-01T12:00:00.000Z');
+      expect(history['/media/movies/Inception.mkv'].isFullyConsumed).toBe(true);
       expect(history['/media/movies/Unplayed.mkv']).toBeUndefined();
 
       fetchSpy.mockRestore();

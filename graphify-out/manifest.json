@@ -258,9 +258,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/cleanup.ts": {
-    "mtime": 1791578510.4206588,
-    "seen": 1791578655.667917,
-    "ast_hash": "71d98843e492d5c768f9000918f19968",
+    "mtime": 1793858869.3050148,
+    "seen": 1793859144.2054377,
+    "ast_hash": "e4bbc922a20c1df1ea8dcf9e4a28aa52",
     "semantic_hash": ""
   },
   "apps/api/src/services/discovery.ts": {
@@ -276,9 +276,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/jellyfin.ts": {
-    "mtime": 1791324823.1398005,
-    "seen": 1791324976.3049424,
-    "ast_hash": "42b49cc7d9a9dad2b201458d8500f721",
+    "mtime": 1793858795.3612561,
+    "seen": 1793859144.20796,
+    "ast_hash": "902498c07e129428e63214b7cbf68f39",
     "semantic_hash": ""
   },
   "apps/api/src/services/metadata.ts": {
@@ -366,9 +366,9 @@
     "semantic_hash": ""
   },
   "apps/api/tests/cleanup.test.ts": {
-    "mtime": 1789957606.7698977,
-    "seen": 1789958026.7291968,
-    "ast_hash": "0b1c1798c5fda3113708638823338d51",
+    "mtime": 1793858894.2748997,
+    "seen": 1793859144.354935,
+    "ast_hash": "8be67eda56aa446762bd0c835e4adcce",
     "semantic_hash": ""
   },
   "apps/api/tests/db.test.ts": {
@@ -3735,6 +3735,36 @@
     "mtime": 1793591339.632877,
     "seen": 1793591530.6961234,
     "ast_hash": "171d5b394212c196c5108bda1db71bcc",
+    "semantic_hash": ""
+  },
+  "apps/api/src/utils/playbackConsumption.ts": {
+    "mtime": 1793859014.1165466,
+    "seen": 1793859144.3354478,
+    "ast_hash": "f4858a0a26410c1a75dd48b38259d976",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/cleanupConsumptionThreshold.test.ts": {
+    "mtime": 1793858917.0539799,
+    "seen": 1793859144.354935,
+    "ast_hash": "8d7cd48d69afab68742678e4e021d7c0",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/jellyfinConsumption.test.ts": {
+    "mtime": 1793859025.814714,
+    "seen": 1793859144.3784003,
+    "ast_hash": "3f6034acb202d3815e3142cd1ff9c857",
+    "semantic_hash": ""
+  },
+  "apps/api/tests/playbackConsumption.test.ts": {
+    "mtime": 1793859019.7385044,
+    "seen": 1793859144.3900027,
+    "ast_hash": "83b6a312f42fcb917d16dbec46c76768",
+    "semantic_hash": ""
+  },
+  "docs/spec/playback-consumption-threshold.md": {
+    "mtime": 1793858686.4144237,
+    "seen": 1793859144.6927726,
+    "ast_hash": "5a6039eb32f55cf905665514e085e324",
     "semantic_hash": ""
   }
 }
