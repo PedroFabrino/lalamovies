@@ -28,7 +28,7 @@ export interface IJellyfinService {
   refreshLibrary?(): Promise<void>;
   safeRefresh(): Promise<void>;
   getPublicJellyfinUrl(): string | undefined;
-  getPlayHistory?(userId?: string): Promise<Record<string, string | PlayHistoryEntry>>;
+  getPlayHistory?(userId?: string, threshold?: number): Promise<Record<string, string | PlayHistoryEntry>>;
   ensureStreamLibrary?(): Promise<string>;
   checkStatus?(): Promise<{ reachable: boolean; authenticated: boolean; error?: string; serverName?: string; version?: string }>;
   discoverPrivateLibraryId?(): Promise<string | null>;
@@ -248,7 +248,7 @@ export class JellyfinService implements IJellyfinService {
     }
   }
 
-  async getPlayHistory(userId?: string): Promise<Record<string, PlayHistoryEntry>> {
+  async getPlayHistory(userId?: string, threshold?: number): Promise<Record<string, PlayHistoryEntry>> {
     const url = userId
       ? `${this.baseUrl}/Users/${userId}/Items?Recursive=true&Fields=UserData,Path,RunTimeTicks`
       : `${this.baseUrl}/Items?Recursive=true&Fields=UserData,Path,RunTimeTicks`;
@@ -284,11 +284,14 @@ export class JellyfinService implements IJellyfinService {
               item.UserData?.Played ||
               typeof item.UserData?.PlaybackPositionTicks === 'number')
           ) {
-            const isFullyConsumed = isMediaFullyConsumed({
-              played: item.UserData?.Played,
-              playbackPositionTicks: item.UserData?.PlaybackPositionTicks,
-              runTimeTicks: item.RunTimeTicks,
-            });
+            const isFullyConsumed = isMediaFullyConsumed(
+              {
+                played: item.UserData?.Played,
+                playbackPositionTicks: item.UserData?.PlaybackPositionTicks,
+                runTimeTicks: item.RunTimeTicks,
+              },
+              threshold
+            );
             history[item.Path] = {
               lastPlayedDate: item.UserData?.LastPlayedDate || '1970-01-01T00:00:00.000Z',
               isFullyConsumed,

@@ -12,6 +12,7 @@ export function useAdminConfig(onConfigSaved?: () => Promise<void>) {
     concurrent_limit: 2,
     disk_warn_threshold: 20,
     disk_reject_threshold: 15,
+    media_consumption_threshold: 90,
     discord_webhook_url: '',
     tmdb_api_key: '',
     anime_include_adult: false,
@@ -81,6 +82,7 @@ export function useAdminConfig(onConfigSaved?: () => Promise<void>) {
       if (c.concurrent_limit) configForm.concurrent_limit = parseInt(c.concurrent_limit, 10);
       if (c.disk_warn_threshold) configForm.disk_warn_threshold = parseInt(c.disk_warn_threshold, 10);
       if (c.disk_reject_threshold) configForm.disk_reject_threshold = parseInt(c.disk_reject_threshold, 10);
+      if (c.media_consumption_threshold) configForm.media_consumption_threshold = parseInt(c.media_consumption_threshold, 10);
       if (c.discord_webhook_url) configForm.discord_webhook_url = c.discord_webhook_url;
       if (c.tmdb_api_key) configForm.tmdb_api_key = c.tmdb_api_key;
       if (c.anime_include_adult !== undefined) configForm.anime_include_adult = c.anime_include_adult === 'true';

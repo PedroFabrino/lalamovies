@@ -57,7 +57,7 @@
         class="space-y-6"
         @submit.prevent="$emit('saveConfig')"
       >
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <div>
             <label
               for="storage_quota_gb"
@@ -138,6 +138,27 @@
             >
             <p class="text-[11px] text-zinc-500 mt-1">
               Rejects new requests
+            </p>
+          </div>
+
+          <div>
+            <label
+              for="media_consumption_threshold"
+              class="block text-xs font-medium text-zinc-300 mb-1.5"
+            >
+              Consumption Threshold (%)
+            </label>
+            <input
+              id="media_consumption_threshold"
+              v-model.number="configForm.media_consumption_threshold"
+              type="number"
+              min="1"
+              max="100"
+              required
+              class="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+            <p class="text-[11px] text-zinc-500 mt-1">
+              Playback % for full consumption
             </p>
           </div>
         </div>
@@ -277,6 +298,7 @@ export interface ConfigFormData {
   concurrent_limit: number;
   disk_warn_threshold: number;
   disk_reject_threshold: number;
+  media_consumption_threshold: number;
   discord_webhook_url: string;
   tmdb_api_key: string;
   anime_include_adult?: boolean;

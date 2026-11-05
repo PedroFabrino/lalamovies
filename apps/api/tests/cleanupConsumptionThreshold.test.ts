@@ -6,18 +6,20 @@ import { initDatabase, AppDatabase, users, downloadRequests } from '../src/db';
 import { CleanupService } from '../src/services/cleanup';
 import { EpisodesRepository } from '../src/services/episodesRepository';
 import { RequestsRepository } from '../src/services/requestsRepository';
+import { INotificationService } from '../src/services/notifications';
 import { MockQBittorrent } from './fixtures/mockQBittorrent';
 import { MockJellyfin } from './fixtures/mockJellyfin';
+import { PlayHistoryEntry } from '../src/utils/playbackConsumption';
 
-class MockNotifications {
+class MockNotifications implements INotificationService {
   async send(): Promise<void> {}
 }
 
 describe('90% Playback Consumption Threshold in CleanupService', () => {
-  let dbInstance: { db: AppDatabase; sqlite: any };
+  let dbInstance: { db: AppDatabase; sqlite: { close: () => void } };
   let mockQb: MockQBittorrent;
   let mockJf: MockJellyfin;
-  let mockNotifications: MockNotifications;
+  let mockNotifications: INotificationService;
   let tempDir: string;
   let userId: string;
 
@@ -41,7 +43,9 @@ describe('90% Playback Consumption Threshold in CleanupService', () => {
   afterEach(() => {
     try {
       fs.rmSync(tempDir, { recursive: true, force: true });
-    } catch {}
+    } catch {
+      // ignore cleanup error
+    }
     dbInstance.sqlite.close();
   });
 
@@ -73,7 +77,7 @@ describe('90% Playback Consumption Threshold in CleanupService', () => {
         [movieFile]: {
           lastPlayedDate: '2026-09-15T20:00:00.000Z',
           isFullyConsumed: false,
-        } as any,
+        } as unknown as string,
       },
     };
 
@@ -81,7 +85,7 @@ describe('90% Playback Consumption Threshold in CleanupService', () => {
       dbInstance.db,
       mockQb,
       mockJf,
-      mockNotifications as any,
+      mockNotifications,
       tempDir
     );
 
@@ -122,7 +126,7 @@ describe('90% Playback Consumption Threshold in CleanupService', () => {
         [movieFile]: {
           lastPlayedDate: '2026-09-20T21:30:00.000Z',
           isFullyConsumed: true,
-        } as any,
+        } as unknown as string,
       },
     };
 
@@ -130,7 +134,7 @@ describe('90% Playback Consumption Threshold in CleanupService', () => {
       dbInstance.db,
       mockQb,
       mockJf,
-      mockNotifications as any,
+      mockNotifications,
       tempDir
     );
 
@@ -168,7 +172,7 @@ describe('90% Playback Consumption Threshold in CleanupService', () => {
     const episodesRepo = new EpisodesRepository(dbInstance.db);
     const requestsRepo = new RequestsRepository(dbInstance.db);
 
-    const ep1 = episodesRepo.create({
+    episodesRepo.create({
       requestId: 'req_show',
       seasonNumber: 1,
       episodeNumber: 1,
@@ -178,7 +182,7 @@ describe('90% Playback Consumption Threshold in CleanupService', () => {
       sizeBytes: 1024 * 1024 * 1024,
     });
 
-    const ep2 = episodesRepo.create({
+    episodesRepo.create({
       requestId: 'req_show',
       seasonNumber: 1,
       episodeNumber: 2,
@@ -194,11 +198,11 @@ describe('90% Playback Consumption Threshold in CleanupService', () => {
         [ep1File]: {
           lastPlayedDate: '2026-09-10T10:00:00.000Z',
           isFullyConsumed: true,
-        } as any,
+        } as unknown as string,
         [ep2File]: {
           lastPlayedDate: '2026-09-11T11:00:00.000Z',
           isFullyConsumed: false,
-        } as any,
+        } as unknown as string,
       },
     };
 
@@ -208,7 +212,7 @@ describe('90% Playback Consumption Threshold in CleanupService', () => {
       episodesRepo,
       qbittorrent: mockQb,
       jellyfin: mockJf,
-      notificationService: mockNotifications as any,
+      notificationService: mockNotifications,
       mediaPath: tempDir,
     });
 
@@ -221,12 +225,56 @@ describe('90% Playback Consumption Threshold in CleanupService', () => {
     mockJf.userPlayHistories.jf_viewer[ep2File] = {
       lastPlayedDate: '2026-09-12T12:00:00.000Z',
       isFullyConsumed: true,
-    } as any;
+    } as unknown as string;
 
     candidates = await cleanup.getCandidates!();
     expect(candidates).toHaveLength(1);
     // Now both episodes are finished -> Whole request is fully consumed
     expect(candidates[0].isFullyConsumed).toBe(true);
     expect(candidates[0].lastPlayedAt).toBe('2026-09-12T12:00:00.000Z');
+  });
+
+  it('reads media_consumption_threshold from system_config and forwards it to JellyfinService', async () => {
+    const { systemConfig } = await import('../src/db');
+    // Set consumption threshold to 75%
+    dbInstance.db.insert(systemConfig).values({
+      key: 'media_consumption_threshold',
+      value: '75',
+    }).run();
+
+    // Insert a seeding request so refreshPlayHistory executes
+    dbInstance.db.insert(downloadRequests).values({
+      id: 'req_threshold_check',
+      userId,
+      magnetLink: 'magnet:check',
+      mediaType: 'movie',
+      status: 'seeding',
+      metadataId: '701',
+      metadataSource: 'tmdb',
+      title: 'Threshold Check Movie',
+      jellyfinPath: path.join(tempDir, 'movie.mkv'),
+      requestedAt: '2026-08-01T00:00:00Z',
+    }).run();
+
+    let capturedThreshold: number | undefined;
+    mockJf.getPlayHistory = async (
+      _userId?: string,
+      threshold?: number
+    ): Promise<Record<string, string | PlayHistoryEntry>> => {
+      capturedThreshold = threshold;
+      return {};
+    };
+
+    const cleanup = new CleanupService(
+      dbInstance.db,
+      mockQb,
+      mockJf,
+      mockNotifications,
+      tempDir
+    );
+
+    await cleanup.getCandidates!();
+    // 75% was parsed and passed as 0.75
+    expect(capturedThreshold).toBe(0.75);
   });
 });

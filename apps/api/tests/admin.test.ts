@@ -356,6 +356,34 @@ describe('Admin REST Endpoints (Ticket 10)', () => {
         payload: { disk_reject_threshold: 150 },
       });
       expect(res3.statusCode).toBe(400);
+
+      // media_consumption_threshold invalid
+      const res4 = await app.inject({
+        method: 'PUT',
+        url: '/admin/config',
+        cookies: { token: adminCookie },
+        payload: { media_consumption_threshold: 0 },
+      });
+      expect(res4.statusCode).toBe(400);
+
+      const res5 = await app.inject({
+        method: 'PUT',
+        url: '/admin/config',
+        cookies: { token: adminCookie },
+        payload: { media_consumption_threshold: 105 },
+      });
+      expect(res5.statusCode).toBe(400);
+
+      // valid media_consumption_threshold
+      const resValid = await app.inject({
+        method: 'PUT',
+        url: '/admin/config',
+        cookies: { token: adminCookie },
+        payload: { media_consumption_threshold: 85 },
+      });
+      expect(resValid.statusCode).toBe(200);
+      const bodyValid = JSON.parse(resValid.payload);
+      expect(bodyValid.config.media_consumption_threshold).toBe('85');
     });
   });
 

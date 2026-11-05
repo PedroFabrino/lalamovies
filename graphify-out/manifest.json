@@ -258,9 +258,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/cleanup.ts": {
-    "mtime": 1793858869.3050148,
-    "seen": 1793859144.2054377,
-    "ast_hash": "e4bbc922a20c1df1ea8dcf9e4a28aa52",
+    "mtime": 1793861327.900462,
+    "seen": 1793861804.802791,
+    "ast_hash": "b4e0fcc92bd44b98d65f00d49a108bf4",
     "semantic_hash": ""
   },
   "apps/api/src/services/discovery.ts": {
@@ -276,9 +276,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/jellyfin.ts": {
-    "mtime": 1793858795.3612561,
-    "seen": 1793859144.20796,
-    "ast_hash": "902498c07e129428e63214b7cbf68f39",
+    "mtime": 1793861273.1999042,
+    "seen": 1793861804.8056276,
+    "ast_hash": "34eb8c49a3ae26d382578d140cf4f5ea",
     "semantic_hash": ""
   },
   "apps/api/src/services/metadata.ts": {
@@ -348,9 +348,9 @@
     "semantic_hash": ""
   },
   "apps/api/tests/admin.test.ts": {
-    "mtime": 1789954111.764271,
-    "seen": 1789956580.615113,
-    "ast_hash": "9b0b226ff6d06d1f38921e5b0494d15d",
+    "mtime": 1793861496.831668,
+    "seen": 1793861804.8218956,
+    "ast_hash": "fcc376b1d5c1e5ef9d86ad2532d14637",
     "semantic_hash": ""
   },
   "apps/api/tests/auth.test.ts": {
@@ -1776,9 +1776,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/admin/AdminConfigTab.vue": {
-    "mtime": 1792292505.415521,
-    "seen": 1792292806.033001,
-    "ast_hash": "60a4d3a0bbb997429a65f876bb6e0264",
+    "mtime": 1793861401.461806,
+    "seen": 1793861804.888152,
+    "ast_hash": "5cd78c703c2bbdb92972908bbe80a12c",
     "semantic_hash": ""
   },
   "apps/web/src/components/admin/AdminFeaturesTab.vue": {
@@ -2520,9 +2520,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/routes/admin/config.ts": {
-    "mtime": 1790365247.0691903,
-    "seen": 1790366067.1881125,
-    "ast_hash": "d2f8911fce35f5e6d76f82ddae0d8dc9",
+    "mtime": 1793861234.4505868,
+    "seen": 1793861804.7893062,
+    "ast_hash": "a79844a89a83d8b38906ddccf0bb7f45",
     "semantic_hash": ""
   },
   "apps/api/src/routes/admin/features.ts": {
@@ -2592,9 +2592,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/composables/useAdminConfig.ts": {
-    "mtime": 1790365638.8000555,
-    "seen": 1790366067.2666943,
-    "ast_hash": "606e4fc342f8a98a12e7f056de050260",
+    "mtime": 1793861443.8325746,
+    "seen": 1793861804.9140186,
+    "ast_hash": "b6c43989493b46824359e10455517031",
     "semantic_hash": ""
   },
   "apps/web/tests/UserInviteModal.test.ts": {
@@ -3744,9 +3744,9 @@
     "semantic_hash": ""
   },
   "apps/api/tests/cleanupConsumptionThreshold.test.ts": {
-    "mtime": 1793858917.0539799,
-    "seen": 1793859144.354935,
-    "ast_hash": "8d7cd48d69afab68742678e4e021d7c0",
+    "mtime": 1793861721.0315094,
+    "seen": 1793861804.8234146,
+    "ast_hash": "92e914eb73fbe7d083c8f94547c21104",
     "semantic_hash": ""
   },
   "apps/api/tests/jellyfinConsumption.test.ts": {
@@ -3765,6 +3765,18 @@
     "mtime": 1793858686.4144237,
     "seen": 1793859144.6927726,
     "ast_hash": "5a6039eb32f55cf905665514e085e324",
+    "semantic_hash": ""
+  },
+  "apps/web/tests/AdminConfigTab.test.ts": {
+    "mtime": 1793861526.0964875,
+    "seen": 1793861804.9373412,
+    "ast_hash": "92a71b6af8aa6798a4f3580438afc592",
+    "semantic_hash": ""
+  },
+  "docs/spec/configurable-media-consumption-threshold.md": {
+    "mtime": 1793861150.0474591,
+    "seen": 1793861804.9820719,
+    "ast_hash": "fb43f55721a1d0851da34324ae55bdab",
     "semantic_hash": ""
   }
 }

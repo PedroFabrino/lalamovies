@@ -37,7 +37,7 @@ export const adminConfigRoutes: FastifyPluginAsync = async (app) => {
             message: `${key} must be a positive integer >= 1`,
           });
         }
-      } else if (key === 'disk_warn_threshold' || key === 'disk_reject_threshold') {
+      } else if (key === 'disk_warn_threshold' || key === 'disk_reject_threshold' || key === 'media_consumption_threshold') {
         const num = Number(val);
         if (!Number.isInteger(num) || num <= 0 || num > 100) {
           return reply.status(400).send({

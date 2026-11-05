@@ -267,9 +267,18 @@ export class CleanupService implements ICleanupService {
       }
 
       // 1. Fetch server-wide play history and merge all known users' play histories
+      const thresholdRow = this.db
+        .select()
+        .from(systemConfig)
+        .where(eq(systemConfig.key, 'media_consumption_threshold'))
+        .get();
+      const parsedPct = thresholdRow ? parseInt(thresholdRow.value, 10) : 90;
+      const consumptionThreshold =
+        (isNaN(parsedPct) || parsedPct < 1 || parsedPct > 100 ? 90 : parsedPct) / 100;
+
       let globalHistory: Record<string, string | PlayHistoryEntry> = {};
       try {
-        globalHistory = { ...((await this.jellyfin.getPlayHistory()) || {}) };
+        globalHistory = { ...((await this.jellyfin.getPlayHistory(undefined, consumptionThreshold)) || {}) };
       } catch {
         // Continue if server-wide history call fails
       }
@@ -295,7 +304,7 @@ export class CleanupService implements ICleanupService {
         const jfUid = u.jellyfinUserId;
         if (!requesterHistoryCache.has(jfUid)) {
           try {
-            const userHistory = await this.jellyfin.getPlayHistory(jfUid);
+            const userHistory = await this.jellyfin.getPlayHistory(jfUid, consumptionThreshold);
             requesterHistoryCache.set(jfUid, {
               accountExists: true,
               history: userHistory || {},
