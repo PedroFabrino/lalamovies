@@ -22,6 +22,9 @@ export function isTitleRelevant(
   const norm = (s: string) =>
     s
       .toLowerCase()
+      // Normalize vulgar fractions / slashes so "Ranma 1/2" matches "Ranma 1-2" / "Ranma½"
+      .replace(/½/g, ' 1 2 ')
+      .replace(/\//g, ' ')
       .replace(/[._\-–—[\](){}:;!?'"]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
@@ -92,11 +95,11 @@ export function parseReleaseTitle(title: string): { resolution: Resolution; code
     resolution = '480p';
   }
 
-  // 2. Video Codec
+  // 2. Video Codec (accept dotted forms like H.264 / H.265 used by scene/BJ-Share titles)
   let codec: VideoCodec = 'unknown';
-  if (/\b(x265|h265|hevc)\b/i.test(lower)) {
+  if (/\b(x265|h\.?265|hevc)\b/i.test(lower)) {
     codec = 'x265';
-  } else if (/\b(x264|h264|avc)\b/i.test(lower)) {
+  } else if (/\b(x264|h\.?264|avc)\b/i.test(lower)) {
     codec = 'x264';
   } else if (/\b(av1)\b/i.test(lower)) {
     codec = 'av1';

@@ -59,9 +59,9 @@ export function parseReleaseTitle(title: string): { resolution: Resolution; code
   }
 
   let codec: VideoCodec = 'unknown';
-  if (/\b(x265|h265|hevc)\b/i.test(lower)) {
+  if (/\b(x265|h\.?265|hevc)\b/i.test(lower)) {
     codec = 'x265';
-  } else if (/\b(x264|h264|avc)\b/i.test(lower)) {
+  } else if (/\b(x264|h\.?264|avc)\b/i.test(lower)) {
     codec = 'x264';
   } else if (/\b(av1)\b/i.test(lower)) {
     codec = 'av1';

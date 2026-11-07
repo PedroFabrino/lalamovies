@@ -58,18 +58,18 @@ describe('preferredIndexer utility (apps/watcher)', () => {
       delete process.env.PREFERRED_INDEXER_MIN_SEEDERS;
     });
 
-    it('returns true when indexer is preferred, seeders >= 3, not CAM (default threshold)', () => {
+    it('returns true when indexer is preferred, seeders >= 1, not CAM (default threshold)', () => {
       expect(isQualifiedPreferred({
         indexer: 'BJ-Share',
-        seeders: 3,
+        seeders: 1,
         source: 'bluray',
       })).toBe(true);
     });
 
-    it('returns false when seeders < default threshold (3)', () => {
+    it('returns false when seeders < default threshold (1)', () => {
       expect(isQualifiedPreferred({
         indexer: 'BJ-Share',
-        seeders: 2,
+        seeders: 0,
         source: 'bluray',
       })).toBe(false);
     });

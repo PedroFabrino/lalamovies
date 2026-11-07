@@ -19,9 +19,9 @@ export interface PreferredCandidateLike {
 
 export function getPreferredIndexerMinSeeders(): number {
   const raw = process.env.PREFERRED_INDEXER_MIN_SEEDERS;
-  if (!raw) return 3;
+  if (!raw) return 1;
   const parsed = parseInt(raw, 10);
-  return isNaN(parsed) || parsed < 0 ? 3 : parsed;
+  return isNaN(parsed) || parsed < 0 ? 1 : parsed;
 }
 
 export function isQualifiedPreferred(candidate: PreferredCandidateLike): boolean {

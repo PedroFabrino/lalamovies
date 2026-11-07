@@ -16,6 +16,21 @@ export function hasCjkCharacters(s?: string | null): boolean {
   return Boolean(s && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]/.test(s));
 }
 
+/** Expand slash/vulgar-fraction titles so "Ranma 1/2" also searches "Ranma 1-2" / "Ranma 1 2". */
+export function expandTitleVariants(title: string): string[] {
+  const trimmed = title.trim();
+  if (!trimmed) return [];
+
+  const variants = [trimmed];
+  if (trimmed.includes('½')) {
+    variants.push(trimmed.replace(/½/g, '1/2'), trimmed.replace(/½/g, '1-2'), trimmed.replace(/½/g, '1 2'));
+  }
+  if (trimmed.includes('/')) {
+    variants.push(trimmed.replace(/\//g, '-'), trimmed.replace(/\//g, ' '), trimmed.replace(/\//g, '.'));
+  }
+  return variants;
+}
+
 export function buildSeriesSearchQueries(options: SeriesQueryOptions): SeriesQueryParam[] {
   const categories = [5000, 5070, 2070];
   const queries: SeriesQueryParam[] = [];
@@ -46,10 +61,12 @@ export function buildSeriesSearchQueries(options: SeriesQueryOptions): SeriesQue
   const titles: string[] = [];
   const seenTitles = new Set<string>();
   for (const t of prioritized) {
-    const norm = t.trim();
-    if (!seenTitles.has(norm.toLowerCase())) {
-      seenTitles.add(norm.toLowerCase());
-      titles.push(norm);
+    for (const variant of expandTitleVariants(t)) {
+      const norm = variant.trim();
+      if (!seenTitles.has(norm.toLowerCase())) {
+        seenTitles.add(norm.toLowerCase());
+        titles.push(norm);
+      }
     }
   }
 

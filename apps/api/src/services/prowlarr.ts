@@ -147,9 +147,18 @@ export class ProwlarrService implements IProwlarrService {
           'X-Api-Key': this.apiKey,
           Accept: 'application/json',
         },
+        // Aggregated indexer search can exceed the web client's default 30s when a tracker stalls.
+        signal: AbortSignal.timeout(45_000),
       });
-    } catch {
-      return { candidates: [], isReachable: false, error: `Unable to connect to Prowlarr at ${this.prowlarrUrl}` };
+    } catch (err) {
+      const timedOut = err instanceof Error && (err.name === 'TimeoutError' || /aborted|timeout/i.test(err.message));
+      return {
+        candidates: [],
+        isReachable: !timedOut,
+        error: timedOut
+          ? `Prowlarr search timed out for query "${query}"`
+          : `Unable to connect to Prowlarr at ${this.prowlarrUrl}`,
+      };
     }
 
     if (!response.ok) {
@@ -353,7 +362,7 @@ export class ProwlarrService implements IProwlarrService {
     candidates.sort((a, b) => b.score - a.score);
 
     // Recommended release selection:
-    // 1. Qualified preferred release (seeders >= 3, non-CAM) with positive score
+    // 1. Qualified preferred release (seeders >= PREFERRED_INDEXER_MIN_SEEDERS, non-CAM) with positive score
     // 2. Fallback: healthy public release (seeders >= 5) with positive score
     const recommended =
       candidates.find((c) => isQualifiedPreferred(c) && c.score > 0) ||

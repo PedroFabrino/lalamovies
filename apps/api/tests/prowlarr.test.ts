@@ -68,6 +68,11 @@ describe('Prowlarr Service - Unit Tests', () => {
       expect(parsed.source).toBe('bluray');
     });
 
+    it('recognizes dotted H.264 / H.265 codec tokens used by scene and BJ-Share titles', () => {
+      expect(service.parseReleaseTitle('Show.S01.1080p.WEB-DL.DDP2.0.H.264-GROUP').codec).toBe('x264');
+      expect(service.parseReleaseTitle('Show.S01.1080p.WEB-DL.H.265-GROUP').codec).toBe('x265');
+    });
+
     it('extracts 2160p / 4k, x265, and web correctly', () => {
       const parsed = service.parseReleaseTitle('Dune.Part.Two.2024.2160p.4K.WEB-DL.x265.DDP5.1');
       expect(parsed.resolution).toBe('2160p');
@@ -1323,7 +1328,7 @@ describe('POST /requests/search-releases - Route Tests', () => {
       expect(result.hasHealthyReleases).toBe(true);
     });
 
-    it('preferred release with < 3 seeders does not take recommended slot (falls back to public)', async () => {
+    it('preferred release with 0 seeders does not take recommended slot (falls back to public)', async () => {
       const mockTorrents = [
         {
           guid: 'pub-1',
@@ -1338,7 +1343,7 @@ describe('POST /requests/search-releases - Route Tests', () => {
           guid: 'pref-dead',
           title: 'Movie.2024.1080p.WEB-DL.x264',
           size: 3 * 1024 * 1024 * 1024,
-          seeders: 2, // < 3 seeders
+          seeders: 0, // below default PREFERRED_INDEXER_MIN_SEEDERS (1)
           leechers: 0,
           downloadUrl: 'magnet:?xt=urn:btih:prefdead',
           indexer: 'BJ-Share',

@@ -148,17 +148,23 @@ export function useRequestReleases(options: UseRequestReleasesOptions) {
       isConfigured: boolean;
       isReachable?: boolean;
       hasHealthyReleases?: boolean;
-    }>('/requests/search-releases', {
-      metadataId: candidate.id,
-      metadataSource: candidate.source,
-      mediaType: mediaType.value,
-      title: primaryTitle,
-      year: candidate.year,
-      seasonNumber: effectiveSeason,
-      episodeNumber: effectiveEpisode,
-      romajiTitle: candidate.romajiTitle || null,
-      englishTitle: fallbackTitle || candidate.englishTitle || candidate.title,
-    });
+    }>(
+      '/requests/search-releases',
+      {
+        metadataId: candidate.id,
+        metadataSource: candidate.source,
+        mediaType: mediaType.value,
+        title: primaryTitle,
+        year: candidate.year,
+        seasonNumber: effectiveSeason,
+        episodeNumber: effectiveEpisode,
+        romajiTitle: candidate.romajiTitle || null,
+        englishTitle: fallbackTitle || candidate.englishTitle || candidate.title,
+      },
+      // Prowlarr multi-indexer season searches regularly exceed the default 30s client timeout,
+      // which previously cleared candidates and showed a false "no releases found" state.
+      { signal: AbortSignal.timeout(90_000) }
+    );
 
     const candidates = (data.candidates || []).map((c) => ({
       ...c,

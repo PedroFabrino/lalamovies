@@ -197,12 +197,26 @@ export function extractEpisodeInfo(filename: string): ExtractedEpisodeInfo {
   }
 
   // 5. Delimited standalone episode digits before video specs
-  const delimitedMatch = name.match(/(?:^|[\s._-])(\d{1,3})(?:$|[\s._\-([ ]+(?:1080p|720p|2160p|480p|bdrip|webrip|web-dl|bluray|x264|x265|hevc|aac))/i);
+  // Strip audio channel layouts (AAC.2.0, DDP5.1, 2.0.x265, etc.) so they are not
+  // mistaken for episode numbers — that false positive tanks season-pack scores by -150.
+  const withoutChannels = name
+    .replace(
+      /(?:^|[\s._-])(?:(?:aac|dd[p+]?|e?ac3|dts(?:-?hd)?|truehd|atmos|flac|opus|lpcm|pcm)[\s._-]*)?\d\.\d(?=$|[\s._-])/gi,
+      ' '
+    )
+    .replace(/[\s._-]\d\.\d(?=[\s._-]?(?:x26[45]|h\.?26[45]|hevc|avc|av1))/gi, ' ');
+
+  const delimitedMatch = withoutChannels.match(
+    /(?:^|[\s._-])(\d{1,3})(?:$|[\s._\-([ ]+(?:1080p|720p|2160p|480p|bdrip|webrip|web-dl|bluray|x264|x265|h\.?264|h\.?265|hevc|avc|av1|aac))/i
+  );
   if (delimitedMatch) {
-    return {
-      seasonNumber: detectedSeason,
-      episodeNumber: parseInt(delimitedMatch[1], 10),
-    };
+    const episodeNumber = parseInt(delimitedMatch[1], 10);
+    if (episodeNumber > 0) {
+      return {
+        seasonNumber: detectedSeason,
+        episodeNumber,
+      };
+    }
   }
 
   return {

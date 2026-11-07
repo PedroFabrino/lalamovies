@@ -353,6 +353,18 @@ describe('Torrent Title Cleaning Engine & Metadata Extraction Suite (#14)', () =
       });
     });
 
+    it('does not treat audio channel layouts as episode numbers on season packs', () => {
+      expect(extractEpisodeInfo('Ranma.1.2.2024.S02.MULTi.VFi.1080p.WEBRip.AAC.2.0.x265-TARDiS')).toEqual({
+        seasonNumber: 2,
+      });
+      expect(extractEpisodeInfo('Ranma.1.2.S02.1080p.AMZN.WEB-DL.DDP2.0.H.264.DUAL-OLYMPUS')).toEqual({
+        seasonNumber: 2,
+      });
+      expect(extractEpisodeInfo('Show.Name.S01.1080p.WEB-DL.AAC2.0.H.264-GROUP')).toEqual({
+        seasonNumber: 1,
+      });
+    });
+
     it('handles edge cases safely without crashing', () => {
       expect(extractEpisodeInfo('')).toEqual({});
       expect(extractEpisodeInfo(null as any)).toEqual({});
