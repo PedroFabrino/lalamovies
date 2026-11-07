@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 
@@ -41,10 +42,19 @@ export const subtitlesRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
+    const querySchema = z.object({
+      title: z.string().optional(),
+      query: z.string().optional(),
+    });
+
+    const parsedQuery = querySchema.safeParse(request.query || {});
+    const customTitle = (parsedQuery.success ? (parsedQuery.data.title || parsedQuery.data.query) : undefined)?.trim();
+    const effectiveTitle = customTitle || item.title;
+
     const subtitles = await app.openSubtitles.searchSubtitles({
-      tmdbId: item.metadataSource === 'tmdb' ? item.metadataId : undefined,
-      title: item.title,
-      year: item.year,
+      tmdbId: customTitle ? undefined : (item.metadataSource === 'tmdb' ? item.metadataId : undefined),
+      title: effectiveTitle,
+      year: customTitle ? undefined : item.year,
       seasonNumber: item.seasonNumber,
       episodeNumber: item.episodeNumber,
     });
@@ -98,15 +108,27 @@ export const subtitlesRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
+    try {
+      if (fs.existsSync(item.jellyfinPath) && fs.statSync(item.jellyfinPath).isDirectory()) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'Subtitles cannot be applied directly to a season pack directory. Please select individual episodes in the Media Library.',
+        });
+      }
+    } catch {
+      // ignore
+    }
+
     const bodySchema = z.object({
       fileId: z.union([z.string(), z.number()]).optional(),
       fileIds: z.array(z.union([z.string(), z.number()])).optional(),
+      title: z.string().optional(),
     });
 
     const parsed = bodySchema.safeParse(request.body || {});
-    const { fileId, fileIds } = parsed.success
+    const { fileId, fileIds, title: customTitle } = parsed.success
       ? parsed.data
-      : { fileId: undefined, fileIds: undefined };
+      : { fileId: undefined, fileIds: undefined, title: undefined };
 
     let success = false;
     let count = 1;
@@ -122,12 +144,13 @@ export const subtitlesRoutes: FastifyPluginAsync = async (app) => {
       const destPath = item.jellyfinPath.replace(/\.[a-zA-Z0-9]{2,4}$/, '.pt-BR.srt');
       success = await app.openSubtitles.downloadAndWrite(fileId, destPath);
     } else {
+      const effectiveTitle = customTitle?.trim() || item.title;
       const destPath = item.jellyfinPath.replace(/\.[a-zA-Z0-9]{2,4}$/, '.pt-BR.srt');
       success = await app.openSubtitles.fetchBest(
         {
-          tmdbId: item.metadataSource === 'tmdb' ? item.metadataId : undefined,
-          title: item.title,
-          year: item.year,
+          tmdbId: customTitle ? undefined : (item.metadataSource === 'tmdb' ? item.metadataId : undefined),
+          title: effectiveTitle,
+          year: customTitle ? undefined : item.year,
           seasonNumber: item.seasonNumber,
           episodeNumber: item.episodeNumber,
         },

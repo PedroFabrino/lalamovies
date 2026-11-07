@@ -212,4 +212,46 @@ describe('SubtitlePickerModal.vue (#45)', () => {
     expect(wrapper.emitted('applied')).toBeTruthy();
     expect(wrapper.emitted('close')).toBeTruthy();
   });
+
+  it('searches subtitles with a custom title entered in the search bar', async () => {
+    (api.get as any).mockResolvedValueOnce({ subtitles: [] });
+    (api.get as any).mockResolvedValueOnce({
+      subtitles: [
+        {
+          fileId: 201,
+          uploaderName: 'CustomSubber',
+          downloadCount: 300,
+          uploadDate: '2024-01-01',
+          releaseName: 'Scrubs.S02E05.720p',
+        },
+      ],
+    });
+
+    const wrapper = mount(SubtitlePickerModal, {
+      props: {
+        show: true,
+        requestId: 'req-scrubs',
+        title: 'Scrubs',
+      },
+    });
+
+    await vi.waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith('/requests/req-scrubs/subtitles');
+    });
+
+    const searchInput = wrapper.find('[data-testid="subtitle-search-input"]');
+    await searchInput.setValue('Scrubs Season 2');
+
+    const searchBtn = wrapper.find('[data-testid="subtitle-search-btn"]');
+    await searchBtn.trigger('click');
+
+    await vi.waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith(
+        `/requests/req-scrubs/subtitles?title=${encodeURIComponent('Scrubs Season 2')}`
+      );
+      expect(wrapper.findAll('[data-testid="subtitle-row"]')).toHaveLength(1);
+    });
+
+    expect(wrapper.text()).toContain('Scrubs.S02E05.720p');
+  });
 });

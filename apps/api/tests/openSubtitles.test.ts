@@ -203,4 +203,82 @@ describe('OpenSubtitlesService', () => {
     expect(writeSuccess).toBe(false);
     expect(loggerMock.error).toHaveBeenCalled();
   });
+
+  it('searches episodic content by query and season/episode omitting tmdb_id and year', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: 'sub-ep',
+            attributes: {
+              download_count: 800,
+              upload_date: '2024-01-01',
+              release: 'Scrubs.S02E05.720p',
+              files: [{ file_id: 205 }],
+            },
+          },
+        ],
+      }),
+    });
+
+    const service = new OpenSubtitlesService({ apiKey: mockApiKey, fetchFn: fetchMock });
+    const results = await service.searchSubtitles({
+      title: 'Scrubs',
+      tmdbId: '295778',
+      year: 2026,
+      seasonNumber: 2,
+      episodeNumber: 5,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain('query=Scrubs');
+    expect(url).toContain('season_number=2');
+    expect(url).toContain('episode_number=5');
+    // For episodic requests, year and tmdb_id should NOT be attached
+    expect(url).not.toContain('tmdb_id=');
+    expect(url).not.toContain('year=');
+    expect(results).toHaveLength(1);
+    expect(results[0].fileId).toBe(205);
+  });
+
+  it('falls back to search without tmdb_id/year when initial search yields 0 results', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              id: 'sub-fallback',
+              attributes: {
+                download_count: 500,
+                release: 'Movie.Fallback.1080p',
+                files: [{ file_id: 301 }],
+              },
+            },
+          ],
+        }),
+      });
+
+    const service = new OpenSubtitlesService({ apiKey: mockApiKey, fetchFn: fetchMock });
+    const results = await service.searchSubtitles({
+      title: 'Movie Title',
+      tmdbId: '99999',
+      year: 2020,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [firstUrl] = fetchMock.mock.calls[0];
+    const [secondUrl] = fetchMock.mock.calls[1];
+    expect(firstUrl).toContain('tmdb_id=99999');
+    expect(secondUrl).not.toContain('tmdb_id=');
+    expect(results).toHaveLength(1);
+    expect(results[0].fileId).toBe(301);
+  });
 });

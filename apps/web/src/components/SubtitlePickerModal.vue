@@ -34,6 +34,31 @@
         </button>
       </div>
 
+      <!-- Title Search Input Bar -->
+      <div class="flex items-center gap-2">
+        <div class="relative flex-1">
+          <Search class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            data-testid="subtitle-search-input"
+            placeholder="Search subtitles for title..."
+            class="w-full bg-zinc-950/80 border border-zinc-800 focus:border-violet-500 rounded-xl pl-10 pr-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none transition shadow-inner"
+            @keyup.enter="handleSearch"
+          />
+        </div>
+        <button
+          type="button"
+          data-testid="subtitle-search-btn"
+          class="px-3.5 py-2 text-xs font-semibold rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white transition cursor-pointer flex items-center gap-1.5 border border-zinc-700/60 disabled:opacity-50"
+          :disabled="loading || isApplying"
+          @click="handleSearch"
+        >
+          <Search class="w-3.5 h-3.5" />
+          <span>Search</span>
+        </button>
+      </div>
+
       <!-- Error / Notice Banner -->
       <div
         v-if="applyError"
@@ -114,7 +139,7 @@
           <button
             type="button"
             class="mt-3 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-200 rounded-xl transition cursor-pointer"
-            @click="fetchSubtitles"
+            @click="handleSearch"
           >
             Retry Search
           </button>
@@ -132,8 +157,8 @@
           <h4 class="text-sm font-semibold text-white">
             No Subtitles Found
           </h4>
-          <p class="text-xs text-zinc-400 mt-1">
-            No matching pt-BR subtitles were found on OpenSubtitles for this title.
+          <p class="text-xs text-zinc-400 mt-1 max-w-sm mx-auto">
+            No matching pt-BR subtitles were found on OpenSubtitles{{ searchQuery ? ` for "${searchQuery}"` : '' }}. Try modifying the search title above.
           </p>
         </div>
 
@@ -188,7 +213,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { X, Loader2 } from 'lucide-vue-next';
+import { X, Loader2, Search } from 'lucide-vue-next';
 import { api } from '../lib/api';
 import { useRequestsStore } from '../stores/requests';
 import SubtitleRow from './subtitles/SubtitleRow.vue';
@@ -215,6 +240,7 @@ const emit = defineEmits<{
 
 const requestsStore = useRequestsStore();
 
+const searchQuery = ref('');
 const loading = ref(false);
 const serviceNotConfigured = ref(false);
 const loadError = ref<string | null>(null);
@@ -244,7 +270,12 @@ function handleClose(): void {
   emit('close');
 }
 
-async function fetchSubtitles(): Promise<void> {
+function handleSearch(): void {
+  const q = searchQuery.value.trim();
+  fetchSubtitles(q || undefined);
+}
+
+async function fetchSubtitles(query?: string): Promise<void> {
   if (!props.requestId) return;
 
   loading.value = true;
@@ -255,7 +286,10 @@ async function fetchSubtitles(): Promise<void> {
   subtitles.value = [];
 
   try {
-    const res = await api.get<{ subtitles: SubtitleItem[] }>(`/requests/${props.requestId}/subtitles`);
+    const url = query
+      ? `/requests/${props.requestId}/subtitles?title=${encodeURIComponent(query)}`
+      : `/requests/${props.requestId}/subtitles`;
+    const res = await api.get<{ subtitles: SubtitleItem[] }>(url);
     subtitles.value = res.subtitles || [];
   } catch (err: unknown) {
     const error = err as { status?: number; message?: string } | null;
@@ -321,7 +355,11 @@ async function handleFetchBest(): Promise<void> {
   applyError.value = null;
 
   try {
-    await api.post(`/requests/${props.requestId}/subtitles/fetch`, {});
+    const payload: { title?: string } = {};
+    if (searchQuery.value.trim() && searchQuery.value.trim() !== (props.title || '')) {
+      payload.title = searchQuery.value.trim();
+    }
+    await api.post(`/requests/${props.requestId}/subtitles/fetch`, payload);
     requestsStore.showToast('Best subtitle fetched successfully!', 'success');
     emit('applied', 1);
     emit('close');
@@ -334,9 +372,10 @@ async function handleFetchBest(): Promise<void> {
 }
 
 watch(
-  () => [props.show, props.requestId],
-  ([newShow]) => {
+  () => [props.show, props.requestId, props.title],
+  ([newShow, _newId, newTitle]) => {
     if (newShow) {
+      searchQuery.value = (newTitle as string) || props.title || '';
       fetchSubtitles();
     }
   },

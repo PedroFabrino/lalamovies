@@ -58,89 +58,111 @@ export class OpenSubtitlesService {
     };
   }
 
+  private async executeSearch(url: URL, defaultTitle: string): Promise<SubtitleSearchResult[]> {
+    const res = await this.fetchFn(url.toString(), {
+      method: 'GET',
+      headers: this.getHeaders(),
+    });
+
+    if (!res.ok) {
+      this.logger?.warn?.(`OpenSubtitles search failed with status ${res.status}: ${res.statusText}`);
+      return [];
+    }
+
+    interface OpenSubtitlesSearchResponse {
+      data?: Array<{
+        attributes?: {
+          files?: Array<{ file_id?: number; file_size?: number }>;
+          language?: string;
+          hearing_impaired?: boolean;
+          foreign_parts_only?: boolean;
+          ratings?: number;
+          votes?: number;
+          download_count?: number;
+          release?: string;
+          comments?: string;
+          uploader?: { name?: string };
+          upload_date?: string;
+          file_size?: number;
+          file_name?: string;
+        };
+      }>;
+    }
+
+    const json = (await res.json()) as OpenSubtitlesSearchResponse;
+    if (!json || !Array.isArray(json.data)) {
+      return [];
+    }
+
+    const parsedResults: SubtitleSearchResult[] = [];
+    for (const item of json.data) {
+      const attrs = item.attributes || {};
+      const firstFile = Array.isArray(attrs.files) && attrs.files.length > 0 ? attrs.files[0] : null;
+      if (!firstFile || !firstFile.file_id) {
+        continue;
+      }
+
+      parsedResults.push({
+        fileId: firstFile.file_id,
+        uploaderName: attrs.uploader?.name || 'Anonymous',
+        downloadCount: Number(attrs.download_count) || 0,
+        uploadDate: attrs.upload_date || '',
+        fileSizeBytes: firstFile.file_size || attrs.file_size || undefined,
+        releaseName: attrs.release || attrs.file_name || defaultTitle,
+      });
+    }
+
+    // Sort descending by downloadCount and take top 5
+    parsedResults.sort((a, b) => b.downloadCount - a.downloadCount);
+    return parsedResults.slice(0, 5);
+  }
+
   async searchSubtitles(params: SearchSubtitlesParams): Promise<SubtitleSearchResult[]> {
     if (!this.isConfigured()) {
       return [];
     }
 
     try {
-      const url = new URL(`${this.baseUrl}/subtitles`);
-      url.searchParams.set('languages', 'pt-br');
-      url.searchParams.set('order_by', 'download_count');
-      url.searchParams.set('order_direction', 'desc');
+      const isEpisodic = params.seasonNumber != null || params.episodeNumber != null;
 
-      if (params.tmdbId) {
-        url.searchParams.set('tmdb_id', String(params.tmdbId));
-      }
-      if (params.title) {
-        url.searchParams.set('query', params.title);
-      }
-      if (params.year) {
-        url.searchParams.set('year', String(params.year));
-      }
-      if (params.seasonNumber != null) {
-        url.searchParams.set('season_number', String(params.seasonNumber));
-      }
-      if (params.episodeNumber != null) {
-        url.searchParams.set('episode_number', String(params.episodeNumber));
-      }
+      const buildUrl = (options: { includeId?: boolean; includeYear?: boolean }) => {
+        const url = new URL(`${this.baseUrl}/subtitles`);
+        url.searchParams.set('languages', 'pt-br,pt');
+        url.searchParams.set('order_by', 'download_count');
+        url.searchParams.set('order_direction', 'desc');
 
-      const res = await this.fetchFn(url.toString(), {
-        method: 'GET',
-        headers: this.getHeaders(),
-      });
-
-      if (!res.ok) {
-        this.logger?.warn?.(`OpenSubtitles search failed with status ${res.status}: ${res.statusText}`);
-        return [];
-      }
-
-      interface OpenSubtitlesSearchResponse {
-        data?: Array<{
-          attributes?: {
-            files?: Array<{ file_id?: number; file_size?: number }>;
-            language?: string;
-            hearing_impaired?: boolean;
-            foreign_parts_only?: boolean;
-            ratings?: number;
-            votes?: number;
-            download_count?: number;
-            release?: string;
-            comments?: string;
-            uploader?: { name?: string };
-            upload_date?: string;
-            file_size?: number;
-            file_name?: string;
-          };
-        }>;
-      }
-
-      const json = (await res.json()) as OpenSubtitlesSearchResponse;
-      if (!json || !Array.isArray(json.data)) {
-        return [];
-      }
-
-      const parsedResults: SubtitleSearchResult[] = [];
-      for (const item of json.data) {
-        const attrs = item.attributes || {};
-        const firstFile = Array.isArray(attrs.files) && attrs.files.length > 0 ? attrs.files[0] : null;
-        if (!firstFile || !firstFile.file_id) {
-          continue;
+        if (params.title) {
+          url.searchParams.set('query', params.title);
+        }
+        if (params.seasonNumber != null) {
+          url.searchParams.set('season_number', String(params.seasonNumber));
+        }
+        if (params.episodeNumber != null) {
+          url.searchParams.set('episode_number', String(params.episodeNumber));
         }
 
-        parsedResults.push({
-          fileId: firstFile.file_id,
-          uploaderName: attrs.uploader?.name || 'Anonymous',
-          downloadCount: Number(attrs.download_count) || 0,
-          uploadDate: attrs.upload_date || '',
-          fileSizeBytes: firstFile.file_size || attrs.file_size || undefined,
-          releaseName: attrs.release || attrs.file_name || params.title,
-        });
+        // For TV shows/episodic content, OpenSubtitles uploaders index by title and season/episode,
+        // while tmdb_id and release year filter out almost all episodes. Only use tmdb_id/year for movies.
+        if (!isEpisodic) {
+          if (options.includeId && params.tmdbId) {
+            url.searchParams.set('tmdb_id', String(params.tmdbId));
+          }
+          if (options.includeYear && params.year) {
+            url.searchParams.set('year', String(params.year));
+          }
+        }
+        return url;
+      };
+
+      // 1. Initial search
+      let results = await this.executeSearch(buildUrl({ includeId: true, includeYear: true }), params.title);
+
+      // 2. If 0 results and we restricted by tmdbId or year, retry without them for broader title matching
+      if (results.length === 0 && !isEpisodic && (params.tmdbId || params.year)) {
+        results = await this.executeSearch(buildUrl({ includeId: false, includeYear: false }), params.title);
       }
 
-      // Sort descending by downloadCount and take top 5
-      parsedResults.sort((a, b) => b.downloadCount - a.downloadCount);
-      return parsedResults.slice(0, 5);
+      return results;
     } catch (err) {
       this.logger?.warn?.(`OpenSubtitles search failed: ${(err as Error).message}`);
       return [];
@@ -180,6 +202,11 @@ export class OpenSubtitlesService {
       const destDir = path.dirname(destPath);
       if (!fs.existsSync(destDir)) {
         fs.mkdirSync(destDir, { recursive: true });
+      }
+
+      if (fs.existsSync(destPath) && fs.statSync(destPath).isDirectory()) {
+        this.logger?.warn?.(`Cannot write subtitle to directory path: ${destPath}`);
+        return false;
       }
 
       fs.writeFileSync(destPath, content, 'utf8');

@@ -189,7 +189,7 @@
               <td class="py-4 px-4 whitespace-nowrap text-right">
                 <div class="flex items-center justify-end gap-1.5">
                   <button
-                    v-if="item.status === 'seeding' || item.status === 'done'"
+                    v-if="(item.status === 'seeding' || item.status === 'done') && !isSeasonPack(item)"
                     type="button"
                     data-testid="open-subtitles-btn"
                     class="p-1.5 text-zinc-400 hover:text-indigo-400 hover:bg-indigo-950/40 rounded-lg transition cursor-pointer"

@@ -313,4 +313,69 @@ describe('Subtitle Routes (GET/POST /requests/:id/subtitles)', () => {
 
     expect(res.statusCode).toBe(502);
   });
+
+  it('searches subtitles with custom title when title query param is provided', async () => {
+    app.db
+      .insert(downloadRequests)
+      .values({
+        id: 'req_custom_title',
+        userId: 'usr_normal',
+        magnetLink: 'magnet:?xt=urn:btih:111',
+        mediaType: 'movie',
+        status: 'seeding',
+        metadataId: '550',
+        metadataSource: 'tmdb',
+        title: 'Original Title',
+        year: 1999,
+        jellyfinPath: path.join(tmpDir, 'Original Title.mkv'),
+        requestedAt: new Date().toISOString(),
+      })
+      .run();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/requests/req_custom_title/subtitles?title=Custom%20Search%20Title',
+      headers: { authorization: `Bearer ${userToken}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockOpenSubtitles.searchSubtitles).toHaveBeenCalledWith({
+      tmdbId: undefined,
+      title: 'Custom Search Title',
+      year: undefined,
+      seasonNumber: null,
+      episodeNumber: null,
+    });
+  });
+
+  it('rejects POST /requests/:id/subtitles/fetch when media path is a season pack directory', async () => {
+    const packDir = path.join(tmpDir, 'Season 01');
+    fs.mkdirSync(packDir, { recursive: true });
+
+    app.db
+      .insert(downloadRequests)
+      .values({
+        id: 'req_season_pack',
+        userId: 'usr_normal',
+        magnetLink: 'magnet:?xt=urn:btih:111',
+        mediaType: 'tv_show',
+        status: 'seeding',
+        metadataId: '12345',
+        metadataSource: 'tmdb',
+        title: 'Show Name',
+        jellyfinPath: packDir,
+        requestedAt: new Date().toISOString(),
+      })
+      .run();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/requests/req_season_pack/subtitles/fetch',
+      headers: { authorization: `Bearer ${userToken}` },
+      payload: { fileId: 101 },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).message).toContain('season pack');
+  });
 });
