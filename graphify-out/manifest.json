@@ -294,9 +294,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/prowlarr.ts": {
-    "mtime": 1792292135.874478,
-    "seen": 1792292805.9399836,
-    "ast_hash": "40209109f3c89b6995d26e686a08cab3",
+    "mtime": 1794093289.0193908,
+    "seen": 1794093481.279032,
+    "ast_hash": "c187ff06c7a0f593d0160e233894b52c",
     "semantic_hash": ""
   },
   "apps/api/src/services/qbittorrent.ts": {
@@ -336,15 +336,15 @@
     "semantic_hash": ""
   },
   "apps/api/src/utils/preferredIndexer.ts": {
-    "mtime": 1790710192.2615714,
-    "seen": 1790710652.1905348,
-    "ast_hash": "403bb1ad5d165970025567fa2146ed3b",
+    "mtime": 1794093231.8379412,
+    "seen": 1794093481.3445115,
+    "ast_hash": "1a7a5134b9f09e253a2a55abb91cb764",
     "semantic_hash": ""
   },
   "apps/api/src/utils/torrentTitleCleaner.ts": {
-    "mtime": 1789955049.2109213,
-    "seen": 1789956580.615113,
-    "ast_hash": "1ddabded5bbd241005fc63bf657b9934",
+    "mtime": 1794093220.6431866,
+    "seen": 1794093481.3459315,
+    "ast_hash": "6cec4e96f3a99624f41f0d2c92c9ac59",
     "semantic_hash": ""
   },
   "apps/api/tests/admin.test.ts": {
@@ -444,9 +444,9 @@
     "semantic_hash": "87974a93e6f5b6efb3882de7837422a4"
   },
   "apps/api/tests/preferred_indexer.test.ts": {
-    "mtime": 1790710104.5207705,
-    "seen": 1790710652.2015338,
-    "ast_hash": "d8b854de8b1d07f89903ebbab56ca90f",
+    "mtime": 1794093261.9637184,
+    "seen": 1794093481.3797426,
+    "ast_hash": "0c0711c989e681aeeaa67ff0ed99bd76",
     "semantic_hash": ""
   },
   "apps/api/tests/private_requests.test.ts": {
@@ -456,9 +456,9 @@
     "semantic_hash": ""
   },
   "apps/api/tests/prowlarr.test.ts": {
-    "mtime": 1790492993.157997,
-    "seen": 1790493736.1345139,
-    "ast_hash": "904da6f978116037d1772401c7d0a2ff",
+    "mtime": 1794093332.1384149,
+    "seen": 1794093481.3812613,
+    "ast_hash": "60bd266ae31862d7187cf8e02708d982",
     "semantic_hash": ""
   },
   "apps/api/tests/prowlarr_privacy.test.ts": {
@@ -504,10 +504,10 @@
     "semantic_hash": "d1f3a92c8bd007e6d293c75b006698c3"
   },
   "apps/api/tests/torrentTitleCleaner.test.ts": {
-    "mtime": 1788615555.8668196,
-    "seen": 1789780156.9478219,
-    "ast_hash": "932cb22c16342caf069ad660d46ce0fe",
-    "semantic_hash": "932cb22c16342caf069ad660d46ce0fe"
+    "mtime": 1794093266.0028045,
+    "seen": 1794093481.4045959,
+    "ast_hash": "c82a828f7965f6a73577fa10643b2e86",
+    "semantic_hash": ""
   },
   "apps/api/tests/torrent_requests.test.ts": {
     "mtime": 1789954520.2804716,
@@ -810,9 +810,9 @@
     "semantic_hash": "40f7b5d61ef06df7e0918c4990ace808"
   },
   "apps/watcher/src/services/prowlarr.ts": {
-    "mtime": 1790710597.5251904,
-    "seen": 1790710652.2295895,
-    "ast_hash": "e2386670e6e2e7614bde292eede3f600",
+    "mtime": 1794093231.8390186,
+    "seen": 1794093481.503721,
+    "ast_hash": "f7c2f93618bc7ff227c85eaf35a214cf",
     "semantic_hash": ""
   },
   "apps/watcher/src/services/releaseGating.ts": {
@@ -828,15 +828,15 @@
     "semantic_hash": "1b98b196a294a89aaf5796d9e93efa92"
   },
   "apps/watcher/src/utils/preferredIndexer.ts": {
-    "mtime": 1790710181.8759165,
-    "seen": 1790710652.2317097,
-    "ast_hash": "403bb1ad5d165970025567fa2146ed3b",
+    "mtime": 1794093232.8755946,
+    "seen": 1794093481.5073404,
+    "ast_hash": "1a7a5134b9f09e253a2a55abb91cb764",
     "semantic_hash": ""
   },
   "apps/watcher/src/utils/torrentTitleCleaner.ts": {
-    "mtime": 1789955683.1464808,
-    "seen": 1789956580.6346035,
-    "ast_hash": "be3000a9b43c3147104fba852fdd3a9d",
+    "mtime": 1794093224.8982458,
+    "seen": 1794093481.5073404,
+    "ast_hash": "b82c772fab11972a542d4efc7dbc07f1",
     "semantic_hash": ""
   },
   "apps/watcher/tests/admin_cancellation_notifications.test.ts": {
@@ -888,9 +888,9 @@
     "semantic_hash": "a6adbc79a58eb83bd68fdc9e5e0999d2"
   },
   "apps/watcher/tests/preferred_indexer.test.ts": {
-    "mtime": 1790710087.6801808,
-    "seen": 1790710652.235622,
-    "ast_hash": "52de2e2d46a392544b5681c6c7f235a3",
+    "mtime": 1794093273.5535607,
+    "seen": 1794093481.5235045,
+    "ast_hash": "555e5e69b089ed042cdc9f0d8801ff0f",
     "semantic_hash": ""
   },
   "apps/watcher/tests/release_gating.test.ts": {
@@ -1962,9 +1962,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/composables/useRequestReleases.ts": {
-    "mtime": 1790020888.9362512,
-    "seen": 1790021059.0348854,
-    "ast_hash": "fd540197ed11c41e425ff6e0acea6d23",
+    "mtime": 1794093250.0300202,
+    "seen": 1794093481.6720376,
+    "ast_hash": "a4a30af33b2622e65f081e4c1f53b893",
     "semantic_hash": ""
   },
   "apps/web/src/composables/useRequestStep1.ts": {
@@ -2664,9 +2664,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/utils/seriesQueryBuilder.ts": {
-    "mtime": 1791577813.7134082,
-    "seen": 1791578655.6998062,
-    "ast_hash": "0802860d3b09529ae279cab9601a7388",
+    "mtime": 1794093243.851693,
+    "seen": 1794093481.3445115,
+    "ast_hash": "c8b0edede587063e7c1502271e45cd77",
     "semantic_hash": ""
   },
   "apps/api/tests/cross_media_type_dedup.test.ts": {
@@ -2694,9 +2694,9 @@
     "semantic_hash": ""
   },
   "apps/watcher/src/utils/seriesQueryBuilder.ts": {
-    "mtime": 1791577994.1270828,
-    "seen": 1791578655.7908523,
-    "ast_hash": "ee751fbe2b5843db7050e1329ac8cf61",
+    "mtime": 1794093259.124221,
+    "seen": 1794093481.5073404,
+    "ast_hash": "a964a5aad273c2eb63f504564e3ff9d6",
     "semantic_hash": ""
   },
   "apps/watcher/tests/legacy_anilist_migration.test.ts": {
@@ -2712,9 +2712,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/services/prowlarr/prowlarrScoring.ts": {
-    "mtime": 1791577762.3946502,
-    "seen": 1791578655.6766484,
-    "ast_hash": "1c92b4c8608d2ce7ef5b9af547af4d38",
+    "mtime": 1794093368.1455386,
+    "seen": 1794093481.280266,
+    "ast_hash": "4319eb00801737b298016535a17f7604",
     "semantic_hash": ""
   },
   "apps/api/src/services/prowlarr/prowlarrTypes.ts": {
@@ -3198,9 +3198,9 @@
     "semantic_hash": ""
   },
   "apps/api/tests/release_search_relevance.test.ts": {
-    "mtime": 1791562030.0263422,
-    "seen": 1791578655.7317505,
-    "ast_hash": "5d1ae192502f528cd78c1e529512795c",
+    "mtime": 1794093287.6241753,
+    "seen": 1794093481.3839092,
+    "ast_hash": "5b48cf5fa94355cd0cd5a0113d6985ed",
     "semantic_hash": ""
   },
   "apps/watcher/tests/waitlist_patch_target.test.ts": {
