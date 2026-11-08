@@ -235,7 +235,7 @@ export class DownloadPoller {
               this.openSubtitles &&
               this.openSubtitles.isConfigured() &&
               req.mediaType !== 'private' &&
-              !isDirectory
+              !isDirectory && transcriptionStatus !== 'completed'
             ) {
               const subtitleDestPath = destPath.replace(/\.[a-zA-Z0-9]{2,4}$/, '.pt-BR.srt');
               this.openSubtitles

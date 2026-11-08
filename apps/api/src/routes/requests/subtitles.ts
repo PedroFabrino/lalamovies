@@ -1,6 +1,39 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+
+const VIDEO_EXT_REGEX = /\.(mkv|mp4|avi|ts|mov|webm|m4v)$/i;
+
+function resolveTargetVideoPath(
+  jellyfinPath: string,
+  mediaType: string,
+  seasonNumber: number | null | undefined,
+  episodeNumber: number | null | undefined
+): { videoPath: string | null; isSeasonPackDir: boolean } {
+  try {
+    if (!fs.existsSync(jellyfinPath) || !fs.statSync(jellyfinPath).isDirectory()) {
+      return { videoPath: jellyfinPath, isSeasonPackDir: false };
+    }
+
+    const isSeasonPack =
+      (mediaType === 'tv_show' || mediaType === 'anime') &&
+      seasonNumber != null &&
+      episodeNumber == null;
+
+    if (!isSeasonPack) {
+      const entries = fs.readdirSync(jellyfinPath);
+      const videoFiles = entries.filter((entry) => VIDEO_EXT_REGEX.test(entry));
+      if (videoFiles.length === 1) {
+        return { videoPath: path.join(jellyfinPath, videoFiles[0]), isSeasonPackDir: false };
+      }
+    }
+
+    return { videoPath: null, isSeasonPackDir: true };
+  } catch {
+    return { videoPath: jellyfinPath, isSeasonPackDir: false };
+  }
+}
 
 export const subtitlesRoutes: FastifyPluginAsync = async (app) => {
   // GET /requests/:id/subtitles — query OpenSubtitles for completed download
@@ -108,15 +141,18 @@ export const subtitlesRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    try {
-      if (fs.existsSync(item.jellyfinPath) && fs.statSync(item.jellyfinPath).isDirectory()) {
-        return reply.status(400).send({
-          error: 'Bad Request',
-          message: 'Subtitles cannot be applied directly to a season pack directory. Please select individual episodes in the Media Library.',
-        });
-      }
-    } catch {
-      // ignore
+    const { videoPath: targetMediaPath, isSeasonPackDir } = resolveTargetVideoPath(
+      item.jellyfinPath,
+      item.mediaType,
+      item.seasonNumber,
+      item.episodeNumber
+    );
+
+    if (isSeasonPackDir || !targetMediaPath) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Subtitles cannot be applied directly to a season pack directory. Please select individual episodes in the Media Library.',
+      });
     }
 
     const bodySchema = z.object({
@@ -130,32 +166,45 @@ export const subtitlesRoutes: FastifyPluginAsync = async (app) => {
       ? parsed.data
       : { fileId: undefined, fileIds: undefined, title: undefined };
 
+    const effectiveTitle = customTitle?.trim() || item.title;
+    app.openSubtitles.setFallbackContext?.({
+      title: effectiveTitle,
+      seasonNumber: item.seasonNumber,
+      episodeNumber: item.episodeNumber,
+    });
+
     let success = false;
     let count = 1;
 
     if (fileIds && fileIds.length > 0) {
       const writtenCount = await app.openSubtitles.downloadAndWriteMultiple(
         fileIds,
-        item.jellyfinPath
+        targetMediaPath
       );
       success = writtenCount > 0;
       count = writtenCount;
     } else if (fileId) {
-      const destPath = item.jellyfinPath.replace(/\.[a-zA-Z0-9]{2,4}$/, '.pt-BR.srt');
+      const destPath = targetMediaPath.replace(/\.[a-zA-Z0-9]{2,4}$/, '.pt-BR.srt');
       success = await app.openSubtitles.downloadAndWrite(fileId, destPath);
     } else {
-      const effectiveTitle = customTitle?.trim() || item.title;
-      const destPath = item.jellyfinPath.replace(/\.[a-zA-Z0-9]{2,4}$/, '.pt-BR.srt');
-      success = await app.openSubtitles.fetchBest(
-        {
-          tmdbId: customTitle ? undefined : (item.metadataSource === 'tmdb' ? item.metadataId : undefined),
-          title: effectiveTitle,
-          year: customTitle ? undefined : item.year,
-          seasonNumber: item.seasonNumber,
-          episodeNumber: item.episodeNumber,
-        },
-        destPath
-      );
+      const destPath = targetMediaPath.replace(/\.[a-zA-Z0-9]{2,4}$/, '.pt-BR.srt');
+      const searchParams = {
+        tmdbId: customTitle ? undefined : (item.metadataSource === 'tmdb' ? item.metadataId : undefined),
+        title: effectiveTitle,
+        year: customTitle ? undefined : item.year,
+        seasonNumber: item.seasonNumber,
+        episodeNumber: item.episodeNumber,
+      };
+      success = await app.openSubtitles.fetchBest(searchParams, destPath);
+      if (!success && typeof app.openSubtitles.searchSubtitles === 'function') {
+        const available = await app.openSubtitles.searchSubtitles(searchParams);
+        if (available.length === 0) {
+          return reply.status(404).send({
+            error: 'Not Found',
+            message: `No matching pt-BR subtitles found on OpenSubtitles for "${effectiveTitle}"`,
+          });
+        }
+      }
     }
 
     if (!success) {

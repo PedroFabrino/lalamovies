@@ -277,8 +277,115 @@ describe('OpenSubtitlesService', () => {
     const [firstUrl] = fetchMock.mock.calls[0];
     const [secondUrl] = fetchMock.mock.calls[1];
     expect(firstUrl).toContain('tmdb_id=99999');
+    expect(firstUrl).not.toContain('query=');
     expect(secondUrl).not.toContain('tmdb_id=');
+    expect(secondUrl).toContain('query=Movie+Title');
     expect(results).toHaveLength(1);
     expect(results[0].fileId).toBe(301);
+  });
+
+  it('combines download_count and new_download_count when ranking results', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: 'sub-old',
+            attributes: {
+              download_count: 100,
+              new_download_count: 0,
+              release: 'Old.Release',
+              files: [{ file_id: 1 }],
+            },
+          },
+          {
+            id: 'sub-new',
+            attributes: {
+              download_count: 0,
+              new_download_count: 351,
+              release: 'New.Release',
+              files: [{ file_id: 2 }],
+            },
+          },
+        ],
+      }),
+    });
+
+    const service = new OpenSubtitlesService({ apiKey: mockApiKey, fetchFn: fetchMock });
+    const results = await service.searchSubtitles({ title: 'Lioness', seasonNumber: 3, episodeNumber: 1 });
+
+    expect(results).toHaveLength(2);
+    expect(results[0].fileId).toBe(2);
+    expect(results[0].downloadCount).toBe(351);
+  });
+
+  it('falls back to rest.opensubtitles.org when v1 download returns HTTP 406 quota exceeded', async () => {
+    const zlib = await import('node:zlib');
+    const gzPayload = zlib.gzipSync(Buffer.from('1\n00:00:01,000 --> 00:00:03,000\nLegenda via fallback\n', 'utf8'));
+
+    const fetchMock = vi
+      .fn()
+      // 1. v1 search
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              id: 'sub-1',
+              attributes: {
+                new_download_count: 351,
+                release: 'Lioness.S03E01.1080p',
+                feature_details: {
+                  imdb_id: 37923403,
+                  parent_imdb_id: 13111078,
+                  season_number: 3,
+                  episode_number: 1,
+                },
+                files: [{ file_id: 12698521, file_name: 'Lioness.S03E01.1080p' }],
+              },
+            },
+          ],
+        }),
+      })
+      // 2. v1 POST /download -> HTTP 406 quota exceeded
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 406,
+        statusText: 'Not Acceptable',
+        text: async () => '{"message":"You have downloaded your allowed 5 subtitles for 24h"}',
+      })
+      // 3. Legacy rest.opensubtitles.org search by imdbid
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          {
+            IDSubtitleFile: '1962511026',
+            SubFileName: 'Lioness.S03E01.srt',
+            MovieReleaseName: 'Lioness.S03E01.1080p',
+            SubDownloadsCnt: '351',
+            SubDownloadLink: 'https://dl.opensubtitles.org/en/download/src-api/filead/1962511026.gz',
+          },
+        ],
+      })
+      // 4. Legacy .gz download
+      .mockResolvedValueOnce({
+        ok: true,
+        arrayBuffer: async () => gzPayload.buffer.slice(gzPayload.byteOffset, gzPayload.byteOffset + gzPayload.byteLength),
+      });
+
+    const service = new OpenSubtitlesService({ apiKey: mockApiKey, fetchFn: fetchMock });
+    const searchRes = await service.searchSubtitles({
+      title: 'Lioness',
+      seasonNumber: 3,
+      episodeNumber: 1,
+    });
+    expect(searchRes).toHaveLength(1);
+
+    const destPath = path.join(tmpDir, 'Lioness S03E01.pt-BR.srt');
+    const ok = await service.downloadAndWrite(12698521, destPath);
+
+    expect(ok).toBe(true);
+    expect(fs.existsSync(destPath)).toBe(true);
+    expect(fs.readFileSync(destPath, 'utf8')).toContain('Legenda via fallback');
   });
 });

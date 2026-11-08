@@ -168,9 +168,9 @@
     "semantic_hash": "f2ed05874309e357faa6d0e819f1586a"
   },
   "apps/api/src/jobs/downloadPoller.ts": {
-    "mtime": 1791597182.0751412,
-    "seen": 1791597492.4798815,
-    "ast_hash": "0a7d9a8911eb319692381ac0bac02308",
+    "mtime": 1794151962.3677685,
+    "seen": 1794152037.9895144,
+    "ast_hash": "e38b9272470c135fd1e30cc2937524eb",
     "semantic_hash": ""
   },
   "apps/api/src/jobs/transcriptionCron.ts": {
@@ -1548,21 +1548,21 @@
     "semantic_hash": "081c348d068770af78fcd90980521318"
   },
   "apps/api/src/services/openSubtitles.ts": {
-    "mtime": 1794093772.1320598,
-    "seen": 1794122827.284099,
-    "ast_hash": "ee24c8eb41a87237c9998d29de60fb2e",
+    "mtime": 1794151915.9007802,
+    "seen": 1794152038.0087972,
+    "ast_hash": "1c745f564c0f5029737a895a757c5002",
     "semantic_hash": ""
   },
   "apps/api/tests/openSubtitles.test.ts": {
-    "mtime": 1794094017.3999848,
-    "seen": 1794122827.3417373,
-    "ast_hash": "f86d451ae6d13b3194ba9092621dec26",
+    "mtime": 1794151739.1967845,
+    "seen": 1794152038.0349884,
+    "ast_hash": "0131c783083bc45f53828be824eb8638",
     "semantic_hash": ""
   },
   "apps/api/tests/subtitle_routes.test.ts": {
-    "mtime": 1794094080.307965,
-    "seen": 1794122827.3674703,
-    "ast_hash": "2eab6352c5b02981a2b77449de64da87",
+    "mtime": 1794151919.519216,
+    "seen": 1794152038.042129,
+    "ast_hash": "14a80a56d67f9c26a5aec7ad3a9f2139",
     "semantic_hash": ""
   },
   "apps/web/src/components/SubtitlePickerModal.vue": {
@@ -1746,9 +1746,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/subtitles.ts": {
-    "mtime": 1794093807.7160792,
-    "seen": 1794122827.2656052,
-    "ast_hash": "ac13679ff91660375e5c480876846b20",
+    "mtime": 1794151917.6107006,
+    "seen": 1794152038.001726,
+    "ast_hash": "e22828f4529e5055bb8c616340747360",
     "semantic_hash": ""
   },
   "apps/api/src/routes/requests/transcription.ts": {
@@ -3797,12 +3797,6 @@
     "ast_hash": "d68c14376f485a8c366178016d04cd9b",
     "semantic_hash": ""
   },
-  "apps/web/vite.config.ts.timestamp-1794117107592-a38dc6ab517e8.mjs": {
-    "mtime": 1794117107.5933015,
-    "seen": 1794122827.594112,
-    "ast_hash": "e8c55f5115408a4c73d2ed9babae18ab",
-    "semantic_hash": ""
-  },
   "apps/web/public/favicon-option1.svg": {
     "mtime": 1794117018.5907822,
     "seen": 1794122827.6518025,
@@ -3825,6 +3819,12 @@
     "mtime": 1794117044.9087446,
     "seen": 1794122827.6518025,
     "ast_hash": "f3480d32b17c135e74ed86a83f353f4c",
+    "semantic_hash": ""
+  },
+  "apps/api/src/services/openSubtitlesFallback.ts": {
+    "mtime": 1794151792.0420096,
+    "seen": 1794152038.0087972,
+    "ast_hash": "376de25cef89daff513d2e0aedafc6e7",
     "semantic_hash": ""
   }
 }

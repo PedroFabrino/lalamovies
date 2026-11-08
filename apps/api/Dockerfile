@@ -20,7 +20,7 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-RUN apt-get update && apt-get install -y --no-install-recommends unrar-free p7zip-full && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends unrar-free p7zip-full ffmpeg && rm -rf /var/lib/apt/lists/*
 
 COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
 COPY apps/api/package.json ./apps/api/

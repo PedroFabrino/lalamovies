@@ -378,4 +378,78 @@ describe('Subtitle Routes (GET/POST /requests/:id/subtitles)', () => {
     expect(res.statusCode).toBe(400);
     expect(JSON.parse(res.body).message).toContain('season pack');
   });
+
+  it('resolves single video file inside a movie directory when applying subtitles', async () => {
+    const movieDir = path.join(tmpDir, 'Clue (1985).mkv');
+    fs.mkdirSync(movieDir, { recursive: true });
+    const innerVideo = path.join(movieDir, 'Os.Sete.Suspeitos.1985.mkv');
+    fs.writeFileSync(innerVideo, 'dummy video');
+
+    app.db
+      .insert(downloadRequests)
+      .values({
+        id: 'req_movie_dir',
+        userId: 'usr_normal',
+        magnetLink: 'magnet:?xt=urn:btih:111',
+        mediaType: 'movie',
+        status: 'seeding',
+        metadataId: '15196',
+        metadataSource: 'tmdb',
+        title: 'Clue',
+        year: 1985,
+        jellyfinPath: movieDir,
+        requestedAt: new Date().toISOString(),
+      })
+      .run();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/requests/req_movie_dir/subtitles/fetch',
+      headers: { authorization: `Bearer ${userToken}` },
+      payload: { fileId: 101 },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockOpenSubtitles.downloadAndWrite).toHaveBeenCalledWith(
+      101,
+      innerVideo.replace(/\.mkv$/, '.pt-BR.srt')
+    );
+  });
+
+  it('returns 404 with descriptive message when fetchBest finds 0 matching subtitles on OpenSubtitles', async () => {
+    mockOpenSubtitles.searchSubtitles.mockResolvedValueOnce([]);
+    mockOpenSubtitles.fetchBest.mockResolvedValueOnce(false);
+
+    const mediaPath = path.join(tmpDir, 'NewAnime S01E01.mkv');
+    fs.writeFileSync(mediaPath, 'dummy media');
+
+    app.db
+      .insert(downloadRequests)
+      .values({
+        id: 'req_no_subs',
+        userId: 'usr_normal',
+        magnetLink: 'magnet:?xt=urn:btih:111',
+        mediaType: 'anime',
+        status: 'seeding',
+        metadataId: '284580',
+        metadataSource: 'tmdb',
+        title: 'A Certain Dark Item',
+        year: 2026,
+        seasonNumber: 1,
+        episodeNumber: 1,
+        jellyfinPath: mediaPath,
+        requestedAt: new Date().toISOString(),
+      })
+      .run();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/requests/req_no_subs/subtitles/fetch',
+      headers: { authorization: `Bearer ${userToken}` },
+      payload: {},
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(JSON.parse(res.body).message).toContain('No matching pt-BR subtitles');
+  });
 });
