@@ -151,8 +151,10 @@
           :is-expanded="tierStates[tier.key]"
           :approving-entry-id="approvingEntryId"
           :checking-entry-id="checkingEntryId"
+          :is-checking-section="checkingTierKey === tier.key"
           :now="now"
           @toggle="toggleTier(tier.key)"
+          @check-section="handleCheckSection"
           @approve="handleApprove"
           @check="handleCheckEntry"
           @cancel="handleCancel"
@@ -180,7 +182,7 @@ import WaitlistAddModal from '../components/waitlist/WaitlistAddModal.vue';
 import type { WaitlistCandidate } from '../components/waitlist/waitlistModalTypes';
 import { useWaitlistStore, WaitlistEntry } from '../stores/waitlist';
 import { useAuthStore } from '../stores/auth';
-import { useWaitlistTiers } from '../composables/useWaitlistTiers';
+import { useWaitlistTiers, type WaitlistTierKey } from '../composables/useWaitlistTiers';
 import { api } from '../lib/api';
 
 const route = useRoute();
@@ -246,7 +248,37 @@ onUnmounted(() => {
 });
 
 const checkingEntryId = ref<string | null>(null);
+const checkingTierKey = ref<WaitlistTierKey | null>(null);
 const isCheckingAll = ref(false);
+
+async function handleCheckSection(tierKey: WaitlistTierKey, sectionEntries: WaitlistEntry[]) {
+  if (sectionEntries.length === 0 || checkingTierKey.value) return;
+  checkingTierKey.value = tierKey;
+  let matchedCount = 0;
+  try {
+    for (const entry of sectionEntries) {
+      checkingEntryId.value = entry.id;
+      const res = await api.post<{ entry?: { status?: string }; message?: string }>(`/waitlist/${entry.id}/check`);
+      if (res?.entry?.status === 'notified' || res?.entry?.status === 'triggered' || res?.message?.includes('qualifying')) {
+        matchedCount++;
+      }
+    }
+    await loadEntries();
+    const tierTitle = tierDefinitions.find((t) => t.key === tierKey)?.title || tierKey;
+    waitlistStore.showToast(
+      matchedCount > 0
+        ? `Checked ${sectionEntries.length} entries in "${tierTitle}" (${matchedCount} found releases).`
+        : `Checked ${sectionEntries.length} entries in "${tierTitle}".`,
+      matchedCount > 0 ? 'success' : 'info'
+    );
+  } catch (err: unknown) {
+    await loadEntries();
+    waitlistStore.showToast((err as Error).message || 'Failed to check section releases', 'error');
+  } finally {
+    checkingEntryId.value = null;
+    checkingTierKey.value = null;
+  }
+}
 
 async function handleCheckEntry(entry: WaitlistEntry) {
   checkingEntryId.value = entry.id;

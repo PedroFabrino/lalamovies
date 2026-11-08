@@ -210,4 +210,46 @@ describe('WaitlistView - Tier Partitioning and Collapsible Sections (#222)', () 
     expect(wrapper.find('[data-testid="tier-body-archive"]').isVisible()).toBe(false);
     expect(collapseAllBtn.text()).toContain('Expand All');
   });
+
+  it('renders a Check Section button in the top-right header of non-archive sections and checks all entries in that section without collapsing it', async () => {
+    const sectionEntries = [
+      mockEntries[1], // entry-released
+      {
+        ...mockEntries[1],
+        id: 'entry-released-2',
+        title: 'Second Released Show',
+      },
+      mockEntries[4], // entry-archived
+    ];
+    vi.mocked(api.get).mockResolvedValue({ entries: sectionEntries } as any);
+    vi.mocked(api.post).mockResolvedValue({
+      ok: true,
+      message: 'Found 1 qualifying releases; selecting top scored',
+      entry: { status: 'notified' },
+    } as any);
+
+    const wrapper = mount(WaitlistView, { attachTo: document.body });
+    await flushPromises();
+
+    // Non-empty 'released' section has the Check Section button
+    const checkReleasedBtn = wrapper.find('[data-testid="tier-check-all-released"]');
+    expect(checkReleasedBtn.exists()).toBe(true);
+    expect(checkReleasedBtn.text()).toContain('Check Section');
+
+    // Empty 'upcoming' section and 'archive' section do not render the button
+    expect(wrapper.find('[data-testid="tier-check-all-upcoming"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="tier-check-all-archive"]').exists()).toBe(false);
+
+    // Click Check Section on 'released'
+    await checkReleasedBtn.trigger('click');
+    await flushPromises();
+
+    // Should have called POST /waitlist/:id/check for both entries in the 'released' section
+    expect(api.post).toHaveBeenCalledWith('/waitlist/entry-released/check');
+    expect(api.post).toHaveBeenCalledWith('/waitlist/entry-released-2/check');
+    expect(api.post).not.toHaveBeenCalledWith('/waitlist/entry-archived/check');
+
+    // Section remains expanded (click did not bubble to toggle)
+    expect(wrapper.find('[data-testid="tier-body-released"]').isVisible()).toBe(true);
+  });
 });

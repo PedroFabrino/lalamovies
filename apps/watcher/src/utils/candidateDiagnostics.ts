@@ -44,9 +44,15 @@ function meetsResolutionGate(
   if (is720p) {
     const backlog = isBacklogEpisode(tmdbReleaseDate);
     if (!backlog) return false;
+    const minSeeders = getPreferredIndexerMinSeeders();
     const higherResExists = episodeMatches.some((c) => {
       const t = c.title?.toLowerCase() ?? '';
-      return /\b(1080p|1080i|fhd|2160p|4k|uhd)\b/i.test(t);
+      if (!/\b(1080p|1080i|fhd|2160p|4k|uhd)\b/i.test(t)) return false;
+      if (c.source === 'cam' || CAM_REGEX.test(c.title)) return false;
+      if (isQualifiedPreferred(c)) {
+        return c.score >= 50 && (c.seeders ?? 0) >= minSeeders;
+      }
+      return c.score >= 100 && c.seeders >= 10;
     });
     return !higherResExists;
   }
@@ -88,7 +94,8 @@ export function evaluateCandidatesDiagnostic(
     if (CAM_REGEX.test(c.title)) return false;
 
     if (isQualifiedPreferred(c)) {
-      // Preferred Indexer: use configurable min seeders threshold
+      // Preferred Indexer: use configurable min seeders threshold, reject heavily penalized/irrelevant releases
+      if (c.score < 50) return false;
       if ((c.seeders ?? 0) < minSeeders) return false;
     } else {
       // Public indexers: require >= 10 seeders and score >= 100

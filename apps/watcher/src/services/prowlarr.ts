@@ -1,199 +1,30 @@
-import { extractEpisodeInfo } from '../utils/torrentTitleCleaner';
-import { isPreferredIndexer, isQualifiedPreferred } from '../utils/preferredIndexer';
+import { isPreferredIndexer } from '../utils/preferredIndexer';
 import { buildSeriesSearchQueries } from '../utils/seriesQueryBuilder';
+import {
+  CAM_REGEX,
+  formatBytes,
+  parseReleaseTitle,
+  scoreRelease,
+  type ReleaseCandidate,
+  type ReleaseSource,
+  type Resolution,
+  type ScoreOptions,
+  type VideoCodec,
+  isTitleRelevant,
+} from './prowlarrScoring';
 
-export type Resolution = '2160p' | '1080p' | '720p' | '480p' | 'unknown';
-export type VideoCodec = 'x265' | 'x264' | 'av1' | 'xvid' | 'unknown';
-export type ReleaseSource = 'bluray' | 'web' | 'remux' | 'hdtv' | 'cam' | 'unknown';
-
-export interface ReleaseCandidate {
-  guid: string;
-  title: string;
-  sizeBytes: number;
-  formattedSize: string;
-  seeders: number;
-  leechers: number;
-  downloadUrl: string;
-  indexer: string;
-  resolution: Resolution;
-  codec: VideoCodec;
-  source: ReleaseSource;
-  score: number;
-  isLowHealth: boolean;
-  isPreferred: boolean;
-  infoHash?: string;
-}
-
-/** Alias for ReleaseCandidate — used in diagnostics and test utilities. */
-export type ProwlarrSearchResult = ReleaseCandidate;
-
-export interface ScoreOptions {
-  mediaType?: 'movie' | 'tv_show' | 'anime';
-  isSingleEpisode?: boolean;
-  seasonNumber?: number | null;
-  episodeNumber?: number | null;
-}
-
-export const CAM_REGEX = /\b(CAM|CAMRip|TS|TELESYNC|TeleSync|HDCAM|HDTS|WORKPRINT|WP)\b/i;
-
-export function formatBytes(bytes: number): string {
-  if (bytes <= 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  const clampedIndex = Math.min(i, units.length - 1);
-  return `${(bytes / Math.pow(1024, clampedIndex)).toFixed(1)} ${units[clampedIndex]}`;
-}
-
-export function parseReleaseTitle(title: string): { resolution: Resolution; codec: VideoCodec; source: ReleaseSource } {
-  const lower = title.toLowerCase();
-
-  let resolution: Resolution = 'unknown';
-  if (/\b(2160p|4k|uhd)\b/i.test(lower)) {
-    resolution = '2160p';
-  } else if (/\b(1080p|1080i|fhd)\b/i.test(lower)) {
-    resolution = '1080p';
-  } else if (/\b(720p|hd)\b/i.test(lower)) {
-    resolution = '720p';
-  } else if (/\b(480p|576p|sd)\b/i.test(lower)) {
-    resolution = '480p';
-  }
-
-  let codec: VideoCodec = 'unknown';
-  if (/\b(x265|h\.?265|hevc)\b/i.test(lower)) {
-    codec = 'x265';
-  } else if (/\b(x264|h\.?264|avc)\b/i.test(lower)) {
-    codec = 'x264';
-  } else if (/\b(av1)\b/i.test(lower)) {
-    codec = 'av1';
-  } else if (/\b(xvid|divx)\b/i.test(lower)) {
-    codec = 'xvid';
-  }
-
-  let source: ReleaseSource = 'unknown';
-  if (CAM_REGEX.test(lower) || /\b(cam|camrip|ts|telesync|hdcam|hdts)\b/i.test(lower)) {
-    source = 'cam';
-  } else if (/\b(remux)\b/i.test(lower)) {
-    source = 'remux';
-  } else if (/\b(bluray|blu-ray|bdrip|brrip)\b/i.test(lower)) {
-    source = 'bluray';
-  } else if (/\b(web-?dl|web-?rip|web)\b/i.test(lower)) {
-    source = 'web';
-  } else if (/\b(hdtv)\b/i.test(lower)) {
-    source = 'hdtv';
-  }
-
-  return { resolution, codec, source };
-}
-
-export function scoreRelease(
-  candidate: Omit<ReleaseCandidate, 'score' | 'isLowHealth'>,
-  options?: ScoreOptions
-): { score: number; isLowHealth: boolean } {
-  let score = 0;
-
-  switch (candidate.resolution) {
-    case '1080p':
-      // Primary resolution target — ranked above 4K for series to conserve storage
-      score += 105;
-      break;
-    case '720p':
-      score += 50;
-      break;
-    case '2160p':
-      // Qualifies for auto-download (>= 100) but ranked below 1080p for episodic series
-      score += 100;
-      break;
-    case '480p':
-      score += 10;
-      break;
-    default:
-      score += 0;
-  }
-
-  if (candidate.codec === 'x265') {
-    score += 15;
-  } else if (candidate.codec === 'x264') {
-    score += 10;
-  }
-
-  if (candidate.source === 'bluray' || candidate.source === 'web') {
-    score += 10;
-  } else if (candidate.source === 'remux') {
-    score += 5;
-  } else if (candidate.source === 'cam') {
-    score -= 200;
-  }
-
-  // Season & Episode Guard
-  if (options?.seasonNumber !== undefined && options?.seasonNumber !== null) {
-    const info = extractEpisodeInfo(candidate.title);
-
-    // Explicit season mismatch
-    if (info.seasonNumber !== undefined && info.seasonNumber !== options.seasonNumber) {
-      score -= 500;
-    }
-
-    // Season pack vs Single Episode
-    if (!options.isSingleEpisode) {
-      if (info.episodeNumber !== undefined) {
-        score -= 150;
-      } else if (info.seasonNumber === options.seasonNumber) {
-        score += 30;
-      }
-    } else if (options.episodeNumber !== undefined && options.episodeNumber !== null) {
-      if (info.episodeNumber !== undefined && info.episodeNumber !== options.episodeNumber) {
-        score -= 500;
-      } else if (info.episodeNumber === options.episodeNumber) {
-        score += 30;
-      }
-    }
-  }
-
-  const GB = 1024 * 1024 * 1024;
-  const MB = 1024 * 1024;
-
-  if (options?.isSingleEpisode) {
-    if (candidate.sizeBytes <= 1.5 * GB) {
-      score += 20;
-    } else if (candidate.sizeBytes > 2 * GB && candidate.sizeBytes <= 4 * GB) {
-      score -= 80;
-    } else if (candidate.sizeBytes > 4 * GB) {
-      score -= 150;
-    } else if (candidate.sizeBytes < 100 * MB) {
-      score -= 50;
-    }
-  } else if (options?.mediaType === 'tv_show' || options?.mediaType === 'anime') {
-    if (candidate.sizeBytes >= 3 * GB && candidate.sizeBytes <= 20 * GB) {
-      score += 20;
-    } else if (candidate.sizeBytes > 25 * GB && candidate.sizeBytes <= 40 * GB) {
-      score -= 80;
-    } else if (candidate.sizeBytes > 40 * GB) {
-      score -= 150;
-    } else if (candidate.sizeBytes < 1 * GB) {
-      score -= 50;
-    }
-  } else {
-    if (candidate.sizeBytes >= 1.5 * GB && candidate.sizeBytes <= 8 * GB) {
-      score += 20;
-    } else if (candidate.sizeBytes > 10 * GB && candidate.sizeBytes <= 20 * GB) {
-      score -= 80;
-    } else if (candidate.sizeBytes > 20 * GB) {
-      score -= 150;
-    } else if (candidate.sizeBytes < 500 * MB) {
-      score -= 50;
-    }
-  }
-
-  score += Math.min(candidate.seeders, 50);
-
-  if (isQualifiedPreferred(candidate)) {
-    score += 300;
-  }
-
-  const isLowHealth = candidate.seeders < 5;
-
-  return { score, isLowHealth };
-}
+export {
+  CAM_REGEX,
+  formatBytes,
+  parseReleaseTitle,
+  scoreRelease,
+  isTitleRelevant,
+  type ReleaseCandidate,
+  type ReleaseSource,
+  type Resolution,
+  type ScoreOptions,
+  type VideoCodec,
+};
 
 export interface WatcherProwlarrOptions {
   prowlarrUrl?: string;
@@ -323,19 +154,28 @@ export class WatcherProwlarrService {
     targetEpisode?: number | null;
     englishTitle?: string | null;
     romajiTitle?: string | null;
+    aliases?: string[];
   }): Promise<ReleaseCandidate[]> {
     if (!this.isConfigured()) {
       return [];
     }
 
-    const { mediaType, title, year, seasonNumber, targetEpisode, englishTitle, romajiTitle } = entry;
+    const { mediaType, title, year, seasonNumber, targetEpisode, englishTitle, romajiTitle, aliases } = entry;
     const isSingleEpisode = targetEpisode !== undefined && targetEpisode !== null;
     const effectiveSeason = seasonNumber ?? (mediaType !== 'movie' ? 1 : null);
+    const mergedAliases = [
+      romajiTitle,
+      englishTitle,
+      ...(aliases || []),
+    ].filter((t): t is string => Boolean(t && t.trim().length > 0));
+
     const scoreOptions: ScoreOptions = {
       mediaType,
       isSingleEpisode,
       seasonNumber: effectiveSeason,
       episodeNumber: targetEpisode ?? null,
+      title,
+      aliases: mergedAliases,
     };
 
     let allCandidates: ReleaseCandidate[] = [];
@@ -380,11 +220,6 @@ export class WatcherProwlarrService {
     allCandidates = Array.from(candidateMap.values());
 
     allCandidates.sort((a, b) => b.score - a.score);
-
-    // When PREFERRED_INDEXER_REGEX is configured, filter candidates to preferred only
-    if (process.env.PREFERRED_INDEXER_REGEX?.trim()) {
-      return allCandidates.filter((c) => c.isPreferred);
-    }
 
     return allCandidates;
   }

@@ -2,7 +2,11 @@ import cron, { ScheduledTask } from 'node-cron';
 import { eq } from 'drizzle-orm';
 import { WatcherDatabase } from '../db';
 import { watchRequests, WatchRequest, waitlistCoRequesters } from '../db/schema';
-import { deleteDiscordMessage, sendWaitlistErrorNotification } from '../services/notifications';
+import {
+  deleteDiscordMessage,
+  sendWaitlistAutoDownloadNotification,
+  sendWaitlistErrorNotification,
+} from '../services/notifications';
 import { EpisodicTrackingService } from '../services/episodicTracking';
 import { executeEpisodicWaterfall } from '../services/episodicWaterfall';
 import type { WatcherPoller } from './watcherPoller';
@@ -27,6 +31,11 @@ export interface AutoDownloadSubmitterOptions {
   logger?: AutoDownloadSubmitterLogger;
 }
 
+export interface SubmitEntryOptions {
+  fromWaterfall?: boolean;
+  sendStartedNotification?: boolean;
+}
+
 export class AutoDownloadSubmitter {
   private db: WatcherDatabase;
   private mainApiUrl: string;
@@ -41,6 +50,7 @@ export class AutoDownloadSubmitter {
   private logger?: AutoDownloadSubmitterLogger;
   private task: ScheduledTask | null = null;
   private isSubmitting = false;
+  private activeEntryIds = new Set<string>();
 
   constructor(options: AutoDownloadSubmitterOptions) {
     this.db = options.db;
@@ -67,6 +77,14 @@ export class AutoDownloadSubmitter {
       });
   }
 
+  setPoller(poller: WatcherPoller): void {
+    this.poller = poller;
+  }
+
+  isEntrySubmitting(entryId: string): boolean {
+    return this.activeEntryIds.has(entryId);
+  }
+
   async submitOnce(): Promise<{ checked: number; triggered: number; failed: number }> {
     if (this.isSubmitting) {
       this.logger?.info('Auto-download submitter: tick skipped, previous run in progress.');
@@ -87,7 +105,6 @@ export class AutoDownloadSubmitter {
 
       const now = Date.now();
 
-      // Filter entries whose grace window has expired: notify_at + graceHours <= now
       const dueEntries = notifiedEntries.filter((entry) => {
         if (!entry.notifyAt) return false;
         const notifyTime = new Date(entry.notifyAt).getTime();
@@ -118,51 +135,62 @@ export class AutoDownloadSubmitter {
     }
   }
 
-  async submitEntry(entry: WatchRequest): Promise<{ success: boolean; error?: string }> {
+  async submitEntry(
+    entry: WatchRequest,
+    options?: SubmitEntryOptions
+  ): Promise<{ success: boolean; alreadyExisted?: boolean; error?: string }> {
+    if (this.activeEntryIds.has(entry.id)) {
+      this.logger?.info(`AutoDownloadSubmitter: Entry "${entry.title}" (${entry.id}) already submitting, skipping.`);
+      return { success: false, error: 'Submission already in progress' };
+    }
+
     if (!entry.prowlarrReleaseMagnet) {
       this.logger?.warn(`AutoDownloadSubmitter: Entry "${entry.title}" (${entry.id}) has no prowlarr release magnet.`);
       return { success: false, error: 'No release magnet available' };
     }
 
-    const targetUrl = `${this.mainApiUrl}/requests`;
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (this.serviceApiKey) {
-      headers['x-service-key'] = this.serviceApiKey;
-    }
-    if (entry.userId) {
-      headers['x-user-id'] = entry.userId;
-    }
-
-    const coReqRows = this.db
-      .select({ userId: waitlistCoRequesters.userId })
-      .from(waitlistCoRequesters)
-      .where(eq(waitlistCoRequesters.waitlistId, entry.id))
-      .all();
-    const coRequesterUserIds = coReqRows.map((r) => r.userId);
-
-    const requestBody = {
-      magnetLink: entry.prowlarrReleaseMagnet,
-      mediaType: entry.mediaType,
-      metadataId: entry.metadataId,
-      metadataSource: entry.metadataSource,
-      title: entry.title,
-      year: entry.year ?? undefined,
-      seasonNumber: entry.seasonNumber ?? undefined,
-      episodeNumber: entry.targetEpisode ?? undefined,
-      coRequesterUserIds: coRequesterUserIds.length > 0 ? coRequesterUserIds : undefined,
-    };
-
+    this.activeEntryIds.add(entry.id);
     try {
+      const targetUrl = `${this.mainApiUrl}/requests`;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (this.serviceApiKey) {
+        headers['x-service-key'] = this.serviceApiKey;
+      }
+      if (entry.userId) {
+        headers['x-user-id'] = entry.userId;
+      }
+
+      const coReqRows = this.db
+        .select({ userId: waitlistCoRequesters.userId })
+        .from(waitlistCoRequesters)
+        .where(eq(waitlistCoRequesters.waitlistId, entry.id))
+        .all();
+      const coRequesterUserIds = coReqRows.map((r) => r.userId);
+
+      const requestBody = {
+        magnetLink: entry.prowlarrReleaseMagnet,
+        mediaType: entry.mediaType,
+        metadataId: entry.metadataId,
+        metadataSource: entry.metadataSource,
+        title: entry.title,
+        year: entry.year ?? undefined,
+        seasonNumber: entry.seasonNumber ?? undefined,
+        episodeNumber: entry.targetEpisode ?? undefined,
+        coRequesterUserIds: coRequesterUserIds.length > 0 ? coRequesterUserIds : undefined,
+      };
+
       const res = await fetch(targetUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody),
       });
 
-      if (res.status === 201) {
-        // Delete Discord message if it exists
+      // Both 201 (newly created) and 200 (isExisting: true — already requested/downloaded) are completed
+      if (res.status === 201 || res.status === 200) {
+        const alreadyExisted = res.status === 200;
+
         if (entry.discordMessageId) {
           await deleteDiscordMessage(
             entry.discordMessageId,
@@ -171,20 +199,42 @@ export class AutoDownloadSubmitter {
           );
         }
 
+        if (!alreadyExisted && options?.sendStartedNotification && entry.prowlarrReleaseTitle) {
+          await sendWaitlistAutoDownloadNotification({
+            id: entry.id,
+            title: entry.title,
+            year: entry.year,
+            seasonNumber: entry.seasonNumber,
+            targetEpisode: entry.targetEpisode,
+            releaseTitle: entry.prowlarrReleaseTitle,
+            score: entry.prowlarrReleaseScore ?? 0,
+            posterUrl: entry.posterUrl,
+            webhookUrl: this.webhookUrl,
+            logger: this.logger,
+          });
+        }
+
         const newTriggeredCount = (entry.triggeredCount || 0) + 1;
+
+        if (options?.fromWaterfall) {
+          // Inside executeEpisodicWaterfall: the waterfall loop handles advanceEntry on the next iteration
+          this.logger?.info(
+            `AutoDownloadSubmitter: Waterfall submitted "${entry.title}" E${entry.targetEpisode ?? '?'} (HTTP ${res.status}).`
+          );
+          return { success: true, alreadyExisted };
+        }
 
         if (entry.mediaType === 'tv_show' || entry.mediaType === 'anime') {
           const advancedEntry = await this.episodicService.advanceEntry(entry.id, newTriggeredCount);
 
-          // Invoke waterfall to chain subsequent episodes if poller is available
           if (this.poller && advancedEntry) {
             setImmediate(() => {
               executeEpisodicWaterfall({
                 entryId: entry.id,
                 initialEntry: advancedEntry,
-                skipFirstAdvance: true, // advancedEntry is already at the next episode
+                skipFirstAdvance: true,
                 advance: (eid) => this.episodicService.advanceOrCompleteEntry(eid),
-                poll: (e) => this.poller!.pollEntry(e),
+                poll: (e) => this.poller!.pollEntry(e, { fromWaterfall: true }),
                 logger: this.logger,
               }).catch((err) => {
                 this.logger?.error(`AutoDownloadSubmitter: Waterfall failed for entry ${entry.id}:`, err);
@@ -206,94 +256,67 @@ export class AutoDownloadSubmitter {
             .run();
         }
 
-        this.logger?.info(`AutoDownloadSubmitter: Successfully triggered auto-download for "${entry.title}" (HTTP 201).`);
-        return { success: true };
-      } else {
-        // Main API returned 4xx or 5xx error
-        const errorText = await res.text();
-        this.logger?.error(`AutoDownloadSubmitter: POST /requests failed for "${entry.title}" (${entry.id}) with status ${res.status}: ${errorText}`);
-
-        const newFailureCount = (entry.failureCount || 0) + 1;
-        const nowIso = new Date().toISOString();
-
-        if (newFailureCount >= 3) {
-          // 3 consecutive failures: transition to error status and send admin notification
-          await sendWaitlistErrorNotification({
-            id: entry.id,
-            title: entry.title,
-            year: entry.year,
-            mediaType: entry.mediaType,
-            errorMessage: `HTTP ${res.status}: ${errorText}`,
-            webhookUrl: this.webhookUrl,
-            adminRoleMention: this.adminRoleMention,
-            logger: this.logger,
-          });
-
-          this.db
-            .update(watchRequests)
-            .set({
-              status: 'error',
-              failureCount: newFailureCount,
-              updatedAt: nowIso,
-            })
-            .where(eq(watchRequests.id, entry.id))
-            .run();
-
-          this.logger?.error(`AutoDownloadSubmitter: Entry "${entry.title}" reached 3 failures -> transitioned to 'error' status.`);
-        } else {
-          // Less than 3 failures: stay notified, increment failureCount, retry on next cycle
-          this.db
-            .update(watchRequests)
-            .set({
-              failureCount: newFailureCount,
-              updatedAt: nowIso,
-            })
-            .where(eq(watchRequests.id, entry.id))
-            .run();
-        }
-
-        return { success: false, error: `HTTP ${res.status}: ${errorText}` };
+        this.logger?.info(
+          `AutoDownloadSubmitter: Successfully processed "${entry.title}" (HTTP ${res.status}${alreadyExisted ? ', already existed' : ''}).`
+        );
+        return { success: true, alreadyExisted };
       }
+
+      const errorText = await res.text();
+      return await this.recordFailure(entry, `HTTP ${res.status}: ${errorText}`);
     } catch (fetchErr) {
-      // Network or unexpected error
       this.logger?.error(`AutoDownloadSubmitter: Network exception calling Main API for "${entry.title}":`, fetchErr);
-      const newFailureCount = (entry.failureCount || 0) + 1;
-      const nowIso = new Date().toISOString();
-
-      if (newFailureCount >= 3) {
-        await sendWaitlistErrorNotification({
-          id: entry.id,
-          title: entry.title,
-          year: entry.year,
-          mediaType: entry.mediaType,
-          errorMessage: (fetchErr as Error).message || 'Network exception',
-          webhookUrl: this.webhookUrl,
-          adminRoleMention: this.adminRoleMention,
-          logger: this.logger,
-        });
-
-        this.db
-          .update(watchRequests)
-          .set({
-            status: 'error',
-            failureCount: newFailureCount,
-            updatedAt: nowIso,
-          })
-          .where(eq(watchRequests.id, entry.id))
-          .run();
-      } else {
-        this.db
-          .update(watchRequests)
-          .set({
-            failureCount: newFailureCount,
-            updatedAt: nowIso,
-          })
-          .where(eq(watchRequests.id, entry.id))
-          .run();
-      }
-
-      return { success: false, error: (fetchErr as Error).message || 'Network exception' };
+      return await this.recordFailure(entry, (fetchErr as Error).message || 'Network exception');
+    } finally {
+      this.activeEntryIds.delete(entry.id);
     }
+  }
+
+  private async recordFailure(
+    entry: WatchRequest,
+    errorMessage: string
+  ): Promise<{ success: boolean; error: string }> {
+    this.logger?.error(`AutoDownloadSubmitter: POST /requests failed for "${entry.title}" (${entry.id}): ${errorMessage}`);
+    const newFailureCount = (entry.failureCount || 0) + 1;
+    const nowIso = new Date().toISOString();
+
+    if (newFailureCount >= 3) {
+      await sendWaitlistErrorNotification({
+        id: entry.id,
+        title: entry.title,
+        year: entry.year,
+        mediaType: entry.mediaType,
+        errorMessage,
+        webhookUrl: this.webhookUrl,
+        adminRoleMention: this.adminRoleMention,
+        logger: this.logger,
+      });
+
+      this.db
+        .update(watchRequests)
+        .set({
+          status: 'error',
+          failureCount: newFailureCount,
+          lastCheckResult: `Auto-download failed (${errorMessage}) — will retry on next poll`,
+          updatedAt: nowIso,
+        })
+        .where(eq(watchRequests.id, entry.id))
+        .run();
+
+      this.logger?.error(`AutoDownloadSubmitter: Entry "${entry.title}" reached 3 failures -> transitioned to 'error' status.`);
+    } else {
+      this.db
+        .update(watchRequests)
+        .set({
+          failureCount: newFailureCount,
+          lastCheckResult: `Auto-download retry ${newFailureCount}/3 (${errorMessage})`,
+          updatedAt: nowIso,
+        })
+        .where(eq(watchRequests.id, entry.id))
+        .run();
+    }
+
+    return { success: false, error: errorMessage };
   }
 
   start(): void {
@@ -302,17 +325,16 @@ export class AutoDownloadSubmitter {
       try {
         await this.submitOnce();
       } catch (err) {
-        this.logger?.error('Auto-download submitter: unhandled error in cron job:', err);
+        this.logger?.error('AutoDownloadSubmitter: unhandled error in cron job:', err);
       }
     });
-    this.logger?.info(`Auto-download submitter started with schedule: ${this.schedule}`);
+    this.logger?.info(`Auto-download submitter scheduled (${this.schedule})`);
   }
 
   stop(): void {
     if (this.task) {
       this.task.stop();
       this.task = null;
-      this.logger?.info('Auto-download submitter stopped.');
     }
   }
 }

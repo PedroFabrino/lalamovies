@@ -10,13 +10,14 @@ export interface SeriesQueryOptions {
   englishTitle?: string | null;
   romajiTitle?: string | null;
   seasonName?: string | null;
+  aliases?: string[];
 }
 
 export function hasCjkCharacters(s?: string | null): boolean {
   return Boolean(s && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]/.test(s));
 }
 
-/** Expand slash/vulgar-fraction titles so "Ranma 1/2" also searches "Ranma 1-2" / "Ranma 1 2". */
+/** Expand slash/vulgar-fraction and punctuation-heavy titles into clean search variants. */
 export function expandTitleVariants(title: string): string[] {
   const trimmed = title.trim();
   if (!trimmed) return [];
@@ -27,6 +28,12 @@ export function expandTitleVariants(title: string): string[] {
   }
   if (trimmed.includes('/')) {
     variants.push(trimmed.replace(/\//g, '-'), trimmed.replace(/\//g, ' '), trimmed.replace(/\//g, '.'));
+  }
+  if (/[,!?]/.test(trimmed)) {
+    const dePunctuated = trimmed.replace(/[,!?]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (dePunctuated && dePunctuated.toLowerCase() !== trimmed.toLowerCase()) {
+      variants.push(dePunctuated);
+    }
   }
   return variants;
 }
@@ -52,6 +59,7 @@ export function buildSeriesSearchQueries(options: SeriesQueryOptions): SeriesQue
     options.seasonName,
     options.seasonName && options.title ? `${options.title} ${options.seasonName}` : undefined,
     options.title,
+    ...(options.aliases || []),
   ].filter((t): t is string => Boolean(t && t.trim().length > 0));
 
   const latinTitles = rawList.filter((t) => !hasCjkCharacters(t));

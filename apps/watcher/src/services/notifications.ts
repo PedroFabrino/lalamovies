@@ -201,6 +201,65 @@ export async function sendWaitlistNotification(
   }
 }
 
+export interface SendWaitlistAutoDownloadNotificationOptions {
+  id: string;
+  title: string;
+  year?: number | null;
+  seasonNumber?: number | null;
+  targetEpisode?: number | null;
+  releaseTitle: string;
+  score: number;
+  posterUrl?: string | null;
+  webhookUrl?: string;
+  requesterMention?: string | null;
+  logger?: { warn: (msg: string) => void; error?: (msg: string, err?: unknown) => void };
+}
+
+export async function sendWaitlistAutoDownloadNotification(
+  options: SendWaitlistAutoDownloadNotificationOptions
+): Promise<boolean> {
+  const webhookUrl =
+    options.webhookUrl || process.env.WAITLIST_DISCORD_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL;
+  if (!webhookUrl || !webhookUrl.trim()) {
+    return false;
+  }
+
+  const { id, title, year, seasonNumber, targetEpisode, releaseTitle, score, posterUrl } = options;
+  const sPad = seasonNumber != null ? `S${String(seasonNumber).padStart(2, '0')}` : '';
+  const ePad = targetEpisode != null ? `E${String(targetEpisode).padStart(2, '0')}` : '';
+  const epSuffix = sPad || ePad ? ` ${sPad}${ePad}` : '';
+  const titleText = `${year ? `${title} (${year})` : title}${epSuffix}`;
+  const mentionText = options.requesterMention ? `${options.requesterMention} ` : '';
+
+  const embed = {
+    title: `Waitlist Auto-Download Started: ${titleText}`,
+    description: 'A qualifying release was found and automatically queued for download.',
+    color: 0x22c55e,
+    fields: [
+      { name: 'Release', value: releaseTitle, inline: false },
+      { name: 'Score', value: `${score}`, inline: true },
+    ],
+    thumbnail: posterUrl ? { url: posterUrl } : undefined,
+    timestamp: new Date().toISOString(),
+    footer: { text: 'Media Download Manager — Waitlist' },
+  };
+
+  try {
+    const res = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content: `${mentionText}**[Waitlist]** Auto-download started for **${titleText}**!`,
+        embeds: [embed],
+      }),
+    });
+    return res.ok;
+  } catch (err) {
+    options.logger?.warn(`Failed to send Discord auto-download notification for ${id}: ${(err as Error).message}`);
+    return false;
+  }
+}
+
 export interface SendWaitlistErrorNotificationOptions {
   id: string;
   title: string;

@@ -5,8 +5,11 @@ import { watchRequests, WatchRequest } from '../db/schema';
 import { WatcherProwlarrService } from '../services/prowlarr';
 import { sendWaitlistNotification, deleteDiscordMessage } from '../services/notifications';
 import { ReleaseGatingService } from '../services/releaseGating';
+import { resolveTitleAliases } from '../services/titleAliasResolver';
 import { computeGraceHours } from '../utils/gracePeriod';
 import { evaluateCandidatesDiagnostic } from '../utils/candidateDiagnostics';
+import { isQualifiedPreferred } from '../utils/preferredIndexer';
+import type { AutoDownloadSubmitter } from './autoDownloadSubmitter';
 
 export interface WatcherPollerLogger {
   info: (msg: string | object, ...args: unknown[]) => void;
@@ -17,6 +20,7 @@ export interface WatcherPollerLogger {
 export interface WatcherPollerOptions {
   db: WatcherDatabase;
   prowlarrService: WatcherProwlarrService;
+  submitter?: AutoDownloadSubmitter;
   pollIntervalHours?: number;
   schedule?: string;
   magicLinkSecret?: string;
@@ -33,9 +37,14 @@ export interface WatcherPollerOptions {
   isWaitlistEnabled?: () => Promise<boolean> | boolean;
 }
 
+export interface PollEntryOptions {
+  fromWaterfall?: boolean;
+}
+
 export class WatcherPoller {
   private db: WatcherDatabase;
   private prowlarr: WatcherProwlarrService;
+  private submitter?: AutoDownloadSubmitter;
   private logger?: WatcherPollerLogger;
   private schedule: string;
   private magicLinkSecret?: string;
@@ -55,15 +64,20 @@ export class WatcherPoller {
   constructor(options: WatcherPollerOptions) {
     this.db = options.db;
     this.prowlarr = options.prowlarrService;
+    this.submitter = options.submitter;
     this.logger = options.logger;
     this.magicLinkSecret = options.magicLinkSecret;
     this.webhookUrl = options.webhookUrl;
     this.frontendUrl = options.frontendUrl;
     this.tmdbApiKey = options.tmdbApiKey || process.env.TMDB_API_KEY;
     this.graceHours = options.graceHours || Number(process.env.NOTIFY_GRACE_HOURS) || 6;
-    this.movieGraceHours = options.movieGraceHours ?? (process.env.MOVIE_GRACE_HOURS !== undefined ? Number(process.env.MOVIE_GRACE_HOURS) : 6);
-    this.episodeGraceHours = options.episodeGraceHours ?? (process.env.EPISODE_GRACE_HOURS !== undefined ? Number(process.env.EPISODE_GRACE_HOURS) : 0);
-    this.newReleaseThresholdDays = options.newReleaseThresholdDays ?? (process.env.NEW_RELEASE_THRESHOLD_DAYS !== undefined ? Number(process.env.NEW_RELEASE_THRESHOLD_DAYS) : 30);
+    this.movieGraceHours =
+      options.movieGraceHours ?? (process.env.MOVIE_GRACE_HOURS !== undefined ? Number(process.env.MOVIE_GRACE_HOURS) : 6);
+    this.episodeGraceHours =
+      options.episodeGraceHours ?? (process.env.EPISODE_GRACE_HOURS !== undefined ? Number(process.env.EPISODE_GRACE_HOURS) : 0);
+    this.newReleaseThresholdDays =
+      options.newReleaseThresholdDays ??
+      (process.env.NEW_RELEASE_THRESHOLD_DAYS !== undefined ? Number(process.env.NEW_RELEASE_THRESHOLD_DAYS) : 30);
     this.releaseGating =
       options.releaseGatingService ??
       (options.tmdbApiKey
@@ -83,6 +97,10 @@ export class WatcherPoller {
     const rawUrl = options.mainApiUrl || process.env.MAIN_API_URL;
     this.mainApiUrl = rawUrl ? rawUrl.replace(/\/+$/, '') : undefined;
     this.isWaitlistEnabledChecker = options.isWaitlistEnabled;
+  }
+
+  setSubmitter(submitter: AutoDownloadSubmitter): void {
+    this.submitter = submitter;
   }
 
   private async checkWaitlistEnabled(): Promise<boolean> {
@@ -106,23 +124,32 @@ export class WatcherPoller {
     }
   }
 
-  private async resolveAlternateTitles(entry: { mediaType: string; metadataId?: string | null; title: string }): Promise<{ englishTitle?: string; romajiTitle?: string }> {
-    if (entry.mediaType !== 'anime' || !entry.metadataId || !this.tmdbApiKey) {
-      return {};
-    }
-    try {
-      const res = await fetch(`https://api.themoviedb.org/3/tv/${encodeURIComponent(entry.metadataId)}?api_key=${this.tmdbApiKey}`, {
-        headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(3000),
-      });
-      if (!res.ok) return {};
-      const data = (await res.json()) as { name?: string; original_name?: string };
-      return {
-        englishTitle: data.name && data.name.trim() !== entry.title.trim() ? data.name.trim() : undefined,
-        romajiTitle: data.original_name && data.original_name.trim() !== entry.title.trim() ? data.original_name.trim() : undefined,
-      };
-    } catch {
-      return {};
+  /**
+   * Self-heals entries that transitioned to `status = 'error'` during a transient
+   * outage or disk-space gate so the next poll cycle retries them automatically.
+   */
+  private healTransientErrors(): void {
+    const errorEntries = this.db
+      .select()
+      .from(watchRequests)
+      .where(eq(watchRequests.status, 'error'))
+      .all();
+
+    if (errorEntries.length === 0) return;
+
+    const now = new Date().toISOString();
+    for (const entry of errorEntries) {
+      this.db
+        .update(watchRequests)
+        .set({
+          status: 'checking',
+          failureCount: 0,
+          notifyAt: null,
+          updatedAt: now,
+        })
+        .where(eq(watchRequests.id, entry.id))
+        .run();
+      this.logger?.info(`WatcherPoller: Self-healed entry "${entry.title}" (${entry.id}) from 'error' -> 'checking'.`);
     }
   }
 
@@ -139,6 +166,9 @@ export class WatcherPoller {
         this.logger?.info('Watcher poller: waitlist feature disabled by kill switch, sleeping polling loop.');
         return { polled: 0, notified: 0 };
       }
+
+      this.healTransientErrors();
+
       const checkingEntries = this.db
         .select()
         .from(watchRequests)
@@ -168,10 +198,19 @@ export class WatcherPoller {
     }
   }
 
-  async pollEntry(entry: WatchRequest): Promise<{ notified: boolean; diagnostic: string }> {
-    const alternateTitles = entry.mediaType === 'anime' && entry.metadataId && this.tmdbApiKey
-      ? await this.resolveAlternateTitles(entry)
-      : {};
+  async pollEntry(
+    entry: WatchRequest,
+    options?: PollEntryOptions
+  ): Promise<{ notified: boolean; triggered?: boolean; diagnostic: string }> {
+    if (this.submitter?.isEntrySubmitting(entry.id)) {
+      return { notified: false, diagnostic: 'Submission already in progress' };
+    }
+
+    const alternateTitles =
+      (entry.mediaType === 'anime' || entry.mediaType === 'tv_show') && entry.metadataId && this.tmdbApiKey
+        ? await resolveTitleAliases(entry, this.tmdbApiKey)
+        : { aliases: [] };
+
     const candidates = await this.prowlarr.searchForEntry({
       mediaType: entry.mediaType,
       title: entry.title,
@@ -180,6 +219,7 @@ export class WatcherPoller {
       targetEpisode: entry.targetEpisode,
       englishTitle: alternateTitles.englishTitle,
       romajiTitle: alternateTitles.romajiTitle,
+      aliases: alternateTitles.aliases,
     });
 
     const { qualifying, diagnostic } = evaluateCandidatesDiagnostic(entry, candidates);
@@ -210,31 +250,73 @@ export class WatcherPoller {
 
     let graceOverrideHours = entry.graceOverrideHours;
     if (graceOverrideHours === null || graceOverrideHours === undefined) {
-      try {
-        if (this.releaseGating) {
-          const fetchedDate = await this.releaseGating.fetchReleaseDate(
-            entry.mediaType as 'movie' | 'tv_show' | 'anime',
-            entry.metadataId,
-            entry.seasonNumber,
-            entry.targetEpisode
-          );
-          if (fetchedDate) {
-            graceOverrideHours = computeGraceHours(entry.mediaType, fetchedDate, {
-              movieGraceHours: this.movieGraceHours,
-              episodeGraceHours: this.episodeGraceHours,
-              thresholdDays: this.newReleaseThresholdDays,
-            });
+      if (isQualifiedPreferred(winner)) {
+        graceOverrideHours = 0;
+      } else {
+        try {
+          if (this.releaseGating) {
+            const fetchedDate = await this.releaseGating.fetchReleaseDate(
+              entry.mediaType as 'movie' | 'tv_show' | 'anime',
+              entry.metadataId,
+              entry.seasonNumber,
+              entry.targetEpisode
+            );
+            if (fetchedDate) {
+              graceOverrideHours = computeGraceHours(entry.mediaType, fetchedDate, {
+                movieGraceHours: this.movieGraceHours,
+                episodeGraceHours: this.episodeGraceHours,
+                thresholdDays: this.newReleaseThresholdDays,
+              });
+            } else {
+              this.logger?.warn(`TMDB release date not found for "${entry.title}", defaulting grace to ${this.episodeGraceHours}h`);
+              graceOverrideHours = this.episodeGraceHours;
+            }
           } else {
-            this.logger?.warn(`TMDB release date not found for "${entry.title}", defaulting grace to ${this.episodeGraceHours}h`);
+            this.logger?.warn(`No release gating service available to fetch TMDB date for "${entry.title}", defaulting grace to ${this.episodeGraceHours}h`);
             graceOverrideHours = this.episodeGraceHours;
           }
-        } else {
-          this.logger?.warn(`No release gating service available to fetch TMDB date for "${entry.title}", defaulting grace to ${this.episodeGraceHours}h`);
+        } catch (err) {
+          this.logger?.warn(`Failed to fetch TMDB release date for "${entry.title}": ${(err as Error).message}`);
           graceOverrideHours = this.episodeGraceHours;
         }
-      } catch (err) {
-        this.logger?.warn(`Failed to fetch TMDB release date for "${entry.title}": ${(err as Error).message}`);
-        graceOverrideHours = this.episodeGraceHours;
+      }
+    }
+
+    const effectiveGraceHours = graceOverrideHours ?? this.graceHours;
+
+    // Zero-grace immediate execution: submit right away without sending "Auto-downloading in 0 hours" prompt
+    if (effectiveGraceHours === 0 && this.submitter) {
+      this.db
+        .update(watchRequests)
+        .set({
+          status: 'notified',
+          prowlarrReleaseTitle: winner.title,
+          prowlarrReleaseMagnet: winner.downloadUrl,
+          prowlarrReleaseScore: winner.score,
+          notifyAt: now,
+          updatedAt: now,
+          graceOverrideHours: 0,
+          lastCheckResult: diagnostic,
+        })
+        .where(eq(watchRequests.id, entry.id))
+        .run();
+
+      const updatedEntry = this.db
+        .select()
+        .from(watchRequests)
+        .where(eq(watchRequests.id, entry.id))
+        .get();
+
+      if (updatedEntry) {
+        const submitResult = await this.submitter.submitEntry(updatedEntry, {
+          fromWaterfall: options?.fromWaterfall,
+          sendStartedNotification: true,
+        });
+        return {
+          notified: true,
+          triggered: submitResult.success,
+          diagnostic,
+        };
       }
     }
 
@@ -261,7 +343,7 @@ export class WatcherPoller {
           secret,
           webhookUrl: this.webhookUrl,
           frontendUrl: this.frontendUrl,
-          graceHours: graceOverrideHours ?? this.graceHours,
+          graceHours: effectiveGraceHours,
           logger: this.logger,
         });
       } catch (err) {
@@ -286,7 +368,7 @@ export class WatcherPoller {
       .run();
 
     this.logger?.info(`Watcher: found qualifying release for "${entry.title}" (score: ${winner.score}, seeders: ${winner.seeders}). Status -> notified.`);
-    return { notified: true, diagnostic };
+    return { notified: true, triggered: false, diagnostic };
   }
 
   start(): void {
@@ -298,19 +380,13 @@ export class WatcherPoller {
         this.logger?.error('Watcher poller: unhandled error in cron job:', err);
       }
     });
-    this.logger?.info(`Watcher poller started with schedule: ${this.schedule}`);
-
-    // Trigger initial check asynchronously on startup
-    this.pollOnce().catch((err) => {
-      this.logger?.error('Watcher poller: initial startup poll failed:', err);
-    });
+    this.logger?.info(`Watcher poller scheduled (${this.schedule})`);
   }
 
   stop(): void {
     if (this.task) {
       this.task.stop();
       this.task = null;
-      this.logger?.info('Watcher poller stopped.');
     }
   }
 }

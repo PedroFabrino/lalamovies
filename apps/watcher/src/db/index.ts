@@ -102,6 +102,22 @@ export function initWatcherDatabase(dbPath?: string): { db: WatcherDatabase; sql
     // Column already exists
   }
 
+  // Startup self-healing: recover any entries stuck in 'error' back to 'checking'
+  if (targetPath !== ':memory:') {
+    try {
+      sqlite.exec(`
+        UPDATE watch_requests
+        SET status = 'checking',
+            failure_count = 0,
+            notify_at = NULL,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE status = 'error';
+      `);
+    } catch {
+      // Non-fatal
+    }
+  }
+
   const db = drizzle(sqlite, { schema });
 
   return { db, sqlite };

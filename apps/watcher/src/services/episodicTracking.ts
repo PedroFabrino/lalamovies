@@ -139,12 +139,19 @@ export class EpisodicTrackingService {
         this.logger?.warn(
           `EpisodicTracking: TMDB fetch failed for ${entry.title} (season HTTP ${seasonRes.status}, show HTTP ${showRes.status})`
         );
+        const fallbackStatus = entry.targetEpisode != null ? 'checking' : 'triggered';
+        const fallbackTarget = entry.targetEpisode != null ? entry.targetEpisode + 1 : entry.targetEpisode;
         this.db
           .update(watchRequests)
           .set({
-            status: 'triggered',
+            status: fallbackStatus,
+            targetEpisode: fallbackTarget,
             triggeredCount: newTriggeredCount,
             failureCount: 0,
+            notifyAt: null,
+            prowlarrReleaseTitle: null,
+            prowlarrReleaseMagnet: null,
+            prowlarrReleaseScore: null,
             discordMessageId: null,
             updatedAt: now,
           })
@@ -239,12 +246,19 @@ export class EpisodicTrackingService {
       return this.db.select().from(watchRequests).where(eq(watchRequests.id, entry.id)).get() || null;
     } catch (err) {
       this.logger?.error(`EpisodicTracking: error advancing episodic tracking for "${entry.title}":`, err);
+      const fallbackStatus = entry.targetEpisode != null ? 'checking' : 'triggered';
+      const fallbackTarget = entry.targetEpisode != null ? entry.targetEpisode + 1 : entry.targetEpisode;
       this.db
         .update(watchRequests)
         .set({
-          status: 'triggered',
+          status: fallbackStatus,
+          targetEpisode: fallbackTarget,
           triggeredCount: newTriggeredCount,
           failureCount: 0,
+          notifyAt: null,
+          prowlarrReleaseTitle: null,
+          prowlarrReleaseMagnet: null,
+          prowlarrReleaseScore: null,
           discordMessageId: null,
           updatedAt: now,
         })

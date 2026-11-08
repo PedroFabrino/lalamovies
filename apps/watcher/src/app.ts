@@ -56,8 +56,9 @@ declare module 'fastify' {
 }
 
 export function buildWatcherApp(options: WatcherAppOptions = {}): FastifyInstance {
+  const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
   const app = Fastify({
-    logger: false,
+    logger: !isTestEnv,
   });
 
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -170,6 +171,10 @@ export function buildWatcherApp(options: WatcherAppOptions = {}): FastifyInstanc
         error: (msg, err) => app.log.error(err, msg),
       },
     });
+
+  if (options.startSubmitter || options.autoDownloadSubmitter) {
+    poller.setSubmitter(submitter);
+  }
 
   if (options.startSubmitter) {
     submitter.start();
